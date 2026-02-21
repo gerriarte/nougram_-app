@@ -178,7 +178,11 @@ export async function apiRequest<T>(
   retry: boolean = true,
   currency?: string  // Opcional: moneda para transformación si no viene en la respuesta
 ): Promise<ApiResponse<T>> {
-  if (retry) {
+  const method = (options.method || 'GET').toUpperCase();
+  // Never retry non-idempotent requests to avoid duplicate creates/updates.
+  const shouldRetry = retry && method === 'GET';
+
+  if (shouldRetry) {
     return retryRequest(endpoint, options);
   }
   return apiRequestInternal(endpoint, options, currency);
