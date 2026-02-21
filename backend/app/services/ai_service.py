@@ -1,7 +1,7 @@
 """
 AI Service for financial analysis and configuration assistance using OpenAI GPT-4
 """
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from openai import AsyncOpenAI
 from app.core.config import settings
 from app.core.cache import get_cache
