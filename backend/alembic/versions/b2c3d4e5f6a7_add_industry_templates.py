@@ -463,15 +463,20 @@ def upgrade() -> None:
         suggested_costs_json = json.dumps(template_data.get('suggested_fixed_costs')) if template_data.get('suggested_fixed_costs') else None
         
         # Build SQL values as strings to avoid nested f-string issues
+        def sql_literal(value: str | None) -> str:
+            if not value:
+                return "NULL"
+            return "'" + value.replace("'", "''") + "'"
+
         industry_type = template_data['industry_type'].replace("'", "''")
         name = template_data['name'].replace("'", "''")
-        description = f"'{template_data.get('description', '').replace("'", "''")}'" if template_data.get('description') else 'NULL'
-        icon = f"'{template_data.get('icon', '').replace("'", "''")}'" if template_data.get('icon') else 'NULL'
-        color = f"'{template_data.get('color', '').replace("'", "''")}'" if template_data.get('color') else 'NULL'
+        description = sql_literal(template_data.get('description'))
+        icon = sql_literal(template_data.get('icon'))
+        color = sql_literal(template_data.get('color'))
         
-        roles_val = f"'{suggested_roles_json.replace("'", "''")}'::jsonb" if suggested_roles_json else 'NULL'
-        services_val = f"'{suggested_services_json.replace("'", "''")}'::jsonb" if suggested_services_json else 'NULL'
-        costs_val = f"'{suggested_costs_json.replace("'", "''")}'::jsonb" if suggested_costs_json else 'NULL'
+        roles_val = (sql_literal(suggested_roles_json) + "::jsonb") if suggested_roles_json else "NULL"
+        services_val = (sql_literal(suggested_services_json) + "::jsonb") if suggested_services_json else "NULL"
+        costs_val = (sql_literal(suggested_costs_json) + "::jsonb") if suggested_costs_json else "NULL"
         
         # Use op.execute() with properly formatted SQL
         if is_postgres:
@@ -496,9 +501,9 @@ def upgrade() -> None:
             )
         else:
             # SQLite or other databases with JSON
-            roles_val_sqlite = f"'{suggested_roles_json.replace("'", "''")}'" if suggested_roles_json else 'NULL'
-            services_val_sqlite = f"'{suggested_services_json.replace("'", "''")}'" if suggested_services_json else 'NULL'
-            costs_val_sqlite = f"'{suggested_costs_json.replace("'", "''")}'" if suggested_costs_json else 'NULL'
+            roles_val_sqlite = sql_literal(suggested_roles_json) if suggested_roles_json else "NULL"
+            services_val_sqlite = sql_literal(suggested_services_json) if suggested_services_json else "NULL"
+            costs_val_sqlite = sql_literal(suggested_costs_json) if suggested_costs_json else "NULL"
             op.execute(
                 sa.text(f"""
                     INSERT INTO industry_templates 
