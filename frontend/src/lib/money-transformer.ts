@@ -119,32 +119,31 @@ export function transformAPIResponse<T>(
   }
   
   const transformed = { ...data };
-  
-  // Obtener currency: parámetro > objeto > error
-  let detectedCurrency: string;
-  try {
-    detectedCurrency = currency || detectCurrency(data);
-  } catch (error) {
-    console.error('[Money Transformer] Currency detection failed:', error);
-    // En desarrollo, usar USD como fallback con warning
-    if (process.env.NODE_ENV === 'development') {
-      console.warn(
-        '[Money Transformer] Using USD as fallback. ' +
-        'Fix API response to include currency field.'
-      );
-      detectedCurrency = 'USD';
-    } else {
-      // En producción, lanzar error (no silenciar)
-      throw new Error(
-        `Currency required for money transformation. ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  }
+  let detectedCurrency = currency;
   
   for (const [key, value] of Object.entries(data)) {
     // Si el campo es un monto monetario y es string
     if (MONEY_FIELDS.includes(key as any) && typeof value === 'string') {
       try {
+        if (!detectedCurrency) {
+          try {
+            detectedCurrency = detectCurrency(data);
+          } catch (error) {
+            console.error('[Money Transformer] Currency detection failed:', error);
+            if (process.env.NODE_ENV === 'development') {
+              console.warn(
+                '[Money Transformer] Using USD as fallback. ' +
+                'Fix API response to include currency field.'
+              );
+              detectedCurrency = 'USD';
+            } else {
+              throw new Error(
+                `Currency required for money transformation. ${error instanceof Error ? error.message : String(error)}`
+              );
+            }
+          }
+        }
+
         // Convertir string Decimal a Dinero
         transformed[key] = fromAPIString(value, detectedCurrency);
       } catch (error) {
