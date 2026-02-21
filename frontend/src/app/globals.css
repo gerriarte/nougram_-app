@@ -1,6 +1,6 @@
-@import "tailwindcss";
-@config "../../tailwind.config.ts";
-@source "../**/*.{ts,tsx,js,jsx,mdx}";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* cache-bust: force new static asset hash for Railway CDN */
 
