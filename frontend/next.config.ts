@@ -18,6 +18,15 @@ const nextConfig: NextConfig = {
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
+  async headers() {
+    const noStore = [{ key: "Cache-Control", value: "no-store, must-revalidate" }];
+    return [
+      { source: "/", headers: noStore },
+      { source: "/login", headers: noStore },
+      { source: "/register", headers: noStore },
+      { source: "/accept-invitation", headers: noStore },
+    ];
+  },
   // Keep Turbopack root pinned to frontend/ to avoid lockfile-based root inference.
   turbopack: {
     root: process.cwd(),
