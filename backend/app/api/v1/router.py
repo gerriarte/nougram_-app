@@ -3,7 +3,7 @@ Main API router for v1
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, costs, team, services, quotes, projects, insights, integrations, settings, taxes, maintenance, delete_requests, users, ai, organizations, templates, billing, stripe_webhooks, credits, support, invitations, expenses, sales_projection, annual_projection, equipment, break_even, onboarding
+from app.api.v1.endpoints import auth, costs, team, services, quotes, projects, insights, integrations, settings, taxes, maintenance, delete_requests, users, ai, organizations, templates, billing, stripe_webhooks, credits, support, invitations, expenses, sales_projection, annual_projection, onboarding
 
 api_router = APIRouter()
 
