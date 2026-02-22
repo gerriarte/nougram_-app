@@ -1,6 +1,6 @@
 # Nougram
 
-API REST + Dashboard. Python 3.11 | FastAPI | Next.js 14 | PostgreSQL 15 | Redis.
+API REST + Dashboard. Python 3.11 | FastAPI | Next.js | PostgreSQL 15 | Redis.
 
 ## Estructura
 
@@ -15,7 +15,8 @@ nougram_-app/
 │   │   └── repositories/
 │   ├── alembic/      # Migraciones
 │   └── main.py
-├── frontend/         # Dashboard de usuario
+├── nougram_front/    # Frontend principal (Next.js)
+├── frontend/         # Frontend legacy (en retiro controlado)
 │   └── src/
 ├── docker-compose.yml
 └── docker-compose.prod.yml
@@ -42,8 +43,8 @@ docker-compose up -d
 # 3. Backend
 cd backend && pip install -r requirements.txt && alembic upgrade head && gunicorn main:app -c gunicorn_config.py
 
-# 4. Frontend
-cd frontend && npm install && npm run build && npm start
+# 4. Frontend principal
+cd nougram_front && npm install && npm run build && npm start
 ```
 
 ## Requisitos

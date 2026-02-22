@@ -2,9 +2,9 @@
 echo ========================================
 echo  Iniciando Frontend Nougram
 echo ========================================
-echo Frontend disponible en: http://localhost:5000
+echo Frontend disponible en: http://localhost:3000
 echo.
-cd frontend
+cd nougram_front
 npm run dev
 pause
 

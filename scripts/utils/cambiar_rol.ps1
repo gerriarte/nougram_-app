@@ -13,7 +13,7 @@ Write-Host "  CAMBIAR ROL DE USUARIO" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$baseUrl = "http://localhost:5000"
+$baseUrl = "http://localhost:8000"
 $headers = @{
     Authorization = 'Bearer dev-bypass-token'
     'Content-Type' = 'application/json'
@@ -41,7 +41,7 @@ Write-Host "UPDATE users SET role = '$rol' WHERE email = '$($user.email)';" -For
 Write-Host ""
 Write-Host "Despues de ejecutar el SQL:" -ForegroundColor Cyan
 Write-Host "  1. Reinicia el backend o espera a que recargue" -ForegroundColor Gray
-Write-Host "  2. Prueba los endpoints en http://localhost:5000/docs" -ForegroundColor Gray
+Write-Host "  2. Prueba los endpoints en http://localhost:8000/docs" -ForegroundColor Gray
 Write-Host "  3. Verifica que los permisos funcionan correctamente" -ForegroundColor Gray
 Write-Host ""
 

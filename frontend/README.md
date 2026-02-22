@@ -1,5 +1,8 @@
 # Nougram Frontend
 
+> Deprecated: este frontend está en retiro controlado.  
+> Frontend principal actual: `../nougram_front`.
+
 Next.js frontend for the Agency Profitability Platform.
 
 ## Setup

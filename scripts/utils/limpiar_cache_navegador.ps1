@@ -9,10 +9,10 @@ Write-Host ""
 # Verificar backend
 Write-Host "1. Verificando Backend..." -ForegroundColor Yellow
 try {
-    $health = Invoke-RestMethod -Uri 'http://localhost:5000/health' -Method Get -TimeoutSec 5
-    Write-Host "   OK - Backend corriendo en puerto 5000" -ForegroundColor Green
+    $health = Invoke-RestMethod -Uri 'http://localhost:8000/health' -Method Get -TimeoutSec 5
+    Write-Host "   OK - Backend corriendo en puerto 8000" -ForegroundColor Green
 } catch {
-    Write-Host "   ERROR - Backend no responde en puerto 5000" -ForegroundColor Red
+    Write-Host "   ERROR - Backend no responde en puerto 8000" -ForegroundColor Red
     Write-Host "   Por favor inicia el backend primero" -ForegroundColor Yellow
     exit 1
 }
@@ -70,17 +70,16 @@ Write-Host "  2. Ve a la pestaña 'Network'" -ForegroundColor White
 Write-Host "  3. Recarga la página (F5)" -ForegroundColor White
 Write-Host "  4. Busca peticiones a /api/v1/..." -ForegroundColor White
 Write-Host "  5. Verifica que TODAS apunten a:" -ForegroundColor White
-Write-Host "     http://localhost:5000/api/v1/..." -ForegroundColor Green
-Write-Host "     (NO http://localhost:8000)" -ForegroundColor Red
+Write-Host "     http://localhost:8000/api/v1/..." -ForegroundColor Green
 Write-Host ""
 
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host "   ESTADO ACTUAL" -ForegroundColor Cyan
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Backend:  http://localhost:5000" -ForegroundColor Green
+Write-Host "Backend:  http://localhost:8000" -ForegroundColor Green
 Write-Host "Frontend: http://localhost:3000" -ForegroundColor Green
-Write-Host "API URL:  http://localhost:5000/api/v1" -ForegroundColor Green
+Write-Host "API URL:  http://localhost:8000/api/v1" -ForegroundColor Green
 Write-Host ""
 Write-Host "Correcciones aplicadas:" -ForegroundColor Yellow
 Write-Host "  + Endpoint delete-requests corregido" -ForegroundColor White

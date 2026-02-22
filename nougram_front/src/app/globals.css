@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "SF Pro", var(--font-inter);
+
+  --color-primary: #007aff;
+  /* Apple System Blue */
+  --color-success: #34c759;
+  /* Apple System Green */
+  --color-warning: #ff9500;
+  /* Apple System Orange */
+  --color-critical: #ff3b30;
+  /* Apple System Red */
+
+  --color-background: #F5F5F7;
+  /* Apple System Gray 6 */
+  --color-foreground: #1d1d1f;
+  /* Apple Text Color */
+  --color-system-gray: #86868b;
+  /* Apple Secondary Text */
+}
+
+@layer base {
+  body {
+    @apply antialiased bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply tracking-tight font-bold;
+  }
+}
+
+/* Custom Utilities */
+@utility text-balance {
+  text-wrap: balance;
+}
+
+@utility backdrop-blur-apple {
+  backdrop-filter: blur(20px) saturate(180%);
+}

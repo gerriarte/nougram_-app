@@ -56,12 +56,12 @@ if (-not (Test-Path "backend\.env")) {
     Set-Location ..
 }
 
-# Verificar .env.local del frontend
+# Verificar .env.local del frontend principal
 Write-Host "🔍 Verificando configuración del frontend..." -ForegroundColor Yellow
-if (-not (Test-Path "frontend\.env.local")) {
-    Write-Host "⚠️  Archivo .env.local no encontrado en frontend\" -ForegroundColor Yellow
+if (-not (Test-Path "nougram_front\.env.local")) {
+    Write-Host "⚠️  Archivo .env.local no encontrado en nougram_front\" -ForegroundColor Yellow
     Write-Host "Creando archivo .env.local..."
-    "NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1" | Out-File -FilePath "frontend\.env.local" -Encoding utf8
+    "NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1" | Out-File -FilePath "nougram_front\.env.local" -Encoding utf8
 }
 
 Write-Host ""
@@ -99,10 +99,10 @@ if ($LASTEXITCODE -ne 0) {
 
 Set-Location ..
 
-# Instalar dependencias del frontend
+# Instalar dependencias del frontend principal
 Write-Host ""
 Write-Host "📦 Verificando dependencias del frontend..." -ForegroundColor Yellow
-Set-Location frontend
+Set-Location nougram_front
 
 if (-not (Test-Path "node_modules")) {
     Write-Host "Instalando dependencias del frontend..."
@@ -124,7 +124,7 @@ Write-Host "    .\venv\Scripts\Activate.ps1" -ForegroundColor Gray
 Write-Host "    python -m uvicorn main:app --reload --port 8000" -ForegroundColor Gray
 Write-Host ""
 Write-Host "  Terminal 2 - Frontend:" -ForegroundColor White
-Write-Host "    cd frontend" -ForegroundColor Gray
+Write-Host "    cd nougram_front" -ForegroundColor Gray
 Write-Host "    npm run dev" -ForegroundColor Gray
 Write-Host ""
 Write-Host "Luego abre: http://localhost:3000" -ForegroundColor Cyan

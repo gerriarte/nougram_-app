@@ -1,0 +1,571 @@
+
+import { Quote } from '@/components/dashboard/QuoteCard';
+import { QuoteBuilderState, CalculationSummary, Service, QuoteItem } from '@/types/quote-builder';
+import { apiRequest } from '@/lib/api-client';
+
+type ProjectListItem = {
+    id: number;
+    name: string;
+    client_name: string;
+    status: 'Draft' | 'Sent' | 'Won' | 'Lost';
+    currency?: string;
+};
+
+type ProjectListResponse = {
+    items: ProjectListItem[];
+    total: number;
+};
+
+type ProjectQuoteResponse = {
+    id: number;
+    version?: number;
+    total_client_price?: number;
+    margin_percentage?: number;
+    items?: Array<{
+        service_id: number;
+        service_name?: string;
+        estimated_hours?: number;
+        internal_cost?: string | number;
+        client_price?: string | number;
+        margin_percentage?: string | number;
+    }>;
+};
+
+type ProjectResponse = {
+    id: number;
+    name: string;
+    client_name: string;
+    client_email?: string;
+    currency?: string;
+    status?: string;
+};
+
+type ServiceListResponse = {
+    items: Array<{
+        id: number;
+        name: string;
+        description?: string;
+        default_margin_target?: string | number;
+        pricing_type?: string;
+        is_active?: boolean;
+    }>;
+    total: number;
+};
+
+type SendEmailPayload = {
+    to?: string;
+    subject?: string;
+    message?: string;
+    includePdf?: boolean;
+};
+
+function toPercent(value?: string | number): number {
+    const num = Number(value || 0);
+    if (!Number.isFinite(num)) return 0;
+    return num <= 1 ? num * 100 : num;
+}
+
+const DEFAULT_SERVICE_SEEDS = [
+    { name: 'Desarrollo Frontend', pricing_type: 'hourly', default_margin_target: 0.4 },
+    { name: 'Setup Inicial', pricing_type: 'fixed', default_margin_target: 0.35, fixed_price: 1000000 },
+    { name: 'Mantenimiento Mensual', pricing_type: 'recurring', default_margin_target: 0.4, recurring_price: 500000, billing_frequency: 'monthly' },
+];
+
+let serviceSeedInFlight: Promise<Service[]> | null = null;
+let servicesCache: Service[] | null = null;
+let servicesFetchInFlight: Promise<Service[]> | null = null;
+
+// Mock Data
+const MOCK_QUOTES: Quote[] = [
+    { id: '1', project: 'App E-commerce', client: 'TechCorp', amount: 25000, currency: 'USD', margin: 42, version: 2, history: [{ version: 1, amount: 22000, date: 'Hace 5d' }], status: 'sent', sentAt: 'Hace 2d', viewedCount: 0, downloadCount: 0, publicToken: 'demo-proposal', tokenExpiresAt: new Date(Date.now() + 86400000 * 30).toISOString() },
+    { id: '2', project: 'Landing Page', client: 'StartupX', amount: 8000, currency: 'USD', margin: 22, version: 1, status: 'viewed', sentAt: 'Hace 1d', viewedCount: 5, downloadCount: 2 },
+    { id: '3', project: 'Branding', client: 'DesignCo', amount: 12000, currency: 'USD', margin: 35, version: 1, status: 'accepted', sentAt: 'Hace 3d', viewedCount: 3, downloadCount: 1 },
+    { id: '4', project: 'SEO Audit', client: 'MarketFit', amount: 4500, currency: 'USD', margin: 8, version: 1, status: 'draft', viewedCount: 0, downloadCount: 0 },
+    { id: '5', project: 'Web Redesign', client: 'OldSchool', amount: 15000, currency: 'USD', margin: 28, version: 3, history: [{ version: 1, amount: 12000, date: 'Hace 1w' }, { version: 2, amount: 14000, date: 'Hace 2d' }], status: 'viewed', sentAt: 'Hace 5h', viewedCount: 12, downloadCount: 4 },
+];
+
+const FALLBACK_SERVICES: Service[] = [
+    { id: 1, name: 'Desarrollo Frontend', pricingType: 'hourly', defaultMarginTarget: 0.4, isActive: true },
+    { id: 2, name: 'Diseño UI/UX', pricingType: 'hourly', defaultMarginTarget: 0.4, isActive: true },
+    { id: 3, name: 'Setup Inicial', pricingType: 'fixed', defaultMarginTarget: 0.3, isActive: true },
+    { id: 4, name: 'Mantenimiento Mensual', pricingType: 'recurring', defaultMarginTarget: 0.5, isActive: true },
+];
+
+function mapProjectStatusToQuoteStatus(status?: string): Quote['status'] {
+    switch (status) {
+        case 'Sent':
+            return 'sent';
+        case 'Won':
+            return 'accepted';
+        case 'Lost':
+            return 'rejected';
+        case 'Draft':
+        default:
+            return 'draft';
+    }
+}
+
+function buildQuoteCardFromProject(
+    project: Pick<ProjectResponse, 'id' | 'name' | 'client_name' | 'currency' | 'status'>,
+    latestQuote: ProjectQuoteResponse | null
+): Quote {
+    return {
+        id: String(project.id),
+        project: project.name,
+        client: project.client_name,
+        amount: Number(latestQuote?.total_client_price || 0),
+        currency: project.currency || 'USD',
+        margin: toPercent(latestQuote?.margin_percentage || 0),
+        version: Number(latestQuote?.version || 1),
+        status: mapProjectStatusToQuoteStatus(project.status),
+        viewedCount: 0,
+        downloadCount: 0,
+    };
+}
+
+export const quoteService = {
+    getAll: async (): Promise<Quote[]> => {
+        const projectResponse = await apiRequest<ProjectListResponse>('/projects/');
+
+        // Fallback to mock data if backend is unavailable
+        if (projectResponse.error || !projectResponse.data?.items) {
+            return new Promise((resolve) => {
+                setTimeout(() => resolve([...MOCK_QUOTES]), 300);
+            });
+        }
+
+        const statusMap: Record<ProjectListItem['status'], Quote['status']> = {
+            Draft: 'draft',
+            Sent: 'sent',
+            Won: 'accepted',
+            Lost: 'rejected',
+        };
+
+        const mapped = await Promise.all(
+            projectResponse.data.items.map(async (project) => {
+                const quotesResponse = await apiRequest<ProjectQuoteResponse[]>(
+                    `/projects/${project.id}/quotes`
+                );
+                const quotes = quotesResponse.data || [];
+                const latestQuote =
+                    quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0] || null;
+
+                const amount = Number(latestQuote?.total_client_price || 0);
+                const margin = toPercent(latestQuote?.margin_percentage || 0);
+                const version = Number(latestQuote?.version || 1);
+
+                return {
+                    id: String(project.id),
+                    project: project.name,
+                    client: project.client_name,
+                    amount,
+                    currency: project.currency || 'USD',
+                    margin,
+                    version,
+                    status: statusMap[project.status] || 'draft',
+                    viewedCount: 0,
+                    downloadCount: 0,
+                } satisfies Quote;
+            })
+        );
+
+        return mapped;
+    },
+
+    getById: async (id: string): Promise<Quote | null> => {
+        const byProjectId = await quoteService.getByProjectId(id);
+        if (byProjectId) return byProjectId;
+
+        const quotes = await quoteService.getAll();
+        const quote = quotes.find((q) => q.id === id);
+        return quote || null;
+    },
+    getByProjectId: async (projectId: string): Promise<Quote | null> => {
+        const projectResponse = await apiRequest<ProjectResponse>(`/projects/${projectId}`);
+        if (projectResponse.error || !projectResponse.data) return null;
+        const latestQuote = await quoteService.getLatestQuoteForProject(projectId);
+        return buildQuoteCardFromProject(projectResponse.data, latestQuote);
+    },
+    getProjectClientEmail: async (projectId: string): Promise<string> => {
+        const projectResponse = await apiRequest<ProjectResponse>(`/projects/${projectId}`);
+        if (projectResponse.error || !projectResponse.data) return '';
+        return projectResponse.data.client_email || '';
+    },
+
+    create: async (data: Partial<QuoteBuilderState> & { amount: number, marginPercentage: number }): Promise<string> => {
+        const quoteItems = (data.items || []).map((item: QuoteItem) => ({
+            service_id: item.serviceId,
+            estimated_hours: item.estimatedHours ?? 0,
+            pricing_type: item.pricingType,
+            fixed_price: item.fixedPrice,
+            quantity: item.quantity ?? 1,
+            recurring_price: item.recurringPrice,
+            billing_frequency: item.billingFrequency,
+            project_value: item.projectValue,
+        }));
+
+        const response = await apiRequest<{
+            id: number;
+            project_id: number;
+            version: number;
+        }>('/projects/', {
+            method: 'POST',
+            body: JSON.stringify({
+                name: data.projectName || 'Proyecto sin nombre',
+                client_name: data.clientName || 'Cliente',
+                client_email: data.clientEmail || undefined,
+                currency: data.currency || 'COP',
+                tax_ids: data.selectedTaxIds || [],
+                quote_items: quoteItems,
+                revisions_included: 2,
+                allow_low_margin: Boolean(data.allowLowMargin),
+            }),
+        });
+
+        if (response.error || !response.data?.project_id) {
+            throw new Error(response.error || 'No se pudo crear el proyecto/cotización');
+        }
+
+        return String(response.data.project_id);
+    },
+
+    update: async (id: string, data: Partial<QuoteBuilderState> & { amount?: number, marginPercentage?: number }): Promise<void> => {
+        const latestQuote = await quoteService.getLatestQuoteForProject(id);
+        if (!latestQuote) {
+            throw new Error('No existe una cotización para actualizar');
+        }
+
+        const payloadItems = (data.items || []).map((item: QuoteItem) => ({
+            service_id: item.serviceId,
+            estimated_hours: item.estimatedHours ?? 0,
+            pricing_type: item.pricingType,
+            fixed_price: item.fixedPrice,
+            quantity: item.quantity ?? 1,
+            recurring_price: item.recurringPrice,
+            billing_frequency: item.billingFrequency,
+            project_value: item.projectValue,
+        }));
+
+        const response = await apiRequest(
+            `/projects/${id}/quotes/${latestQuote.id}`,
+            {
+                method: 'PUT',
+                body: JSON.stringify({
+                    items: payloadItems,
+                    target_margin_percentage: typeof data.targetMargin === 'number' ? data.targetMargin : undefined,
+                    allow_low_margin: Boolean(data.allowLowMargin),
+                }),
+            }
+        );
+
+        if (response.error) {
+            throw new Error(response.error);
+        }
+    },
+
+    createVersion: async (id: string, data: Partial<QuoteBuilderState> & { amount: number, marginPercentage: number }): Promise<void> => {
+        const latestQuote = await quoteService.getLatestQuoteForProject(id);
+        if (!latestQuote) {
+            throw new Error('No existe una cotización para versionar');
+        }
+
+        const payloadItems = (data.items || []).map((item: QuoteItem) => ({
+            service_id: item.serviceId,
+            estimated_hours: item.estimatedHours ?? 0,
+            pricing_type: item.pricingType,
+            fixed_price: item.fixedPrice,
+            quantity: item.quantity ?? 1,
+            recurring_price: item.recurringPrice,
+            billing_frequency: item.billingFrequency,
+            project_value: item.projectValue,
+        }));
+
+        const response = await apiRequest(
+            `/projects/${id}/quotes/${latestQuote.id}/new-version`,
+            {
+                method: 'POST',
+                body: JSON.stringify({
+                    items: payloadItems,
+                    target_margin_percentage: typeof data.targetMargin === 'number' ? data.targetMargin : undefined,
+                    allow_low_margin: Boolean(data.allowLowMargin),
+                }),
+            }
+        );
+
+        if (response.error) {
+            throw new Error(response.error);
+        }
+    },
+
+    updateStatus: async (id: string, newStatus: Quote['status']): Promise<void> => {
+        const backendStatusMap: Record<Quote['status'], ProjectListItem['status']> = {
+            draft: 'Draft',
+            sent: 'Sent',
+            viewed: 'Sent',
+            accepted: 'Won',
+            rejected: 'Lost',
+            expired: 'Lost',
+        };
+
+        const response = await apiRequest(`/projects/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                status: backendStatusMap[newStatus],
+            }),
+        });
+
+        if (response.error) {
+            throw new Error(response.error);
+        }
+    },
+
+    // Server-side calculation simulation
+    calculate: async (): Promise<CalculationSummary> => {
+        // This returns the same structure as the context calculates, useful for server-side verification
+        // For now we assume client-side context does the heavy lifting for "Real-time"
+        return {} as CalculationSummary;
+    },
+
+    sendEmail: async (id: string, data: SendEmailPayload): Promise<void> => {
+        const quotesResponse = await apiRequest<ProjectQuoteResponse[]>(`/projects/${id}/quotes`);
+        const quotes = quotesResponse.data || [];
+        const latestQuote = quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0];
+
+        if (!latestQuote) {
+            // Fallback to mock behavior when quote list is unavailable
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const idx = MOCK_QUOTES.findIndex((q) => q.id === id);
+                    if (idx !== -1) {
+                        MOCK_QUOTES[idx].status = 'sent';
+                        MOCK_QUOTES[idx].sentAt = 'Hace un momento';
+                    }
+                    resolve();
+                }, 800);
+            });
+        }
+
+        const response = await apiRequest(`/projects/${id}/quotes/${latestQuote.id}/send-email`, {
+            method: 'POST',
+            body: JSON.stringify({
+                to_email: data?.to || '',
+                subject: data?.subject,
+                message: data?.message,
+                include_pdf: Boolean(data?.includePdf ?? true),
+                include_docx: false,
+                cc: [],
+                bcc: [],
+            }),
+        });
+
+        if (response.error) {
+            throw new Error(response.error);
+        }
+    },
+    setProjectStatus: async (projectId: string, status: 'Draft' | 'Sent' | 'Won' | 'Lost'): Promise<void> => {
+        const response = await apiRequest(`/projects/${projectId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ status }),
+        });
+        if (response.error) {
+            throw new Error(response.error);
+        }
+    },
+    getLatestQuoteForProject: async (projectId: string): Promise<ProjectQuoteResponse | null> => {
+        const quotesResponse = await apiRequest<ProjectQuoteResponse[]>(`/projects/${projectId}/quotes`);
+        const quotes = quotesResponse.data || [];
+        if (!quotes.length) return null;
+        return quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0];
+    },
+    getAvailableServices: async (forceRefresh = false): Promise<Service[]> => {
+        if (!forceRefresh && servicesCache && servicesCache.length > 0) {
+            return servicesCache;
+        }
+
+        if (!forceRefresh && servicesFetchInFlight) {
+            return servicesFetchInFlight;
+        }
+
+        const mapServices = (items: ServiceListResponse['items']) =>
+            items
+                .filter((service) => service.is_active !== false)
+                .map((service) => ({
+                    id: service.id,
+                    name: service.name,
+                    description: service.description,
+                    pricingType: (service.pricing_type as Service['pricingType']) || 'hourly',
+                    defaultMarginTarget: Number(service.default_margin_target || 0.4),
+                    isActive: Boolean(service.is_active ?? true),
+                }));
+        servicesFetchInFlight = (async () => {
+            const response = await apiRequest<ServiceListResponse>('/services/');
+            if (response.error) {
+                servicesCache = FALLBACK_SERVICES;
+                return FALLBACK_SERVICES;
+            }
+
+            const currentItems = response.data?.items || [];
+            if (currentItems.length > 0) {
+                const mapped = mapServices(currentItems);
+                servicesCache = mapped;
+                return mapped;
+            }
+
+            if (!serviceSeedInFlight) {
+                serviceSeedInFlight = (async () => {
+                    // Auto-seed base services for brand-new organizations.
+                    for (const seed of DEFAULT_SERVICE_SEEDS) {
+                        await apiRequest('/services/', {
+                            method: 'POST',
+                            body: JSON.stringify(seed),
+                        });
+                    }
+
+                    const refreshed = await apiRequest<ServiceListResponse>('/services/');
+                    if (refreshed.error || !refreshed.data?.items?.length) {
+                        servicesCache = FALLBACK_SERVICES;
+                        return FALLBACK_SERVICES;
+                    }
+                    const mapped = mapServices(refreshed.data.items);
+                    servicesCache = mapped;
+                    return mapped;
+                })().finally(() => {
+                    serviceSeedInFlight = null;
+                });
+            }
+
+            return serviceSeedInFlight;
+        })().finally(() => {
+            servicesFetchInFlight = null;
+        });
+
+        return servicesFetchInFlight;
+    },
+    getBuilderData: async (projectId: string): Promise<{
+        id: string;
+        version: number;
+        projectName: string;
+        clientName: string;
+        clientEmail: string;
+        currency: 'COP' | 'USD';
+        items: QuoteItem[];
+    } | null> => {
+        const projectResponse = await apiRequest<ProjectResponse>(`/projects/${projectId}`);
+        if (projectResponse.error || !projectResponse.data) return null;
+
+        const latestQuote = await quoteService.getLatestQuoteForProject(projectId);
+        if (!latestQuote) return null;
+
+        const detailResponse = await apiRequest<ProjectQuoteResponse>(
+            `/projects/${projectId}/quotes/${latestQuote.id}`
+        );
+        const detail = detailResponse.data;
+        const services = await quoteService.getAvailableServices();
+        const serviceMap = new Map(services.map((s) => [s.id, s]));
+
+        const items: QuoteItem[] = (detail?.items || []).map((item) => {
+            const service = serviceMap.get(item.service_id);
+            return {
+                id: crypto.randomUUID(),
+                serviceId: item.service_id,
+                serviceName: item.service_name || service?.name || `Servicio ${item.service_id}`,
+                pricingType: (service?.pricingType || 'hourly') as QuoteItem['pricingType'],
+                estimatedHours: Number(item.estimated_hours || 0),
+                quantity: 1,
+                internalCost: Number(item.internal_cost || 0),
+                clientPrice: Number(item.client_price || 0),
+                marginPercentage: toPercent(item.margin_percentage || 0),
+            };
+        });
+
+        return {
+            id: String(projectResponse.data.id),
+            version: Number(detail?.version || latestQuote.version || 1),
+            projectName: projectResponse.data.name,
+            clientName: projectResponse.data.client_name,
+            clientEmail: projectResponse.data.client_email || '',
+            currency: (projectResponse.data.currency as 'COP' | 'USD') || 'COP',
+            items,
+        };
+    },
+    // Public Proposal System
+    generatePublicLink: async (id: string, daysValid: number = 30): Promise<string> => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const idx = MOCK_QUOTES.findIndex(q => q.id === id);
+                if (idx !== -1) {
+                    const token = crypto.randomUUID();
+                    const expiresAt = new Date();
+                    expiresAt.setDate(expiresAt.getDate() + daysValid);
+
+                    MOCK_QUOTES[idx] = {
+                        ...MOCK_QUOTES[idx],
+                        publicToken: token,
+                        tokenExpiresAt: expiresAt.toISOString()
+                    };
+                    resolve(token);
+                } else {
+                    resolve('');
+                }
+            }, 300);
+        });
+    },
+
+    getQuoteByToken: async (token: string): Promise<Quote | null> => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const quote = MOCK_QUOTES.find(q => q.publicToken === token);
+                if (!quote) {
+                    resolve(null);
+                    return;
+                }
+
+                // Check expiration
+                if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+                    resolve(null); // Or throw error 'expired'
+                    return;
+                }
+
+                // Increment view count
+                quote.viewedCount += 1;
+                quote.lastViewedAt = new Date().toISOString();
+                if (quote.status === 'sent') {
+                    quote.status = 'viewed';
+                }
+
+                resolve(quote);
+            }, 400);
+        });
+    },
+
+    acceptQuote: async (token: string): Promise<boolean> => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const idx = MOCK_QUOTES.findIndex(q => q.publicToken === token);
+                if (idx !== -1) {
+                    MOCK_QUOTES[idx].status = 'accepted';
+                    // In a real app, trigger email notification to Admin
+                    console.log(`Quote ${MOCK_QUOTES[idx].id} ACCEPTED by client`);
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            }, 500);
+        });
+    },
+
+    rejectQuote: async (token: string, reason?: string): Promise<boolean> => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const idx = MOCK_QUOTES.findIndex(q => q.publicToken === token);
+                if (idx !== -1) {
+                    MOCK_QUOTES[idx].status = 'rejected';
+                    console.log(`Quote ${MOCK_QUOTES[idx].id} REJECTED by client. Reason: ${reason}`);
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            }, 500);
+        });
+    }
+};

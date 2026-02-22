@@ -7,7 +7,7 @@ Write-Host "  PRUEBA DE ENFORCEMENT DE ROLES" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$baseUrl = "http://localhost:5000"
+$baseUrl = "http://localhost:8000"
 $headers = @{
     Authorization = 'Bearer dev-bypass-token'
     'Content-Type' = 'application/json'

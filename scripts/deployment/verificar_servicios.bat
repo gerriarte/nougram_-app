@@ -32,14 +32,14 @@ if errorlevel 1 (
 echo.
 
 REM Verificar Frontend
-echo [STEP] Verificando Frontend (puerto 5000)...
-netstat -ano | findstr :5000 >nul 2>&1
+echo [STEP] Verificando Frontend (puerto 3000)...
+netstat -ano | findstr :3000 >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Frontend no esta corriendo
     echo [SOLUCION] Ejecuta: iniciar_frontend.bat
 ) else (
     echo [OK] Frontend esta corriendo
-    echo [INFO] Puedes acceder a: http://localhost:5000
+    echo [INFO] Puedes acceder a: http://localhost:3000
 )
 echo.
 
@@ -48,7 +48,7 @@ echo  Resumen
 echo ========================================
 echo.
 echo Si todos los servicios estan corriendo:
-echo 1. Abre tu navegador en: http://localhost:5000
+echo 1. Abre tu navegador en: http://localhost:3000
 echo 2. Haz clic en "Bypass Auth (Dev Only)" para iniciar sesion
 echo.
 echo Si algun servicio no esta corriendo, ejecuta los scripts correspondientes.

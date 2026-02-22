@@ -110,9 +110,9 @@ call venv\Scripts\deactivate.bat
 cd ..
 echo.
 
-REM Instalar dependencias del frontend
+REM Instalar dependencias del frontend principal
 echo %BLUE% Instalando dependencias del frontend...
-cd frontend
+cd nougram_front
 if not exist node_modules (
     echo %YELLOW% Instalando dependencias de Node.js (esto puede tardar unos minutos)...
     call npm install
@@ -171,10 +171,10 @@ echo    venv\Scripts\activate
 echo    python main.py
 echo.
 echo 2. Abre otra ventana PowerShell y ejecuta:
-echo    cd frontend
+echo    cd nougram_front
 echo    npm run dev
 echo.
-echo 3. Abre tu navegador en: http://localhost:5000
+echo 3. Abre tu navegador en: http://localhost:3000
 echo.
 echo %YELLOW% O puedes usar los scripts individuales:
 echo    - iniciar_docker.bat (ya ejecutado)

@@ -23,20 +23,20 @@ if errorlevel 1 (
 
 REM Iniciar Backend en nueva ventana
 echo [INFO] Iniciando Backend...
-start "Nougram Backend" cmd /k "cd /d %~dp0backend && if exist venv (call venv\Scripts\activate.bat && python main.py) else (echo [ERROR] Ejecuta primero desplegar_local.bat && pause)"
+start "Nougram Backend" cmd /k "cd /d %~dp0..\..\backend && if exist venv (call venv\Scripts\activate.bat && python main.py) else (echo [ERROR] Ejecuta primero desplegar_local.bat && pause)"
 
 REM Esperar un poco antes de iniciar el frontend
 timeout /t 2 /nobreak >nul
 
 REM Iniciar Frontend en nueva ventana
 echo [INFO] Iniciando Frontend...
-start "Nougram Frontend" cmd /k "cd /d %~dp0frontend && npm run dev"
+start "Nougram Frontend" cmd /k "cd /d %~dp0..\..\nougram_front && npm run dev"
 
 echo.
 echo [OK] Servicios iniciados en ventanas separadas
 echo.
 echo Backend: http://localhost:8000
-echo Frontend: http://localhost:5000
+echo Frontend: http://localhost:3000
 echo.
 echo Presiona cualquier tecla para cerrar esta ventana...
 pause >nul

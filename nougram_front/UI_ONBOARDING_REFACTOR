@@ -1,0 +1,1644 @@
+# Plan de Implementación: Onboarding Apple Style para Nougram
+
+**Fecha:** 2026-02-08  
+**Base:** Prompt de diseño Apple Style + Estructura actual del proyecto  
+**Arquitectura:** Next.js App Router + React + Tailwind CSS + Framer Motion  
+**Ubicación:** `frontend/src/app/(app)/onboarding/`
+
+---
+
+## 🎯 Resumen Ejecutivo
+
+Rediseñar completamente el proceso de onboarding con estilo **Apple Human Interface Guidelines**, implementando:
+
+- **Materialidad:** `backdrop-blur-md` con fondos `bg-white/70` sobre lienzo `bg-[#F5F5F7]`
+- **Geometría:** Contenedores con `rounded-2xl` (Squircles)
+- **Tipografía:** Títulos `font-bold` con `tracking-tight`, textos secundarios en `#86868b`
+- **Iconos:** Lucide con `stroke-width: 1.5`
+- **Transiciones:** Framer Motion con animaciones tipo `spring`
+
+**Flujo de 4 pasos + resumen final:**
+
+1. **Paso 1:** Datos Identidad (País/Moneda)
+2. **Paso 2:** Perfil de Negocio (Freelance/Empresa/Agencia) con pre-carga de benchmarks
+3. **Paso 3:** Configuración de Equipo (Salarios, Roles, Factor de Prestaciones)
+4. **Paso 4:** Gastos Operativos (Arriendo, Software, Servicios)
+5. **Pantalla Final:** Resumen de BCR proyectado con Bento Grid y Disclaimer
+
+---
+
+## 📊 Análisis de Estado Actual
+
+### Componentes Existentes
+
+- ✅ `frontend/src/app/(app)/onboarding/page.tsx` - Página principal (952 líneas)
+- ✅ `frontend/src/stores/onboarding-store.ts` - Estado con Zustand (persistido)
+- ✅ `frontend/src/components/onboarding/` - Componentes del onboarding actual
+- ✅ APIs disponibles: `/organizations`, `/costs/fixed`, `/team`, `/templates`
+
+### Tecnologías Faltantes
+
+- ❌ **Framer Motion** no está instalado
+- ❌ No hay sistema de transiciones entre pasos
+- ❌ Diseño actual no sigue estilo Apple
+
+### Estructura Actual del Onboarding
+
+```
+onboarding/
+├── page.tsx (952 líneas - necesita refactorización)
+└── components/
+    ├── ProfileSelection.tsx
+    ├── FreelanceForm.tsx
+    ├── TeamMembersTable.tsx
+    ├── TaxStructureForm.tsx
+    ├── LiveSummarySidebar.tsx
+    ├── SalesProjection.tsx
+    └── TemplateCard.tsx
+```
+
+---
+
+## 📋 Componentes a Implementar
+
+### 1. ✅ Dependencias
+
+**Estado:** ❌ Pendiente
+
+**Instalación Requerida:**
+
+```bash
+cd frontend
+npm install framer-motion
+```
+
+**Verificación:**
+
+- Agregar `framer-motion` a `package.json`
+- Versión recomendada: `^11.0.0` o superior
+
+---
+
+### 2. ✅ Sistema de Diseño Apple Style
+
+**Estado:** ❌ Pendiente
+
+**Archivo:** `frontend/src/styles/apple-onboarding.css` (nuevo)
+
+**Implementación Requerida:**
+
+```css
+/* Apple Style Design System para Onboarding */
+
+/* Canvas base */
+.apple-onboarding-canvas {
+  background: #F5F5F7;
+  min-height: 100vh;
+}
+
+/* Contenedores con materialidad */
+.apple-glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 24px; /* rounded-2xl */
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 
+              0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Tipografía Apple */
+.apple-title {
+  font-weight: 700;
+  letter-spacing: -0.02em; /* tracking-tight */
+  color: #1d1d1f;
+}
+
+.apple-subtitle {
+  color: #86868b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Iconos Lucide con stroke-width 1.5 */
+.apple-icon {
+  stroke-width: 1.5;
+}
+```
+
+**Integración en Tailwind:**
+Agregar a `tailwind.config.js`:
+
+```javascript
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        'apple-gray': {
+          light: '#F5F5F7',
+          medium: '#86868b',
+          dark: '#1d1d1f',
+        }
+      },
+      borderRadius: {
+        'squircle': '24px', // rounded-2xl
+      },
+      backdropBlur: {
+        'apple': '20px',
+      }
+    }
+  }
+}
+```
+
+---
+
+### 3. ✅ Componente: OnboardingStepWrapper
+
+**Estado:** ❌ Pendiente
+
+**Archivo:** `frontend/src/components/onboarding/OnboardingStepWrapper.tsx` (nuevo)
+
+**Propósito:** Wrapper con transiciones Framer Motion y estilo Apple
+
+**Implementación:**
+
+```typescript
+"use client";
+
+import { motion, AnimatePresence } from 'framer-motion';
+import { ReactNode } from 'react';
+
+interface OnboardingStepWrapperProps {
+  children: ReactNode;
+  step: number;
+  currentStep: number;
+}
+
+export function OnboardingStepWrapper({ 
+  children, 
+  step, 
+  currentStep 
+}: OnboardingStepWrapperProps) {
+  return (
+    <AnimatePresence mode="wait">
+      {step === currentStep && (
+        <motion.div
+          key={step}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{
+            type: "spring",
+            stiffness: 300,
+            damping: 30
+          }}
+          className="w-full"
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+```
+
+---
+
+### 4. ✅ Paso 1: Datos Identidad (Apple Style)
+
+**Estado:** 🔄 Rediseñar componente existente
+
+**Archivo:** `frontend/src/components/onboarding/IdentityStep.tsx` (nuevo)
+
+**Características:**
+
+- Selector de país con banderas/iconos
+- Selector de moneda sincronizado con país
+- Input de nombre de organización
+- Diseño con glass cards
+
+**Estructura:**
+
+```typescript
+"use client";
+
+import { motion } from 'framer-motion';
+import { Globe, DollarSign, Building2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useOnboardingStore } from '@/stores/onboarding-store';
+
+export function IdentityStep() {
+  const { 
+    organizationName, 
+    country, 
+    currency,
+    setOrganizationName,
+    setCountry,
+    setCurrency 
+  } = useOnboardingStore();
+
+  return (
+    <div className="space-y-6">
+      {/* Título con estilo Apple */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        <h2 className="text-3xl font-bold tracking-tight text-[#1d1d1f] mb-2">
+          Configura tu identidad
+        </h2>
+        <p className="text-[#86868b] text-sm">
+          Selecciona tu país y moneda para comenzar
+        </p>
+      </motion.div>
+
+      {/* Glass cards con inputs */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/80"
+      >
+        {/* Nombre de organización */}
+        <div className="space-y-2 mb-6">
+          <label className="text-sm font-medium text-[#1d1d1f] flex items-center gap-2">
+            <Building2 className="w-4 h-4" strokeWidth={1.5} />
+            Nombre de la organización
+          </label>
+          <Input
+            value={organizationName}
+            onChange={(e) => setOrganizationName(e.target.value)}
+            placeholder="Ej: Mi Agencia Digital"
+            className="bg-white/50 border-white/50"
+          />
+        </div>
+
+        {/* País y Moneda en grid */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#1d1d1f] flex items-center gap-2">
+              <Globe className="w-4 h-4" strokeWidth={1.5} />
+              País
+            </label>
+            <Select value={country} onValueChange={setCountry}>
+              <SelectTrigger className="bg-white/50 border-white/50">
+                <SelectValue placeholder="Selecciona tu país" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="US">Estados Unidos</SelectItem>
+                <SelectItem value="COL">Colombia</SelectItem>
+                <SelectItem value="MX">México</SelectItem>
+                <SelectItem value="AR">Argentina</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#1d1d1f] flex items-center gap-2">
+              <DollarSign className="w-4 h-4" strokeWidth={1.5} />
+              Moneda
+            </label>
+            <Select value={currency} onValueChange={setCurrency}>
+              <SelectTrigger className="bg-white/50 border-white/50">
+                <SelectValue placeholder="Selecciona moneda" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD - Dólar</SelectItem>
+                <SelectItem value="COP">COP - Peso Colombiano</SelectItem>
+                <SelectItem value="MXN">MXN - Peso Mexicano</SelectItem>
+                <SelectItem value="ARS">ARS - Peso Argentino</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+```
+
+**Validaciones:**
+
+- Nombre de organización: requerido, mínimo 3 caracteres
+- País: requerido
+- Moneda: requerida, sincronizada con país
+
+---
+
+### 5. ✅ Paso 2: Perfil de Negocio con Benchmarks
+
+**Estado:** 🔄 Mejorar componente existente
+
+**Archivo:** `frontend/src/components/onboarding/BusinessProfileStep.tsx` (nuevo)
+
+**Características:**
+
+- 3 opciones: Freelance, Empresa, Agencia
+- Pre-carga de benchmarks por perfil
+- Cards interactivas con hover effects
+- Información contextual sobre cada perfil
+
+**Benchmarks a mostrar:**
+
+```typescript
+const benchmarks = {
+  freelance: {
+    avgMonthlyIncome: 5000,
+    avgMargin: 25,
+    avgHoursPerMonth: 160,
+    description: "Trabajas de forma independiente"
+  },
+  company: {
+    avgTeamSize: 5,
+    avgSalary: 3000,
+    avgMargin: 30,
+    description: "Tienes un equipo pequeño"
+  },
+  agency: {
+    avgTeamSize: 10,
+    avgClients: 5,
+    avgMargin: 35,
+    description: "Agencia con múltiples clientes"
+  }
+};
+```
+
+**Estructura:**
+
+```typescript
+"use client";
+
+import { motion } from 'framer-motion';
+import { User, Building2, Briefcase, TrendingUp } from 'lucide-react';
+import { useOnboardingStore } from '@/stores/onboarding-store';
+import { cn } from '@/lib/utils';
+
+const profileOptions = [
+  {
+    type: 'freelance' as const,
+    title: 'Freelance',
+    icon: User,
+    description: 'Trabajas de forma independiente',
+    benchmarks: {
+      avgMonthlyIncome: 5000,
+      avgMargin: 25,
+      avgHoursPerMonth: 160,
+    }
+  },
+  {
+    type: 'company' as const,
+    title: 'Empresa',
+    icon: Building2,
+    description: 'Tienes un equipo pequeño',
+    benchmarks: {
+      avgTeamSize: 5,
+      avgSalary: 3000,
+      avgMargin: 30,
+    }
+  },
+  {
+    type: 'agency' as const,
+    title: 'Agencia',
+    icon: Briefcase,
+    description: 'Agencia con múltiples clientes',
+    benchmarks: {
+      avgTeamSize: 10,
+      avgClients: 5,
+      avgMargin: 35,
+    }
+  }
+];
+
+export function BusinessProfileStep() {
+  const { profileType, setProfileType } = useOnboardingStore();
+  const selectedProfile = profileOptions.find(p => p.type === profileType);
+
+  return (
+    <div className="space-y-6">
+      {/* Título */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <h2 className="text-3xl font-bold tracking-tight text-[#1d1d1f] mb-2">
+          Selecciona tu perfil
+        </h2>
+        <p className="text-[#86868b] text-sm">
+          Configuraremos valores sugeridos basados en benchmarks de la industria
+        </p>
+      </motion.div>
+
+      {/* Grid de perfiles con glass cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {profileOptions.map((option) => {
+          const Icon = option.icon;
+          const isSelected = profileType === option.type;
+          
+          return (
+            <motion.div
+              key={option.type}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setProfileType(option.type)}
+              className={cn(
+                "bg-white/70 backdrop-blur-md rounded-2xl p-6 border cursor-pointer transition-all",
+                isSelected 
+                  ? "border-primary-500 shadow-lg" 
+                  : "border-white/50 hover:border-primary-300"
+              )}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className={cn(
+                  "p-3 rounded-xl",
+                  isSelected ? "bg-primary-500 text-white" : "bg-grey-100 text-grey-600"
+                )}>
+                  <Icon className="w-6 h-6" strokeWidth={1.5} />
+                </div>
+                <h3 className="text-xl font-bold tracking-tight text-[#1d1d1f]">
+                  {option.title}
+                </h3>
+              </div>
+              <p className="text-[#86868b] text-sm mb-4">
+                {option.description}
+              </p>
+              {isSelected && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="pt-4 border-t border-white/50"
+                >
+                  <p className="text-xs font-medium text-[#86868b] mb-2">Benchmarks sugeridos:</p>
+                  <div className="space-y-1 text-xs text-[#86868b]">
+                    {Object.entries(option.benchmarks).map(([key, value]) => (
+                      <div key={key} className="flex justify-between">
+                        <span>{key}:</span>
+                        <span className="font-medium">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+### 6. ✅ Paso 3: Configuración de Equipo
+
+**Estado:** 🔄 Mejorar componente existente
+
+**Archivo:** `frontend/src/components/onboarding/TeamConfigurationStep.tsx` (nuevo)
+
+**Características:**
+
+- Tabla de miembros con diseño Apple
+- Inputs para salario, rol, horas facturables
+- Factor de prestaciones (benefits factor)
+- Cálculo en tiempo real del costo total
+
+**Estructura:**
+
+```typescript
+"use client";
+
+import { motion } from 'framer-motion';
+import { Users, Plus, Trash2, Calculator } from 'lucide-react';
+import { useOnboardingStore, TeamMember } from '@/stores/onboarding-store';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { useState } from 'react';
+import { formatCurrency } from '@/lib/currency';
+
+export function TeamConfigurationStep() {
+  const { teamMembers, addTeamMember, removeTeamMember, currency } = useOnboardingStore();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formData, setFormData] = useState<Partial<TeamMember>>({
+    name: '',
+    role: '',
+    salary: 0,
+    billableHours: 40,
+    currency: currency || 'USD',
+  });
+
+  const handleAddMember = () => {
+    if (formData.name && formData.role && formData.salary) {
+      addTeamMember(formData as TeamMember);
+      setFormData({
+        name: '',
+        role: '',
+        salary: 0,
+        billableHours: 40,
+        currency: currency || 'USD',
+      });
+      setIsFormOpen(false);
+    }
+  };
+
+  const totalCost = teamMembers.reduce((sum, member) => {
+    return sum + (member.salary || 0);
+  }, 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Título */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <h2 className="text-3xl font-bold tracking-tight text-[#1d1d1f] mb-2">
+          Configura tu equipo
+        </h2>
+        <p className="text-[#86868b] text-sm">
+          Agrega miembros y configura salarios, roles y factor de prestaciones
+        </p>
+      </motion.div>
+
+      {/* Resumen de costo total */}
+      {teamMembers.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-white/80"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calculator className="w-5 h-5 text-[#86868b]" strokeWidth={1.5} />
+              <span className="text-sm text-[#86868b]">Costo total mensual:</span>
+            </div>
+            <span className="text-xl font-bold text-[#1d1d1f]">
+              {formatCurrency(totalCost, currency || 'USD')}
+            </span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Botón agregar miembro */}
+      {!isFormOpen && (
+        <Button
+          onClick={() => setIsFormOpen(true)}
+          className="bg-white/70 backdrop-blur-md border border-white/80 text-[#1d1d1f] hover:bg-white/90"
+        >
+          <Plus className="w-4 h-4 mr-2" strokeWidth={1.5} />
+          Agregar miembro
+        </Button>
+      )}
+
+      {/* Formulario */}
+      {isFormOpen && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/80"
+        >
+          {/* Formulario de agregar miembro */}
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              placeholder="Nombre"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            />
+            <Input
+              placeholder="Rol"
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+            />
+            <Input
+              type="number"
+              placeholder="Salario mensual"
+              value={formData.salary || ''}
+              onChange={(e) => setFormData({ ...formData, salary: parseFloat(e.target.value) || 0 })}
+            />
+            <Input
+              type="number"
+              placeholder="Horas facturables/mes"
+              value={formData.billableHours || ''}
+              onChange={(e) => setFormData({ ...formData, billableHours: parseFloat(e.target.value) || 40 })}
+            />
+          </div>
+          <div className="flex gap-2 mt-4">
+            <Button onClick={handleAddMember} className="flex-1">
+              Agregar
+            </Button>
+            <Button variant="outline" onClick={() => setIsFormOpen(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Tabla de miembros */}
+      {teamMembers.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/80"
+        >
+          <div className="space-y-3">
+            {teamMembers.map((member, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-3 bg-white/50 rounded-xl"
+              >
+                <div>
+                  <p className="font-medium text-[#1d1d1f]">{member.name}</p>
+                  <p className="text-sm text-[#86868b]">{member.role}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium text-[#1d1d1f]">
+                    {formatCurrency(member.salary, member.currency || currency || 'USD')}
+                  </p>
+                  <p className="text-xs text-[#86868b]">{member.billableHours}h/mes</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeTeamMember(index)}
+                >
+                  <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+```
+
+**Campos requeridos:**
+
+- Nombre
+- Rol
+- Salario mensual
+- Horas facturables por mes
+- Factor de prestaciones (default según país)
+
+---
+
+### 7. ✅ Paso 4: Gastos Operativos
+
+**Estado:** ❌ Nuevo componente
+
+**Archivo:** `frontend/src/components/onboarding/OperationalExpensesStep.tsx` (nuevo)
+
+**Características:**
+
+- Categorías: Arriendo, Software, Servicios
+- Formulario para agregar gastos
+- Lista de gastos agregados
+- Cálculo total en tiempo real
+
+**Estructura:**
+
+```typescript
+"use client";
+
+import { motion } from 'framer-motion';
+import { Home, Code, Wrench, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { useOnboardingStore } from '@/stores/onboarding-store';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { formatCurrency } from '@/lib/currency';
+import { useCreateFixedCost } from '@/lib/queries/fixedCosts';
+
+interface OperationalExpense {
+  id: string;
+  category: 'rent' | 'software' | 'services';
+  name: string;
+  amount: number;
+  currency: string;
+}
+
+const categories = [
+  { value: 'rent', label: 'Arriendo', icon: Home },
+  { value: 'software', label: 'Software', icon: Code },
+  { value: 'services', label: 'Servicios', icon: Wrench },
+];
+
+export function OperationalExpensesStep() {
+  const { currency } = useOnboardingStore();
+  const [expenses, setExpenses] = useState<OperationalExpense[]>([]);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formData, setFormData] = useState<Partial<OperationalExpense>>({
+    category: 'rent',
+    name: '',
+    amount: 0,
+    currency: currency || 'USD',
+  });
+  const createFixedCost = useCreateFixedCost();
+
+  const handleAddExpense = () => {
+    if (formData.name && formData.amount && formData.category) {
+      const newExpense: OperationalExpense = {
+        id: Date.now().toString(),
+        category: formData.category as 'rent' | 'software' | 'services',
+        name: formData.name,
+        amount: formData.amount,
+        currency: formData.currency || currency || 'USD',
+      };
+      setExpenses([...expenses, newExpense]);
+      setFormData({
+        category: 'rent',
+        name: '',
+        amount: 0,
+        currency: currency || 'USD',
+      });
+      setIsFormOpen(false);
+    }
+  };
+
+  const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Título */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <h2 className="text-3xl font-bold tracking-tight text-[#1d1d1f] mb-2">
+          Gastos operativos
+        </h2>
+        <p className="text-[#86868b] text-sm">
+          Agrega tus gastos mensuales fijos (arriendo, software, servicios)
+        </p>
+      </motion.div>
+
+      {/* Resumen total */}
+      {expenses.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-white/80"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[#86868b]">Total gastos mensuales:</span>
+            <span className="text-xl font-bold text-[#1d1d1f]">
+              {formatCurrency(totalExpenses, currency || 'USD')}
+            </span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Categorías */}
+      <div className="grid grid-cols-3 gap-4">
+        {categories.map((cat) => {
+          const Icon = cat.icon;
+          const categoryExpenses = expenses.filter(e => e.category === cat.value);
+          const categoryTotal = categoryExpenses.reduce((sum, e) => sum + e.amount, 0);
+          
+          return (
+            <motion.div
+              key={cat.value}
+              whileHover={{ scale: 1.02 }}
+              className="bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-white/80"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Icon className="w-5 h-5 text-[#86868b]" strokeWidth={1.5} />
+                <span className="font-medium text-[#1d1d1f]">{cat.label}</span>
+              </div>
+              <p className="text-2xl font-bold text-[#1d1d1f]">
+                {formatCurrency(categoryTotal, currency || 'USD')}
+              </p>
+              <p className="text-xs text-[#86868b] mt-1">
+                {categoryExpenses.length} {categoryExpenses.length === 1 ? 'gasto' : 'gastos'}
+              </p>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Botón agregar */}
+      {!isFormOpen && (
+        <Button
+          onClick={() => setIsFormOpen(true)}
+          className="bg-white/70 backdrop-blur-md border border-white/80 text-[#1d1d1f] hover:bg-white/90"
+        >
+          <Plus className="w-4 h-4 mr-2" strokeWidth={1.5} />
+          Agregar gasto
+        </Button>
+      )}
+
+      {/* Formulario */}
+      {isFormOpen && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/80"
+        >
+          <div className="space-y-4">
+            <Select
+              value={formData.category}
+              onValueChange={(value) => setFormData({ ...formData, category: value as any })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Categoría" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder="Nombre del gasto"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            />
+            <Input
+              type="number"
+              placeholder="Monto mensual"
+              value={formData.amount || ''}
+              onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+            />
+            <div className="flex gap-2">
+              <Button onClick={handleAddExpense} className="flex-1">
+                Agregar
+              </Button>
+              <Button variant="outline" onClick={() => setIsFormOpen(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Lista de gastos */}
+      {expenses.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/80"
+        >
+          <div className="space-y-3">
+            {expenses.map((expense) => {
+              const category = categories.find(c => c.value === expense.category);
+              const Icon = category?.icon || Home;
+              
+              return (
+                <div
+                  key={expense.id}
+                  className="flex items-center justify-between p-3 bg-white/50 rounded-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="w-5 h-5 text-[#86868b]" strokeWidth={1.5} />
+                    <div>
+                      <p className="font-medium text-[#1d1d1f]">{expense.name}</p>
+                      <p className="text-xs text-[#86868b]">{category?.label}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="font-medium text-[#1d1d1f]">
+                      {formatCurrency(expense.amount, expense.currency)}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpenses(expenses.filter(e => e.id !== expense.id))}
+                    >
+                      <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+```
+
+**Integración con API:**
+
+- Usar `useCreateFixedCost()` de `@/lib/queries/fixedCosts`
+- Guardar gastos al avanzar al siguiente paso o al finalizar
+
+---
+
+### 8. ✅ Paso 5: Resumen Final con Bento Grid
+
+**Estado:** ❌ Nuevo componente
+
+**Archivo:** `frontend/src/components/onboarding/SummaryStep.tsx` (nuevo)
+
+**Características:**
+
+- Bento Grid layout (grid asimétrico)
+- Resumen de BCR proyectado
+- Métricas clave visualizadas
+- Disclaimer en la base
+- Botón "Finalizar" que guarda todo
+
+**Layout Bento Grid:**
+
+```
+┌─────────────┬─────────┐
+│             │ Costos  │
+│    BCR      ├─────────┤
+│  Principal  │ Horas   │
+│             ├─────────┤
+│             │ Equipo  │
+├─────────────┴─────────┤
+│     Disclaimer        │
+└───────────────────────┘
+```
+
+**Estructura:**
+
+```typescript
+"use client";
+
+import { motion } from 'framer-motion';
+import { TrendingUp, Users, DollarSign, Target, Calculator } from 'lucide-react';
+import { useOnboardingStore } from '@/stores/onboarding-store';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
+import { formatCurrency } from '@/lib/currency';
+
+export function SummaryStep({ onFinish }: { onFinish: () => void }) {
+  const store = useOnboardingStore();
+  const router = useRouter();
+
+  // Cálculos simplificados (en producción usar hook useCalculateBCR)
+  const totalTeamCost = store.teamMembers.reduce((sum, m) => sum + (m.salary || 0), 0);
+  const totalHours = store.teamMembers.reduce((sum, m) => sum + (m.billableHours || 0), 0);
+  const estimatedBCR = totalHours > 0 ? totalTeamCost / totalHours : 0;
+
+  const handleFinish = async () => {
+    // Aquí se guardarían todos los datos
+    // Por ahora solo redirigir
+    onFinish();
+    router.push('/dashboard');
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Título */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <h2 className="text-3xl font-bold tracking-tight text-[#1d1d1f] mb-2">
+          Resumen de configuración
+        </h2>
+        <p className="text-[#86868b] text-sm">
+          Revisa tu configuración y el BCR proyectado
+        </p>
+      </motion.div>
+
+      {/* Bento Grid */}
+      <div className="grid grid-cols-4 grid-rows-3 gap-4">
+        {/* Card grande: BCR Principal */}
+        <motion.div 
+          className="col-span-2 row-span-2 bg-white/70 backdrop-blur-md rounded-2xl p-8 border border-white/80"
+          initial={{ scale: 0.95 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.1 }}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-3 bg-primary-500/10 rounded-xl">
+              <TrendingUp className="w-6 h-6 text-primary-500" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-sm text-[#86868b]">BCR Proyectado</p>
+              <p className="text-3xl font-bold tracking-tight text-[#1d1d1f]">
+                {formatCurrency(estimatedBCR, store.currency || 'USD')}/hora
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-[#86868b] mt-4">
+            Blended Cost Rate calculado basado en tu configuración actual
+          </p>
+        </motion.div>
+
+        {/* Card: Total Costos */}
+        <motion.div 
+          className="col-span-1 row-span-1 bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/80"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="w-5 h-5 text-[#86868b]" strokeWidth={1.5} />
+            <span className="text-xs text-[#86868b]">Costos Totales</span>
+          </div>
+          <p className="text-2xl font-bold text-[#1d1d1f]">
+            {formatCurrency(totalTeamCost, store.currency || 'USD')}
+          </p>
+        </motion.div>
+
+        {/* Card: Total Horas */}
+        <motion.div 
+          className="col-span-1 row-span-1 bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/80"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="w-5 h-5 text-[#86868b]" strokeWidth={1.5} />
+            <span className="text-xs text-[#86868b]">Horas Totales</span>
+          </div>
+          <p className="text-2xl font-bold text-[#1d1d1f]">
+            {totalHours.toFixed(0)}
+          </p>
+          <p className="text-xs text-[#86868b] mt-1">horas/mes</p>
+        </motion.div>
+
+        {/* Card: Equipo */}
+        <motion.div 
+          className="col-span-1 row-span-1 bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/80"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Users className="w-5 h-5 text-[#86868b]" strokeWidth={1.5} />
+            <span className="text-xs text-[#86868b]">Equipo</span>
+          </div>
+          <p className="text-2xl font-bold text-[#1d1d1f]">
+            {store.teamMembers.length}
+          </p>
+          <p className="text-xs text-[#86868b] mt-1">miembros</p>
+        </motion.div>
+
+        {/* Card: Perfil */}
+        <motion.div 
+          className="col-span-1 row-span-1 bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/80"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Calculator className="w-5 h-5 text-[#86868b]" strokeWidth={1.5} />
+            <span className="text-xs text-[#86868b]">Perfil</span>
+          </div>
+          <p className="text-lg font-bold text-[#1d1d1f] capitalize">
+            {store.profileType || 'No seleccionado'}
+          </p>
+        </motion.div>
+
+        {/* Card: Disclaimer (full width) */}
+        <motion.div 
+          className="col-span-4 row-span-1 bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-white/80"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6 }}
+        >
+          <p className="text-xs text-[#86868b] text-center leading-relaxed">
+            Valores sugeridos basados en benchmark. Por favor, valida con tu contabilidad real para garantizar la precisión de tus márgenes.
+          </p>
+        </motion.div>
+      </div>
+
+      {/* Botón Finalizar */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7 }}
+        className="flex justify-end"
+      >
+        <Button
+          onClick={handleFinish}
+          size="lg"
+          className="bg-primary-500 hover:bg-primary-600 text-white px-8"
+        >
+          Finalizar configuración
+        </Button>
+      </motion.div>
+    </div>
+  );
+}
+```
+
+---
+
+### 9. ✅ Página Principal Rediseñada
+
+**Estado:** 🔄 Refactorizar completamente
+
+**Archivo:** `frontend/src/app/(app)/onboarding/page.tsx` (refactorizar)
+
+**Estructura nueva:**
+
+```typescript
+"use client";
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { OnboardingStepWrapper } from '@/components/onboarding/OnboardingStepWrapper';
+import { IdentityStep } from '@/components/onboarding/IdentityStep';
+import { BusinessProfileStep } from '@/components/onboarding/BusinessProfileStep';
+import { TeamConfigurationStep } from '@/components/onboarding/TeamConfigurationStep';
+import { OperationalExpensesStep } from '@/components/onboarding/OperationalExpensesStep';
+import { SummaryStep } from '@/components/onboarding/SummaryStep';
+import { Button } from '@/components/ui/button';
+import { ChevronRight, ArrowLeft } from 'lucide-react';
+import { useGetCurrentUser } from '@/lib/queries';
+import { useOnboardingStore } from '@/stores/onboarding-store';
+
+export default function OnboardingPage() {
+  const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 5;
+  const { data: currentUser, isLoading: userLoading } = useGetCurrentUser();
+
+  // Validar que solo owners puedan acceder
+  useEffect(() => {
+    if (!userLoading && currentUser) {
+      if (currentUser.role !== 'owner') {
+        router.push('/dashboard');
+      }
+    }
+  }, [currentUser, userLoading, router]);
+
+  const handleNext = () => {
+    // Validaciones por paso
+    if (currentStep === 1) {
+      const { organizationName, country, currency } = useOnboardingStore.getState();
+      if (!organizationName || !country || !currency) {
+        alert('Por favor completa todos los campos');
+        return;
+      }
+    }
+    if (currentStep === 2) {
+      const { profileType } = useOnboardingStore.getState();
+      if (!profileType) {
+        alert('Por favor selecciona un perfil');
+        return;
+      }
+    }
+    if (currentStep === 3) {
+      const { teamMembers } = useOnboardingStore.getState();
+      if (teamMembers.length === 0) {
+        alert('Por favor agrega al menos un miembro del equipo');
+        return;
+      }
+    }
+
+    if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleFinish = async () => {
+    // Guardar toda la configuración
+    // Esto se manejará en SummaryStep
+    router.push('/dashboard');
+  };
+
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center">
+        <div className="text-[#86868b]">Cargando...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F5F5F7]">
+      {/* Progress bar */}
+      <div className="w-full h-1 bg-white/50">
+        <motion.div
+          className="h-full bg-primary-500"
+          initial={{ width: 0 }}
+          animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        />
+      </div>
+
+      {/* Main content */}
+      <div className="container mx-auto px-4 py-12 max-w-4xl">
+        {/* Step content */}
+        <OnboardingStepWrapper step={1} currentStep={currentStep}>
+          <IdentityStep />
+        </OnboardingStepWrapper>
+
+        <OnboardingStepWrapper step={2} currentStep={currentStep}>
+          <BusinessProfileStep />
+        </OnboardingStepWrapper>
+
+        <OnboardingStepWrapper step={3} currentStep={currentStep}>
+          <TeamConfigurationStep />
+        </OnboardingStepWrapper>
+
+        <OnboardingStepWrapper step={4} currentStep={currentStep}>
+          <OperationalExpensesStep />
+        </OnboardingStepWrapper>
+
+        <OnboardingStepWrapper step={5} currentStep={currentStep}>
+          <SummaryStep onFinish={handleFinish} />
+        </OnboardingStepWrapper>
+
+        {/* Navigation */}
+        {currentStep < totalSteps && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex justify-between mt-8"
+          >
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 1}
+              className="bg-white/70 backdrop-blur-md border-white/80"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" strokeWidth={1.5} />
+              Atrás
+            </Button>
+            <Button
+              onClick={handleNext}
+              className="bg-primary-500 hover:bg-primary-600 text-white"
+            >
+              Continuar
+              <ChevronRight className="w-4 h-4 ml-2" strokeWidth={1.5} />
+            </Button>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+### 10. ✅ Hook: useCalculateBCR
+
+**Estado:** ❌ Nuevo hook (opcional, para cálculo real)
+
+**Archivo:** `frontend/src/lib/queries/bcr.ts` (nuevo o extender)
+
+**Propósito:** Calcular BCR con datos del onboarding antes de guardar
+
+**Implementación:**
+
+```typescript
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '../api-client';
+import { useOnboardingStore } from '@/stores/onboarding-store';
+
+export function useCalculateBCRFromOnboarding() {
+  const store = useOnboardingStore();
+
+  return useQuery({
+    queryKey: ['bcr', 'onboarding', store.teamMembers, store.currency],
+    queryFn: async () => {
+      // Llamar a endpoint de cálculo de BCR con datos del onboarding
+      // Este endpoint puede ser temporal o usar el endpoint existente
+      const response = await apiClient.get('/calculations/agency-cost-hour', {
+        params: {
+          // Pasar datos del onboarding si el endpoint lo soporta
+        }
+      });
+      return response.data;
+    },
+    enabled: store.teamMembers.length > 0 && !!store.currency,
+  });
+}
+```
+
+---
+
+## 📝 Plan de Implementación por Fases
+
+### Fase 1: Setup y Diseño Base (Prioridad Alta)
+
+**Objetivo:** Configurar dependencias y sistema de diseño Apple
+
+**Tareas:**
+
+1. ✅ Instalar Framer Motion (`npm install framer-motion`)
+2. ✅ Crear `apple-onboarding.css` con estilos base
+3. ✅ Actualizar `tailwind.config.js` con colores y utilidades Apple
+4. ✅ Crear `OnboardingStepWrapper` con transiciones
+5. ✅ Importar estilos en `globals.css`
+
+**Estimación:** 1 día
+
+**Archivos a crear/modificar:**
+
+- `frontend/package.json` (agregar dependencia)
+- `frontend/src/styles/apple-onboarding.css` (nuevo)
+- `frontend/tailwind.config.js` (modificar)
+- `frontend/src/app/globals.css` (importar estilos)
+- `frontend/src/components/onboarding/OnboardingStepWrapper.tsx` (nuevo)
+
+---
+
+### Fase 2: Paso 1 - Datos Identidad (Prioridad Alta)
+
+**Objetivo:** Rediseñar paso de identidad con estilo Apple
+
+**Tareas:**
+
+1. ✅ Crear `IdentityStep.tsx` con diseño Apple
+2. ✅ Implementar selectores de país/moneda con glass cards
+3. ✅ Agregar validaciones
+4. ✅ Integrar con `onboarding-store`
+5. ✅ Agregar sincronización país → moneda
+
+**Estimación:** 1 día
+
+**Archivos a crear/modificar:**
+
+- `frontend/src/components/onboarding/IdentityStep.tsx` (nuevo)
+
+---
+
+### Fase 3: Paso 2 - Perfil de Negocio (Prioridad Alta)
+
+**Objetivo:** Mejorar selección de perfil con benchmarks
+
+**Tareas:**
+
+1. ✅ Crear `BusinessProfileStep.tsx`
+2. ✅ Implementar cards de perfil con animaciones
+3. ✅ Agregar sistema de benchmarks por perfil
+4. ✅ Mostrar preview de benchmarks al seleccionar
+5. ✅ Agregar animaciones hover y click
+
+**Estimación:** 1-2 días
+
+**Archivos a crear/modificar:**
+
+- `frontend/src/components/onboarding/BusinessProfileStep.tsx` (nuevo)
+
+---
+
+### Fase 4: Paso 3 - Configuración de Equipo (Prioridad Media)
+
+**Objetivo:** Mejorar configuración de equipo con estilo Apple
+
+**Tareas:**
+
+1. ✅ Crear `TeamConfigurationStep.tsx`
+2. ✅ Rediseñar tabla de miembros con glass cards
+3. ✅ Agregar factor de prestaciones (opcional)
+4. ✅ Implementar cálculos en tiempo real
+5. ✅ Mejorar UX del formulario de agregar miembro
+
+**Estimación:** 2 días
+
+**Archivos a crear/modificar:**
+
+- `frontend/src/components/onboarding/TeamConfigurationStep.tsx` (nuevo)
+- `frontend/src/stores/onboarding-store.ts` (posible extensión)
+
+---
+
+### Fase 5: Paso 4 - Gastos Operativos (Prioridad Media)
+
+**Objetivo:** Crear nuevo paso para gastos operativos
+
+**Tareas:**
+
+1. ✅ Crear `OperationalExpensesStep.tsx`
+2. ✅ Implementar categorías (Arriendo, Software, Servicios)
+3. ✅ Formulario de agregar gastos con estilo Apple
+4. ✅ Integrar con API de fixed costs (opcional, puede guardarse después)
+5. ✅ Guardar gastos en store temporal
+6. ✅ Mostrar resumen por categoría
+
+**Estimación:** 2 días
+
+**Archivos a crear/modificar:**
+
+- `frontend/src/components/onboarding/OperationalExpensesStep.tsx` (nuevo)
+- `frontend/src/stores/onboarding-store.ts` (extender con gastos operativos)
+
+---
+
+### Fase 6: Paso 5 - Resumen con Bento Grid (Prioridad Alta)
+
+**Objetivo:** Crear pantalla de resumen con Bento Grid
+
+**Tareas:**
+
+1. ✅ Crear `SummaryStep.tsx`
+2. ✅ Implementar layout Bento Grid responsive
+3. ✅ Mostrar métricas clave (BCR, Costos, Horas, Equipo)
+4. ✅ Agregar disclaimer en la base
+5. ✅ Implementar botón "Finalizar" que guarda todo
+6. ✅ Integrar con APIs para guardar datos finales
+
+**Estimación:** 2-3 días
+
+**Archivos a crear/modificar:**
+
+- `frontend/src/components/onboarding/SummaryStep.tsx` (nuevo)
+- `frontend/src/lib/queries/bcr.ts` (nuevo, opcional)
+
+---
+
+### Fase 7: Integración y Refactorización (Prioridad Alta)
+
+**Objetivo:** Integrar todos los pasos y refactorizar página principal
+
+**Tareas:**
+
+1. ✅ Refactorizar `onboarding/page.tsx`
+2. ✅ Integrar todos los componentes nuevos
+3. ✅ Implementar navegación entre pasos con validaciones
+4. ✅ Agregar progress bar con animaciones
+5. ✅ Manejar guardado final de datos (organización, equipo, costos)
+6. ✅ Testing de flujo completo
+7. ✅ Manejo de errores y estados de carga
+
+**Estimación:** 2 días
+
+**Archivos a crear/modificar:**
+
+- `frontend/src/app/(app)/onboarding/page.tsx` (refactorizar completamente)
+
+---
+
+## ✅ Checklist de Implementación
+
+### Setup
+
+- [ ] Instalar `framer-motion`
+- [ ] Crear `apple-onboarding.css`
+- [ ] Actualizar `tailwind.config.js`
+- [ ] Crear `OnboardingStepWrapper`
+- [ ] Importar estilos en `globals.css`
+
+### Componentes Nuevos
+
+- [ ] `IdentityStep.tsx`
+- [ ] `BusinessProfileStep.tsx`
+- [ ] `TeamConfigurationStep.tsx`
+- [ ] `OperationalExpensesStep.tsx`
+- [ ] `SummaryStep.tsx`
+
+### Funcionalidad
+
+- [ ] Sistema de benchmarks por perfil
+- [ ] Cálculo de BCR en tiempo real (simplificado o con API)
+- [ ] Integración con APIs existentes
+- [ ] Guardado de datos al finalizar
+- [ ] Validaciones por paso
+- [ ] Sincronización país → moneda
+
+### UI/UX
+
+- [ ] Transiciones Framer Motion entre pasos
+- [ ] Glass cards con backdrop-blur
+- [ ] Bento Grid layout responsive
+- [ ] Progress bar animada
+- [ ] Responsive design (mobile, tablet, desktop)
+- [ ] Hover effects y animaciones
+
+### Testing
+
+- [ ] Testing de flujo completo
+- [ ] Validación de datos por paso
+- [ ] Testing de transiciones
+- [ ] Testing responsive
+- [ ] Testing de guardado de datos
+
+---
+
+## 🎨 Consideraciones de Diseño
+
+### Colores Apple Style
+
+- **Canvas:** `#F5F5F7`
+- **Glass cards:** `rgba(255, 255, 255, 0.7)` con `backdrop-blur-md`
+- **Texto principal:** `#1d1d1f`
+- **Texto secundario:** `#86868b`
+- **Bordes:** `rgba(255, 255, 255, 0.8)`
+
+### Tipografía
+
+- **Títulos:** `font-bold` con `tracking-tight` (`letter-spacing: -0.02em`)
+- **Subtítulos:** `text-sm` en `#86868b`
+- **Body:** `text-base` en `#1d1d1f`
+
+### Espaciado
+
+- **Padding cards:** `p-6` o `p-8`
+- **Gap entre elementos:** `gap-4` o `gap-6`
+- **Border radius:** `rounded-2xl` (24px)
+
+### Iconos
+
+- **Lucide React** con `strokeWidth={1.5}`
+- Tamaño estándar: `w-4 h-4` o `w-5 h-5`
+
+---
+
+## 🔧 Consideraciones Técnicas
+
+### Performance
+
+- ✅ Usar `AnimatePresence` para transiciones suaves
+- ✅ Lazy load de componentes pesados si es necesario
+- ✅ Optimizar imágenes/iconos
+- ✅ Memoizar cálculos costosos
+
+### Accesibilidad
+
+- ✅ Aria labels en todos los inputs
+- ✅ Navegación por teclado
+- ✅ Contraste de colores (WCAG AA mínimo)
+- ✅ Focus states visibles
+
+### Responsive
+
+- ✅ Mobile-first approach
+- ✅ Breakpoints: sm (640px), md (768px), lg (1024px)
+- ✅ Bento Grid adaptativo (col-span ajustable)
+- ✅ Stack vertical en mobile
+
+### Integración con APIs
+
+- ✅ Usar hooks de TanStack Query existentes
+- ✅ Manejar estados de loading/error
+- ✅ Validar datos antes de enviar
+- ✅ Manejar errores de red gracefully
+
+### Estado
+
+- ✅ Usar `onboarding-store` (Zustand) para estado temporal
+- ✅ Persistir datos durante el onboarding
+- ✅ Limpiar store al finalizar exitosamente
+
+---
+
+## 📚 Referencias
+
+### Documentos Relacionados
+
+- `PRD_UX_UI.md` - Requerimientos de UI/UX
+- `PLAN_TRABAJO_BREAK_EVEN_BACKEND.md` - Ejemplo de estructura de plan
+- `.cursorrules/nougram_backend_rules.md` - Reglas de arquitectura
+
+### Recursos Externos
+
+- [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/)
+- [Framer Motion Documentation](https://www.framer.com/motion/)
+- [Tailwind CSS Backdrop Blur](https://tailwindcss.com/docs/backdrop-blur)
+- [Lucide Icons](https://lucide.dev/)
+
+### Código de Referencia
+
+- `frontend/src/components/onboarding/ProfileSelection.tsx` - Componente actual
+- `frontend/src/app/(app)/onboarding/page.tsx` - Página actual
+- `frontend/src/stores/onboarding-store.ts` - Store actual
+
+---
+
+## 🚀 Próximos Pasos
+
+1. **Revisar este plan** con el equipo
+2. **Crear branch:** `feature/apple-onboarding-redesign`
+3. **Implementar Fase 1** (Setup y Diseño Base)
+4. **Implementar Fases 2-6** (Componentes individuales)
+5. **Implementar Fase 7** (Integración)
+6. **Testing completo** del flujo
+7. **Code review**
+8. **Merge a main**
+
+---
+
+## 📊 Estimación Total
+
+- **Fase 1:** 1 día
+- **Fase 2:** 1 día
+- **Fase 3:** 1-2 días
+- **Fase 4:** 2 días
+- **Fase 5:** 2 días
+- **Fase 6:** 2-3 días
+- **Fase 7:** 2 días
+
+**Total estimado:** 11-13 días de desarrollo
+
+---
+
+**Última actualización:** 2026-02-08  
+**Versión:** 1.0  
+**Estado:** Pendiente de Implementación

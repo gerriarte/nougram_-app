@@ -1,1 +1,1 @@
-web: cd frontend && npm start
+web: cd nougram_front && npm start

@@ -69,12 +69,12 @@ if [ ! -f "backend/.env" ]; then
     cd ..
 fi
 
-# Verificar variables de entorno del frontend
+# Verificar variables de entorno del frontend principal
 echo "🔍 Verificando configuración del frontend..."
-if [ ! -f "frontend/.env.local" ]; then
-    echo -e "${YELLOW}⚠️  Archivo .env.local no encontrado en frontend/${NC}"
+if [ ! -f "nougram_front/.env.local" ]; then
+    echo -e "${YELLOW}⚠️  Archivo .env.local no encontrado en nougram_front/${NC}"
     echo "Creando archivo .env.local..."
-    echo "NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1" > frontend/.env.local
+    echo "NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1" > nougram_front/.env.local
 fi
 
 echo ""
@@ -101,10 +101,10 @@ python -m alembic upgrade head || echo -e "${YELLOW}⚠️  Error en migraciones
 
 cd ..
 
-# Instalar dependencias del frontend si es necesario
+# Instalar dependencias del frontend principal si es necesario
 echo ""
 echo "📦 Verificando dependencias del frontend..."
-cd frontend
+cd nougram_front
 if [ ! -d "node_modules" ]; then
     echo "Instalando dependencias del frontend..."
     npm install
@@ -124,7 +124,7 @@ echo "    source venv/bin/activate"
 echo "    python -m uvicorn main:app --reload --port 8000"
 echo ""
 echo "  Terminal 2 - Frontend:"
-echo "    cd frontend"
+echo "    cd nougram_front"
 echo "    npm run dev"
 echo ""
 echo "Luego abre: http://localhost:3000"

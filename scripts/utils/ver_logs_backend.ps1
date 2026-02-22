@@ -21,7 +21,7 @@ Write-Host "  Ejecutando peticion ahora..." -ForegroundColor White
 Write-Host ""
 
 try {
-    $response = Invoke-WebRequest -Uri 'http://localhost:5000/api/v1/users/' `
+    $response = Invoke-WebRequest -Uri 'http://localhost:8000/api/v1/users/' `
         -Headers @{Authorization='Bearer dev-bypass-token'} `
         -Method Get `
         -TimeoutSec 5 `

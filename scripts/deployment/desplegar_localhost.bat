@@ -110,9 +110,9 @@ if not exist venv (
 cd ..
 echo.
 
-REM Verificar dependencias del frontend
+REM Verificar dependencias del frontend principal
 echo %BLUE% Verificando dependencias del frontend...
-cd frontend
+cd nougram_front
 if not exist node_modules (
     echo %YELLOW% Instalando dependencias del frontend...
     call npm install
@@ -164,7 +164,7 @@ timeout /t 3 /nobreak >nul
 
 REM Iniciar Frontend en nueva ventana
 echo %BLUE% Iniciando Frontend en nueva ventana...
-start "Nougram Frontend" cmd /k "cd /d %~dp0frontend && npm run dev"
+start "Nougram Frontend" cmd /k "cd /d %~dp0..\..\nougram_front && npm run dev"
 
 echo.
 echo ========================================
@@ -174,7 +174,7 @@ echo.
 echo %GREEN% Servicios iniciados en ventanas separadas:
 echo.
 echo    Backend:  http://localhost:8000
-echo    Frontend: http://localhost:5000
+echo    Frontend: http://localhost:3000
 echo.
 echo %YELLOW% Para detener los servicios:
 echo    - Cierra las ventanas de Backend y Frontend

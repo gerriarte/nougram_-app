@@ -90,7 +90,7 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ./nougram_front
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}

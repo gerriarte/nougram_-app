@@ -3,11 +3,11 @@
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  PRUEBA DE ROLES - Backend Puerto 5000" -ForegroundColor Cyan
+Write-Host "  PRUEBA DE ROLES - Backend Puerto 8000" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$baseUrl = "http://localhost:5000"
+$baseUrl = "http://localhost:8000"
 $headers = @{
     Authorization = 'Bearer dev-bypass-token'
     'Content-Type' = 'application/json'
@@ -17,7 +17,7 @@ $headers = @{
 Write-Host "1. Verificando backend..." -ForegroundColor Yellow
 try {
     $health = Invoke-RestMethod -Uri "$baseUrl/health" -Method Get -TimeoutSec 5 -ErrorAction Stop
-    Write-Host "   OK - Backend corriendo en puerto 5000" -ForegroundColor Green
+    Write-Host "   OK - Backend corriendo en puerto 8000" -ForegroundColor Green
 } catch {
     Write-Host "   ERROR - Backend NO responde" -ForegroundColor Red
     Write-Host "   Por favor inicia el backend primero" -ForegroundColor Yellow
@@ -74,8 +74,8 @@ Write-Host "  Estado: NO DISRUPTIVO (funciona igual)" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Endpoints disponibles:" -ForegroundColor Cyan
-Write-Host "  http://localhost:5000/docs - Swagger UI" -ForegroundColor White
-Write-Host "  http://localhost:5000/api/v1/auth/me - Usuario actual" -ForegroundColor White
+Write-Host "  http://localhost:8000/docs - Swagger UI" -ForegroundColor White
+Write-Host "  http://localhost:8000/api/v1/auth/me - Usuario actual" -ForegroundColor White
 Write-Host ""
 Write-Host "Para probar con diferentes roles:" -ForegroundColor Cyan
 Write-Host "  1. Activa FEATURE_ROLES=true en .env" -ForegroundColor White

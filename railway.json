@@ -2,10 +2,10 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "cd frontend && npm ci --include=dev && npm run build && mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/static && cp -R public .next/standalone/public"
+    "buildCommand": "cd nougram_front && npm ci --include=dev && npm run build && mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/static && cp -R public .next/standalone/public"
   },
   "deploy": {
-    "startCommand": "cd frontend && HOSTNAME=0.0.0.0 node .next/standalone/server.js",
+    "startCommand": "cd nougram_front && HOSTNAME=0.0.0.0 node .next/standalone/server.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
