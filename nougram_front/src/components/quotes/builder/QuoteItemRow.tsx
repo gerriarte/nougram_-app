@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
+import { useNougram } from '@/context/NougramCoreContext';
 import { QuoteItem, Service, ResourceAllocation } from '@/types/quote-builder';
 import { Trash2, Plus, Users, Clock, Calendar, Check, X, Edit2 } from 'lucide-react';
 
@@ -16,6 +17,7 @@ interface QuoteItemRowProps {
 
 export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
     const { updateItem, removeItem, state, teamMembers } = useQuoteBuilder();
+    const { state: coreState } = useNougram();
     const [isAddingResource, setIsAddingResource] = useState(false);
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [newResourceHours, setNewResourceHours] = useState<number>(10);
@@ -57,6 +59,13 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
 
     // Calculate total hours from allocations
     const totalAllocatedHours = (item.allocations || []).reduce((sum, a) => sum + a.hours, 0);
+    const durationMultiplier = item.pricingType === 'recurring' ? Math.max(1, Number(item.durationMonths || 1)) : 1;
+    const estimatedProjectHours = totalAllocatedHours * durationMultiplier;
+    const blendedRate = Number(coreState.financials.bcr || 0);
+    const totalResourceCost = (item.allocations || []).reduce(
+        (sum, alloc) => sum + (Number(alloc.hours || 0) * blendedRate * durationMultiplier),
+        0
+    );
 
     return (
         <Card className="p-5 bg-white border border-gray-100 shadow-sm relative group transition-all hover:shadow-md hover:border-gray-200">
@@ -132,6 +141,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                             <div className="space-y-2">
                                 {item.allocations?.map(alloc => {
                                     const member = teamMembers.find(m => m.id === alloc.teamMemberId);
+                                    const allocCost = Number(alloc.hours || 0) * blendedRate * durationMultiplier;
                                     return (
                                         <div key={alloc.id} className="flex items-center justify-between bg-white p-2 rounded-lg border border-gray-100 shadow-sm text-sm">
                                             <div className="flex items-center gap-2">
@@ -144,6 +154,9 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                                 <span className="text-gray-500 bg-gray-50 px-2 py-0.5 rounded text-xs">
                                                     {alloc.hours}h {item.pricingType === 'recurring' ? '/mes' : ''}
                                                 </span>
+                                                <span className="text-gray-700 bg-gray-50 px-2 py-0.5 rounded text-xs font-semibold">
+                                                    ${allocCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                </span>
                                                 <button onClick={() => removeResource(alloc.id)} className="text-gray-300 hover:text-red-500">
                                                     <Trash2 size={12} />
                                                 </button>
@@ -155,6 +168,10 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
 
                             {/* Add Resource UI */}
                             <div className="mt-3 pt-3 border-t border-gray-200/50">
+                                <div className="mb-3 flex items-center justify-between text-[11px] font-semibold text-gray-500">
+                                    <span>Horas estimadas proyecto: {estimatedProjectHours.toLocaleString()}h</span>
+                                    <span>Costo recursos: ${totalResourceCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                </div>
                                 {!isAddingResource ? (
                                     <Button
                                         size="sm"
@@ -284,9 +301,9 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                         <div className="pt-4 mt-4 border-t border-gray-100">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <label className="text-xs font-medium text-gray-400">Costo Total</label>
+                                    <label className="text-xs font-medium text-gray-400">Costo Recursos</label>
                                     <div className="text-sm font-mono text-gray-600">
-                                        ${item.internalCost.toLocaleString()}
+                                        ${totalResourceCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                     </div>
                                 </div>
                                 <div className="space-y-1">

@@ -60,6 +60,11 @@ type ProjectResponse = {
     client_email?: string;
     currency?: string;
     status?: string;
+    taxes?: Array<{
+        id: number;
+        name: string;
+        percentage: string | number;
+    }>;
 };
 
 type ServiceListResponse = {
@@ -262,6 +267,8 @@ export const quoteService = {
 
         const mapped = await Promise.all(
             projectResponse.data.items.map(async (project) => {
+                const projectDetailResponse = await apiRequest<ProjectResponse>(`/projects/${project.id}`);
+                const projectDetail = projectDetailResponse.data || project;
                 const quotesResponse = await apiRequest<ProjectQuoteResponse[]>(
                     `/projects/${project.id}/quotes`
                 );
@@ -274,22 +281,22 @@ export const quoteService = {
                 const detailedQuote = await getQuoteDetailForProject(project.id, latestQuote?.id);
                 const baseQuote = detailedQuote || latestQuote;
 
-                const amount = Number(toInvoiceAmount(baseQuote?.total_client_price || 0, project.taxes || []));
+                const amount = Number(toInvoiceAmount(baseQuote?.total_client_price || 0, projectDetail.taxes || []));
                 const margin = Number(
                     toRealMarginPercent(
                         baseQuote?.total_client_price || 0,
                         baseQuote?.total_internal_cost || 0,
-                        project.taxes || []
+                        projectDetail.taxes || []
                     ).toFixed(2)
                 );
                 const version = Number(latestQuote?.version || 1);
 
                 return {
                     id: String(project.id),
-                    project: project.name,
-                    client: project.client_name,
+                    project: projectDetail.name || project.name,
+                    client: projectDetail.client_name || project.client_name,
                     amount,
-                    currency: project.currency || 'USD',
+                    currency: projectDetail.currency || project.currency || 'USD',
                     margin,
                     version,
                     status: statusMap[project.status] || 'draft',
