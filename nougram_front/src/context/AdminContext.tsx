@@ -113,8 +113,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         // Sync base payroll+overhead to NougramCore; final BCR is computed there with amortization.
+        // updateFinancialBasics function identity is not stable across renders, so we intentionally
+        // depend only on the computed numeric values to avoid a render loop in admin pages.
         updateFinancialBasics(bcr.totalMonthlyCosts, bcr.totalBillableHours);
-    }, [bcr.totalMonthlyCosts, bcr.totalBillableHours, updateFinancialBasics]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bcr.totalMonthlyCosts, bcr.totalBillableHours]);
 
     // 3. Actions
     const addTeamMember = (member: TeamMember) => {
