@@ -75,6 +75,8 @@ out/
 data/
 models/
 jupyter_checkpoints/
+!nougram_front/src/data/
+!nougram_front/src/data/**
 
 # Test artifacts
 coverage/
