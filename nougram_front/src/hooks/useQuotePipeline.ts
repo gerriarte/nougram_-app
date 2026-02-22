@@ -30,6 +30,7 @@ export function useQuotePipeline() {
     const [search, setSearch] = useState('');
     const [viewMode, setViewMode] = useState<'board' | 'list'>('list');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [metrics, setMetrics] = useState<PipelineMetrics>({
         totalQuoted: 0,
         pipelineValue: 0,
@@ -52,6 +53,7 @@ export function useQuotePipeline() {
     useEffect(() => {
         const loadQuotes = async () => {
             setLoading(true);
+            setError(null);
             try {
                 const data = await quoteService.getAll();
                 setQuotes(data);
@@ -109,6 +111,8 @@ export function useQuotePipeline() {
                 });
             } catch (error) {
                 console.error("Failed to load quotes", error);
+                setQuotes([]);
+                setError(error instanceof Error ? error.message : "No se pudo cargar el pipeline");
             } finally {
                 setLoading(false);
             }
@@ -186,6 +190,7 @@ export function useQuotePipeline() {
     return {
         quotes: filteredQuotes, // Return filtered directly or raw depending on need. Usually UI wants filtered.
         allQuotes: quotes,
+        error,
         search,
         setSearch,
         viewMode,

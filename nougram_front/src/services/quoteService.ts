@@ -141,12 +141,11 @@ function buildQuoteCardFromProject(
 export const quoteService = {
     getAll: async (): Promise<Quote[]> => {
         const projectResponse = await apiRequest<ProjectListResponse>('/projects/');
-
-        // Fallback to mock data if backend is unavailable
-        if (projectResponse.error || !projectResponse.data?.items) {
-            return new Promise((resolve) => {
-                setTimeout(() => resolve([...MOCK_QUOTES]), 300);
-            });
+        if (projectResponse.error) {
+            throw new Error(projectResponse.error);
+        }
+        if (!projectResponse.data?.items) {
+            return [];
         }
 
         const statusMap: Record<ProjectListItem['status'], Quote['status']> = {
@@ -161,6 +160,9 @@ export const quoteService = {
                 const quotesResponse = await apiRequest<ProjectQuoteResponse[]>(
                     `/projects/${project.id}/quotes`
                 );
+                if (quotesResponse.error) {
+                    throw new Error(quotesResponse.error);
+                }
                 const quotes = quotesResponse.data || [];
                 const latestQuote =
                     quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0] || null;
@@ -197,7 +199,10 @@ export const quoteService = {
     },
     getByProjectId: async (projectId: string): Promise<Quote | null> => {
         const projectResponse = await apiRequest<ProjectResponse>(`/projects/${projectId}`);
-        if (projectResponse.error || !projectResponse.data) return null;
+        if (projectResponse.error) {
+            throw new Error(projectResponse.error);
+        }
+        if (!projectResponse.data) return null;
         const latestQuote = await quoteService.getLatestQuoteForProject(projectId);
         return buildQuoteCardFromProject(projectResponse.data, latestQuote);
     },
@@ -364,21 +369,14 @@ export const quoteService = {
 
     sendEmail: async (id: string, data: SendEmailPayload): Promise<void> => {
         const quotesResponse = await apiRequest<ProjectQuoteResponse[]>(`/projects/${id}/quotes`);
+        if (quotesResponse.error) {
+            throw new Error(quotesResponse.error);
+        }
         const quotes = quotesResponse.data || [];
         const latestQuote = quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0];
 
         if (!latestQuote) {
-            // Fallback to mock behavior when quote list is unavailable
-            return new Promise((resolve) => {
-                setTimeout(() => {
-                    const idx = MOCK_QUOTES.findIndex((q) => q.id === id);
-                    if (idx !== -1) {
-                        MOCK_QUOTES[idx].status = 'sent';
-                        MOCK_QUOTES[idx].sentAt = 'Hace un momento';
-                    }
-                    resolve();
-                }, 800);
-            });
+            throw new Error('No existe una cotización para enviar');
         }
 
         const response = await apiRequest(`/projects/${id}/quotes/${latestQuote.id}/send-email`, {

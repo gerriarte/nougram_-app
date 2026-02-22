@@ -115,8 +115,21 @@ export function useAuth() {
     };
     loadSession();
 
+    const onAuthExpired = () => {
+      removeAuthToken();
+      authUserCache = null;
+      setUser(null);
+      setLoading(false);
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("nougram:auth-expired", onAuthExpired as EventListener);
+    }
+
     return () => {
       authSubscribers.delete(subscriber);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("nougram:auth-expired", onAuthExpired as EventListener);
+      }
     };
   }, []);
 

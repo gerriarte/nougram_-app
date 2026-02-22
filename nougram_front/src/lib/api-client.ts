@@ -12,6 +12,9 @@ export async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
+    const normalizedBase = API_URL.replace(/\/+$/, "");
+    const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    const url = `${normalizedBase}${normalizedEndpoint}`;
     const token = getAuthToken();
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -22,7 +25,7 @@ export async function apiRequest<T>(
       headers.Authorization = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await fetch(url, {
       ...options,
       headers,
     });
@@ -30,6 +33,10 @@ export async function apiRequest<T>(
     if (!response.ok) {
       if (response.status === 401) {
         removeAuthToken();
+        if (typeof window !== "undefined") {
+          // Let UI layers redirect or show auth-expired messaging.
+          window.dispatchEvent(new CustomEvent("nougram:auth-expired"));
+        }
         return { error: "No autorizado. Inicia sesión nuevamente." };
       }
 
@@ -50,8 +57,7 @@ export async function apiRequest<T>(
   } catch (error) {
     if (error instanceof TypeError && error.message === "Failed to fetch") {
       return {
-        error:
-          "Error de conexión. Verifica que el backend esté disponible en http://localhost:8000",
+        error: `Error de conexión. Verifica que el backend esté disponible en ${normalizedBase}`,
       };
     }
     return { error: error instanceof Error ? error.message : "Error de red" };

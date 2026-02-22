@@ -17,6 +17,7 @@ export function QuotePipeline() {
     const {
         quotes: filteredQuotes,
         allQuotes,
+        error,
         search,
         setSearch,
         viewMode,
@@ -37,6 +38,15 @@ export function QuotePipeline() {
                     <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
                     <p className="text-sm font-bold text-system-gray uppercase tracking-widest">Sincronizando Pipeline...</p>
                 </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
+                <h3 className="text-base font-bold text-red-700">No se pudo cargar el pipeline</h3>
+                <p className="mt-1 text-sm text-red-600">{error}</p>
             </div>
         );
     }
