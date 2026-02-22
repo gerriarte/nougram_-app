@@ -1429,12 +1429,18 @@ async def save_onboarding_config(
         
         # Calculate total percentage if individual percentages are provided
         if 'health_percentage' in social_config or 'pension_percentage' in social_config or \
-           'arl_percentage' in social_config or 'parafiscales_percentage' in social_config:
+           'arl_percentage' in social_config or 'parafiscales_percentage' in social_config or \
+           'prima_services_percentage' in social_config or 'cesantias_percentage' in social_config or \
+           'int_cesantias_percentage' in social_config or 'vacations_percentage' in social_config:
             total = (
                 social_config.get('health_percentage', 0) +
                 social_config.get('pension_percentage', 0) +
                 social_config.get('arl_percentage', 0) +
-                social_config.get('parafiscales_percentage', 0)
+                social_config.get('parafiscales_percentage', 0) +
+                social_config.get('prima_services_percentage', 0) +
+                social_config.get('cesantias_percentage', 0) +
+                social_config.get('int_cesantias_percentage', 0) +
+                social_config.get('vacations_percentage', 0)
             )
             social_config['total_percentage'] = total
         

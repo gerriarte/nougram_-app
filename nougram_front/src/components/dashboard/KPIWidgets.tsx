@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { TrendingUp, TrendingDown, DollarSign, PieChart, Activity, AlertCircle, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { PipelineMetrics } from '@/hooks/useQuotePipeline';
+import type { Quote } from '@/components/dashboard/QuoteCard';
 
 interface KPIWidgetsProps {
     metrics: PipelineMetrics;
@@ -102,12 +103,48 @@ export function KPIWidgets({ metrics }: KPIWidgetsProps) {
     );
 }
 
-export function AlertsWidget() {
-    const alerts = [
-        { id: 1, type: 'warning', text: '2 cotizaciones vencen en los próximos 3 días', action: 'Ver' },
-        { id: 2, type: 'info', text: '1 cotización abierta 5+ veces sin respuesta', action: 'Seguir' },
-        { id: 3, type: 'critical', text: '1 cotización con rentabilidad crítica (<15%)', action: 'Revisar' },
-    ];
+type AlertType = 'critical' | 'warning' | 'info';
+type PipelineAlert = {
+    id: string;
+    type: AlertType;
+    text: string;
+    action: string;
+};
+
+interface AlertsWidgetProps {
+    quotes: Quote[];
+}
+
+export function AlertsWidget({ quotes }: AlertsWidgetProps) {
+    const criticalMarginCount = quotes.filter((q) => q.margin < 15 && q.status !== 'accepted').length;
+    const viewedNoDecisionCount = quotes.filter((q) => q.status === 'viewed').length;
+    const draftCount = quotes.filter((q) => q.status === 'draft').length;
+
+    const alerts: PipelineAlert[] = [];
+    if (criticalMarginCount > 0) {
+        alerts.push({
+            id: 'critical-margin',
+            type: 'critical',
+            text: `${criticalMarginCount} cotización${criticalMarginCount === 1 ? '' : 'es'} con rentabilidad crítica (<15%)`,
+            action: 'Revisar'
+        });
+    }
+    if (viewedNoDecisionCount > 0) {
+        alerts.push({
+            id: 'viewed-followup',
+            type: 'warning',
+            text: `${viewedNoDecisionCount} cotización${viewedNoDecisionCount === 1 ? '' : 'es'} vistas sin cierre`,
+            action: 'Seguir'
+        });
+    }
+    if (draftCount > 0) {
+        alerts.push({
+            id: 'draft-pending',
+            type: 'info',
+            text: `${draftCount} borrador${draftCount === 1 ? '' : 'es'} pendiente${draftCount === 1 ? '' : 's'} de envío`,
+            action: 'Ver'
+        });
+    }
 
     return (
         <Card className="p-5 h-full">
@@ -116,31 +153,39 @@ export function AlertsWidget() {
                     <h3 className="text-lg font-bold text-gray-900 tracking-tight">Atención Requerida</h3>
                     <p className="text-[10px] font-black text-system-gray uppercase tracking-widest mt-1">Acciones pendientes</p>
                 </div>
-                <span className="w-8 h-8 bg-red-50 text-red-600 text-xs font-black flex items-center justify-center rounded-xl border border-red-100/50">3</span>
+                <span className="w-8 h-8 bg-red-50 text-red-600 text-xs font-black flex items-center justify-center rounded-xl border border-red-100/50">
+                    {alerts.length}
+                </span>
             </div>
 
-            <div className="space-y-4">
-                {alerts.map((alert) => (
-                    <motion.div
-                        whileHover={{ x: 4 }}
-                        key={alert.id}
-                        className="flex items-start gap-4 p-4 rounded-2xl hover:bg-gray-50/50 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50"
-                    >
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${alert.type === 'critical' ? 'bg-red-50 text-red-500' :
-                            alert.type === 'warning' ? 'bg-orange-50 text-orange-600' :
-                                'bg-blue-50 text-blue-500'
-                            }`}>
-                            <AlertCircle size={20} strokeWidth={1.5} />
-                        </div>
-                        <div className="flex-1 pt-0.5">
-                            <p className="text-sm text-gray-700 font-bold leading-snug tracking-tight mb-1">{alert.text}</p>
-                            <span className="text-[11px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1">
-                                {alert.action} <ChevronRight size={10} strokeWidth={3} />
-                            </span>
-                        </div>
-                    </motion.div>
-                ))}
-            </div>
+            {alerts.length === 0 ? (
+                <div className="text-sm text-gray-500 font-medium py-8 text-center">
+                    Sin alertas por ahora. El pipeline se ve saludable.
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {alerts.map((alert) => (
+                        <motion.div
+                            whileHover={{ x: 4 }}
+                            key={alert.id}
+                            className="flex items-start gap-4 p-4 rounded-2xl hover:bg-gray-50/50 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50"
+                        >
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${alert.type === 'critical' ? 'bg-red-50 text-red-500' :
+                                alert.type === 'warning' ? 'bg-orange-50 text-orange-600' :
+                                    'bg-blue-50 text-blue-500'
+                                }`}>
+                                <AlertCircle size={20} strokeWidth={1.5} />
+                            </div>
+                            <div className="flex-1 pt-0.5">
+                                <p className="text-sm text-gray-700 font-bold leading-snug tracking-tight mb-1">{alert.text}</p>
+                                <span className="text-[11px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1">
+                                    {alert.action} <ChevronRight size={10} strokeWidth={3} />
+                                </span>
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+            )}
         </Card>
     );
 }

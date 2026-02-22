@@ -5,6 +5,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { useNougram } from '@/context/NougramCoreContext';
 import { TeamMember, FixedCost, SocialChargesConfig, GlobalConfig, BCRCalculation } from '@/types/admin';
 import { teamService } from '@/services/teamService';
+import { socialChargesService } from '@/services/socialChargesService';
 
 // Initial Mock Data (to avoid starting empty)
 const DEFAULT_SOCIAL_CHARGES: SocialChargesConfig = {
@@ -71,6 +72,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             setTeamMembers(members);
         };
         void loadTeamMembers();
+    }, []);
+
+    useEffect(() => {
+        const loadSocialCharges = async () => {
+            const config = await socialChargesService.get();
+            if (config) setSocialCharges(config);
+        };
+        void loadSocialCharges();
     }, []);
 
     const bcr: BCRCalculation = useMemo(() => {
@@ -149,7 +158,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const updateFixedCost = (id: string, updates: Partial<FixedCost>) => setFixedCosts(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     const deleteFixedCost = (id: string) => setFixedCosts(prev => prev.filter(c => c.id !== id));
 
-    const updateSocialCharges = (cfg: SocialChargesConfig) => setSocialCharges(cfg);
+    const updateSocialCharges = (cfg: SocialChargesConfig) => {
+        setSocialCharges(cfg);
+        void socialChargesService.save(cfg);
+    };
     const updateGlobalSettings = (settings: Partial<GlobalConfig>) => setGlobalSettings(prev => ({ ...prev, ...settings }));
 
     return (

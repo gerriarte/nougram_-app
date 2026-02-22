@@ -25,6 +25,12 @@ type ProjectQuoteResponse = {
         service_id: number;
         service_name?: string;
         estimated_hours?: number;
+        pricing_type?: string;
+        fixed_price?: string | number;
+        quantity?: string | number;
+        recurring_price?: string | number;
+        billing_frequency?: 'monthly' | 'annual' | string;
+        project_value?: string | number;
         internal_cost?: string | number;
         client_price?: string | number;
         margin_percentage?: string | number;
@@ -465,13 +471,22 @@ export const quoteService = {
 
         const items: QuoteItem[] = (detail?.items || []).map((item) => {
             const service = serviceMap.get(item.service_id);
+            const resolvedPricingType = (item.pricing_type || service?.pricingType || 'hourly') as QuoteItem['pricingType'];
+            const fixedPrice = Number(item.fixed_price || 0);
+            const quantity = Number(item.quantity || 1);
+            const recurringPrice = Number(item.recurring_price || 0);
+            const projectValue = Number(item.project_value || 0);
             return {
                 id: crypto.randomUUID(),
                 serviceId: item.service_id,
                 serviceName: item.service_name || service?.name || `Servicio ${item.service_id}`,
-                pricingType: (service?.pricingType || 'hourly') as QuoteItem['pricingType'],
+                pricingType: resolvedPricingType,
                 estimatedHours: Number(item.estimated_hours || 0),
-                quantity: 1,
+                fixedPrice: resolvedPricingType === 'fixed' ? fixedPrice : undefined,
+                quantity,
+                recurringPrice: resolvedPricingType === 'recurring' ? recurringPrice : undefined,
+                billingFrequency: item.billing_frequency as QuoteItem['billingFrequency'],
+                projectValue: resolvedPricingType === 'project_value' ? projectValue : undefined,
                 internalCost: Number(item.internal_cost || 0),
                 clientPrice: Number(item.client_price || 0),
                 marginPercentage: toPercent(item.margin_percentage || 0),

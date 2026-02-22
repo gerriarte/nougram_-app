@@ -16,6 +16,7 @@ import { BCRSummaryCard } from '@/components/admin/BCRSummaryCard';
 export function QuotePipeline() {
     const {
         quotes: filteredQuotes,
+        allQuotes,
         search,
         setSearch,
         viewMode,
@@ -46,7 +47,7 @@ export function QuotePipeline() {
             {/* 1. KPIs Section */}
             <div className="space-y-6">
                 <KPIWidgets metrics={metrics} />
-                <AlertsWidget />
+                <AlertsWidget quotes={allQuotes} />
             </div>
 
             {/* 2. Pipeline Controls */}
