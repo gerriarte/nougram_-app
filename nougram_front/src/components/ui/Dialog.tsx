@@ -1,5 +1,7 @@
+'use client';
+
 import * as React from "react";
-import { X } from "lucide-react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 // Since we are not actually installing radix-ui/react-dialog in this environment (unless we run npm install), 
@@ -11,11 +13,14 @@ import { cn } from "@/lib/utils";
 
 export const Dialog = ({ children, open, onOpenChange }: { children: React.ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) => {
     if (!open) return null;
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center">
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => onOpenChange?.(false)} />
             {children}
-        </div>
+        </div>,
+        document.body
     );
 };
 
