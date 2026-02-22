@@ -9,6 +9,11 @@ type ProjectListItem = {
     client_name: string;
     status: 'Draft' | 'Sent' | 'Won' | 'Lost';
     currency?: string;
+    taxes?: Array<{
+        id: number;
+        name: string;
+        percentage: string | number;
+    }>;
 };
 
 type ProjectListResponse = {
@@ -20,6 +25,7 @@ type ProjectQuoteResponse = {
     id: number;
     version?: number;
     notes?: string;
+    total_internal_cost?: string | number;
     total_client_price?: number;
     margin_percentage?: number;
     items?: Array<{
@@ -79,6 +85,32 @@ function toPercent(value?: string | number): number {
     const num = Number(value || 0);
     if (!Number.isFinite(num)) return 0;
     return num <= 1 ? num * 100 : num;
+}
+
+function sumTaxRate(taxes?: Array<{ percentage: string | number }>): number {
+    return (taxes || []).reduce((acc, tax) => acc + (Number(tax.percentage) || 0), 0);
+}
+
+function toInvoiceAmount(basePrice?: string | number, taxes?: Array<{ percentage: string | number }>): number {
+    const price = Number(basePrice || 0);
+    if (!Number.isFinite(price) || price <= 0) return 0;
+    const taxRate = sumTaxRate(taxes);
+    return price * (1 + taxRate / 100);
+}
+
+function toRealMarginPercent(
+    basePrice?: string | number,
+    internalCost?: string | number,
+    taxes?: Array<{ percentage: string | number }>
+): number {
+    const price = Number(basePrice || 0);
+    const cost = Number(internalCost || 0);
+    if (!Number.isFinite(price) || price <= 0) return 0;
+    const taxRate = sumTaxRate(taxes);
+    const taxesAmount = price * (taxRate / 100);
+    const realIncome = price - taxesAmount;
+    if (realIncome <= 0) return 0;
+    return ((realIncome - cost) / realIncome) * 100;
 }
 
 function getAllocatedHours(item: QuoteItem): number {
@@ -177,16 +209,24 @@ function mapProjectStatusToQuoteStatus(status?: string): Quote['status'] {
 }
 
 function buildQuoteCardFromProject(
-    project: Pick<ProjectResponse, 'id' | 'name' | 'client_name' | 'currency' | 'status'>,
+    project: Pick<ProjectResponse, 'id' | 'name' | 'client_name' | 'currency' | 'status'> & {
+        taxes?: Array<{ percentage: string | number }>;
+    },
     latestQuote: ProjectQuoteResponse | null
 ): Quote {
     return {
         id: String(project.id),
         project: project.name,
         client: project.client_name,
-        amount: Number(latestQuote?.total_client_price || 0),
+        amount: Number(toInvoiceAmount(latestQuote?.total_client_price || 0, project.taxes || [])),
         currency: project.currency || 'USD',
-        margin: toPercent(latestQuote?.margin_percentage || 0),
+        margin: Number(
+            toRealMarginPercent(
+                latestQuote?.total_client_price || 0,
+                latestQuote?.total_internal_cost || 0,
+                project.taxes || []
+            )
+        ),
         version: Number(latestQuote?.version || 1),
         status: mapProjectStatusToQuoteStatus(project.status),
         viewedCount: 0,
@@ -223,8 +263,14 @@ export const quoteService = {
                 const latestQuote =
                     quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0] || null;
 
-                const amount = Number(latestQuote?.total_client_price || 0);
-                const margin = toPercent(latestQuote?.margin_percentage || 0);
+                const amount = Number(toInvoiceAmount(latestQuote?.total_client_price || 0, project.taxes || []));
+                const margin = Number(
+                    toRealMarginPercent(
+                        latestQuote?.total_client_price || 0,
+                        latestQuote?.total_internal_cost || 0,
+                        project.taxes || []
+                    )
+                );
                 const version = Number(latestQuote?.version || 1);
 
                 return {
