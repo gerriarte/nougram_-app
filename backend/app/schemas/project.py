@@ -169,6 +169,7 @@ class QuoteItemAllocationResponse(BaseModel):
 class ProjectCreateWithQuote(ProjectCreate):
     """Schema for creating a project with initial quote - Sprint 16: includes revision fields"""
     quote_items: List[QuoteItemCreate] = Field(..., description="List of quote items", min_items=1)
+    target_margin_percentage: Optional[Decimal] = Field(None, ge=0, le=1, description="Target margin for the quote (0-1, e.g., 0.40 = 40%)")
     revisions_included: Optional[int] = Field(default=2, description="Number of included revisions", ge=0)
     revision_cost_per_additional: Optional[float] = Field(None, description="Cost per additional revision", ge=0)
     allow_low_margin: Optional[bool] = Field(False, description="Allow creating quote even if margin is below threshold")

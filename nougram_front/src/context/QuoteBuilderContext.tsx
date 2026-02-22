@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNougram } from '@/context/NougramCoreContext';
 import {
     QuoteBuilderState, QuoteItem, TaxConfig, CalculationSummary,
@@ -282,6 +282,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             amount: summary.totalClientPrice,
             currency: state.currency,
             marginPercentage: summary.netMarginPercent,
+            targetMargin: state.targetMargin,
             contingency: state.contingency,
             items: state.items
         };
@@ -325,7 +326,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         }
     };
 
-    const loadQuote = async (id: string) => {
+    const loadQuote = useCallback(async (id: string) => {
         const { quoteService } = await import('@/services/quoteService');
         const q = await quoteService.getBuilderData(id);
         if (q) {
@@ -345,7 +346,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 items: q.items || [],
             }));
         }
-    };
+    }, []);
 
     return (
         <QuoteBuilderContext.Provider value={{

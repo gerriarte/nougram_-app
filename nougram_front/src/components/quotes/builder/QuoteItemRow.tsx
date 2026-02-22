@@ -291,8 +291,8 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-blue-700">Precio Total</label>
-                                    {/* For Fixed/Value, price is input above. For Hourly/Recurring it's calculated or manual override */}
-                                    {(item.pricingType === 'hourly' || item.pricingType === 'recurring') ? (
+                                    {/* Recurring can be adjusted as a total and is persisted as recurring_price/month. */}
+                                    {item.pricingType === 'recurring' ? (
                                         <Input
                                             type="number"
                                             className="bg-blue-50/30 border-blue-200 font-bold text-blue-900 h-9"

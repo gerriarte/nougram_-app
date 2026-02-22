@@ -80,6 +80,61 @@ function toPercent(value?: string | number): number {
     return num <= 1 ? num * 100 : num;
 }
 
+function getAllocatedHours(item: QuoteItem): number {
+    return (item.allocations || []).reduce((sum, alloc) => sum + (Number(alloc.hours) || 0), 0);
+}
+
+function resolveEstimatedHours(item: QuoteItem): number {
+    const allocated = getAllocatedHours(item);
+    if (allocated > 0) {
+        if (item.pricingType === 'recurring') {
+            const duration = Math.max(1, Number(item.durationMonths || item.quantity || 1));
+            return allocated * duration;
+        }
+        return allocated;
+    }
+    return Number(item.estimatedHours || 0);
+}
+
+function resolveQuantity(item: QuoteItem): number {
+    if (item.pricingType === 'recurring') {
+        return Math.max(1, Number(item.durationMonths || item.quantity || 1));
+    }
+    return Math.max(1, Number(item.quantity || 1));
+}
+
+function resolveRecurringPrice(item: QuoteItem): number | undefined {
+    if (item.pricingType !== 'recurring') return item.recurringPrice;
+    if (typeof item.recurringPrice === 'number' && item.recurringPrice > 0) return item.recurringPrice;
+
+    const duration = Math.max(1, Number(item.durationMonths || item.quantity || 1));
+    const total = (typeof item.manualPrice === 'number' && item.manualPrice > 0)
+        ? item.manualPrice
+        : item.clientPrice;
+    if (typeof total !== 'number' || total <= 0) return undefined;
+    return Number((total / duration).toFixed(2));
+}
+
+function mapQuoteItemToApi(item: QuoteItem) {
+    return {
+        service_id: item.serviceId,
+        estimated_hours: resolveEstimatedHours(item),
+        pricing_type: item.pricingType,
+        fixed_price: item.fixedPrice,
+        quantity: resolveQuantity(item),
+        recurring_price: resolveRecurringPrice(item),
+        billing_frequency: item.billingFrequency,
+        project_value: item.projectValue,
+        allocations: (item.allocations || []).map((alloc) => ({
+            team_member_id: alloc.teamMemberId,
+            hours: alloc.hours,
+            role: alloc.role,
+            start_date: alloc.startDate,
+            end_date: alloc.endDate,
+        })),
+    };
+}
+
 const DEFAULT_SERVICE_SEEDS = [
     { name: 'Desarrollo Frontend', pricing_type: 'hourly', default_margin_target: 0.4 },
     { name: 'Setup Inicial', pricing_type: 'fixed', default_margin_target: 0.35, fixed_price: 1000000 },
@@ -213,23 +268,7 @@ export const quoteService = {
     },
 
     create: async (data: Partial<QuoteBuilderState> & { amount: number, marginPercentage: number }): Promise<string> => {
-        const quoteItems = (data.items || []).map((item: QuoteItem) => ({
-            service_id: item.serviceId,
-            estimated_hours: item.estimatedHours ?? 0,
-            pricing_type: item.pricingType,
-            fixed_price: item.fixedPrice,
-            quantity: item.quantity ?? 1,
-            recurring_price: item.recurringPrice,
-            billing_frequency: item.billingFrequency,
-            project_value: item.projectValue,
-            allocations: (item.allocations || []).map((alloc) => ({
-                team_member_id: alloc.teamMemberId,
-                hours: alloc.hours,
-                role: alloc.role,
-                start_date: alloc.startDate,
-                end_date: alloc.endDate,
-            })),
-        }));
+        const quoteItems = (data.items || []).map((item: QuoteItem) => mapQuoteItemToApi(item));
 
         const response = await apiRequest<{
             id: number;
@@ -244,6 +283,7 @@ export const quoteService = {
                 currency: data.currency || 'COP',
                 tax_ids: data.selectedTaxIds || [],
                 quote_items: quoteItems,
+                target_margin_percentage: typeof data.targetMargin === 'number' ? data.targetMargin : undefined,
                 revisions_included: 2,
                 allow_low_margin: Boolean(data.allowLowMargin),
             }),
@@ -262,23 +302,7 @@ export const quoteService = {
             throw new Error('No existe una cotización para actualizar');
         }
 
-        const payloadItems = (data.items || []).map((item: QuoteItem) => ({
-            service_id: item.serviceId,
-            estimated_hours: item.estimatedHours ?? 0,
-            pricing_type: item.pricingType,
-            fixed_price: item.fixedPrice,
-            quantity: item.quantity ?? 1,
-            recurring_price: item.recurringPrice,
-            billing_frequency: item.billingFrequency,
-            project_value: item.projectValue,
-            allocations: (item.allocations || []).map((alloc) => ({
-                team_member_id: alloc.teamMemberId,
-                hours: alloc.hours,
-                role: alloc.role,
-                start_date: alloc.startDate,
-                end_date: alloc.endDate,
-            })),
-        }));
+        const payloadItems = (data.items || []).map((item: QuoteItem) => mapQuoteItemToApi(item));
 
         const response = await apiRequest(
             `/projects/${id}/quotes/${latestQuote.id}`,
@@ -303,23 +327,7 @@ export const quoteService = {
             throw new Error('No existe una cotización para versionar');
         }
 
-        const payloadItems = (data.items || []).map((item: QuoteItem) => ({
-            service_id: item.serviceId,
-            estimated_hours: item.estimatedHours ?? 0,
-            pricing_type: item.pricingType,
-            fixed_price: item.fixedPrice,
-            quantity: item.quantity ?? 1,
-            recurring_price: item.recurringPrice,
-            billing_frequency: item.billingFrequency,
-            project_value: item.projectValue,
-            allocations: (item.allocations || []).map((alloc) => ({
-                team_member_id: alloc.teamMemberId,
-                hours: alloc.hours,
-                role: alloc.role,
-                start_date: alloc.startDate,
-                end_date: alloc.endDate,
-            })),
-        }));
+        const payloadItems = (data.items || []).map((item: QuoteItem) => mapQuoteItemToApi(item));
 
         const response = await apiRequest(
             `/projects/${id}/quotes/${latestQuote.id}/new-version`,
@@ -504,7 +512,7 @@ export const quoteService = {
             const recurringPrice = Number(item.recurring_price || 0);
             const projectValue = Number(item.project_value || 0);
             return {
-                id: crypto.randomUUID(),
+                id: String(item.id),
                 serviceId: item.service_id,
                 serviceName: item.service_name || service?.name || `Servicio ${item.service_id}`,
                 pricingType: resolvedPricingType,
@@ -513,6 +521,7 @@ export const quoteService = {
                 quantity,
                 recurringPrice: resolvedPricingType === 'recurring' ? recurringPrice : undefined,
                 billingFrequency: item.billing_frequency as QuoteItem['billingFrequency'],
+                durationMonths: resolvedPricingType === 'recurring' ? quantity : undefined,
                 projectValue: resolvedPricingType === 'project_value' ? projectValue : undefined,
                 allocations: (item.allocations || []).map((alloc) => ({
                     id: String(alloc.id || crypto.randomUUID()),

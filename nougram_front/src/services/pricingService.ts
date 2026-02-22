@@ -67,7 +67,7 @@ export const pricingService = {
         }
 
         // 2. Calculate Client Price
-        if (item.manualPrice) {
+        if (item.pricingType === 'recurring' && item.manualPrice) {
             clientPrice = item.manualPrice;
         } else {
             switch (item.pricingType) {
