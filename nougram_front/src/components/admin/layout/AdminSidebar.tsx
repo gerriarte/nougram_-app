@@ -6,10 +6,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
     LayoutDashboard,
-    Scale,
     UsersRound,
     Building2,
-    Zap,
     PlusCircle,
     ChevronRight
 } from 'lucide-react';
@@ -24,10 +22,8 @@ export function AdminSidebar() {
 
     const BUSINESS_ITEMS = [
         { label: 'Dashboard & Pipeline', href: '/dashboard', icon: LayoutDashboard },
-        { label: 'Punto de Equilibrio', href: '/analytics/break-even', icon: Scale },
         { label: 'Nómina (Equipo)', href: '/admin/payroll', icon: UsersRound },
         { label: 'Overhead (Gastos)', href: '/admin/overhead', icon: Building2 },
-        { label: 'Quick Selects', href: '/admin/quick-selects', icon: Zap },
     ];
 
     return (
