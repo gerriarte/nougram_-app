@@ -3,6 +3,7 @@ Integration tests for quote calculation endpoints
 """
 import pytest
 from httpx import AsyncClient
+from decimal import Decimal
 from app.core.security import create_access_token
 from app.models.user import User
 
@@ -44,10 +45,12 @@ class TestQuoteEndpoints:
         assert "items" in data
         assert len(data["items"]) == 1
         assert data["items"][0]["service_id"] == test_service.id
-        assert data["items"][0]["estimated_hours"] == 10.0
-        assert data["total_internal_cost"] > 0
-        assert data["total_client_price"] > 0
-        assert data["margin_percentage"] > 0
+        # Enhanced quote endpoint does not include estimated_hours in item breakdown.
+        assert "internal_cost" in data["items"][0]
+        assert "client_price" in data["items"][0]
+        assert Decimal(str(data["total_internal_cost"])) > 0
+        assert Decimal(str(data["total_client_price"])) > 0
+        assert Decimal(str(data["margin_percentage"])) > 0
     
     async def test_calculate_quote_invalid_service(
         self,
