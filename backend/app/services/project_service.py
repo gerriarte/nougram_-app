@@ -13,7 +13,7 @@ from app.core.plan_limits import validate_project_limit
 from app.core.permissions import get_user_role
 from app.core.exceptions import BusinessLogicError
 from app.repositories.factory import RepositoryFactory
-from app.models.project import Project, Quote, QuoteItem, QuoteExpense, project_taxes
+from app.models.project import Project, Quote, QuoteItem, QuoteItemAllocation, QuoteExpense, project_taxes
 from app.models.service import Service
 from app.models.tax import Tax
 from app.models.user import User
@@ -22,6 +22,7 @@ from app.schemas.project import (
     QuoteCreateNewVersion,
     QuoteResponseWithItems,
     QuoteItemResponse,
+    QuoteItemAllocationResponse,
 )
 from app.schemas.quote import QuoteEmailRequest, QuoteEmailResponse
 from app.services.credit_service import CreditService
@@ -186,13 +187,15 @@ class ProjectService:
         
         # Create quote items
         logger.info(f"Creating {len(project_data.quote_items)} quote items...")
-        quote_items = self._create_quote_items(
+        quote_items, quote_allocations = self._create_quote_items(
             quote.id,
             project_data.quote_items,
             services,
             totals.get("items", [])
         )
         self.db.add_all(quote_items)
+        if quote_allocations:
+            self.db.add_all(quote_allocations)
         
         # Consume credits based on user role (if applicable)
         user_role = get_user_role(current_user)
@@ -362,13 +365,15 @@ class ProjectService:
         await self.db.flush()
         
         # Create quote items
-        quote_items = self._create_quote_items(
+        quote_items, quote_allocations = self._create_quote_items(
             new_quote.id,
             quote_data.items,
             services,
             totals.get("items", [])
         )
         self.db.add_all(quote_items)
+        if quote_allocations:
+            self.db.add_all(quote_allocations)
         
         await self.db.commit()
         await self.db.refresh(new_quote)
@@ -642,9 +647,10 @@ class ProjectService:
         items_data: List,
         services: Dict[int, Service],
         items_breakdown: List[Dict]
-    ) -> List[QuoteItem]:
+    ) -> tuple[List[QuoteItem], List[QuoteItemAllocation]]:
         """Create quote items from items data and breakdown"""
         quote_items = []
+        quote_allocations = []
         breakdown_map = {item["service_id"]: item for item in items_breakdown}
         
         for item_data in items_data:
@@ -673,10 +679,26 @@ class ProjectService:
                 pricing_type=effective_pricing_type,
                 fixed_price=getattr(item_data, 'fixed_price', None) or (service.fixed_price if effective_pricing_type == "fixed" else None),
                 quantity=getattr(item_data, 'quantity', 1.0),
+                recurring_price=getattr(item_data, 'recurring_price', None),
+                billing_frequency=getattr(item_data, 'billing_frequency', None),
+                project_value=getattr(item_data, 'project_value', None),
             )
             quote_items.append(quote_item)
+
+            allocations = getattr(item_data, 'allocations', []) or []
+            for alloc in allocations:
+                quote_allocations.append(
+                    QuoteItemAllocation(
+                        quote_item=quote_item,
+                        team_member_id=alloc.team_member_id,
+                        hours=alloc.hours,
+                        role=getattr(alloc, 'role', None),
+                        start_date=getattr(alloc, 'start_date', None),
+                        end_date=getattr(alloc, 'end_date', None),
+                    )
+                )
         
-        return quote_items
+        return quote_items, quote_allocations
     
     async def _build_quote_response(self, quote: Quote) -> QuoteResponseWithItems:
         """Build QuoteResponseWithItems from Quote model"""
@@ -684,7 +706,10 @@ class ProjectService:
         quote_result = await self.db.execute(
             select(Quote)
             .where(Quote.id == quote.id)
-            .options(selectinload(Quote.items).selectinload(QuoteItem.service))
+            .options(
+                selectinload(Quote.items).selectinload(QuoteItem.service),
+                selectinload(Quote.items).selectinload(QuoteItem.allocations),
+            )
         )
         final_quote = quote_result.scalar_one()
         
@@ -695,9 +720,26 @@ class ProjectService:
                 service_id=item.service_id,
                 service_name=item.service.name if item.service else None,
                 estimated_hours=item.estimated_hours,
+                pricing_type=getattr(item, 'pricing_type', None),
+                fixed_price=getattr(item, 'fixed_price', None),
+                quantity=getattr(item, 'quantity', None),
+                recurring_price=getattr(item, 'recurring_price', None),
+                billing_frequency=getattr(item, 'billing_frequency', None),
+                project_value=getattr(item, 'project_value', None),
                 internal_cost=item.internal_cost,
                 client_price=item.client_price,
-                margin_percentage=item.margin_percentage
+                margin_percentage=item.margin_percentage,
+                allocations=[
+                    QuoteItemAllocationResponse(
+                        id=alloc.id,
+                        team_member_id=alloc.team_member_id,
+                        hours=alloc.hours,
+                        role=alloc.role,
+                        start_date=alloc.start_date,
+                        end_date=alloc.end_date,
+                    )
+                    for alloc in (item.allocations or [])
+                ],
             ))
         
         return QuoteResponseWithItems(

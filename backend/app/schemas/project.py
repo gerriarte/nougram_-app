@@ -96,6 +96,7 @@ class QuoteItemCreate(BaseModel):
     recurring_price: Optional[Decimal] = Field(None, description="Recurring price (required for recurring pricing)", ge=0)
     billing_frequency: Optional[str] = Field(None, description="Billing frequency: 'monthly', 'annual' (for recurring pricing)")
     project_value: Optional[Decimal] = Field(None, description="Project value (for project_value pricing)", ge=0)
+    allocations: List['QuoteItemAllocationCreate'] = Field(default_factory=list, description="Resource allocations for this quote item")
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
     @field_serializer('fixed_price', 'quantity', 'recurring_price', 'project_value')
@@ -117,13 +118,51 @@ class QuoteItemResponse(BaseModel):
     internal_cost: Optional[Decimal] = None
     client_price: Optional[Decimal] = None
     margin_percentage: Optional[Decimal] = None
+    pricing_type: Optional[str] = None
+    fixed_price: Optional[Decimal] = None
+    quantity: Optional[Decimal] = None
+    recurring_price: Optional[Decimal] = None
+    billing_frequency: Optional[str] = None
+    project_value: Optional[Decimal] = None
+    allocations: List['QuoteItemAllocationResponse'] = Field(default_factory=list)
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
-    @field_serializer('internal_cost', 'client_price', 'margin_percentage')
+    @field_serializer('internal_cost', 'client_price', 'margin_percentage', 'fixed_price', 'quantity', 'recurring_price', 'project_value')
     def serialize_decimal(self, value: Optional[Decimal]) -> Optional[str]:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None
     
+    model_config = DECIMAL_CONFIG
+
+
+class QuoteItemAllocationCreate(BaseModel):
+    """Schema for creating quote item allocation"""
+    team_member_id: int = Field(..., gt=0)
+    hours: Decimal = Field(..., gt=0)
+    role: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+
+    @field_serializer('hours')
+    def serialize_hours(self, value: Optional[Decimal]) -> Optional[str]:
+        return str(value) if value is not None else None
+
+    model_config = DECIMAL_CONFIG
+
+
+class QuoteItemAllocationResponse(BaseModel):
+    """Schema for quote item allocation response"""
+    id: int
+    team_member_id: int
+    hours: Decimal
+    role: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+
+    @field_serializer('hours')
+    def serialize_hours(self, value: Optional[Decimal]) -> Optional[str]:
+        return str(value) if value is not None else None
+
     model_config = DECIMAL_CONFIG
 
 
@@ -194,3 +233,7 @@ class ClientSearchResponse(BaseModel):
     """Respuesta de búsqueda de clientes"""
     clients: List[ClientSearchResult] = Field(..., description="Lista de clientes encontrados")
     total: int = Field(..., description="Total de clientes encontrados", ge=0)
+
+
+QuoteItemCreate.model_rebuild()
+QuoteItemResponse.model_rebuild()

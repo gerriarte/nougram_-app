@@ -14,9 +14,6 @@ type TeamApiMember = {
 type TeamListResponse = {
     items: TeamApiMember[];
     total: number;
-    page: number;
-    page_size: number;
-    total_pages: number;
 };
 
 const WEEKS_PER_MONTH = 4.33;
@@ -39,7 +36,7 @@ function mapTeamApiMemberToResourceMember(member: TeamApiMember): TeamMemberMock
 
 export const resourceService = {
     getAllMembers: async (): Promise<TeamMemberMock[]> => {
-        const response = await apiRequest<TeamListResponse>('/settings/team?page=1&page_size=100');
+        const response = await apiRequest<TeamListResponse>('/settings/team/allocation-members');
         if (response.error || !response.data?.items) return [];
         return response.data.items
             .filter((member) => member.is_active !== false)

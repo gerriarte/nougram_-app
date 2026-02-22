@@ -19,6 +19,7 @@ type ProjectListResponse = {
 type ProjectQuoteResponse = {
     id: number;
     version?: number;
+    notes?: string;
     total_client_price?: number;
     margin_percentage?: number;
     items?: Array<{
@@ -31,6 +32,14 @@ type ProjectQuoteResponse = {
         recurring_price?: string | number;
         billing_frequency?: 'monthly' | 'annual' | string;
         project_value?: string | number;
+        allocations?: Array<{
+            id?: number;
+            team_member_id: number;
+            hours: string | number;
+            role?: string;
+            start_date?: string;
+            end_date?: string;
+        }>;
         internal_cost?: string | number;
         client_price?: string | number;
         margin_percentage?: string | number;
@@ -208,6 +217,13 @@ export const quoteService = {
             recurring_price: item.recurringPrice,
             billing_frequency: item.billingFrequency,
             project_value: item.projectValue,
+            allocations: (item.allocations || []).map((alloc) => ({
+                team_member_id: alloc.teamMemberId,
+                hours: alloc.hours,
+                role: alloc.role,
+                start_date: alloc.startDate,
+                end_date: alloc.endDate,
+            })),
         }));
 
         const response = await apiRequest<{
@@ -250,6 +266,13 @@ export const quoteService = {
             recurring_price: item.recurringPrice,
             billing_frequency: item.billingFrequency,
             project_value: item.projectValue,
+            allocations: (item.allocations || []).map((alloc) => ({
+                team_member_id: alloc.teamMemberId,
+                hours: alloc.hours,
+                role: alloc.role,
+                start_date: alloc.startDate,
+                end_date: alloc.endDate,
+            })),
         }));
 
         const response = await apiRequest(
@@ -284,6 +307,13 @@ export const quoteService = {
             recurring_price: item.recurringPrice,
             billing_frequency: item.billingFrequency,
             project_value: item.projectValue,
+            allocations: (item.allocations || []).map((alloc) => ({
+                team_member_id: alloc.teamMemberId,
+                hours: alloc.hours,
+                role: alloc.role,
+                start_date: alloc.startDate,
+                end_date: alloc.endDate,
+            })),
         }));
 
         const response = await apiRequest(
@@ -468,7 +498,6 @@ export const quoteService = {
         const detail = detailResponse.data;
         const services = await quoteService.getAvailableServices();
         const serviceMap = new Map(services.map((s) => [s.id, s]));
-
         const items: QuoteItem[] = (detail?.items || []).map((item) => {
             const service = serviceMap.get(item.service_id);
             const resolvedPricingType = (item.pricing_type || service?.pricingType || 'hourly') as QuoteItem['pricingType'];
@@ -487,6 +516,14 @@ export const quoteService = {
                 recurringPrice: resolvedPricingType === 'recurring' ? recurringPrice : undefined,
                 billingFrequency: item.billing_frequency as QuoteItem['billingFrequency'],
                 projectValue: resolvedPricingType === 'project_value' ? projectValue : undefined,
+                allocations: (item.allocations || []).map((alloc) => ({
+                    id: String(alloc.id || crypto.randomUUID()),
+                    teamMemberId: Number(alloc.team_member_id),
+                    hours: Number(alloc.hours || 0),
+                    role: alloc.role,
+                    startDate: alloc.start_date,
+                    endDate: alloc.end_date,
+                })).filter((alloc) => Number.isFinite(alloc.teamMemberId) && Number.isFinite(alloc.hours) && alloc.hours > 0),
                 internalCost: Number(item.internal_cost || 0),
                 clientPrice: Number(item.client_price || 0),
                 marginPercentage: toPercent(item.margin_percentage || 0),

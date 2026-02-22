@@ -5,7 +5,7 @@ from app.models.user import User
 from app.models.cost import CostFixed
 from app.models.team import TeamMember
 from app.models.service import Service
-from app.models.project import Project, Quote, QuoteItem
+from app.models.project import Project, Quote, QuoteItem, QuoteItemAllocation
 from app.models.settings import AgencySettings
 from app.models.tax import Tax
 from app.models.organization import Organization
@@ -27,6 +27,7 @@ __all__ = [
     "Project",
     "Quote",
     "QuoteItem",
+    "QuoteItemAllocation",
     "AgencySettings",
     "Tax",
     "Organization",

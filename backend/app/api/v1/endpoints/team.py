@@ -10,7 +10,7 @@ from app.core.security import get_current_user
 from app.core.exceptions import ResourceNotFoundError, BusinessLogicError
 from app.core.logging import get_logger
 from app.core.permissions import has_permission, PERM_VIEW_SENSITIVE_DATA, PERM_MODIFY_COSTS, PERM_DELETE_RESOURCES
-from app.core.permission_middleware import require_view_sensitive_data, require_modify_costs, require_delete_resources
+from app.core.permission_middleware import require_view_sensitive_data, require_modify_costs, require_delete_resources, require_create_quotes
 from app.models.team import TeamMember
 from app.models.user import User
 from app.repositories.team_repository import TeamRepository
@@ -21,6 +21,8 @@ from app.schemas.team import (
     TeamMemberUpdate,
     TeamMemberResponse,
     TeamMemberListResponse,
+    TeamMemberAllocationResponse,
+    TeamMemberAllocationListResponse,
 )
 
 logger = get_logger(__name__)
@@ -73,6 +75,30 @@ async def list_team_members(
         logger.error("Error listing team members", error=str(e), user_id=current_user.id, exc_info=True)
         # Return empty list on error
         return TeamMemberListResponse(items=[], total=0, page=page, page_size=page_size, total_pages=0)
+
+
+@router.get("/team/allocation-members", response_model=TeamMemberAllocationListResponse)
+async def list_team_members_for_allocation(
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(require_create_quotes),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    List active team members for quote resource allocation (non-sensitive).
+
+    Returns only fields needed for planning capacity and assigning resources.
+    Salary and other sensitive financial data are intentionally excluded.
+    """
+    try:
+        team_repo = RepositoryFactory.create_team_repository(db, tenant.organization_id)
+        members = await team_repo.get_all_active()
+        return TeamMemberAllocationListResponse(
+            items=[TeamMemberAllocationResponse.model_validate(member) for member in members],
+            total=len(members),
+        )
+    except Exception as e:
+        logger.error("Error listing allocation members", error=str(e), user_id=current_user.id, exc_info=True)
+        return TeamMemberAllocationListResponse(items=[], total=0)
 
 
 @router.post("/team", response_model=TeamMemberResponse, status_code=status.HTTP_201_CREATED)

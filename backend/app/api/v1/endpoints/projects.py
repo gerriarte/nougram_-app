@@ -22,7 +22,7 @@ from app.core.permissions import can_create, can_edit, can_delete, PermissionErr
 from app.core.permission_middleware import require_create_projects
 from app.repositories.factory import RepositoryFactory
 from app.models.role import DeleteRequest, DeleteRequestStatus
-from app.models.project import Project, Quote, QuoteItem, QuoteExpense, project_taxes
+from app.models.project import Project, Quote, QuoteItem, QuoteItemAllocation, QuoteExpense, project_taxes
 from app.models.service import Service
 from app.models.tax import Tax
 from app.models.user import User
@@ -36,6 +36,7 @@ from app.schemas.project import (
     QuoteResponse,
     QuoteResponseWithItems,
     QuoteItemResponse,
+    QuoteItemAllocationResponse,
     QuoteItemCreate,
     QuoteUpdate,
     QuoteCreateNewVersion,
@@ -567,15 +568,26 @@ async def get_quote(
             service_id=item.service_id,
             service_name=item.service.name if item.service else None,
             estimated_hours=item.estimated_hours,
-                pricing_type=getattr(item, 'pricing_type', None),
-                fixed_price=getattr(item, 'fixed_price', None),
-                quantity=getattr(item, 'quantity', None),
-                recurring_price=getattr(item, 'recurring_price', None),
-                billing_frequency=getattr(item, 'billing_frequency', None),
-                project_value=getattr(item, 'project_value', None),
+            pricing_type=getattr(item, 'pricing_type', None),
+            fixed_price=getattr(item, 'fixed_price', None),
+            quantity=getattr(item, 'quantity', None),
+            recurring_price=getattr(item, 'recurring_price', None),
+            billing_frequency=getattr(item, 'billing_frequency', None),
+            project_value=getattr(item, 'project_value', None),
             internal_cost=item.internal_cost,
             client_price=item.client_price,
-            margin_percentage=item.margin_percentage
+            margin_percentage=item.margin_percentage,
+            allocations=[
+                QuoteItemAllocationResponse(
+                    id=alloc.id,
+                    team_member_id=alloc.team_member_id,
+                    hours=alloc.hours,
+                    role=alloc.role,
+                    start_date=alloc.start_date,
+                    end_date=alloc.end_date,
+                )
+                for alloc in (item.allocations or [])
+            ],
         ))
     
     return QuoteResponseWithItems(
@@ -737,6 +749,7 @@ async def update_quote(
         
         # Create new items using enhanced calculation results (Sprint 14-16)
         quote_items = []
+        quote_allocations = []
         items_breakdown = totals.get("items", [])
         breakdown_map = {item["service_id"]: item for item in items_breakdown}
         
@@ -765,13 +778,31 @@ async def update_quote(
                 pricing_type=effective_pricing_type,
                 fixed_price=fixed_price_decimal,
                 quantity=getattr(item_data, 'quantity', 1.0),
+                recurring_price=getattr(item_data, 'recurring_price', None),
+                billing_frequency=getattr(item_data, 'billing_frequency', None),
+                project_value=getattr(item_data, 'project_value', None),
                 internal_cost=internal_cost,
                 client_price=client_price,
                 margin_percentage=margin_pct
             )
             quote_items.append(quote_item)
+
+            allocations = getattr(item_data, 'allocations', []) or []
+            for alloc in allocations:
+                quote_allocations.append(
+                    QuoteItemAllocation(
+                        quote_item=quote_item,
+                        team_member_id=alloc.team_member_id,
+                        hours=alloc.hours,
+                        role=getattr(alloc, 'role', None),
+                        start_date=getattr(alloc, 'start_date', None),
+                        end_date=getattr(alloc, 'end_date', None),
+                    )
+                )
         
         db.add_all(quote_items)
+        if quote_allocations:
+            db.add_all(quote_allocations)
         await db.commit()
         await db.refresh(quote)
         
@@ -779,7 +810,10 @@ async def update_quote(
         quote_result = await db.execute(
             select(Quote)
             .where(Quote.id == quote_id)
-            .options(selectinload(Quote.items).selectinload(QuoteItem.service))
+            .options(
+                selectinload(Quote.items).selectinload(QuoteItem.service),
+                selectinload(Quote.items).selectinload(QuoteItem.allocations),
+            )
         )
         updated_quote = quote_result.scalar_one()
         
@@ -798,7 +832,18 @@ async def update_quote(
                 project_value=getattr(item, 'project_value', None),
                 internal_cost=item.internal_cost,
                 client_price=item.client_price,
-                margin_percentage=item.margin_percentage
+                margin_percentage=item.margin_percentage,
+                allocations=[
+                    QuoteItemAllocationResponse(
+                        id=alloc.id,
+                        team_member_id=alloc.team_member_id,
+                        hours=alloc.hours,
+                        role=alloc.role,
+                        start_date=alloc.start_date,
+                        end_date=alloc.end_date,
+                    )
+                    for alloc in (item.allocations or [])
+                ],
             ))
         
         # Invalidate dashboard cache (quotes affect dashboard metrics)

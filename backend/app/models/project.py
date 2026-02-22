@@ -98,10 +98,33 @@ class QuoteItem(Base):
     pricing_type = Column(String, nullable=True)  # Overrides service pricing_type: "hourly", "fixed", "recurring", "project_value"
     fixed_price = Column(Numeric(precision=19, scale=4), nullable=True)  # If pricing_type = "fixed" - ESTÁNDAR NOUGRAM: Numeric
     quantity = Column(Numeric(precision=10, scale=4), default=1.0)  # ESTÁNDAR NOUGRAM: Numeric - For modules/milestones (fixed pricing)
+    recurring_price = Column(Numeric(precision=19, scale=4), nullable=True)  # If pricing_type = "recurring"
+    billing_frequency = Column(String, nullable=True)  # monthly, annual
+    project_value = Column(Numeric(precision=19, scale=4), nullable=True)  # If pricing_type = "project_value"
     
     # Relationships
     quote = relationship("Quote", back_populates="items")
     service = relationship("Service")
+    allocations = relationship("QuoteItemAllocation", back_populates="quote_item", cascade="all, delete-orphan")
+
+
+class QuoteItemAllocation(Base):
+    """
+    Resource allocation for a quote item
+    """
+    __tablename__ = "quote_item_allocations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    quote_item_id = Column(Integer, ForeignKey("quote_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    team_member_id = Column(Integer, ForeignKey("team_members.id", ondelete="RESTRICT"), nullable=False, index=True)
+    hours = Column(Numeric(precision=10, scale=4), nullable=False)
+    role = Column(String, nullable=True)
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    end_date = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    quote_item = relationship("QuoteItem", back_populates="allocations")
+    team_member = relationship("TeamMember")
 
 
 class QuoteExpense(Base):

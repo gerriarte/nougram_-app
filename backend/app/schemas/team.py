@@ -88,3 +88,25 @@ class TeamMemberListResponse(BaseModel):
     page_size: int = 20
     total_pages: int = 1
 
+
+class TeamMemberAllocationResponse(BaseModel):
+    """Schema for resource allocation context (non-sensitive fields only)"""
+    id: int
+    name: str
+    role: str
+    billable_hours_per_week: int
+    non_billable_hours_percentage: Optional[Decimal] = None
+    is_active: Optional[bool] = True
+
+    @field_serializer('non_billable_hours_percentage')
+    def serialize_non_billable(self, value: Optional[Decimal]) -> Optional[str]:
+        return str(value) if value is not None else None
+
+    model_config = DECIMAL_CONFIG
+
+
+class TeamMemberAllocationListResponse(BaseModel):
+    """Schema for list of allocation members"""
+    items: list[TeamMemberAllocationResponse]
+    total: int
+
