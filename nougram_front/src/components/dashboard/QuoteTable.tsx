@@ -101,7 +101,7 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <div className={`font-bold ${getMarginColor(quote.margin)} text-xs px-2 py-1 rounded-full bg-opacity-10 inline-block`}>
-                                        {quote.margin}%
+                                        {quote.margin.toFixed(2)}%
                                     </div>
                                 </td>
                                 <td className="px-6 py-4">

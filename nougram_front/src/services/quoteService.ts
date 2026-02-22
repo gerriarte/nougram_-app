@@ -214,24 +214,33 @@ function buildQuoteCardFromProject(
     },
     latestQuote: ProjectQuoteResponse | null
 ): Quote {
+    const amount = Number(toInvoiceAmount(latestQuote?.total_client_price || 0, project.taxes || []));
+    const margin = Number(
+        toRealMarginPercent(
+            latestQuote?.total_client_price || 0,
+            latestQuote?.total_internal_cost || 0,
+            project.taxes || []
+        ).toFixed(2)
+    );
     return {
         id: String(project.id),
         project: project.name,
         client: project.client_name,
-        amount: Number(toInvoiceAmount(latestQuote?.total_client_price || 0, project.taxes || [])),
+        amount,
         currency: project.currency || 'USD',
-        margin: Number(
-            toRealMarginPercent(
-                latestQuote?.total_client_price || 0,
-                latestQuote?.total_internal_cost || 0,
-                project.taxes || []
-            )
-        ),
+        margin,
         version: Number(latestQuote?.version || 1),
         status: mapProjectStatusToQuoteStatus(project.status),
         viewedCount: 0,
         downloadCount: 0,
     };
+}
+
+async function getQuoteDetailForProject(projectId: number, quoteId?: number): Promise<ProjectQuoteResponse | null> {
+    if (!quoteId) return null;
+    const detailResponse = await apiRequest<ProjectQuoteResponse>(`/projects/${projectId}/quotes/${quoteId}`);
+    if (detailResponse.error || !detailResponse.data) return null;
+    return detailResponse.data;
 }
 
 export const quoteService = {
@@ -262,14 +271,16 @@ export const quoteService = {
                 const quotes = quotesResponse.data || [];
                 const latestQuote =
                     quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0] || null;
+                const detailedQuote = await getQuoteDetailForProject(project.id, latestQuote?.id);
+                const baseQuote = detailedQuote || latestQuote;
 
-                const amount = Number(toInvoiceAmount(latestQuote?.total_client_price || 0, project.taxes || []));
+                const amount = Number(toInvoiceAmount(baseQuote?.total_client_price || 0, project.taxes || []));
                 const margin = Number(
                     toRealMarginPercent(
-                        latestQuote?.total_client_price || 0,
-                        latestQuote?.total_internal_cost || 0,
+                        baseQuote?.total_client_price || 0,
+                        baseQuote?.total_internal_cost || 0,
                         project.taxes || []
-                    )
+                    ).toFixed(2)
                 );
                 const version = Number(latestQuote?.version || 1);
 
@@ -306,7 +317,8 @@ export const quoteService = {
         }
         if (!projectResponse.data) return null;
         const latestQuote = await quoteService.getLatestQuoteForProject(projectId);
-        return buildQuoteCardFromProject(projectResponse.data, latestQuote);
+        const detailedQuote = await getQuoteDetailForProject(Number(projectId), latestQuote?.id);
+        return buildQuoteCardFromProject(projectResponse.data, detailedQuote || latestQuote);
     },
     getProjectClientEmail: async (projectId: string): Promise<string> => {
         const projectResponse = await apiRequest<ProjectResponse>(`/projects/${projectId}`);

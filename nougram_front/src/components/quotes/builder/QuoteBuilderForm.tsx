@@ -181,6 +181,13 @@ export function QuoteBuilderForm() {
             {/* 4. Actions */}
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-xl border-t border-gray-200 z-50">
                 <div className="max-w-5xl mx-auto flex gap-4 justify-end">
+                    <Button
+                        variant="ghost"
+                        onClick={() => (state.id ? router.push('/dashboard') : router.back())}
+                        className="w-full sm:w-auto"
+                    >
+                        {state.id ? 'Cancelar Edición' : 'Cancelar'}
+                    </Button>
                     <Button variant="secondary" onClick={() => handleSave('Draft')} className="w-full sm:w-auto">
                         Guardar Borrador
                     </Button>

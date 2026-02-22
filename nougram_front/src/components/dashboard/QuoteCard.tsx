@@ -83,7 +83,7 @@ export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
                 <div className="flex items-center gap-2 mt-1">
                     <div className={`h-2 w-2 rounded-full ${getMarginColor(quote.margin).replace('text', 'bg')}`} />
                     <span className={`text-xs font-medium ${getMarginColor(quote.margin)}`}>
-                        {quote.margin}% Margen
+                        {quote.margin.toFixed(2)}% Margen
                     </span>
                     <span className="text-xs text-gray-300 mx-1">•</span>
                     <span className="text-[11px] font-medium text-[#86868B] bg-gray-100 px-2 py-0.5 rounded-full">
