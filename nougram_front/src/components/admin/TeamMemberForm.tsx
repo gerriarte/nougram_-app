@@ -24,7 +24,7 @@ const DEFAULT_MEMBER: TeamMemberInput = {
 export function TeamMemberForm({ initialData, onSubmit, onCancel }: TeamMemberFormProps) {
     const [formData, setFormData] = React.useState<TeamMemberInput>(initialData || DEFAULT_MEMBER);
 
-    const handleChange = (field: keyof TeamMemberInput, value: any) => {
+    const handleChange = (field: keyof TeamMemberInput, value: TeamMemberInput[keyof TeamMemberInput]) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
@@ -34,15 +34,13 @@ export function TeamMemberForm({ initialData, onSubmit, onCancel }: TeamMemberFo
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h2 className="text-lg font-semibold text-gray-900">
+        <Dialog open={true} onOpenChange={(open) => { if (!open) onCancel(); }}>
+            <DialogContent className="max-w-lg p-0 overflow-hidden">
+                <DialogHeader className="px-6 py-4 border-b border-gray-100">
+                    <DialogTitle>
                         {initialData ? "Editar Miembro" : "Agregar Nuevo Miembro"}
-                    </h2>
-                    <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">×</button>
-                </div>
-
+                    </DialogTitle>
+                </DialogHeader>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -115,12 +113,12 @@ export function TeamMemberForm({ initialData, onSubmit, onCancel }: TeamMemberFo
                         </div>
                     </div>
 
-                    <div className="pt-4 flex justify-end gap-2">
+                    <DialogFooter className="pt-4">
                         <Button type="button" variant="secondary" onClick={onCancel}>Cancelar</Button>
                         <Button type="submit">Guardar Miembro</Button>
-                    </div>
+                    </DialogFooter>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }

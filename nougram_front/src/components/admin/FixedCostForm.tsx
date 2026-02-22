@@ -2,6 +2,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/Dialog";
 import { FixedCostInput } from "@/types/admin";
 
 interface FixedCostFormProps {
@@ -21,7 +22,7 @@ const DEFAULT_COST: FixedCostInput = {
 export function FixedCostForm({ initialData, onSubmit, onCancel }: FixedCostFormProps) {
     const [formData, setFormData] = React.useState<FixedCostInput>(initialData || DEFAULT_COST);
 
-    const handleChange = (field: keyof FixedCostInput, value: any) => {
+    const handleChange = (field: keyof FixedCostInput, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
@@ -31,15 +32,13 @@ export function FixedCostForm({ initialData, onSubmit, onCancel }: FixedCostForm
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h2 className="text-lg font-semibold text-gray-900">
+        <Dialog open={true} onOpenChange={(open) => { if (!open) onCancel(); }}>
+            <DialogContent className="max-w-lg p-0 overflow-hidden">
+                <DialogHeader className="px-6 py-4 border-b border-gray-100">
+                    <DialogTitle>
                         {initialData ? "Editar Gasto" : "Agregar Nuevo Gasto"}
-                    </h2>
-                    <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">×</button>
-                </div>
-
+                    </DialogTitle>
+                </DialogHeader>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="name">Nombre del Gasto</Label>
@@ -97,12 +96,12 @@ export function FixedCostForm({ initialData, onSubmit, onCancel }: FixedCostForm
                         />
                     </div>
 
-                    <div className="pt-4 flex justify-end gap-2">
+                    <DialogFooter className="pt-4">
                         <Button type="button" variant="secondary" onClick={onCancel}>Cancelar</Button>
                         <Button type="submit">Guardar Gasto</Button>
-                    </div>
+                    </DialogFooter>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }

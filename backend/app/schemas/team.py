@@ -20,6 +20,7 @@ class TeamMemberBase(BaseModel):
     salary_monthly_brute: Decimal = Field(..., description="Monthly gross salary", gt=0)
     currency: CurrencyCode = Field("USD", description="Currency code (USD, COP, ARS, EUR)")
     billable_hours_per_week: int = Field(32, description="Billable hours per week", ge=0, le=80)
+    non_billable_hours_percentage: Decimal = Field(0, description="Non-billable hours percentage (0-1)", ge=0, le=1)
     is_active: Optional[bool] = Field(True, description="Whether the team member is active")
     user_id: Optional[int] = Field(None, description="Associated user ID")
     
@@ -28,6 +29,11 @@ class TeamMemberBase(BaseModel):
     def serialize_salary(self, value: Decimal) -> str:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None
+
+    @field_serializer('non_billable_hours_percentage')
+    def serialize_non_billable(self, value: Decimal) -> str:
+        """Serializa Decimal como string para mantener precisión"""
+        return str(value) if value is not None else "0"
     
     model_config = DECIMAL_CONFIG
 
@@ -45,13 +51,19 @@ class TeamMemberUpdate(BaseModel):
     role: Optional[str] = Field(None, min_length=1)
     salary_monthly_brute: Optional[Decimal] = Field(None, gt=0)
     currency: Optional[CurrencyCode] = None
-    billable_hours_per_week: Optional[int] = Field(None, ge=0, le=40)
+    billable_hours_per_week: Optional[int] = Field(None, ge=0, le=80)
+    non_billable_hours_percentage: Optional[Decimal] = Field(None, ge=0, le=1)
     is_active: Optional[bool] = None
     user_id: Optional[int] = None
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
     @field_serializer('salary_monthly_brute')
     def serialize_salary(self, value: Optional[Decimal]) -> Optional[str]:
+        """Serializa Decimal como string para mantener precisión"""
+        return str(value) if value is not None else None
+
+    @field_serializer('non_billable_hours_percentage')
+    def serialize_non_billable(self, value: Optional[Decimal]) -> Optional[str]:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None
     

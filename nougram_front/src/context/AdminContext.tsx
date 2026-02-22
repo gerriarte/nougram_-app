@@ -1,9 +1,10 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useNougram } from '@/context/NougramCoreContext';
 import { TeamMember, FixedCost, SocialChargesConfig, GlobalConfig, BCRCalculation } from '@/types/admin';
+import { teamService } from '@/services/teamService';
 
 // Initial Mock Data (to avoid starting empty)
 const DEFAULT_SOCIAL_CHARGES: SocialChargesConfig = {
@@ -25,6 +26,7 @@ const DEFAULT_GLOBAL: GlobalConfig = {
     default_non_billable_percentage: "0.20",
     default_margin_target: "0.40"
 };
+
 
 interface AdminContextType {
     teamMembers: TeamMember[];
@@ -50,11 +52,7 @@ const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
     // 1. State
-    const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
-        // Sample seed data to start with something visual
-        { id: '1', name: 'Juan Pérez', role: 'Dev Senior', salaryMonthlyBrute: 8000000, currency: 'COP', applySocialCharges: true, salaryWithCharges: 12228160, billableHoursPerWeek: 30, nonBillablePercentage: 0.2, vacationDaysPerYear: 15, isActive: true },
-        { id: '2', name: 'Maria Gomez', role: 'Designer', salaryMonthlyBrute: 5500000, currency: 'COP', applySocialCharges: true, salaryWithCharges: 8406860, billableHoursPerWeek: 35, nonBillablePercentage: 0.1, vacationDaysPerYear: 15, isActive: true }
-    ]);
+    const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
     const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([
         { id: '1', name: 'Oficina', category: 'Rent', amountMonthly: 2000000, currency: 'COP', isActive: true },
@@ -64,23 +62,18 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [socialCharges, setSocialCharges] = useState<SocialChargesConfig>(DEFAULT_SOCIAL_CHARGES);
     const [globalSettings, setGlobalSettings] = useState<GlobalConfig>(DEFAULT_GLOBAL);
 
-    const [bcr, setBcr] = useState<BCRCalculation>({
-        totalMonthlyCosts: 0,
-        totalBillableHours: 0,
-        bcr: 0,
-        totalPayroll: 0,
-        totalFixedCosts: 0
-    });
-
-
     // 2. Calculation Logic
     const { updateFinancialBasics } = useNougram(); // Connect to Core
 
     useEffect(() => {
-        calculateBCR();
-    }, [teamMembers, fixedCosts, socialCharges, globalSettings]);
+        const loadTeamMembers = async () => {
+            const members = await teamService.getAll();
+            setTeamMembers(members);
+        };
+        void loadTeamMembers();
+    }, []);
 
-    const calculateBCR = () => {
+    const bcr: BCRCalculation = useMemo(() => {
         // A. Payroll Costs
         let totalPayroll = 0;
         let totalHours = 0;
@@ -109,25 +102,45 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         const totalMonthly = totalPayroll + totalFixed;
         const finalBCR = totalHours > 0 ? totalMonthly / totalHours : 0;
 
-        setBcr({
+        return {
             totalMonthlyCosts: totalMonthly,
             totalBillableHours: totalHours,
             bcr: finalBCR,
             totalPayroll,
             totalFixedCosts: totalFixed
-        });
+        };
+    }, [teamMembers, fixedCosts, socialCharges]);
 
-        // Sync to "The Brain" (NougramCore)
-        // We send the BASE (Payroll + Overhead) and HOURS. 
-        // The Core will add Equipment Amortization and calc final BCR.
-        updateFinancialBasics(totalMonthly, totalHours);
-    };
-
+    useEffect(() => {
+        // Sync base payroll+overhead to NougramCore; final BCR is computed there with amortization.
+        updateFinancialBasics(bcr.totalMonthlyCosts, bcr.totalBillableHours);
+    }, [bcr.totalMonthlyCosts, bcr.totalBillableHours, updateFinancialBasics]);
 
     // 3. Actions
-    const addTeamMember = (member: TeamMember) => setTeamMembers(prev => [...prev, member]);
-    const updateTeamMember = (id: string, updates: Partial<TeamMember>) => setTeamMembers(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
-    const deleteTeamMember = (id: string) => setTeamMembers(prev => prev.filter(m => m.id !== id));
+    const addTeamMember = (member: TeamMember) => {
+        void (async () => {
+            const created = await teamService.create(member);
+            if (!created) return;
+            setTeamMembers(prev => [created, ...prev]);
+        })();
+    };
+    const updateTeamMember = (id: string, updates: Partial<TeamMember>) => {
+        const current = teamMembers.find((member) => member.id === id);
+        if (!current) return;
+        const merged = { ...current, ...updates };
+        void (async () => {
+            const updated = await teamService.update(merged);
+            if (!updated) return;
+            setTeamMembers(prev => prev.map(member => member.id === id ? updated : member));
+        })();
+    };
+    const deleteTeamMember = (id: string) => {
+        void (async () => {
+            const ok = await teamService.remove(id);
+            if (!ok) return;
+            setTeamMembers(prev => prev.filter(member => member.id !== id));
+        })();
+    };
 
     const addFixedCost = (cost: FixedCost) => setFixedCosts(prev => [...prev, cost]);
     const updateFixedCost = (id: string, updates: Partial<FixedCost>) => setFixedCosts(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
