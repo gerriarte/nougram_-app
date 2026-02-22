@@ -23,6 +23,7 @@ type ProjectQuoteResponse = {
     total_client_price?: number;
     margin_percentage?: number;
     items?: Array<{
+        id?: number;
         service_id: number;
         service_name?: string;
         estimated_hours?: number;

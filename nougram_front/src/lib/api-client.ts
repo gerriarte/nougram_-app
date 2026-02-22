@@ -11,8 +11,8 @@ export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
+  const normalizedBase = API_URL.replace(/\/+$/, "");
   try {
-    const normalizedBase = API_URL.replace(/\/+$/, "");
     const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
     const url = `${normalizedBase}${normalizedEndpoint}`;
     const token = getAuthToken();
