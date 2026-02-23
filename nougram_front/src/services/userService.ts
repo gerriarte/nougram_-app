@@ -44,8 +44,9 @@ export const userService = {
     },
 
     updateUserRole: async (userId: string, newRole: UserRole): Promise<void> => {
-        const response = await apiRequest(`/users/${userId}/role`, {
-            method: 'PATCH',
+        const organizationId = await getCurrentOrganizationId();
+        const response = await apiRequest(`/organizations/${organizationId}/users/${userId}/role`, {
+            method: 'PUT',
             body: JSON.stringify({ role: newRole }),
         });
         if (response.error) {
@@ -54,7 +55,8 @@ export const userService = {
     },
 
     deleteUser: async (userId: string): Promise<void> => {
-        const response = await apiRequest(`/users/${userId}`, {
+        const organizationId = await getCurrentOrganizationId();
+        const response = await apiRequest(`/organizations/${organizationId}/users/${userId}`, {
             method: 'DELETE',
         });
         if (response.error) {

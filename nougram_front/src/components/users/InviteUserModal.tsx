@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { TenantRole, ROLE_CONFIG } from '@/types/user';
-import { useUserManagement } from '@/hooks/useUserManagement';
+import { invitationService } from '@/services/invitationService';
 import { useAuth } from '@/hooks/useAuth';
 import { X, Send, AlertCircle, CheckCircle, Shield, Mail, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,30 +14,42 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface InviteModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onInvited?: () => Promise<void> | void;
 }
 
-export function InviteUserModal({ isOpen, onClose }: InviteModalProps) {
-    const { actions } = useUserManagement();
+export function InviteUserModal({ isOpen, onClose, onInvited }: InviteModalProps) {
     const { user: currentUser } = useAuth();
     const [email, setEmail] = useState('');
     const [role, setRole] = useState<TenantRole>('collaborator');
     const [message, setMessage] = useState('');
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setStatus('loading');
+        setErrorMessage(null);
         try {
-            await actions.inviteUser(email, role, message, currentUser?.fullName);
+            await invitationService.createInvitation({
+                email,
+                role,
+                message,
+                createdBy: currentUser?.fullName,
+            });
+            if (onInvited) {
+                await onInvited();
+            }
             setStatus('success');
             setTimeout(() => {
                 onClose();
                 setStatus('idle');
                 setEmail('');
                 setMessage('');
+                setErrorMessage(null);
             }, 2000);
-        } catch (error) {
+        } catch (error: unknown) {
             setStatus('error');
+            setErrorMessage(error instanceof Error ? error.message : 'No se pudo enviar la invitación');
         }
     };
 
@@ -156,6 +168,11 @@ export function InviteUserModal({ isOpen, onClose }: InviteModalProps) {
                                     </div>
                                     <p className="text-right text-[9px] font-black text-system-gray uppercase tracking-widest">{message.length}/500</p>
                                 </div>
+                                {status === 'error' && errorMessage && (
+                                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                                        {errorMessage}
+                                    </div>
+                                )}
 
                                 <div className="flex gap-4 pt-2">
                                     <Button
