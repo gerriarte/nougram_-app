@@ -92,7 +92,6 @@ type OrganizationUsersResponse = {
 
 const PLAN_OPTIONS = ['free', 'starter', 'professional', 'enterprise'];
 const STATUS_OPTIONS = ['active', 'trialing', 'past_due', 'cancelled'];
-const SUPPORT_ENDPOINT_PREFIXES = ['/support', '/support/support'];
 
 function getStatusVariant(status: string): 'success' | 'warning' | 'critical' | 'info' | 'default' {
     if (status === 'active') {
@@ -193,26 +192,14 @@ export default function SuperAdminAccountsPage() {
         });
     }, [organizations, search]);
 
-    const supportRequest = async <T,>(pathAfterSupport: string) => {
-        for (let index = 0; index < SUPPORT_ENDPOINT_PREFIXES.length; index += 1) {
-            const prefix = SUPPORT_ENDPOINT_PREFIXES[index];
-            const response = await apiRequest<T>(`${prefix}${pathAfterSupport}`);
-            const isLast = index === SUPPORT_ENDPOINT_PREFIXES.length - 1;
-            if (!response.error || isLast || !String(response.error).toLowerCase().includes('not found')) {
-                return response;
-            }
-        }
-        return { error: 'No se pudo resolver endpoint de soporte.' };
-    };
-
     const loadOrganizations = async (targetPage = page) => {
         if (!isSuperAdmin) {
             return;
         }
         setListLoading(true);
         setError(null);
-        const response = await supportRequest<PaginatedResponse<OrganizationItem>>(
-            `/organizations?page=${targetPage}&page_size=20&include_inactive=${includeInactive}`
+        const response = await apiRequest<PaginatedResponse<OrganizationItem>>(
+            `/support/organizations?page=${targetPage}&page_size=20&include_inactive=${includeInactive}`
         );
 
         if (response.error || !response.data) {
@@ -245,7 +232,7 @@ export default function SuperAdminAccountsPage() {
         setError(null);
 
         const [usageResponse, balanceResponse, transactionsResponse, usersResponse] = await Promise.all([
-            supportRequest<UsageMetricsResponse>(`/organizations/${organizationId}/usage`),
+            apiRequest<UsageMetricsResponse>(`/support/organizations/${organizationId}/usage`),
             apiRequest<CreditBalanceResponse>(`/credits/admin/${organizationId}/balance`),
             apiRequest<CreditTransactionListResponse>(
                 `/credits/admin/${organizationId}/transactions?page=1&page_size=15`
@@ -463,25 +450,16 @@ export default function SuperAdminAccountsPage() {
         }
 
         try {
-            let response: Response | null = null;
-            for (let index = 0; index < SUPPORT_ENDPOINT_PREFIXES.length; index += 1) {
-                const prefix = SUPPORT_ENDPOINT_PREFIXES[index];
-                const url = `${apiBase}${prefix}/datasets/export?dataset_type=${datasetType}&export_format=csv`;
-                response = await fetch(url, {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                });
-                const isNotFound = response.status === 404;
-                const isLast = index === SUPPORT_ENDPOINT_PREFIXES.length - 1;
-                if (!isNotFound || isLast) {
-                    break;
+            const url = `${apiBase}/support/datasets/export?dataset_type=${datasetType}&export_format=csv`;
+            const response = await fetch(url, {
+                headers: {
+                    Authorization: `Bearer ${token}`
                 }
-            }
+            });
 
-            if (!response || !response.ok) {
-                const errorBody = await response?.json().catch(() => ({}));
-                const message = errorBody?.detail || `Error ${response?.status || 500} al exportar`;
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}));
+                const message = errorBody?.detail || `Error ${response.status} al exportar`;
                 setError(String(message));
                 setExportLoading(false);
                 return;
