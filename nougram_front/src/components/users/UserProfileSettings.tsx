@@ -15,7 +15,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function UserProfileSettings() {
-    const { user } = useAuth();
+    const { user, refreshCurrentUser } = useAuth();
     const [formData, setFormData] = useState({
         fullName: user?.fullName || '',
         job_title: user?.job_title || '',
@@ -28,16 +28,22 @@ export function UserProfileSettings() {
         timezone: user?.timezone || 'America/Bogota',
         language: user?.language || 'es'
     });
-    const [status, setStatus] = useState<'idle' | 'saving' | 'success'>('idle');
+    const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) return;
 
         setStatus('saving');
-        await userService.updateProfile(user.id, formData);
-        setStatus('success');
-        setTimeout(() => setStatus('idle'), 2000);
+        try {
+            await userService.updateProfile(user.id, formData);
+            await refreshCurrentUser();
+            setStatus('success');
+            setTimeout(() => setStatus('idle'), 2000);
+        } catch {
+            setStatus('error');
+            setTimeout(() => setStatus('idle'), 3000);
+        }
     };
 
     return (
@@ -224,17 +230,31 @@ export function UserProfileSettings() {
                                 disabled={status === 'saving'}
                                 className={`
                                     h-14 px-10 rounded-2xl font-bold flex items-center gap-3 transition-all shadow-xl active:scale-95 disabled:opacity-70
-                                    ${status === 'success' ? 'bg-green-500 shadow-green-200 text-white' : 'bg-blue-600 shadow-blue-200 text-white hover:bg-blue-700'}
+                                    ${status === 'success'
+                                        ? 'bg-green-500 shadow-green-200 text-white'
+                                        : status === 'error'
+                                            ? 'bg-red-500 shadow-red-200 text-white'
+                                            : 'bg-blue-600 shadow-blue-200 text-white hover:bg-blue-700'}
                                 `}
                             >
                                 {status === 'saving' ? (
                                     <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                                 ) : status === 'success' ? (
                                     <CheckCircle size={22} className="animate-in zoom-in" strokeWidth={2} />
+                                ) : status === 'error' ? (
+                                    <span className="text-sm font-black">!</span>
                                 ) : (
                                     <Save size={22} strokeWidth={2} />
                                 )}
-                                <span>{status === 'saving' ? 'Guardando...' : status === 'success' ? '¡Guardado!' : 'Guardar Cambios'}</span>
+                                <span>
+                                    {status === 'saving'
+                                        ? 'Guardando...'
+                                        : status === 'success'
+                                            ? '¡Guardado!'
+                                            : status === 'error'
+                                                ? 'Error al guardar'
+                                                : 'Guardar Cambios'}
+                                </span>
                             </motion.button>
                         </AnimatePresence>
                     </div>

@@ -72,3 +72,24 @@ class UserCreate(BaseModel):
 class SwitchOrganizationRequest(BaseModel):
     """Schema for switching organization"""
     organization_id: int = Field(..., description="Organization ID to switch to", gt=0)
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Request password reset email."""
+    email: EmailStr = Field(..., description="User email address")
+
+
+class ForgotPasswordResponse(BaseModel):
+    """Generic response for forgot password requests."""
+    message: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """Reset password using a valid token."""
+    token: str = Field(..., min_length=16, description="Password reset token")
+    new_password: str = Field(..., min_length=8, description="New password")
+
+
+class ResetPasswordResponse(BaseModel):
+    """Response after successful password reset."""
+    message: str

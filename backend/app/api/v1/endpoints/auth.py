@@ -1,14 +1,22 @@
 """
 Authentication endpoints
 """
+from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from jose import JWTError, jwt
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token, get_current_user, verify_password
+from app.core.security import create_access_token, get_current_user, verify_password, get_password_hash
 from app.core.rate_limiting import limiter, get_rate_limit_for_plan
+from app.core.email import (
+    send_email,
+    generate_password_reset_email_html,
+    generate_password_reset_email_text,
+)
+from app.core.logging import get_logger
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
@@ -16,9 +24,14 @@ from app.schemas.auth import (
     UserResponse,
     UserUpdate,
     SwitchOrganizationRequest,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
 )
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -119,6 +132,128 @@ async def email_password_login(
             "organization_id": user.organization_id,  # Multi-tenant: include in response
         },
     )
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+@limiter.limit("5/minute")
+async def forgot_password(
+    request: Request,
+    payload: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Request password reset email for an account."""
+    normalized_email = payload.email.strip().lower()
+    generic_message = "Si el correo existe, enviaremos instrucciones para restablecer la contrasena."
+
+    result = await db.execute(select(User).where(User.email == normalized_email))
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.info(
+            "Password reset requested for non-existing email",
+            email=normalized_email,
+        )
+        return ForgotPasswordResponse(message=generic_message)
+
+    reset_token = create_access_token(
+        {
+            "sub": str(user.id),
+            "email": user.email,
+            "purpose": "password_reset",
+        },
+        expires_delta=timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES),
+    )
+    reset_url = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={reset_token}"
+    html_body = generate_password_reset_email_html(
+        full_name=user.full_name,
+        reset_url=reset_url,
+        expiration_minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
+    )
+    text_body = generate_password_reset_email_text(
+        full_name=user.full_name,
+        reset_url=reset_url,
+        expiration_minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
+    )
+
+    email_sent = await send_email(
+        to_email=user.email,
+        subject="Recuperacion de contrasena - Nougram",
+        body_html=html_body,
+        body_text=text_body,
+    )
+    if not email_sent:
+        logger.warning(
+            "Failed to send password reset email",
+            user_id=user.id,
+            email=user.email,
+        )
+
+    return ForgotPasswordResponse(message=generic_message)
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+@limiter.limit("10/minute")
+async def reset_password(
+    request: Request,
+    payload: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset account password with a valid reset token."""
+    try:
+        token_payload = jwt.decode(
+            payload.token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token invalido o expirado",
+        )
+
+    if token_payload.get("purpose") != "password_reset":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token invalido para recuperacion de contrasena",
+        )
+
+    user_id_str = token_payload.get("sub")
+    if not user_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token invalido",
+        )
+
+    try:
+        user_id = int(user_id_str)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token invalido",
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+
+    if token_payload.get("email") != user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token invalido",
+        )
+
+    user.hashed_password = get_password_hash(payload.new_password)
+    await db.commit()
+
+    logger.info(
+        "Password reset completed",
+        user_id=user.id,
+        email=user.email,
+    )
+    return ResetPasswordResponse(message="Contrasena actualizada correctamente")
 
 
 @router.get("/me", response_model=UserResponse)

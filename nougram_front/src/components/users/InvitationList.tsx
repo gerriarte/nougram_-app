@@ -9,7 +9,7 @@ import { Mail, Clock, CheckCircle, XCircle, Ban, RefreshCw, X } from 'lucide-rea
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function InvitationList() {
-    const { invitations, loading, actions } = useUserManagement();
+    const { invitations, loading, error, actions } = useUserManagement();
 
     const getStatusStyles = (status: string) => {
         switch (status) {
@@ -32,6 +32,7 @@ export function InvitationList() {
     };
 
     if (loading) return <div className="p-12 text-center text-system-gray font-medium animate-pulse">Cargando invitaciones...</div>;
+    if (error) return <div className="p-12 text-center text-red-600 font-medium">{error}</div>;
 
     const pendingInvitations = invitations.filter(i => i.status !== 'accepted');
 

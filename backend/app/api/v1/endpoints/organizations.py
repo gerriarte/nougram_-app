@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user, get_password_hash, create_access_token
 from app.core.tenant import get_tenant_context, TenantContext
@@ -433,6 +434,43 @@ async def register_organization(
     db.add(admin_user)
     await db.commit()
     await db.refresh(admin_user)
+
+    # Send welcome email (best effort, do not fail registration on email issues)
+    try:
+        from app.core.email import (
+            send_email,
+            generate_welcome_email_html,
+            generate_welcome_email_text,
+        )
+        login_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
+        welcome_sent = await send_email(
+            to_email=admin_user.email,
+            subject="Bienvenido a Nougram",
+            body_html=generate_welcome_email_html(
+                full_name=admin_user.full_name,
+                organization_name=org.name,
+                login_url=login_url,
+            ),
+            body_text=generate_welcome_email_text(
+                full_name=admin_user.full_name,
+                organization_name=org.name,
+                login_url=login_url,
+            ),
+        )
+        if not welcome_sent:
+            logger.warning(
+                "Welcome email could not be sent",
+                organization_id=org.id,
+                user_id=admin_user.id,
+                email=admin_user.email,
+            )
+    except Exception as exc:
+        logger.warning(
+            "Welcome email failed with exception",
+            organization_id=org.id,
+            user_id=admin_user.id,
+            error=str(exc),
+        )
     
     # Generate access token
     token_data = {
@@ -607,7 +645,7 @@ async def list_organization_users(
     is_super_admin = getattr(current_user, 'role', None) == 'super_admin'
     is_org_admin = (
         current_user.organization_id == organization_id and
-        getattr(current_user, 'role', None) in ['org_admin', 'admin_financiero']
+        getattr(current_user, 'role', None) in ['owner', 'org_admin', 'admin_financiero']
     )
     
     if not (is_super_admin or is_org_admin):

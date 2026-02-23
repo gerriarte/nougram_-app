@@ -27,7 +27,7 @@ export function AdminSidebar() {
     const BUSINESS_ITEMS = [
         { label: 'Dashboard & Pipeline', href: '/dashboard', icon: LayoutDashboard },
         { label: 'Gestión de Clientes', href: '/dashboard/clients', icon: UserCircle2 },
-        { label: 'Empresa (Tenant)', href: '/dashboard/organization', icon: Building },
+        { label: 'Empresa (Tenant)', href: '/dashboard/organization', icon: Building2 },
         { label: 'Nómina (Equipo)', href: '/admin/payroll', icon: UsersRound },
         { label: 'Overhead (Gastos)', href: '/admin/overhead', icon: Building2 },
     ];

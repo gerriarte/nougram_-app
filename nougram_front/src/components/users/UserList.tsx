@@ -6,19 +6,24 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { RoleBadge } from './RoleBadge';
-import { UserRole, ROLE_CONFIG } from '@/types/user';
+import { UserRole, ROLE_CONFIG, TenantRole } from '@/types/user';
 import { InviteUserModal } from './InviteUserModal';
 import { useUserManagement } from '@/hooks/useUserManagement';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Filter, MoreVertical, UserPlus, Mail, Shield } from 'lucide-react';
+import { Search, Filter, UserPlus, Mail, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const ASSIGNABLE_TENANT_ROLES: TenantRole[] = ['owner', 'admin_financiero', 'product_manager', 'collaborator'];
+
 export function UserList() {
-    const { members, loading, actions } = useUserManagement();
+    const { members, loading, error, actions } = useUserManagement();
     const { permissions, user: currentUser } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('all');
     const [isInviteOpen, setIsInviteOpen] = useState(false);
+    const [roleDrafts, setRoleDrafts] = useState<Record<string, TenantRole>>({});
+    const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+    const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
     const filteredUsers = members.filter(u => {
         const matchesSearch = u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -28,6 +33,7 @@ export function UserList() {
     });
 
     if (loading) return <div className="p-12 text-center text-system-gray font-medium animate-pulse">Cargando equipo...</div>;
+    if (error) return <div className="p-12 text-center text-red-600 font-medium">{error}</div>;
 
     return (
         <div className="space-y-8">
@@ -135,10 +141,48 @@ export function UserList() {
                                             </span>
                                         </td>
                                         <td className="px-8 py-6 text-right">
-                                            {permissions.canManageUsers && (
-                                                <button className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-xl transition-all shadow-sm shadow-transparent hover:shadow-gray-200/50">
-                                                    <MoreVertical size={18} strokeWidth={1.5} />
-                                                </button>
+                                            {permissions.canManageUsers && user.id !== currentUser?.id && (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <select
+                                                        value={roleDrafts[user.id] || (user.role as TenantRole)}
+                                                        onChange={(e) => setRoleDrafts((prev) => ({
+                                                            ...prev,
+                                                            [user.id]: e.target.value as TenantRole,
+                                                        }))}
+                                                        className="h-10 min-w-[170px] appearance-none rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                                    >
+                                                        {ASSIGNABLE_TENANT_ROLES.map((role) => (
+                                                            <option key={role} value={role}>
+                                                                {ROLE_CONFIG[role].label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <Button
+                                                        disabled={updatingUserId === user.id || (roleDrafts[user.id] || user.role) === user.role}
+                                                        onClick={async () => {
+                                                            try {
+                                                                setActionFeedback(null);
+                                                                setUpdatingUserId(user.id);
+                                                                await actions.updateMemberRole(
+                                                                    user.id,
+                                                                    (roleDrafts[user.id] || user.role) as UserRole
+                                                                );
+                                                                setActionFeedback('Rol actualizado correctamente');
+                                                            } catch (updateError: unknown) {
+                                                                setActionFeedback(
+                                                                    updateError instanceof Error
+                                                                        ? updateError.message
+                                                                        : 'No se pudo actualizar el rol'
+                                                                );
+                                                            } finally {
+                                                                setUpdatingUserId(null);
+                                                            }
+                                                        }}
+                                                        className="h-10 rounded-xl bg-blue-600 px-4 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                                                    >
+                                                        {updatingUserId === user.id ? 'Guardando...' : 'Guardar'}
+                                                    </Button>
+                                                </div>
                                             )}
                                         </td>
                                     </motion.tr>
@@ -158,10 +202,14 @@ export function UserList() {
                     </div>
                 )}
             </Card>
+            {actionFeedback && (
+                <p className="text-sm font-medium text-system-gray">{actionFeedback}</p>
+            )}
 
             <InviteUserModal
                 isOpen={isInviteOpen}
                 onClose={() => setIsInviteOpen(false)}
+                onInvited={actions.refreshData}
             />
         </div>
     );

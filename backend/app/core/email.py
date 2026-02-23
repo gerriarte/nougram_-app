@@ -283,6 +283,171 @@ This is an automated email. Please do not reply directly to this message.
     return text.strip()
 
 
+def generate_welcome_email_html(
+    full_name: str,
+    organization_name: str,
+    login_url: str,
+) -> str:
+    """Generate HTML welcome email template."""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            .header {{
+                background: linear-gradient(135deg, #2563eb, #1d4ed8);
+                color: white;
+                padding: 20px;
+                text-align: center;
+                border-radius: 8px 8px 0 0;
+            }}
+            .content {{
+                border: 1px solid #e5e7eb;
+                border-top: none;
+                padding: 24px;
+                border-radius: 0 0 8px 8px;
+                background-color: #ffffff;
+            }}
+            .button {{
+                display: inline-block;
+                margin-top: 16px;
+                padding: 10px 16px;
+                background-color: #2563eb;
+                color: #ffffff !important;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: 600;
+            }}
+            .footer {{
+                margin-top: 20px;
+                color: #6b7280;
+                font-size: 12px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h2>Bienvenido a Nougram</h2>
+        </div>
+        <div class="content">
+            <p>Hola <strong>{full_name}</strong>,</p>
+            <p>Tu organización <strong>{organization_name}</strong> fue creada exitosamente.</p>
+            <p>Ya puedes ingresar y completar tu configuración inicial.</p>
+            <p>
+                <a class="button" href="{login_url}">Ir a Nougram</a>
+            </p>
+            <p class="footer">Si no reconoces este registro, responde a este correo o contacta soporte.</p>
+        </div>
+    </body>
+    </html>
+    """
+
+
+def generate_welcome_email_text(
+    full_name: str,
+    organization_name: str,
+    login_url: str,
+) -> str:
+    """Generate plain-text welcome email template."""
+    return f"""
+Hola {full_name},
+
+Tu organización {organization_name} fue creada exitosamente en Nougram.
+
+Puedes ingresar aquí:
+{login_url}
+
+Si no reconoces este registro, contacta soporte.
+    """.strip()
+
+
+def generate_password_reset_email_html(
+    full_name: str,
+    reset_url: str,
+    expiration_minutes: int,
+) -> str:
+    """Generate HTML password reset email template."""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            .container {{
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                padding: 24px;
+                background-color: #ffffff;
+            }}
+            .button {{
+                display: inline-block;
+                margin: 16px 0;
+                padding: 10px 16px;
+                background-color: #2563eb;
+                color: #ffffff !important;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: 600;
+            }}
+            .small {{
+                color: #6b7280;
+                font-size: 12px;
+                word-break: break-word;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <p>Hola <strong>{full_name}</strong>,</p>
+            <p>Recibimos una solicitud para restablecer tu contraseña en Nougram.</p>
+            <p>
+                <a class="button" href="{reset_url}">Restablecer contraseña</a>
+            </p>
+            <p>Este enlace expira en <strong>{expiration_minutes} minutos</strong>.</p>
+            <p class="small">Si el botón no funciona, copia este enlace en tu navegador:</p>
+            <p class="small">{reset_url}</p>
+        </div>
+    </body>
+    </html>
+    """
+
+
+def generate_password_reset_email_text(
+    full_name: str,
+    reset_url: str,
+    expiration_minutes: int,
+) -> str:
+    """Generate plain-text password reset email template."""
+    return f"""
+Hola {full_name},
+
+Recibimos una solicitud para restablecer tu contraseña en Nougram.
+
+Usa este enlace para crear una nueva contraseña:
+{reset_url}
+
+El enlace expira en {expiration_minutes} minutos.
+Si no solicitaste este cambio, puedes ignorar este correo.
+    """.strip()
+
+
 
 
 

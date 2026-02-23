@@ -92,6 +92,7 @@ type OrganizationUsersResponse = {
 
 const PLAN_OPTIONS = ['free', 'starter', 'professional', 'enterprise'];
 const STATUS_OPTIONS = ['active', 'trialing', 'past_due', 'cancelled'];
+const SUPPORT_ENDPOINT_PREFIXES = ['/support', '/support/support'] as const;
 
 function getStatusVariant(status: string): 'success' | 'warning' | 'critical' | 'info' | 'default' {
     if (status === 'active') {
@@ -141,6 +142,26 @@ function normalizeSlug(input: string): string {
 }
 
 export default function SuperAdminAccountsPage() {
+    const supportRequest = async <T,>(pathAfterSupport: string) => {
+        let lastError = 'No se pudo resolver endpoint de soporte.';
+        for (let index = 0; index < SUPPORT_ENDPOINT_PREFIXES.length; index += 1) {
+            const prefix = SUPPORT_ENDPOINT_PREFIXES[index];
+            const response = await apiRequest<T>(`${prefix}${pathAfterSupport}`);
+            if (!response.error) {
+                return response;
+            }
+
+            lastError = String(response.error);
+            const normalized = lastError.toLowerCase();
+            const isNotFound = normalized.includes('not found') || normalized.includes('404');
+            const isLast = index === SUPPORT_ENDPOINT_PREFIXES.length - 1;
+            if (!isNotFound || isLast) {
+                return response;
+            }
+        }
+        return { error: lastError };
+    };
+
     const { user, loading } = useAuth();
     const isSuperAdmin = user?.role === 'super_admin';
 
@@ -198,8 +219,8 @@ export default function SuperAdminAccountsPage() {
         }
         setListLoading(true);
         setError(null);
-        const response = await apiRequest<PaginatedResponse<OrganizationItem>>(
-            `/support/organizations?page=${targetPage}&page_size=20&include_inactive=${includeInactive}`
+        const response = await supportRequest<PaginatedResponse<OrganizationItem>>(
+            `/organizations?page=${targetPage}&page_size=20&include_inactive=${includeInactive}`
         );
 
         if (response.error || !response.data) {
@@ -232,7 +253,7 @@ export default function SuperAdminAccountsPage() {
         setError(null);
 
         const [usageResponse, balanceResponse, transactionsResponse, usersResponse] = await Promise.all([
-            apiRequest<UsageMetricsResponse>(`/support/organizations/${organizationId}/usage`),
+            supportRequest<UsageMetricsResponse>(`/organizations/${organizationId}/usage`),
             apiRequest<CreditBalanceResponse>(`/credits/admin/${organizationId}/balance`),
             apiRequest<CreditTransactionListResponse>(
                 `/credits/admin/${organizationId}/transactions?page=1&page_size=15`
@@ -450,12 +471,32 @@ export default function SuperAdminAccountsPage() {
         }
 
         try {
-            const url = `${apiBase}/support/datasets/export?dataset_type=${datasetType}&export_format=csv`;
-            const response = await fetch(url, {
-                headers: {
-                    Authorization: `Bearer ${token}`
+            let response: Response | null = null;
+            for (let index = 0; index < SUPPORT_ENDPOINT_PREFIXES.length; index += 1) {
+                const prefix = SUPPORT_ENDPOINT_PREFIXES[index];
+                const url = `${apiBase}${prefix}/datasets/export?dataset_type=${datasetType}&export_format=csv`;
+                const candidate = await fetch(url, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+
+                if (candidate.ok) {
+                    response = candidate;
+                    break;
                 }
-            });
+                const isLast = index === SUPPORT_ENDPOINT_PREFIXES.length - 1;
+                if (candidate.status !== 404 || isLast) {
+                    response = candidate;
+                    break;
+                }
+            }
+
+            if (!response) {
+                setError('No se pudo completar la exportacion CSV.');
+                setExportLoading(false);
+                return;
+            }
 
             if (!response.ok) {
                 const errorBody = await response.json().catch(() => ({}));
