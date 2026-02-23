@@ -98,11 +98,6 @@ export function ClientAutocomplete({ value, onChange, onSelect, className }: Cli
                                         <p className="font-medium text-gray-900">{client.name}</p>
                                         <p className="text-xs text-gray-500">{client.email}</p>
                                     </div>
-                                    {client.sector && (
-                                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                                            {client.sector}
-                                        </span>
-                                    )}
                                 </li>
                             ))}
                         </ul>
