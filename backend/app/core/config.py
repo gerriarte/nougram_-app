@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     
     # Environment
     ENVIRONMENT: str = "development"
+    SUPER_ADMIN_EMAIL: str = "gerardoriarte@gmail.com"
+    SUPER_ADMIN_ALLOWED_EMAILS: str = ""
+    AUTO_PROVISION_SUPER_ADMIN: bool = False
+    SUPER_ADMIN_BOOTSTRAP_PASSWORD: str = ""
+    SUPER_ADMIN_BOOTSTRAP_FULL_NAME: str = "Super Admin"
+    SUPER_ADMIN_BOOTSTRAP_FORCE_PASSWORD_RESET: bool = False
 
     # Feature flags (roles)
     FEATURE_ROLES: bool = False
@@ -54,6 +60,10 @@ class Settings(BaseSettings):
     STRIPE_PUBLISHABLE_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
     STRIPE_PRICE_IDS: str = "{}"  # JSON string with price IDs per plan
+    
+    # Billing provider abstraction
+    # Supported values: "manual", "stripe"
+    PAYMENT_GATEWAY_PROVIDER: str = "manual"
     
     # Exchange Rate API Configuration
     EXCHANGE_RATE_API_KEY: str = ""  # API key for exchangerate-api.com (free tier available)

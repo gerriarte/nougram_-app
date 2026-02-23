@@ -13,13 +13,17 @@ from app.core.config import settings
 _docs_url = "/docs" if settings.ENVIRONMENT.lower() != "production" else None
 _redoc_url = "/redoc" if settings.ENVIRONMENT.lower() != "production" else None
 from app.core.database import engine, Base
+from app.core.database import AsyncSessionLocal
 from app.api.v1.router import api_router
 from app.core.rate_limiting import limiter, rate_limit_exceeded_handler
 from app.core.permissions import PermissionError
+from app.core.logging import get_logger
+from app.services.super_admin_bootstrap_service import ensure_super_admin_bootstrap
 from slowapi.errors import RateLimitExceeded
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -31,6 +35,16 @@ async def lifespan(app: FastAPI):
     if settings.ENVIRONMENT.lower() != "production":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+    # Optional startup bootstrap for super admin account.
+    try:
+        async with AsyncSessionLocal() as db:
+            await ensure_super_admin_bootstrap(db)
+    except Exception:
+        logger.error(
+            "Super admin bootstrap failed during startup",
+            exc_info=True,
+        )
     yield
     # Shutdown: Clean up if needed
 
