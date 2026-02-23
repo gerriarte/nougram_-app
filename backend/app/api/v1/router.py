@@ -30,6 +30,7 @@ api_router.include_router(templates.router, tags=["templates"])
 api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
 api_router.include_router(stripe_webhooks.router, prefix="/stripe", tags=["stripe-webhooks"])
 api_router.include_router(credits.router, prefix="/credits", tags=["credits"])
-api_router.include_router(support.router, prefix="/support", tags=["support"])
+# support.router already has prefix="/support"; avoid duplicating /support/support
+api_router.include_router(support.router, tags=["support"])
 api_router.include_router(sales_projection.router, prefix="/sales", tags=["sales-projection"])
 api_router.include_router(annual_projection.router, prefix="/projections", tags=["annual-projection"])
