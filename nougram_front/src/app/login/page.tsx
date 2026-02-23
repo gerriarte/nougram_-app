@@ -84,6 +84,11 @@ export default function LoginPage() {
               disabled={submitting}
               placeholder="Tu contraseña"
             />
+            <div className="text-right">
+              <Link href="/forgot-password" className="text-xs font-semibold text-primary hover:underline">
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
           </div>
 
           <Button

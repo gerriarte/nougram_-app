@@ -62,3 +62,33 @@ cd nougram_front && npm install && npm run build && npm start
 | 3000   | Frontend   |
 | 5432   | PostgreSQL |
 | 6379   | Redis      |
+
+## Correo transaccional (estado actual)
+
+Implementado en backend:
+- Envio de invitaciones (`/organizations/{id}/invitations`)
+- Envio de cotizaciones (`/projects/{project_id}/quotes/{quote_id}/send-email`)
+- Recuperacion de contrasena:
+  - `POST /api/v1/auth/forgot-password`
+  - `POST /api/v1/auth/reset-password`
+- Correo de bienvenida al registrar organizacion (`POST /api/v1/organizations/register`)
+
+Variables obligatorias para produccion:
+- `SMTP_HOST`
+- `SMTP_PORT` (normalmente `587`)
+- `SMTP_USER`
+- `SMTP_PASSWORD`
+- `SMTP_FROM_EMAIL`
+- `SMTP_FROM_NAME`
+- `SMTP_USE_TLS` (`true`)
+- `FRONTEND_URL` (base URL para links de reset/invitacion)
+- `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` (ej. `60`)
+
+Pendiente para finalizar despues:
+- Verificar entregabilidad de dominio (SPF, DKIM, DMARC)
+- Configurar proveedor final SMTP (SES/SendGrid/Resend) con credenciales productivas
+- Ejecutar smoke test E2E en produccion:
+  - Registro nuevo tenant -> correo de bienvenida
+  - Forgot password -> reset con enlace
+  - Invitacion owner -> recepcion y aceptacion
+  - Envio de cotizacion con adjuntos
