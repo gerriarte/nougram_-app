@@ -73,18 +73,51 @@ async def ensure_super_admin_bootstrap(db: AsyncSession) -> None:
         except IntegrityError:
             await db.rollback()
             logger.warning(
-                "Super admin auto-provision detected concurrent creation, retrying lookup",
+                "Super admin auto-provision create failed, retrying lookup",
                 email=email,
+                reason="integrity_error",
             )
             result = await db.execute(select(User).where(User.email == email))
             user = result.scalar_one_or_none()
             if user is None:
-                logger.error(
-                    "Super admin auto-provision failed after concurrent creation retry",
-                    email=email,
+                # Last-resort fallback for legacy DBs that enforce organization_id NOT NULL.
+                fallback_org_result = await db.execute(
+                    select(User.organization_id).where(User.organization_id.is_not(None))
                 )
-                return
+                fallback_org_id = fallback_org_result.scalars().first()
+                if fallback_org_id is None:
+                    logger.error(
+                        "Super admin auto-provision failed: no fallback organization_id available",
+                        email=email,
+                    )
+                    return
 
+                legacy_user = User(
+                    email=email,
+                    full_name=full_name,
+                    hashed_password=password_hash,
+                    role="super_admin",
+                    role_type="support",
+                    organization_id=fallback_org_id,
+                )
+                db.add(legacy_user)
+                try:
+                    await db.commit()
+                    logger.warning(
+                        "Super admin auto-provision created user with legacy organization_id fallback",
+                        email=email,
+                        organization_id=fallback_org_id,
+                    )
+                    return
+                except IntegrityError:
+                    await db.rollback()
+                    logger.error(
+                        "Super admin auto-provision failed after fallback create attempt",
+                        email=email,
+                    )
+                    return
+
+    original_org_id = user.organization_id
     changed = False
     if user.role != "super_admin":
         user.role = "super_admin"
@@ -107,7 +140,20 @@ async def ensure_super_admin_bootstrap(db: AsyncSession) -> None:
         changed = True
 
     if changed:
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            # Legacy deployments may still enforce users.organization_id NOT NULL.
+            # In that case keep the existing organization_id and continue with support role.
+            user.organization_id = original_org_id
+            await db.merge(user)
+            await db.commit()
+            logger.warning(
+                "Super admin auto-provision kept legacy organization_id due DB constraint",
+                email=email,
+                organization_id=original_org_id,
+            )
         logger.info(
             "Super admin auto-provision updated user",
             email=email,
