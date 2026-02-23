@@ -73,7 +73,7 @@ out/
 *.pth
 *.onnx
 data/
-models/
+/models/
 jupyter_checkpoints/
 !nougram_front/src/data/
 !nougram_front/src/data/**
