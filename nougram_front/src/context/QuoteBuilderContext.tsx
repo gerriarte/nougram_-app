@@ -8,14 +8,6 @@ import {
     PricingType, Service, Contingency
 } from '@/types/quote-builder';
 
-// --- MOCK CONSTANTS (Simulating DB) ---
-const MOCK_SERVICES: Service[] = [
-    { id: 1, name: 'Desarrollo Frontend', pricingType: 'hourly', defaultMarginTarget: 0.40, isActive: true },
-    { id: 2, name: 'Diseño UI/UX', pricingType: 'hourly', defaultMarginTarget: 0.40, isActive: true },
-    { id: 3, name: 'Setup Inicial (Fijo)', pricingType: 'fixed', defaultMarginTarget: 0.30, isActive: true },
-    { id: 4, name: 'Mantenimiento Mensual', pricingType: 'recurring', defaultMarginTarget: 0.50, isActive: true },
-];
-
 const MOCK_TAXES: TaxConfig[] = [
     { id: 1, name: 'IVA', percentage: 19.0 },
     { id: 2, name: 'ReteFuente', percentage: 3.5 },
@@ -83,7 +75,7 @@ const QuoteBuilderContext = createContext<QuoteBuilderContextType | undefined>(u
 export function QuoteBuilderProvider({ children }: { children: React.ReactNode }) {
     const { state: coreState } = useNougram();
     const [state, setState] = useState<QuoteBuilderState>(INITIAL_STATE);
-    const [services, setServices] = useState<Service[]>(MOCK_SERVICES);
+    const [services, setServices] = useState<Service[]>([]);
     const [teamMembers, setTeamMembers] = useState<import('@/types/quote-builder').TeamMemberMock[]>([]); // Load from service
     const [summary, setSummary] = useState<CalculationSummary>({
         totalInternalCost: 0, totalClientPrice: 0, totalTaxes: 0, totalWithTaxes: 0, netMarginAmount: 0, netMarginPercent: 0, realIncome: 0,
@@ -96,6 +88,8 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         import('@/services/quoteService').then(({ quoteService }) => {
             quoteService.getAvailableServices().then((available) => {
                 if (available.length > 0) setServices(available);
+            }).catch(() => {
+                setServices([]);
             });
         });
     }, []);
@@ -278,7 +272,9 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
 
         const payload = {
             projectName: state.projectName,
+            clientId: state.clientId ?? undefined,
             clientName: state.clientName,
+            clientEmail: state.clientEmail,
             amount: summary.totalClientPrice,
             currency: state.currency,
             marginPercentage: summary.netMarginPercent,
@@ -336,10 +332,11 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 id: q.id,
                 version: q.version,
                 projectName: q.projectName,
+                clientId: q.clientId ?? undefined,
                 clientName: q.clientName,
                 clientEmail: q.clientEmail || '',
-                clientCompany: q.clientName || '',
-                clientRequester: '',
+                clientCompany: q.clientCompany || q.clientName || '',
+                clientRequester: q.clientRequester || '',
                 projectType: '',
                 projectDescription: '',
                 currency: (q.currency as any) || 'COP',

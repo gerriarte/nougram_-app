@@ -10,7 +10,8 @@ from datetime import timezone
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.tenant import get_tenant_context, TenantContext
-from app.core.stripe_service import stripe_service
+from app.core.permission_middleware import require_manage_subscription
+from app.core.billing_gateway import get_billing_gateway, BillingGatewayError
 from app.core.logging import get_logger
 from app.models.user import User
 from app.models.subscription import Subscription
@@ -34,16 +35,28 @@ router = APIRouter()
 async def create_checkout_session(
     checkout_data: CheckoutSessionCreate,
     tenant: TenantContext = Depends(get_tenant_context),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_manage_subscription),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Create a Stripe checkout session for subscription
+    Create a hosted checkout session for subscription
     
     Only organization owners/admins can create checkout sessions
     """
-    # Get price ID for the plan
-    price_id = stripe_service.get_price_id(checkout_data.plan, checkout_data.interval)
+    gateway = get_billing_gateway()
+
+    # Checkout is optional depending on billing provider.
+    if not gateway.supports_checkout:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=(
+                f"Hosted checkout is not enabled for provider '{gateway.provider_name}'. "
+                "Configure a payment gateway to enable online checkout."
+            ),
+        )
+
+    # Get price ID for the plan in current provider.
+    price_id = gateway.get_price_id(checkout_data.plan, checkout_data.interval)
     
     if not price_id:
         raise HTTPException(
@@ -61,45 +74,43 @@ async def create_checkout_session(
             detail="Organization not found"
         )
     
-    # Get or create Stripe customer
+    # Get or create external customer in configured provider.
     customer_id = None
     subscription_repo = RepositoryFactory.create_subscription_repository(db)
     existing_subscription = await subscription_repo.get_latest_subscription(tenant.organization_id)
     
-    if existing_subscription and existing_subscription.stripe_customer_id:
-        customer_id = existing_subscription.stripe_customer_id
-    else:
-        # Create new customer in Stripe
-        customer = stripe_service.create_customer(
-            email=current_user.email,
-            name=organization.name,
-            organization_id=tenant.organization_id
-        )
-        customer_id = customer.id
+    customer_id = gateway.ensure_customer_id(
+        existing_customer_id=existing_subscription.stripe_customer_id if existing_subscription else None,
+        email=current_user.email,
+        organization_name=organization.name,
+        organization_id=tenant.organization_id,
+    )
     
     # Create checkout session
     try:
-        session = stripe_service.create_checkout_session(
+        session = gateway.create_checkout_session(
             customer_id=customer_id,
             price_id=price_id,
             success_url=checkout_data.success_url,
             cancel_url=checkout_data.cancel_url,
             organization_id=tenant.organization_id,
-            mode="subscription",
-            metadata={
-                "plan": checkout_data.plan,
-                "interval": checkout_data.interval
-            }
+            plan=checkout_data.plan,
+            interval=checkout_data.interval,
         )
         
         logger.info(
-            f"Created checkout session {session.id} for organization {tenant.organization_id}",
+            f"Created checkout session {session.session_id} for organization {tenant.organization_id}",
             extra={"organization_id": tenant.organization_id, "plan": checkout_data.plan}
         )
         
         return CheckoutSessionResponse(
-            session_id=session.id,
-            url=session.url
+            session_id=session.session_id,
+            url=session.url,
+        )
+    except BillingGatewayError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
         )
     except Exception as e:
         logger.error(f"Error creating checkout session: {str(e)}", exc_info=True)
@@ -118,13 +129,37 @@ async def get_subscription(
     """
     Get current subscription for the organization
     """
+    org_repo = RepositoryFactory.create_organization_repository(db)
+    organization = await org_repo.get_by_id(tenant.organization_id)
+    if not organization:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
+
     subscription_repo = RepositoryFactory.create_subscription_repository(db)
     subscription = await subscription_repo.get_active_subscription(tenant.organization_id)
     
     if not subscription:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active subscription found"
+        # Fallback for manual/local billing mode: use organization-level subscription fields.
+        return SubscriptionResponse(
+            id=0,
+            organization_id=tenant.organization_id,
+            stripe_subscription_id=None,
+            stripe_customer_id=None,
+            stripe_price_id=None,
+            plan=organization.subscription_plan,
+            status=organization.subscription_status,
+            current_period_start=None,
+            current_period_end=None,
+            cancel_at_period_end=False,
+            canceled_at=None,
+            trial_start=None,
+            trial_end=None,
+            latest_invoice_id=None,
+            default_payment_method=None,
+            created_at=organization.created_at or datetime.utcnow(),
+            updated_at=organization.updated_at,
         )
     
     return SubscriptionResponse.model_validate(subscription)
@@ -134,7 +169,7 @@ async def get_subscription(
 async def update_subscription(
     subscription_data: SubscriptionUpdate,
     tenant: TenantContext = Depends(get_tenant_context),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_manage_subscription),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -142,6 +177,7 @@ async def update_subscription(
     
     Only organization owners/admins can update subscriptions
     """
+    gateway = get_billing_gateway()
     subscription_repo = RepositoryFactory.create_subscription_repository(db)
     subscription = await subscription_repo.get_active_subscription(tenant.organization_id)
     
@@ -151,45 +187,28 @@ async def update_subscription(
             detail="No active subscription found"
         )
     
-    if not subscription.stripe_subscription_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Subscription is not linked to Stripe"
-        )
-    
     try:
-        # Update in Stripe
-        price_id = None
-        if subscription_data.plan:
-            price_id = stripe_service.get_price_id(
-                subscription_data.plan,
-                subscription_data.interval or "month"
+        # If provider has external subscription integration, sync it.
+        if subscription.stripe_subscription_id and gateway.provider_name != "manual":
+            updated_external = gateway.update_subscription(
+                external_subscription_id=subscription.stripe_subscription_id,
+                plan=subscription_data.plan,
+                interval=subscription_data.interval,
+                cancel_at_period_end=subscription_data.cancel_at_period_end,
             )
-            if not price_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Price ID not configured for plan {subscription_data.plan}"
-                )
-        
-        updated_stripe_subscription = stripe_service.update_subscription(
-            subscription_id=subscription.stripe_subscription_id,
-            price_id=price_id,
-            cancel_at_period_end=subscription_data.cancel_at_period_end
-        )
-        
-        # Sync with database
-        subscription.plan = updated_stripe_subscription.plan.id if subscription_data.plan else subscription.plan
-        subscription.status = updated_stripe_subscription.status
-        subscription.current_period_start = datetime.fromtimestamp(
-            updated_stripe_subscription.current_period_start, tz=timezone.utc
-        )
-        subscription.current_period_end = datetime.fromtimestamp(
-            updated_stripe_subscription.current_period_end, tz=timezone.utc
-        )
-        subscription.cancel_at_period_end = updated_stripe_subscription.cancel_at_period_end
-        
-        if subscription_data.plan and price_id:
-            subscription.stripe_price_id = price_id
+
+            subscription.status = updated_external.status
+            subscription.current_period_start = updated_external.current_period_start
+            subscription.current_period_end = updated_external.current_period_end
+            subscription.cancel_at_period_end = updated_external.cancel_at_period_end
+            if updated_external.external_price_id:
+                subscription.stripe_price_id = updated_external.external_price_id
+        elif subscription_data.cancel_at_period_end is not None:
+            # Manual/local fallback: update local cancellation intent.
+            subscription.cancel_at_period_end = subscription_data.cancel_at_period_end
+
+        if subscription_data.plan:
+            subscription.plan = subscription_data.plan
         
         await db.commit()
         await db.refresh(subscription)
@@ -201,7 +220,7 @@ async def update_subscription(
         
         return SubscriptionResponse.model_validate(subscription)
         
-    except HTTPException:
+    except (HTTPException, BillingGatewayError):
         raise
     except Exception as e:
         logger.error(f"Error updating subscription: {str(e)}", exc_info=True)
@@ -216,7 +235,7 @@ async def update_subscription(
 async def cancel_subscription(
     cancel_data: SubscriptionCancel,
     tenant: TenantContext = Depends(get_tenant_context),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_manage_subscription),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -224,6 +243,7 @@ async def cancel_subscription(
     
     Only organization owners/admins can cancel subscriptions
     """
+    gateway = get_billing_gateway()
     subscription_repo = RepositoryFactory.create_subscription_repository(db)
     subscription = await subscription_repo.get_active_subscription(tenant.organization_id)
     
@@ -233,26 +253,23 @@ async def cancel_subscription(
             detail="No active subscription found"
         )
     
-    if not subscription.stripe_subscription_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Subscription is not linked to Stripe"
-        )
-    
     try:
-        # Cancel in Stripe
-        updated_stripe_subscription = stripe_service.cancel_subscription(
-            subscription_id=subscription.stripe_subscription_id,
-            cancel_at_period_end=not cancel_data.cancel_immediately
-        )
-        
-        # Sync with database
-        if cancel_data.cancel_immediately:
-            subscription.status = "cancelled"
-            subscription.canceled_at = datetime.utcnow()
+        # External cancel when available, local fallback otherwise.
+        if subscription.stripe_subscription_id and gateway.provider_name != "manual":
+            updated_external = gateway.cancel_subscription(
+                external_subscription_id=subscription.stripe_subscription_id,
+                cancel_immediately=cancel_data.cancel_immediately,
+            )
+            subscription.status = updated_external.status
+            subscription.cancel_at_period_end = updated_external.cancel_at_period_end
+            if cancel_data.cancel_immediately:
+                subscription.canceled_at = datetime.utcnow()
         else:
-            subscription.status = updated_stripe_subscription.status
-            subscription.cancel_at_period_end = True
+            if cancel_data.cancel_immediately:
+                subscription.status = "cancelled"
+                subscription.canceled_at = datetime.utcnow()
+            else:
+                subscription.cancel_at_period_end = True
         
         await db.commit()
         await db.refresh(subscription)
@@ -264,6 +281,12 @@ async def cancel_subscription(
         
         return SubscriptionResponse.model_validate(subscription)
         
+    except BillingGatewayError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
     except Exception as e:
         logger.error(f"Error cancelling subscription: {str(e)}", exc_info=True)
         await db.rollback()

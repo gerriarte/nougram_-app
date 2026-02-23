@@ -46,8 +46,11 @@ class Project(Base):
     
     # Multi-tenant: organization relationship
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+    # Client master catalog (nullable; client_name/client_email kept for snapshot/compat)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
     
     # Relationships
+    client = relationship("Client", backref="projects")
     quotes = relationship("Quote", back_populates="project", cascade="all, delete-orphan")
     taxes = relationship("Tax", secondary="project_taxes", back_populates="projects")
     deleted_by = relationship("User", foreign_keys=[deleted_by_id])

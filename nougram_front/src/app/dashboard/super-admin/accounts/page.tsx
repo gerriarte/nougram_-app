@@ -485,7 +485,6 @@ export default function SuperAdminAccountsPage() {
                     response = candidate;
                     break;
                 }
-
                 const isLast = index === SUPPORT_ENDPOINT_PREFIXES.length - 1;
                 if (candidate.status !== 404 || isLast) {
                     response = candidate;

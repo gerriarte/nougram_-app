@@ -28,7 +28,8 @@ export function QuoteBuilderForm() {
             // For now saveQuote simulates "Create".
             router.push('/dashboard');
         } catch (e) {
-            alert('Error saving quote');
+            const message = e instanceof Error ? e.message : 'Error guardando cotización';
+            alert(message);
         }
     };
 
@@ -74,7 +75,9 @@ export function QuoteBuilderForm() {
                             <label className="text-sm font-semibold text-gray-700">Cliente</label>
                             <ClientSelector
                                 value={state.clientCompany || state.clientName}
-                                onChange={(name, email, company, requester) => updateProjectInfo({
+                                clientId={state.clientId ?? undefined}
+                                onChange={(clientId, name, email, company, requester) => updateProjectInfo({
+                                    clientId: clientId ?? undefined,
                                     clientName: name,
                                     clientEmail: email || '',
                                     clientCompany: company || name,

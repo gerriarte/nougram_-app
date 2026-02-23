@@ -72,6 +72,7 @@ export interface QuoteBuilderState {
 
     // Project Info
     projectName: string;
+    clientId?: number | null;
     clientName: string;
     clientCompany?: string;
     clientRequester?: string;

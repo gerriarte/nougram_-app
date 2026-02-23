@@ -10,9 +10,9 @@ import logging
 
 from app.core.calculations import calculate_blended_cost_rate, calculate_quote_totals_enhanced
 from app.core.plan_limits import validate_project_limit
-from app.core.permissions import get_user_role
 from app.core.exceptions import BusinessLogicError
 from app.repositories.factory import RepositoryFactory
+from app.models.client import Client
 from app.models.project import Project, Quote, QuoteItem, QuoteItemAllocation, QuoteExpense, project_taxes
 from app.models.service import Service
 from app.models.tax import Tax
@@ -151,12 +151,22 @@ class ProjectService:
         allow_low_margin_flag = getattr(project_data, 'allow_low_margin', False) or allow_low_margin
         await self._validate_quote_profitability(totals, current_user, allow_low_margin=allow_low_margin_flag)
         
-        # Create project
+        # Create project (optionally link to client master and set snapshot from it)
         logger.info("Creating project...")
+        client_id = getattr(project_data, "client_id", None)
+        client_name = project_data.client_name
+        client_email = project_data.client_email
+        if client_id:
+            client_repo = RepositoryFactory.create_client_repository(self.db, self.organization_id)
+            client = await client_repo.get_by_id(client_id)
+            if client:
+                client_name = client.display_name
+                client_email = client.email or client_email
         project = Project(
             name=project_data.name,
-            client_name=project_data.client_name,
-            client_email=project_data.client_email,
+            client_id=client_id,
+            client_name=client_name,
+            client_email=client_email,
             currency=project_data.currency,
             status="Draft",
             organization_id=self.organization_id
@@ -197,26 +207,16 @@ class ProjectService:
         if quote_allocations:
             self.db.add_all(quote_allocations)
         
-        # Consume credits based on user role (if applicable)
-        user_role = get_user_role(current_user)
-        if user_role == "product_manager":
-            try:
-                await CreditService.validate_and_consume_credits(
-                    organization_id=self.organization_id,
-                    amount=1,
-                    user_id=current_user.id,
-                    reason=f"Created project '{project.name}' with quote",
-                    db=self.db,
-                    reference_id=quote.id
-                )
-                logger.info(f"Consumed 1 credit for project creation by product_manager user {current_user.id}")
-            except HTTPException as e:
-                # Re-raise HTTPException (e.g., insufficient credits)
-                raise e
-            except Exception as e:
-                logger.error(f"Error consuming credits: {str(e)}")
-                # Don't fail project creation if credit consumption fails
-                # This allows graceful degradation
+        # 1 quote creation = 1 credit consumption
+        await CreditService.validate_and_consume_credits(
+            organization_id=self.organization_id,
+            amount=1,
+            user_id=current_user.id,
+            reason=f"Created quote v1 for project '{project.name}'",
+            db=self.db,
+            reference_id=quote.id,
+        )
+        logger.info(f"Consumed 1 credit for quote creation by user {current_user.id}")
         
         await self.db.commit()
         await self.db.refresh(quote)
@@ -374,6 +374,17 @@ class ProjectService:
         self.db.add_all(quote_items)
         if quote_allocations:
             self.db.add_all(quote_allocations)
+
+        # 1 quote creation = 1 credit consumption (also for new versions)
+        await CreditService.validate_and_consume_credits(
+            organization_id=self.organization_id,
+            amount=1,
+            user_id=current_user.id,
+            reason=f"Created quote v{new_version} for project '{project.name}'",
+            db=self.db,
+            reference_id=new_quote.id,
+        )
+        logger.info(f"Consumed 1 credit for quote version creation by user {current_user.id}")
         
         await self.db.commit()
         await self.db.refresh(new_quote)
@@ -842,6 +853,17 @@ class ProjectService:
         
         # Handle tax_ids separately
         tax_ids = update_data.pop("tax_ids", None)
+        # When client_id is set, fill snapshot from client master
+        client_id_new = update_data.get("client_id")
+        if client_id_new is not None and client_id_new:
+            client_repo = RepositoryFactory.create_client_repository(self.db, self.organization_id)
+            client = await client_repo.get_by_id(client_id_new)
+            if client:
+                update_data["client_name"] = client.display_name
+                update_data["client_email"] = client.email or project.client_email
+        elif client_id_new is not None:
+            update_data["client_name"] = update_data.get("client_name") or project.client_name
+            update_data["client_email"] = update_data.get("client_email")
         
         # Update project fields
         for field, value in update_data.items():
