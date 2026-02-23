@@ -27,7 +27,8 @@ class CreditAccountRepository(BaseRepository[CreditAccount]):
     async def create_for_organization(
         self,
         organization_id: int,
-        credits_per_month: Optional[int] = None
+        credits_per_month: Optional[int] = None,
+        auto_commit: bool = True,
     ) -> CreditAccount:
         """
         Create a new credit account for an organization
@@ -41,8 +42,9 @@ class CreditAccountRepository(BaseRepository[CreditAccount]):
             manual_credits_bonus=0
         )
         self.db.add(account)
-        await self.db.commit()
-        await self.db.refresh(account)
+        if auto_commit:
+            await self.db.commit()
+            await self.db.refresh(account)
         return account
 
 

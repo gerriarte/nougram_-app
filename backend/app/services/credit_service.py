@@ -27,6 +27,7 @@ class CreditService:
     TRANSACTION_TYPE_MANUAL_ADJUSTMENT = "manual_adjustment"
     TRANSACTION_TYPE_CONSUMPTION = "consumption"
     TRANSACTION_TYPE_REFUND = "refund"
+    SUBSCRIPTION_GRANT_DEDUP_WINDOW_SECONDS = 300
     
     @staticmethod
     async def get_or_create_credit_account(
@@ -67,8 +68,11 @@ class CreditService:
             
             account = await repo.create_for_organization(
                 organization_id=organization_id,
-                credits_per_month=credits_per_month
+                credits_per_month=credits_per_month,
+                auto_commit=False,
             )
+            await db.commit()
+            await db.refresh(account)
             
             logger.info(f"Created credit account for organization {organization_id} with {credits_per_month} credits/month")
         
@@ -162,7 +166,8 @@ class CreditService:
             amount=-amount,  # Negative for consumption
             reason=reason,
             reference_id=reference_id,
-            performed_by=user_id
+            performed_by=user_id,
+            auto_commit=False,
         )
         
         await db.commit()
@@ -175,7 +180,8 @@ class CreditService:
     @staticmethod
     async def grant_subscription_credits(
         organization_id: int,
-        db: AsyncSession
+        db: AsyncSession,
+        force: bool = False,
     ) -> None:
         """
         Grant monthly subscription credits to an organization
@@ -200,6 +206,23 @@ class CreditService:
             )
         
         account = await CreditService.get_or_create_credit_account(organization_id, db)
+        transaction_repo = CreditTransactionRepository(db)
+        now = datetime.utcnow()
+
+        # Avoid accidental double grants from bursty events (e.g., overlapping Stripe webhooks).
+        if not force:
+            latest_grant = await transaction_repo.get_latest_by_type(
+                organization_id=organization_id,
+                transaction_type=CreditService.TRANSACTION_TYPE_SUBSCRIPTION_GRANT,
+            )
+            if latest_grant and latest_grant.created_at:
+                elapsed = (now - latest_grant.created_at.replace(tzinfo=None)).total_seconds()
+                if elapsed <= CreditService.SUBSCRIPTION_GRANT_DEDUP_WINDOW_SECONDS:
+                    logger.warning(
+                        f"Skipping duplicate subscription grant for organization {organization_id} "
+                        f"(elapsed {elapsed:.1f}s)"
+                    )
+                    return
         
         # Get credits per month from plan
         credits_per_month = get_plan_limit(org.subscription_plan, "credits_per_month")
@@ -215,19 +238,18 @@ class CreditService:
             account.credits_available += credits_per_month
             
             # Create transaction record
-            transaction_repo = CreditTransactionRepository(db)
             await transaction_repo.create_transaction(
                 organization_id=organization_id,
                 transaction_type=CreditService.TRANSACTION_TYPE_SUBSCRIPTION_GRANT,
                 amount=credits_per_month,
                 reason=f"Monthly subscription grant for {org.subscription_plan} plan",
-                performed_by=None
+                performed_by=None,
+                auto_commit=False,
             )
             
             logger.info(f"Granted {credits_per_month} credits to organization {organization_id} ({org.subscription_plan} plan)")
         
         # Update reset timestamps
-        now = datetime.utcnow()
         account.last_reset_at = now
         
         # Calculate next reset (one month from now)
@@ -277,7 +299,8 @@ class CreditService:
             transaction_type=CreditService.TRANSACTION_TYPE_MANUAL_ADJUSTMENT,
             amount=amount,
             reason=reason,
-            performed_by=granted_by
+            performed_by=granted_by,
+            auto_commit=False,
         )
         
         await db.commit()
@@ -319,7 +342,8 @@ class CreditService:
             amount=amount,
             reason=reason,
             reference_id=reference_id,
-            performed_by=None
+            performed_by=None,
+            auto_commit=False,
         )
         
         await db.commit()

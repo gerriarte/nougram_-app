@@ -6,6 +6,7 @@ import { apiRequest } from '@/lib/api-client';
 type ProjectListItem = {
     id: number;
     name: string;
+    client_id?: number | null;
     client_name: string;
     status: 'Draft' | 'Sent' | 'Won' | 'Lost';
     currency?: string;
@@ -56,6 +57,7 @@ type ProjectQuoteResponse = {
 type ProjectResponse = {
     id: number;
     name: string;
+    client_id?: number | null;
     client_name: string;
     client_email?: string;
     currency?: string;
@@ -207,7 +209,7 @@ function mapProjectStatusToQuoteStatus(status?: string): Quote['status'] {
 }
 
 function buildQuoteCardFromProject(
-    project: Pick<ProjectResponse, 'id' | 'name' | 'client_name' | 'currency' | 'status'> & {
+    project: Pick<ProjectResponse, 'id' | 'name' | 'client_id' | 'client_name' | 'currency' | 'status'> & {
         taxes?: Array<{ percentage: string | number }>;
     },
     latestQuote: ProjectQuoteResponse | null
@@ -224,6 +226,7 @@ function buildQuoteCardFromProject(
         id: String(project.id),
         project: project.name,
         client: project.client_name,
+        clientId: project.client_id ?? undefined,
         amount,
         currency: project.currency || 'USD',
         margin,
@@ -288,6 +291,7 @@ export const quoteService = {
                     id: String(project.id),
                     project: projectDetail.name || project.name,
                     client: projectDetail.client_name || project.client_name,
+                    clientId: projectDetail.client_id ?? project.client_id ?? undefined,
                     amount,
                     currency: projectDetail.currency || project.currency || 'USD',
                     margin,
@@ -337,6 +341,7 @@ export const quoteService = {
             method: 'POST',
             body: JSON.stringify({
                 name: data.projectName || 'Proyecto sin nombre',
+                client_id: data.clientId ?? undefined,
                 client_name: data.clientName || 'Cliente',
                 client_email: data.clientEmail || undefined,
                 currency: data.currency || 'COP',
@@ -544,8 +549,11 @@ export const quoteService = {
         id: string;
         version: number;
         projectName: string;
+        clientId?: number | null;
         clientName: string;
         clientEmail: string;
+        clientCompany?: string;
+        clientRequester?: string;
         currency: 'COP' | 'USD';
         items: QuoteItem[];
     } | null> => {
@@ -598,8 +606,11 @@ export const quoteService = {
             id: String(projectResponse.data.id),
             version: Number(detail?.version || latestQuote.version || 1),
             projectName: projectResponse.data.name,
+            clientId: projectResponse.data.client_id ?? undefined,
             clientName: projectResponse.data.client_name,
             clientEmail: projectResponse.data.client_email || '',
+            clientCompany: projectResponse.data.client_name,
+            clientRequester: '',
             currency: (projectResponse.data.currency as 'COP' | 'USD') || 'COP',
             items,
         };

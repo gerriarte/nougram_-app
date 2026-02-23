@@ -8,6 +8,7 @@ export interface Quote {
     id: string;
     project: string;
     client: string;
+    clientId?: number;
     amount: number;
     currency: string;
     margin: number;

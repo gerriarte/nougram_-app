@@ -71,9 +71,8 @@ async def get_my_credit_history(
         offset=offset
     )
     
-    # Get total count
-    all_transactions = await transaction_repo.get_by_organization_id(tenant.organization_id)
-    total = len(all_transactions)
+    # Get total count efficiently at DB level
+    total = await transaction_repo.count_by_organization_id(tenant.organization_id)
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
     
     return CreditTransactionListResponse(
@@ -213,9 +212,8 @@ async def get_organization_credit_transactions(
         offset=offset
     )
     
-    # Get total count
-    all_transactions = await transaction_repo.get_by_organization_id(organization_id)
-    total = len(all_transactions)
+    # Get total count efficiently at DB level
+    total = await transaction_repo.count_by_organization_id(organization_id)
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
     
     return CreditTransactionListResponse(
@@ -261,7 +259,7 @@ async def reset_monthly_credits(
             detail=f"Organization {organization_id} not found"
         )
     
-    await CreditService.grant_subscription_credits(organization_id, db)
+    await CreditService.grant_subscription_credits(organization_id, db, force=True)
     
     balance = await CreditService.get_credit_balance(organization_id, db)
     return CreditBalanceResponse(**balance)

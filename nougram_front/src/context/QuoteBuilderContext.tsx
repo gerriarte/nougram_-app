@@ -272,7 +272,9 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
 
         const payload = {
             projectName: state.projectName,
+            clientId: state.clientId ?? undefined,
             clientName: state.clientName,
+            clientEmail: state.clientEmail,
             amount: summary.totalClientPrice,
             currency: state.currency,
             marginPercentage: summary.netMarginPercent,
@@ -330,10 +332,11 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 id: q.id,
                 version: q.version,
                 projectName: q.projectName,
+                clientId: q.clientId ?? undefined,
                 clientName: q.clientName,
                 clientEmail: q.clientEmail || '',
-                clientCompany: q.clientName || '',
-                clientRequester: '',
+                clientCompany: q.clientCompany || q.clientName || '',
+                clientRequester: q.clientRequester || '',
                 projectType: '',
                 projectDescription: '',
                 currency: (q.currency as any) || 'COP',

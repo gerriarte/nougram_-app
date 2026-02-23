@@ -11,7 +11,8 @@ from app.core.pydantic_config import DECIMAL_CONFIG
 class ProjectBase(BaseModel):
     """Base schema for projects"""
     name: str = Field(..., description="Project name", min_length=1)
-    client_name: str = Field(..., description="Client name", min_length=1)
+    client_id: Optional[int] = Field(None, description="Client master catalog ID (preferred)")
+    client_name: str = Field(..., description="Client name (snapshot or when no client_id)", min_length=1)
     client_email: Optional[str] = Field(None, description="Client email")
     currency: str = Field("USD", description="Currency code (USD, COP, ARS, EUR)")
     tax_ids: Optional[List[int]] = Field(default_factory=list, description="List of tax IDs to apply")
@@ -25,6 +26,7 @@ class ProjectCreate(ProjectBase):
 class ProjectUpdate(BaseModel):
     """Schema for updating a project"""
     name: Optional[str] = Field(None, min_length=1)
+    client_id: Optional[int] = Field(None, description="Client master catalog ID")
     client_name: Optional[str] = Field(None, min_length=1)
     client_email: Optional[str] = None
     status: Optional[str] = None
@@ -36,6 +38,7 @@ class ProjectResponse(ProjectBase):
     """Schema for project response"""
     id: int
     status: str
+    client_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None

@@ -17,6 +17,7 @@ export function QuotePipeline() {
     const {
         quotes: filteredQuotes,
         allQuotes,
+        clients,
         error,
         search,
         setSearch,
@@ -68,9 +69,9 @@ export function QuotePipeline() {
                         <p className="text-sm text-system-gray font-medium mt-1">Monitorea el flujo de tus propuestas comerciales.</p>
                     </div>
 
-                    <div className="flex items-center gap-3 w-full md:w-auto">
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                         {/* Search */}
-                        <div className="relative group flex-1 md:w-80">
+                        <div className="relative group flex-1 min-w-[200px] md:w-80">
                             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" strokeWidth={1.5} />
                             <input
                                 type="text"
@@ -80,6 +81,20 @@ export function QuotePipeline() {
                                 className="w-full h-12 bg-gray-200/50 border-none rounded-2xl pl-12 pr-4 text-sm font-bold text-gray-900 placeholder:text-system-gray focus:ring-2 focus:ring-blue-500/50 focus:bg-white transition-all outline-none"
                             />
                         </div>
+
+                        {/* Client filter */}
+                        <select
+                            value={filters.clientId === '' ? '' : String(filters.clientId)}
+                            onChange={(e) => updateFilter('clientId', e.target.value === '' ? '' : Number(e.target.value))}
+                            className="h-12 px-4 rounded-2xl border-0 bg-gray-200/50 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500/50 focus:bg-white outline-none min-w-[180px]"
+                        >
+                            <option value="">Todos los clientes</option>
+                            {clients.map((c) => (
+                                <option key={c.id} value={String(c.id)}>
+                                    {c.display_name}
+                                </option>
+                            ))}
+                        </select>
 
                         {/* View Switcher */}
                         <div className="bg-gray-200/50 p-1 rounded-xl flex gap-1 h-12">

@@ -13,6 +13,7 @@ export interface QuoteFilters {
     minAmount: number | '';
     maxAmount: number | '';
     client: string;
+    clientId: number | '';
 }
 
 export interface PipelineMetrics {
@@ -25,8 +26,16 @@ export interface PipelineMetrics {
     lostCount: number;
 }
 
+export interface ClientOption {
+    id: number;
+    display_name: string;
+    requester_name?: string | null;
+    email?: string | null;
+}
+
 export function useQuotePipeline() {
     const [quotes, setQuotes] = useState<Quote[]>([]);
+    const [clients, setClients] = useState<ClientOption[]>([]);
     const [search, setSearch] = useState('');
     const [viewMode, setViewMode] = useState<'board' | 'list'>('list');
     const [loading, setLoading] = useState(true);
@@ -47,8 +56,17 @@ export function useQuotePipeline() {
         dateRange: { start: null, end: null },
         minAmount: '',
         maxAmount: '',
-        client: ''
+        client: '',
+        clientId: ''
     });
+
+    useEffect(() => {
+        const loadClients = async () => {
+            const res = await apiRequest<{ items: ClientOption[] }>('/clients/?page=1&page_size=200');
+            if (res.data?.items) setClients(res.data.items);
+        };
+        loadClients();
+    }, []);
 
     useEffect(() => {
         const loadQuotes = async () => {
@@ -144,7 +162,8 @@ export function useQuotePipeline() {
             dateRange: { start: null, end: null },
             minAmount: '',
             maxAmount: '',
-            client: ''
+            client: '',
+            clientId: ''
         });
         setSearch('');
     };
@@ -163,7 +182,10 @@ export function useQuotePipeline() {
             return false;
         }
 
-        // 3. Client Filter
+        // 3. Client Filter (by master client_id)
+        if (filters.clientId !== '' && (q.clientId === undefined || q.clientId !== filters.clientId)) {
+            return false;
+        }
         if (filters.client && q.client !== filters.client) {
             return false;
         }
@@ -188,8 +210,9 @@ export function useQuotePipeline() {
     ];
 
     return {
-        quotes: filteredQuotes, // Return filtered directly or raw depending on need. Usually UI wants filtered.
+        quotes: filteredQuotes,
         allQuotes: quotes,
+        clients,
         error,
         search,
         setSearch,

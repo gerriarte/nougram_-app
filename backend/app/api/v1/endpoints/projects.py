@@ -115,6 +115,7 @@ async def list_projects(
         project_dict = {
             "id": project.id,
             "name": project.name,
+            "client_id": getattr(project, "client_id", None),
             "client_name": project.client_name,
             "client_email": project.client_email,
             "status": project.status,
@@ -196,8 +197,8 @@ async def create_project(
     
     **Permissions:**
     - Requires `can_create_projects` permission
-    - Allowed roles: owner, admin_financiero, product_manager, collaborator, super_admin
-    - Note: Credit consumption is handled inside based on user role
+    - Allowed roles: owner, admin_financiero, product_manager, super_admin
+    - Note: Creating a quote consumes 1 credit for the organization
     """
     
     from app.services.project_service import ProjectService
@@ -267,6 +268,7 @@ async def get_project(
     project_dict = {
         "id": project.id,
         "name": project.name,
+        "client_id": getattr(project, "client_id", None),
         "client_name": project.client_name,
         "client_email": project.client_email,
         "status": project.status,
@@ -348,6 +350,7 @@ async def update_project(
     project_dict = {
         "id": project.id,
         "name": project.name,
+        "client_id": getattr(project, "client_id", None),
         "client_name": project.client_name,
         "client_email": project.client_email,
         "status": project.status,
@@ -437,6 +440,7 @@ async def restore_project(
     project_dict = {
         "id": project.id,
         "name": project.name,
+        "client_id": getattr(project, "client_id", None),
         "client_name": project.client_name,
         "client_email": project.client_email,
         "status": project.status,
@@ -479,6 +483,7 @@ async def list_deleted_projects(
         project_dict = {
             "id": project.id,
             "name": project.name,
+            "client_id": getattr(project, "client_id", None),
             "client_name": project.client_name,
             "client_email": project.client_email,
             "status": project.status,

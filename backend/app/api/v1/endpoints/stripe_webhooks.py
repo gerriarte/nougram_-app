@@ -8,6 +8,7 @@ from typing import Optional
 import json
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.stripe_service import stripe_service
 from app.core.logging import get_logger
 from app.models.subscription import Subscription
@@ -23,6 +24,12 @@ async def stripe_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
+    if (settings.PAYMENT_GATEWAY_PROVIDER or "manual").lower() != "stripe":
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Stripe webhook is disabled for current payment gateway provider.",
+        )
+
     """
     Handle Stripe webhook events
     
