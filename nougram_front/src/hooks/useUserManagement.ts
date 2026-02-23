@@ -8,16 +8,26 @@ export function useUserManagement() {
     const [members, setMembers] = useState<UserProfileExtended[]>([]);
     const [invitations, setInvitations] = useState<Invitation[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     const refreshData = useCallback(async () => {
         setLoading(true);
-        const [u, i] = await Promise.all([
-            userService.getUsers(),
-            invitationService.getInvitations()
-        ]);
-        setMembers(u);
-        setInvitations(i);
-        setLoading(false);
+        setError(null);
+        try {
+            const [u, i] = await Promise.all([
+                userService.getUsers(),
+                invitationService.getInvitations()
+            ]);
+            setMembers(u);
+            setInvitations(i);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'No se pudo cargar la información del equipo';
+            setError(message);
+            setMembers([]);
+            setInvitations([]);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     useEffect(() => {
@@ -50,6 +60,7 @@ export function useUserManagement() {
         members,
         invitations,
         loading,
+        error,
         actions: {
             updateMemberRole,
             deleteMember,

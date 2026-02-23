@@ -607,7 +607,7 @@ async def list_organization_users(
     is_super_admin = getattr(current_user, 'role', None) == 'super_admin'
     is_org_admin = (
         current_user.organization_id == organization_id and
-        getattr(current_user, 'role', None) in ['org_admin', 'admin_financiero']
+        getattr(current_user, 'role', None) in ['owner', 'org_admin', 'admin_financiero']
     )
     
     if not (is_super_admin or is_org_admin):

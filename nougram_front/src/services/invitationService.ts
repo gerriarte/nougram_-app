@@ -1,57 +1,82 @@
 
 import { Invitation, InvitationStatus, TenantRole } from '@/types/user';
+import { apiRequest } from '@/lib/api-client';
 
-const KEY_INVITATIONS = 'nougram_invitations';
+type OrganizationMeResponse = {
+    id: number;
+};
 
-const INITIAL_INVITATIONS: Invitation[] = [
-    {
-        id: 'inv_1',
-        email: 'nuevo.talento@agency.com',
-        role: 'collaborator',
-        status: 'pending',
-        createdAt: '2026-02-01T10:00:00Z',
-        expiresAt: '2026-02-08T10:00:00Z',
-        createdBy: 'Juan Pérez',
-        message: '¡Bienvenido al equipo!'
+type InvitationApiItem = {
+    id: number;
+    email: string;
+    role: TenantRole;
+    status: InvitationStatus;
+    expires_at: string;
+    created_at: string;
+    created_by_id?: number;
+};
+
+type InvitationListResponse = {
+    items: InvitationApiItem[];
+    total: number;
+};
+
+type InvitationCreateResponse = InvitationApiItem;
+
+async function getCurrentOrganizationId(): Promise<number> {
+    const response = await apiRequest<OrganizationMeResponse>('/organizations/me');
+    if (response.error || !response.data?.id) {
+        throw new Error(response.error || 'No se pudo resolver la organización actual');
     }
-];
+    return response.data.id;
+}
+
+function mapInvitation(item: InvitationApiItem): Invitation {
+    return {
+        id: String(item.id),
+        email: item.email,
+        role: item.role,
+        status: item.status,
+        expiresAt: item.expires_at,
+        createdAt: item.created_at,
+        createdBy: item.created_by_id ? String(item.created_by_id) : undefined,
+    };
+}
 
 export const invitationService = {
     getInvitations: async (): Promise<Invitation[]> => {
-        if (typeof window === 'undefined') return INITIAL_INVITATIONS;
-        const stored = localStorage.getItem(KEY_INVITATIONS);
-        return stored ? JSON.parse(stored) : INITIAL_INVITATIONS;
-    },
-
-    saveInvitations: (invitations: Invitation[]) => {
-        if (typeof window !== 'undefined') {
-            localStorage.setItem(KEY_INVITATIONS, JSON.stringify(invitations));
+        const organizationId = await getCurrentOrganizationId();
+        const response = await apiRequest<InvitationListResponse>(`/organizations/${organizationId}/invitations`);
+        if (response.error || !response.data) {
+            throw new Error(response.error || 'No se pudieron cargar las invitaciones');
         }
+
+        return response.data.items.map(mapInvitation);
     },
 
     createInvitation: async (data: { email: string; role: TenantRole; message?: string; createdBy?: string }): Promise<Invitation> => {
-        const invitations = await invitationService.getInvitations();
-        const newInvite: Invitation = {
-            id: `inv_${Date.now()}`,
-            email: data.email,
-            role: data.role,
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            createdBy: data.createdBy,
-            message: data.message
-        };
-        invitationService.saveInvitations([...invitations, newInvite]);
-        return newInvite;
-    },
+        const organizationId = await getCurrentOrganizationId();
+        const response = await apiRequest<InvitationCreateResponse>(`/organizations/${organizationId}/invitations`, {
+            method: 'POST',
+            body: JSON.stringify({
+                email: data.email,
+                role: data.role,
+            }),
+        });
+        if (response.error || !response.data) {
+            throw new Error(response.error || 'No se pudo enviar la invitación');
+        }
 
-    updateStatus: async (id: string, status: InvitationStatus): Promise<void> => {
-        const invitations = await invitationService.getInvitations();
-        const updated = invitations.map(i => i.id === id ? { ...i, status } : i);
-        invitationService.saveInvitations(updated);
+        return mapInvitation(response.data);
     },
 
     cancelInvitation: async (id: string): Promise<void> => {
-        await invitationService.updateStatus(id, 'cancelled');
+        const organizationId = await getCurrentOrganizationId();
+        const response = await apiRequest(`/organizations/${organizationId}/invitations/${id}`, {
+            method: 'DELETE',
+        });
+        if (response.error) {
+            throw new Error(response.error);
+        }
     }
 };

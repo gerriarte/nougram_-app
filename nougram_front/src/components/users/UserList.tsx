@@ -14,7 +14,7 @@ import { Search, Filter, MoreVertical, UserPlus, Mail, Shield } from 'lucide-rea
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function UserList() {
-    const { members, loading, actions } = useUserManagement();
+    const { members, loading, error, actions } = useUserManagement();
     const { permissions, user: currentUser } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -28,6 +28,7 @@ export function UserList() {
     });
 
     if (loading) return <div className="p-12 text-center text-system-gray font-medium animate-pulse">Cargando equipo...</div>;
+    if (error) return <div className="p-12 text-center text-red-600 font-medium">{error}</div>;
 
     return (
         <div className="space-y-8">
