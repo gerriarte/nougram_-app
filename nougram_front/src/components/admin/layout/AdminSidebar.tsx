@@ -9,12 +9,15 @@ import {
     UsersRound,
     Building2,
     PlusCircle,
-    ChevronRight
+    ChevronRight,
+    ShieldCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 export function AdminSidebar() {
     const pathname = usePathname();
+    const { user } = useAuth();
 
     const MAIN_ITEMS = [
         { label: 'Nueva Cotización', href: '/projects/new', icon: PlusCircle },
@@ -25,6 +28,19 @@ export function AdminSidebar() {
         { label: 'Nómina (Equipo)', href: '/admin/payroll', icon: UsersRound },
         { label: 'Overhead (Gastos)', href: '/admin/overhead', icon: Building2 },
     ];
+
+    const SUPER_ADMIN_ITEMS = user?.role === 'super_admin'
+        ? [{ label: 'Control de Cuentas', href: '/dashboard/super-admin/accounts', icon: ShieldCheck }]
+        : [];
+
+    const userInitials = user?.fullName
+        ? user.fullName
+            .split(' ')
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase())
+            .join('')
+        : 'U';
 
     return (
         <aside className="w-72 bg-white/70 backdrop-blur-xl border-r border-white/20 min-h-screen flex flex-col z-20 hidden md:flex sticky top-0">
@@ -88,16 +104,44 @@ export function AdminSidebar() {
                         );
                     })}
                 </div>
+
+                {SUPER_ADMIN_ITEMS.length > 0 && (
+                    <div className="space-y-1.5">
+                        <p className="px-4 text-[10px] font-black text-system-gray uppercase tracking-[0.15em] mb-3">Super Admin</p>
+                        {SUPER_ADMIN_ITEMS.map(item => {
+                            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                            return (
+                                <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    className={cn(
+                                        "flex items-center justify-between px-4 py-3 rounded-2xl text-[13px] font-bold transition-all group",
+                                        isActive
+                                            ? "bg-amber-50/70 text-amber-700 ring-1 ring-amber-200/80"
+                                            : "text-gray-600 hover:bg-white hover:shadow-sm"
+                                    )}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <item.icon size={18} strokeWidth={isActive ? 2 : 1.5} className={isActive ? "text-amber-700" : "text-system-gray"} />
+                                        <span>{item.label}</span>
+                                    </div>
+                                    {isActive && <div className="w-1.5 h-1.5 rounded-full bg-amber-700" />}
+                                    {!isActive && <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />}
+                                </Link>
+                            );
+                        })}
+                    </div>
+                )}
             </nav>
 
             <div className="p-6 m-4 mt-auto rounded-3xl bg-gray-200/30 backdrop-blur-sm border border-white/40">
                 <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20">
-                        JD
+                        {userInitials || 'U'}
                     </div>
                     <div className="min-w-0">
-                        <p className="text-[13px] font-bold text-gray-900 truncate tracking-tight">Usuario Demo</p>
-                        <p className="text-[11px] font-medium text-system-gray truncate">Owner</p>
+                        <p className="text-[13px] font-bold text-gray-900 truncate tracking-tight">{user?.fullName || 'Usuario'}</p>
+                        <p className="text-[11px] font-medium text-system-gray truncate">{user?.role || 'Sin rol'}</p>
                     </div>
                 </div>
             </div>

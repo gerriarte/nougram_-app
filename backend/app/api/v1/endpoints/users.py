@@ -212,11 +212,7 @@ async def update_user_role(
     # Validate role and super_admin email
     from app.core.permissions import validate_super_admin_email
     from app.core.roles import SUPPORT_ROLES, TENANT_ROLES
-    
-    # Validate super_admin email if assigning super_admin role
-    if role_data.role == 'super_admin':
-        validate_super_admin_email(user.email, role_data.role)
-    
+
     # Validate role is valid
     valid_roles = SUPPORT_ROLES | TENANT_ROLES
     if role_data.role not in valid_roles:
@@ -234,6 +230,10 @@ async def update_user_role(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+
+    # Validate super_admin email if assigning super_admin role
+    if role_data.role == 'super_admin':
+        validate_super_admin_email(user.email, role_data.role)
     
     # Allow changing own role in development mode for testing
     # In production, Super Admins should not be able to change their own role

@@ -19,6 +19,7 @@ from app.core.roles import (
     TENANT_ROLES,
 )
 from app.models.user import User
+from app.core.config import settings
 
 
 class PermissionError(Exception):
@@ -26,8 +27,28 @@ class PermissionError(Exception):
     pass
 
 
-# Super admin email validation
-SUPER_ADMIN_EMAIL = "gerardoriarte@gmail.com"
+def get_allowed_super_admin_emails() -> set[str]:
+    """
+    Resolve allowed emails for super_admin role assignment.
+
+    Priority:
+    1) SUPER_ADMIN_ALLOWED_EMAILS (comma-separated)
+    2) SUPER_ADMIN_EMAIL (single value)
+    """
+    allowed: set[str] = set()
+
+    raw_allowed = (settings.SUPER_ADMIN_ALLOWED_EMAILS or "").strip()
+    if raw_allowed:
+        for email in raw_allowed.split(","):
+            normalized = email.strip().lower()
+            if normalized:
+                allowed.add(normalized)
+
+    fallback_email = (settings.SUPER_ADMIN_EMAIL or "").strip().lower()
+    if not allowed and fallback_email:
+        allowed.add(fallback_email)
+
+    return allowed
 
 
 def validate_super_admin_email(email: str, role: str) -> None:
@@ -43,10 +64,12 @@ def validate_super_admin_email(email: str, role: str) -> None:
     """
     if role == "super_admin":
         normalized_email = email.strip().lower()
-        if normalized_email != SUPER_ADMIN_EMAIL.lower():
+        allowed_emails = get_allowed_super_admin_emails()
+        if normalized_email not in allowed_emails:
+            allowed_label = ", ".join(sorted(allowed_emails)) if allowed_emails else "configured super admin email"
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Only {SUPER_ADMIN_EMAIL} can be assigned the super_admin role"
+                detail=f"Only {allowed_label} can be assigned the super_admin role"
             )
 
 

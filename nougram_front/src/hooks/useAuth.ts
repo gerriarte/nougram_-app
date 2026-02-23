@@ -158,13 +158,17 @@ export function useAuth() {
     }
 
     return { success: true };
-  }, [refreshCurrentUser]);
+  }, []);
 
   const logout = useCallback(() => {
     removeAuthToken();
+    authUserPromise = null;
     authUserCache = null;
     notifySubscribers(null);
     setUser(null);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("nougram:auth-expired"));
+    }
   }, []);
 
   const permissions = {
