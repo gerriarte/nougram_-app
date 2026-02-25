@@ -105,6 +105,13 @@ function toInvoiceAmount(basePrice?: string | number, taxes?: Array<{ percentage
     return price * (1 + taxRate / 100);
 }
 
+function resolveProjectTaxes(
+    projectDetail?: { taxes?: Array<{ percentage: string | number }> },
+    projectListItem?: { taxes?: Array<{ percentage: string | number }> }
+): Array<{ percentage: string | number }> {
+    return projectDetail?.taxes || projectListItem?.taxes || [];
+}
+
 function toRealMarginPercent(
     basePrice?: string | number,
     internalCost?: string | number,
@@ -276,13 +283,14 @@ export const quoteService = {
                     quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0] || null;
                 const detailedQuote = await getQuoteDetailForProject(project.id, latestQuote?.id);
                 const baseQuote = detailedQuote || latestQuote;
+                const projectTaxes = resolveProjectTaxes(projectDetail, project);
 
-                const amount = Number(toInvoiceAmount(baseQuote?.total_client_price || 0, projectDetail.taxes || []));
+                const amount = Number(toInvoiceAmount(baseQuote?.total_client_price || 0, projectTaxes));
                 const margin = Number(
                     toRealMarginPercent(
                         baseQuote?.total_client_price || 0,
                         baseQuote?.total_internal_cost || 0,
-                        projectDetail.taxes || []
+                        projectTaxes
                     ).toFixed(2)
                 );
                 const version = Number(latestQuote?.version || 1);

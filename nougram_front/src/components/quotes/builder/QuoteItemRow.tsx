@@ -16,20 +16,12 @@ interface QuoteItemRowProps {
 }
 
 export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
-    const { updateItem, removeItem, state, teamMembers } = useQuoteBuilder();
+    const { updateItem, removeItem, teamMembers } = useQuoteBuilder();
     const { state: coreState } = useNougram();
     const [isAddingResource, setIsAddingResource] = useState(false);
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [newResourceHours, setNewResourceHours] = useState<number>(10);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
-
-    // Determine Margin Color
-    let marginColor = 'text-gray-400';
-    if (item.internalCost > 0) {
-        if (item.marginPercentage >= 30) marginColor = 'text-green-600';
-        else if (item.marginPercentage >= 15) marginColor = 'text-yellow-600';
-        else marginColor = 'text-red-500 font-bold';
-    }
 
     const handleAddResource = () => {
         if (!selectedMemberId) return;
@@ -55,6 +47,16 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
     const removeResource = (allocId: string) => {
         const currentAllocations = item.allocations || [];
         updateItem(item.id, { allocations: currentAllocations.filter(a => a.id !== allocId) });
+    };
+
+    const updateResourceHours = (allocId: string, hours: number) => {
+        const safeHours = Math.max(0, Number.isFinite(hours) ? hours : 0);
+        const currentAllocations = item.allocations || [];
+        updateItem(item.id, {
+            allocations: currentAllocations.map((allocation) =>
+                allocation.id === allocId ? { ...allocation, hours: safeHours } : allocation
+            ),
+        });
     };
 
     // Calculate total hours from allocations
@@ -151,9 +153,17 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                                 <span className="font-medium text-gray-700">{member?.name || 'Desconocido'}</span>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                <span className="text-gray-500 bg-gray-50 px-2 py-0.5 rounded text-xs">
-                                                    {alloc.hours}h {item.pricingType === 'recurring' ? '/mes' : ''}
-                                                </span>
+                                                <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        step="0.5"
+                                                        className="h-7 w-20 text-xs text-right"
+                                                        value={Number(alloc.hours || 0)}
+                                                        onChange={(e) => updateResourceHours(alloc.id, parseFloat(e.target.value))}
+                                                    />
+                                                    <span>h{item.pricingType === 'recurring' ? '/mes' : ''}</span>
+                                                </div>
                                                 <span className="text-gray-700 bg-gray-50 px-2 py-0.5 rounded text-xs font-semibold">
                                                     ${allocCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                 </span>
@@ -307,7 +317,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                     </div>
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-blue-700">Precio Total</label>
+                                    <label className="text-xs font-bold text-blue-700">Presupuesto Cliente (Sin Impuestos)</label>
                                     {/* Recurring can be adjusted as a total and is persisted as recurring_price/month. */}
                                     {item.pricingType === 'recurring' ? (
                                         <Input
@@ -325,19 +335,6 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                {/* Footer Feedback */}
-                <div className="flex justify-between items-center pt-3 border-t border-gray-50">
-                    <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
-                        Objetivo: {(state.targetMargin * 100).toFixed(0)}%
-                    </span>
-                    <div className="flex items-center gap-2 bg-gray-50 px-2 py-1 rounded-full border border-gray-100">
-                        <span className="text-[10px] font-bold text-gray-500">Margen Real:</span>
-                        <span className={`text-xs font-black ${marginColor}`}>
-                            {item.marginPercentage.toFixed(1)}%
-                        </span>
                     </div>
                 </div>
             </div>

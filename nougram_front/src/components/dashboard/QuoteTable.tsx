@@ -70,7 +70,7 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
                             <th className="px-6 py-4 font-semibold">Fecha</th>
                             <th className="px-6 py-4 font-semibold">Proyecto</th>
                             <th className="px-6 py-4 font-semibold">Cliente</th>
-                            <th className="px-6 py-4 font-semibold text-right">Valor</th>
+                            <th className="px-6 py-4 font-semibold text-right">Valor Facturado</th>
                             <th className="px-6 py-4 font-semibold text-center">Margen</th>
                             <th className="px-6 py-4 font-semibold">Estado</th>
                             <th className="px-6 py-4 font-semibold text-right">Acciones</th>
@@ -98,6 +98,7 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
                                 </td>
                                 <td className="px-6 py-4 text-right font-bold text-gray-900">
                                     ${quote.amount.toLocaleString()} <span className="text-xs text-gray-400 font-normal">{quote.currency}</span>
+                                    <div className="text-[10px] font-medium text-gray-400">Incluye impuestos</div>
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <div className={`font-bold ${getMarginColor(quote.margin)} text-xs px-2 py-1 rounded-full bg-opacity-10 inline-block`}>
