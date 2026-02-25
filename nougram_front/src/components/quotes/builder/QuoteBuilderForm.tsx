@@ -45,7 +45,7 @@ export function QuoteBuilderForm() {
     ];
 
     return (
-        <div className="space-y-8 pb-32 max-w-5xl mx-auto">
+        <div className="space-y-8 pb-12 max-w-5xl mx-auto">
             {/* 1. Project Info */}
             <Card className="overflow-hidden border-none shadow-xl bg-white/80 backdrop-blur-2xl">
                 <CardHeader className="bg-gray-50/50 border-b border-gray-100 flex flex-row justify-between items-start">
@@ -182,8 +182,8 @@ export function QuoteBuilderForm() {
             )}
 
             {/* 4. Actions */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-xl border-t border-gray-200 z-50">
-                <div className="max-w-5xl mx-auto flex gap-4 justify-end">
+            <div className="sticky bottom-4 z-30">
+                <div className="max-w-5xl mx-auto flex gap-3 justify-end rounded-2xl border border-gray-200 bg-white/95 backdrop-blur-xl shadow-lg p-3">
                     <Button
                         variant="ghost"
                         onClick={() => (state.id ? router.push('/dashboard') : router.back())}

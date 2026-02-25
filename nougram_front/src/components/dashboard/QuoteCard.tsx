@@ -80,6 +80,9 @@ export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
                         ${quote.amount.toLocaleString()} <span className="text-sm font-medium text-[#86868B]">{quote.currency}</span>
                     </span>
                 </div>
+                <p className="text-[10px] text-[#9AA0A6] font-medium mt-1 uppercase tracking-wide">
+                    Total facturado (con impuestos)
+                </p>
 
                 <div className="flex items-center gap-2 mt-1">
                     <div className={`h-2 w-2 rounded-full ${getMarginColor(quote.margin).replace('text', 'bg')}`} />

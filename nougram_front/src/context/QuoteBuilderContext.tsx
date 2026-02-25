@@ -37,6 +37,16 @@ const INITIAL_STATE: QuoteBuilderState = {
     resourceAllocations: []
 };
 
+const PROJECT_TYPES = [
+    'Desarrollo Web',
+    'Diseño UI/UX',
+    'Marketing Digital',
+    'Consultoría',
+    'Desarrollo de Software',
+    'Branding',
+    'Otro',
+];
+
 interface QuoteBuilderContextType {
     state: QuoteBuilderState;
     services: Service[];
@@ -326,6 +336,13 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         const { quoteService } = await import('@/services/quoteService');
         const q = await quoteService.getBuilderData(id);
         if (q) {
+            const inferredProjectType = (() => {
+                const firstNamedItem = (q.items || []).find((item) => typeof item.serviceName === 'string' && item.serviceName.includes(' - '));
+                if (!firstNamedItem?.serviceName) return '';
+                const [prefix] = firstNamedItem.serviceName.split(' - ');
+                return PROJECT_TYPES.includes(prefix) ? prefix : '';
+            })();
+
             setState(prev => ({
                 ...prev,
                 step: 'editor',
@@ -337,7 +354,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 clientEmail: q.clientEmail || '',
                 clientCompany: q.clientCompany || q.clientName || '',
                 clientRequester: q.clientRequester || '',
-                projectType: '',
+                projectType: inferredProjectType,
                 projectDescription: '',
                 currency: (q.currency as any) || 'COP',
                 items: q.items || [],

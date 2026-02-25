@@ -25,10 +25,10 @@ export function QuoteFinancialSummary() {
     }
 
     return (
-        <Card className="h-full bg-white shadow-[0_20px_50px_rgba(0,0,0,0.05)] border-0 ring-1 ring-gray-100 sticky top-6 overflow-hidden">
+        <Card className="h-full bg-white shadow-[0_20px_50px_rgba(0,0,0,0.05)] border-0 ring-1 ring-gray-100 sticky top-4 overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50" />
 
-            <CardContent className="p-8 space-y-8 relative">
+            <CardContent className="p-6 space-y-5 relative">
                 {/* 0. Critical Alerts */}
                 {summary.totalClientPrice < summary.totalInternalCost && (
                     <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-md flex items-start gap-3">
@@ -66,7 +66,7 @@ export function QuoteFinancialSummary() {
                 {/* 2. Interactive Controls Section */}
                 <div className="space-y-6">
                     {/* Taxes */}
-                    <div className="bg-gray-50/50 p-5 rounded-2xl border border-gray-100 space-y-4">
+                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100 space-y-3">
                         <div className="flex items-center justify-between">
                             <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Impuestos</h4>
                             <span className="text-[10px] bg-white px-2 py-0.5 rounded-full border border-gray-100 font-bold text-gray-400">
@@ -103,7 +103,7 @@ export function QuoteFinancialSummary() {
                     </div>
 
                     {/* Margin Control */}
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         <div className="flex justify-between items-center">
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Margen de Ganancia</label>
                             <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-black">
@@ -131,12 +131,12 @@ export function QuoteFinancialSummary() {
                 </div>
 
                 {/* 3. Final Total */}
-                <div className="flex justify-between items-center p-6 bg-blue-900 rounded-[2rem] text-white shadow-xl shadow-blue-100 ring-4 ring-blue-50">
+                <div className="flex justify-between items-center p-5 bg-blue-900 rounded-[1.5rem] text-white shadow-xl shadow-blue-100 ring-4 ring-blue-50">
                     <div className="space-y-0.5">
                         <p className="text-[9px] font-black text-blue-300 uppercase tracking-widest">Total Factura</p>
                         <p className="text-xs text-blue-100 font-medium">Incluye impuestos</p>
                     </div>
-                    <p className="text-3xl font-black tracking-tighter">
+                        <p className="text-2xl font-black tracking-tighter">
                         ${summary.totalWithTaxes.toLocaleString()}
                     </p>
                 </div>
@@ -148,7 +148,7 @@ export function QuoteFinancialSummary() {
                         <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Realidad Financiera</h3>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         <div className="flex justify-between items-center px-1">
                             <span className="text-xs font-bold text-gray-500">Ingreso Neto (Excl. Impuestos)</span>
                             <span className="text-sm font-black text-gray-900">${summary.realIncome.toLocaleString()}</span>
@@ -160,7 +160,7 @@ export function QuoteFinancialSummary() {
                         </div>
 
                         {/* Resulting Benefit */}
-                        <div className={`relative p-5 rounded-3xl border ${marginBg} transition-all duration-500`}>
+                        <div className={`relative p-4 rounded-2xl border ${marginBg} transition-all duration-500`}>
                             <div className="flex justify-between items-start mb-1">
                                 <div className="space-y-1">
                                     <p className={`text-[10px] font-black uppercase tracking-widest ${marginColor}`}>Utilidad Neta ({marginLabel})</p>
