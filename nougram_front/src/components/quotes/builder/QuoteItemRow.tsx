@@ -61,13 +61,11 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
 
     // Calculate total hours from allocations
     const totalAllocatedHours = (item.allocations || []).reduce((sum, a) => sum + a.hours, 0);
+    const effectiveHours = totalAllocatedHours > 0 ? totalAllocatedHours : Number(item.estimatedHours || 0);
     const durationMultiplier = item.pricingType === 'recurring' ? Math.max(1, Number(item.durationMonths || 1)) : 1;
-    const estimatedProjectHours = totalAllocatedHours * durationMultiplier;
+    const estimatedProjectHours = effectiveHours * durationMultiplier;
     const blendedRate = Number(coreState.financials.bcr || 0);
-    const totalResourceCost = (item.allocations || []).reduce(
-        (sum, alloc) => sum + (Number(alloc.hours || 0) * blendedRate * durationMultiplier),
-        0
-    );
+    const totalResourceCost = effectiveHours * blendedRate * durationMultiplier;
 
     return (
         <Card className="p-5 bg-white border border-gray-100 shadow-sm relative group transition-all hover:shadow-md hover:border-gray-200">
@@ -128,7 +126,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                 </label>
                                 {item.pricingType === 'hourly' && (
                                     <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                                        Total: {totalAllocatedHours}h
+                                        Total: {effectiveHours}h
                                     </span>
                                 )}
                             </div>
@@ -178,6 +176,21 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
 
                             {/* Add Resource UI */}
                             <div className="mt-3 pt-3 border-t border-gray-200/50">
+                                {item.pricingType === 'hourly' && (
+                                    <div className="mb-3 flex items-center justify-between gap-2">
+                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                            Horas estimadas (si no asignas recursos)
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            min={0}
+                                            step="0.5"
+                                            className="h-7 w-24 text-xs text-right"
+                                            value={Number(item.estimatedHours || 0)}
+                                            onChange={(e) => updateItem(item.id, { estimatedHours: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                        />
+                                    </div>
+                                )}
                                 <div className="mb-3 flex items-center justify-between text-[11px] font-semibold text-gray-500">
                                     <span>Horas estimadas proyecto: {estimatedProjectHours.toLocaleString()}h</span>
                                     <span>Costo recursos: ${totalResourceCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>

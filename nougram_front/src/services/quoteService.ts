@@ -374,6 +374,18 @@ export const quoteService = {
             throw new Error('No existe una cotización para actualizar');
         }
 
+        if (Array.isArray(data.selectedTaxIds)) {
+            const projectUpdateResponse = await apiRequest(`/projects/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    tax_ids: data.selectedTaxIds,
+                }),
+            });
+            if (projectUpdateResponse.error) {
+                throw new Error(projectUpdateResponse.error);
+            }
+        }
+
         const payloadItems = (data.items || []).map((item: QuoteItem) => mapQuoteItemToApi(item));
 
         const response = await apiRequest(
@@ -397,6 +409,18 @@ export const quoteService = {
         const latestQuote = await quoteService.getLatestQuoteForProject(id);
         if (!latestQuote) {
             throw new Error('No existe una cotización para versionar');
+        }
+
+        if (Array.isArray(data.selectedTaxIds)) {
+            const projectUpdateResponse = await apiRequest(`/projects/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    tax_ids: data.selectedTaxIds,
+                }),
+            });
+            if (projectUpdateResponse.error) {
+                throw new Error(projectUpdateResponse.error);
+            }
         }
 
         const payloadItems = (data.items || []).map((item: QuoteItem) => mapQuoteItemToApi(item));
@@ -563,6 +587,7 @@ export const quoteService = {
         clientCompany?: string;
         clientRequester?: string;
         currency: 'COP' | 'USD';
+        selectedTaxIds: number[];
         items: QuoteItem[];
     } | null> => {
         const projectResponse = await apiRequest<ProjectResponse>(`/projects/${projectId}`);
@@ -620,6 +645,7 @@ export const quoteService = {
             clientCompany: projectResponse.data.client_name,
             clientRequester: '',
             currency: (projectResponse.data.currency as 'COP' | 'USD') || 'COP',
+            selectedTaxIds: (projectResponse.data.taxes || []).map((tax) => Number(tax.id)).filter((id) => Number.isFinite(id)),
             items,
         };
     },
