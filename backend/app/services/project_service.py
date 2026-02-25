@@ -130,17 +130,14 @@ class ProjectService:
         revisions_included = project_data.revisions_included if hasattr(project_data, 'revisions_included') and project_data.revisions_included is not None else 2
         revision_cost_per_additional = getattr(project_data, 'revision_cost_per_additional', None)
         target_margin_percentage = getattr(project_data, 'target_margin_percentage', None)
-        # Convert Decimal to float for target_margin_percentage (function expects float)
-        from decimal import Decimal
-        target_margin_float = float(target_margin_percentage) if target_margin_percentage is not None and isinstance(target_margin_percentage, Decimal) else target_margin_percentage
-        logger.info(f"Calculating quote totals (enhanced) with {len(tax_ids)} taxes, revisions_included={revisions_included}, target_margin={target_margin_float}...")
+        logger.info(f"Calculating quote totals (enhanced) with {len(tax_ids)} taxes, revisions_included={revisions_included}, target_margin={target_margin_percentage}...")
         totals = await calculate_quote_totals_enhanced(
             self.db, 
             items_dict, 
             blended_rate, 
             tax_ids,
             expenses=None,  # Expenses are added separately via expenses endpoints
-            target_margin_percentage=target_margin_float,  # Pass target margin as float
+            target_margin_percentage=target_margin_percentage,
             revisions_included=revisions_included,
             revision_cost_per_additional=revision_cost_per_additional,
             revisions_count=None  # Only used when calculating additional revision costs
