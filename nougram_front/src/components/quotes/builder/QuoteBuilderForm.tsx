@@ -157,8 +157,13 @@ export function QuoteBuilderForm() {
                 ) : (
                     <div className="space-y-4">
                         {state.items.map(item => {
-                            const service = services.find(s => s.id === item.serviceId);
-                            if (!service) return null;
+                            const service = services.find(s => s.id === item.serviceId) || {
+                                id: item.serviceId,
+                                name: item.serviceName || `Servicio ${item.serviceId}`,
+                                pricingType: item.pricingType,
+                                defaultMarginTarget: state.targetMargin || 0.35,
+                                isActive: false,
+                            };
                             return <QuoteItemRow key={item.id} item={item} service={service} />;
                         })}
                     </div>

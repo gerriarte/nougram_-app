@@ -16,28 +16,39 @@ export function QuoteFinancialSummary() {
     const [refreshingTaxes, setRefreshingTaxes] = useState(false);
     const [newTax, setNewTax] = useState({
         name: '',
-        code: '',
-        percentage: '',
+        valueType: 'percentage',
+        value: '',
     });
-    const [editableTaxes, setEditableTaxes] = useState<Record<number, { name: string; code: string; percentage: string }>>({});
+    const [editableTaxes, setEditableTaxes] = useState<Record<number, { name: string; valueType: string; value: string }>>({});
 
     useEffect(() => {
-        const next: Record<number, { name: string; code: string; percentage: string }> = {};
+        const next: Record<number, { name: string; valueType: string; value: string }> = {};
         taxes.forEach((tax) => {
             next[tax.id] = {
                 name: tax.name,
-                code: tax.code || '',
-                percentage: String(tax.percentage ?? 0),
+                valueType: 'percentage',
+                value: String(tax.percentage ?? 0),
             };
         });
         setEditableTaxes(next);
     }, [taxes]);
 
+    const makeTaxCode = (name: string) => {
+        const normalized = name
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^A-Za-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .toUpperCase()
+            .slice(0, 18);
+        return `TAX_${normalized || 'ITEM'}`;
+    };
+
     const taxCodeExists = useMemo(() => {
-        const code = newTax.code.trim().toUpperCase();
+        const code = makeTaxCode(newTax.name.trim());
         if (!code) return false;
         return taxes.some((tax) => (tax.code || '').toUpperCase() === code);
-    }, [newTax.code, taxes]);
+    }, [newTax.name, taxes]);
 
     const parsePercent = (value: string) => {
         const num = Number(value);
@@ -49,19 +60,19 @@ export function QuoteFinancialSummary() {
     const handleCreateTax = async () => {
         setTaxError(null);
         const name = newTax.name.trim();
-        const code = newTax.code.trim().toUpperCase();
-        const percentage = parsePercent(newTax.percentage);
+        const code = makeTaxCode(name);
+        const percentage = parsePercent(newTax.value);
 
         if (!name) {
             setTaxError('El nombre del impuesto es obligatorio.');
             return;
         }
-        if (!code) {
-            setTaxError('El código del impuesto es obligatorio.');
+        if (taxCodeExists) {
+            setTaxError('Ya existe un impuesto con este nombre.');
             return;
         }
-        if (taxCodeExists) {
-            setTaxError('Ya existe un impuesto con ese código.');
+        if (newTax.valueType !== 'percentage') {
+            setTaxError('Actualmente solo se soportan impuestos por porcentaje.');
             return;
         }
         if (percentage === null) {
@@ -72,7 +83,7 @@ export function QuoteFinancialSummary() {
         try {
             setTaxBusyId(-1);
             await createTax({ name, code, percentage });
-            setNewTax({ name: '', code: '', percentage: '' });
+            setNewTax({ name: '', valueType: 'percentage', value: '' });
         } catch (error) {
             setTaxError(error instanceof Error ? error.message : 'No se pudo crear el impuesto.');
         } finally {
@@ -86,17 +97,21 @@ export function QuoteFinancialSummary() {
         if (!current) return;
 
         const name = current.name.trim();
-        const code = current.code.trim().toUpperCase();
-        const percentage = parsePercent(current.percentage);
+        const percentage = parsePercent(current.value);
+        const originalCode = taxes.find((tax) => tax.id === taxId)?.code || makeTaxCode(name);
 
-        if (!name || !code || percentage === null) {
-            setTaxError('Para actualizar, completa nombre, código y porcentaje válido (0-100).');
+        if (!name || percentage === null) {
+            setTaxError('Para actualizar, completa nombre y valor válido (0-100).');
+            return;
+        }
+        if (current.valueType !== 'percentage') {
+            setTaxError('Actualmente solo se soportan impuestos por porcentaje.');
             return;
         }
 
         try {
             setTaxBusyId(taxId);
-            await updateTax(taxId, { name, code, percentage });
+            await updateTax(taxId, { name, code: originalCode, percentage });
         } catch (error) {
             setTaxError(error instanceof Error ? error.message : 'No se pudo actualizar el impuesto.');
         } finally {
@@ -235,7 +250,7 @@ export function QuoteFinancialSummary() {
                         {showTaxManager && (
                             <div className="mt-4 bg-white rounded-2xl border border-gray-100 p-3 space-y-3">
                                 <div className="flex items-center justify-between">
-                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Editar / agregar impuestos</p>
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Gestión de impuestos</p>
                                     <Button
                                         type="button"
                                         variant="ghost"
@@ -248,6 +263,12 @@ export function QuoteFinancialSummary() {
                                         Recargar
                                     </Button>
                                 </div>
+                                <div className="grid grid-cols-12 gap-2 px-1">
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest col-span-5">Nombre</p>
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest col-span-3">Tipo</p>
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest col-span-2">Valor</p>
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest col-span-2 text-right">Acciones</p>
+                                </div>
 
                                 <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                                     {taxes.map((tax) => (
@@ -256,32 +277,33 @@ export function QuoteFinancialSummary() {
                                                 value={editableTaxes[tax.id]?.name || ''}
                                                 onChange={(e) => setEditableTaxes((prev) => ({
                                                     ...prev,
-                                                    [tax.id]: { ...(prev[tax.id] || { name: '', code: '', percentage: '0' }), name: e.target.value }
+                                                    [tax.id]: { ...(prev[tax.id] || { name: '', valueType: 'percentage', value: '0' }), name: e.target.value }
                                                 }))}
                                                 className="h-8 text-xs col-span-5"
                                                 placeholder="Nombre"
                                             />
-                                            <Input
-                                                value={editableTaxes[tax.id]?.code || ''}
+                                            <select
+                                                value={editableTaxes[tax.id]?.valueType || 'percentage'}
                                                 onChange={(e) => setEditableTaxes((prev) => ({
                                                     ...prev,
-                                                    [tax.id]: { ...(prev[tax.id] || { name: '', code: '', percentage: '0' }), code: e.target.value.toUpperCase() }
+                                                    [tax.id]: { ...(prev[tax.id] || { name: '', valueType: 'percentage', value: '0' }), valueType: e.target.value }
                                                 }))}
-                                                className="h-8 text-xs col-span-3 uppercase"
-                                                placeholder="Código"
-                                            />
+                                                className="h-8 text-xs col-span-3 rounded-xl border border-transparent bg-gray-200/50 px-2 font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500/40 outline-none"
+                                            >
+                                                <option value="percentage">Porcentaje (%)</option>
+                                            </select>
                                             <Input
                                                 type="number"
                                                 min={0}
                                                 max={100}
                                                 step="0.01"
-                                                value={editableTaxes[tax.id]?.percentage || ''}
+                                                value={editableTaxes[tax.id]?.value || ''}
                                                 onChange={(e) => setEditableTaxes((prev) => ({
                                                     ...prev,
-                                                    [tax.id]: { ...(prev[tax.id] || { name: '', code: '', percentage: '0' }), percentage: e.target.value }
+                                                    [tax.id]: { ...(prev[tax.id] || { name: '', valueType: 'percentage', value: '0' }), value: e.target.value }
                                                 }))}
                                                 className="h-8 text-xs col-span-2 text-right"
-                                                placeholder="%"
+                                                placeholder="0.00"
                                             />
                                             <div className="col-span-2 flex items-center justify-end gap-1">
                                                 <Button
@@ -320,21 +342,22 @@ export function QuoteFinancialSummary() {
                                             className="h-8 text-xs col-span-5"
                                             placeholder="Nombre"
                                         />
-                                        <Input
-                                            value={newTax.code}
-                                            onChange={(e) => setNewTax((prev) => ({ ...prev, code: e.target.value.toUpperCase() }))}
-                                            className="h-8 text-xs col-span-3 uppercase"
-                                            placeholder="Código"
-                                        />
+                                        <select
+                                            value={newTax.valueType}
+                                            onChange={(e) => setNewTax((prev) => ({ ...prev, valueType: e.target.value }))}
+                                            className="h-8 text-xs col-span-3 rounded-xl border border-transparent bg-gray-200/50 px-2 font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500/40 outline-none"
+                                        >
+                                            <option value="percentage">Porcentaje (%)</option>
+                                        </select>
                                         <Input
                                             type="number"
                                             min={0}
                                             max={100}
                                             step="0.01"
-                                            value={newTax.percentage}
-                                            onChange={(e) => setNewTax((prev) => ({ ...prev, percentage: e.target.value }))}
+                                            value={newTax.value}
+                                            onChange={(e) => setNewTax((prev) => ({ ...prev, value: e.target.value }))}
                                             className="h-8 text-xs col-span-2 text-right"
-                                            placeholder="%"
+                                            placeholder="0.00"
                                         />
                                         <Button
                                             type="button"
@@ -347,6 +370,9 @@ export function QuoteFinancialSummary() {
                                             Agregar
                                         </Button>
                                     </div>
+                                    <p className="text-[10px] text-gray-400">
+                                        Se guarda como porcentaje sobre el presupuesto base.
+                                    </p>
                                     {taxError && (
                                         <p className="text-[11px] font-medium text-red-600">{taxError}</p>
                                     )}
