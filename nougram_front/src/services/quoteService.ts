@@ -207,6 +207,31 @@ function mapQuoteItemToApi(item: QuoteItem) {
     };
 }
 
+function buildProjectUpdatePayload(data: Partial<QuoteBuilderState>) {
+    const payload: Record<string, unknown> = {};
+
+    if (typeof data.projectName === 'string' && data.projectName.trim().length > 0) {
+        payload.name = data.projectName.trim();
+    }
+    if (typeof data.clientName === 'string' && data.clientName.trim().length > 0) {
+        payload.client_name = data.clientName.trim();
+    }
+    if (typeof data.clientEmail === 'string') {
+        payload.client_email = data.clientEmail.trim() || null;
+    }
+    if (data.clientId !== undefined) {
+        payload.client_id = data.clientId === null ? null : data.clientId;
+    }
+    if (typeof data.currency === 'string' && data.currency.length > 0) {
+        payload.currency = data.currency;
+    }
+    if (Array.isArray(data.selectedTaxIds)) {
+        payload.tax_ids = data.selectedTaxIds;
+    }
+
+    return payload;
+}
+
 const DEFAULT_SERVICE_SEEDS = [
     { name: 'Desarrollo Frontend', pricing_type: 'hourly', default_margin_target: 0.4 },
     { name: 'Setup Inicial', pricing_type: 'fixed', default_margin_target: 0.35, fixed_price: 1000000 },
@@ -394,12 +419,11 @@ export const quoteService = {
             throw new Error('No existe una cotización para actualizar');
         }
 
-        if (Array.isArray(data.selectedTaxIds)) {
+        const projectUpdatePayload = buildProjectUpdatePayload(data);
+        if (Object.keys(projectUpdatePayload).length > 0) {
             const projectUpdateResponse = await apiRequest(`/projects/${id}`, {
                 method: 'PUT',
-                body: JSON.stringify({
-                    tax_ids: data.selectedTaxIds,
-                }),
+                body: JSON.stringify(projectUpdatePayload),
             });
             if (projectUpdateResponse.error) {
                 throw new Error(projectUpdateResponse.error);
@@ -431,12 +455,11 @@ export const quoteService = {
             throw new Error('No existe una cotización para versionar');
         }
 
-        if (Array.isArray(data.selectedTaxIds)) {
+        const projectUpdatePayload = buildProjectUpdatePayload(data);
+        if (Object.keys(projectUpdatePayload).length > 0) {
             const projectUpdateResponse = await apiRequest(`/projects/${id}`, {
                 method: 'PUT',
-                body: JSON.stringify({
-                    tax_ids: data.selectedTaxIds,
-                }),
+                body: JSON.stringify(projectUpdatePayload),
             });
             if (projectUpdateResponse.error) {
                 throw new Error(projectUpdateResponse.error);

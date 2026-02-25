@@ -49,3 +49,4 @@ class Organization(Base):
     users = relationship("User", back_populates="organization", lazy="dynamic")
     subscriptions = relationship("Subscription", back_populates="organization", lazy="dynamic")
     credit_account = relationship("CreditAccount", back_populates="organization", uselist=False, cascade="all, delete-orphan")
+    equipment = relationship("EquipmentAmortization", back_populates="organization", lazy="dynamic")

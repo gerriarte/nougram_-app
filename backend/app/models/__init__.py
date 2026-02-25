@@ -17,6 +17,7 @@ from app.models.credit_account import CreditAccount
 from app.models.credit_transaction import CreditTransaction
 from app.models.invitation import Invitation
 from app.models.annual_sales_projection import AnnualSalesProjection, AnnualSalesProjectionEntry
+from app.models.equipment import EquipmentAmortization
 # Roles and DeleteRequest disabled during rollback
 # from app.models.role import DeleteRequest, UserRole, DeleteRequestStatus
 
@@ -41,6 +42,7 @@ __all__ = [
     "Invitation",
     "AnnualSalesProjection",
     "AnnualSalesProjectionEntry",
+    "EquipmentAmortization",
     # "DeleteRequest",
     # "UserRole",
     # "DeleteRequestStatus",
