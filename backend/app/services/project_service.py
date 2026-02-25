@@ -373,17 +373,6 @@ class ProjectService:
         if quote_allocations:
             self.db.add_all(quote_allocations)
 
-        # 1 quote creation = 1 credit consumption (also for new versions)
-        await CreditService.validate_and_consume_credits(
-            organization_id=self.organization_id,
-            amount=1,
-            user_id=current_user.id,
-            reason=f"Created quote v{new_version} for project '{project.name}'",
-            db=self.db,
-            reference_id=new_quote.id,
-        )
-        logger.info(f"Consumed 1 credit for quote version creation by user {current_user.id}")
-        
         await self.db.commit()
         await self.db.refresh(new_quote)
         
