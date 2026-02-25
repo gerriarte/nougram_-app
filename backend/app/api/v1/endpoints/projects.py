@@ -9,6 +9,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from io import BytesIO
 from datetime import datetime
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,19 @@ from app.schemas.project import (
 from app.schemas.quote import QuoteEmailRequest, QuoteEmailResponse, QuoteExpenseCreate, QuoteExpenseResponse
 
 router = APIRouter()
+
+
+def _compute_quote_tax_totals(quote: Quote, project: Project) -> tuple[Decimal, Decimal]:
+    """Compute total_taxes and total_with_taxes from quote + project taxes."""
+    total_client_price = quote.total_client_price if quote.total_client_price is not None else Decimal("0")
+    total_taxes = Decimal("0")
+
+    for tax in (project.taxes or []):
+        percentage = tax.percentage if tax.percentage is not None else Decimal("0")
+        total_taxes += (total_client_price * percentage) / Decimal("100")
+
+    total_with_taxes = total_client_price + total_taxes
+    return total_taxes, total_with_taxes
 
 
 @router.get("/", response_model=ProjectListResponse, summary="List all projects")
@@ -595,12 +609,16 @@ async def get_quote(
             ],
         ))
     
+    total_taxes, total_with_taxes = _compute_quote_tax_totals(quote, project)
+
     return QuoteResponseWithItems(
         id=quote.id,
         project_id=quote.project_id,
         version=quote.version,
         total_internal_cost=quote.total_internal_cost,
         total_client_price=quote.total_client_price,
+        total_taxes=total_taxes,
+        total_with_taxes=total_with_taxes,
         margin_percentage=quote.margin_percentage,
         notes=quote.notes,
         created_at=quote.created_at,
@@ -632,7 +650,29 @@ async def list_project_quotes(
     # Sort by version descending
     quotes = sorted(project.quotes, key=lambda q: q.version, reverse=True)
     
-    return [QuoteResponse.model_validate(quote) for quote in quotes]
+    response_quotes: list[QuoteResponse] = []
+    for quote in quotes:
+        total_taxes, total_with_taxes = _compute_quote_tax_totals(quote, project)
+        response_quotes.append(
+            QuoteResponse(
+                id=quote.id,
+                project_id=quote.project_id,
+                version=quote.version,
+                total_internal_cost=quote.total_internal_cost,
+                total_client_price=quote.total_client_price,
+                total_taxes=total_taxes,
+                total_with_taxes=total_with_taxes,
+                margin_percentage=quote.margin_percentage,
+                target_margin_percentage=quote.target_margin_percentage,
+                notes=quote.notes,
+                revisions_included=getattr(quote, "revisions_included", 2),
+                revision_cost_per_additional=getattr(quote, "revision_cost_per_additional", None),
+                created_at=quote.created_at,
+                updated_at=quote.updated_at,
+            )
+        )
+
+    return response_quotes
 
 
 @router.put("/{project_id}/quotes/{quote_id}", response_model=QuoteResponseWithItems)
@@ -853,12 +893,16 @@ async def update_quote(
         cache = get_cache()
         cache.invalidate_pattern(f"dashboard:{tenant.organization_id}")
         
+        total_taxes, total_with_taxes = _compute_quote_tax_totals(updated_quote, project)
+
         return QuoteResponseWithItems(
             id=updated_quote.id,
             project_id=updated_quote.project_id,
             version=updated_quote.version,
             total_internal_cost=updated_quote.total_internal_cost,
             total_client_price=updated_quote.total_client_price,
+            total_taxes=total_taxes,
+            total_with_taxes=total_with_taxes,
             margin_percentage=updated_quote.margin_percentage,
             notes=updated_quote.notes,
             revisions_included=updated_quote.revisions_included if hasattr(updated_quote, 'revisions_included') else 2,
@@ -1245,9 +1289,13 @@ async def send_quote_email(
         quote_result = await db.execute(
             select(Quote)
             .where(Quote.id == new_quote.id)
-            .options(selectinload(Quote.items).selectinload(QuoteItem.service))
+            .options(
+                selectinload(Quote.items).selectinload(QuoteItem.service),
+                selectinload(Quote.project).selectinload(Project.taxes),
+            )
         )
         final_quote = quote_result.scalar_one()
+        total_taxes, total_with_taxes = _compute_quote_tax_totals(final_quote, final_quote.project)
         
         items_response = []
         for item in final_quote.items:
@@ -1267,6 +1315,8 @@ async def send_quote_email(
             version=final_quote.version,
             total_internal_cost=final_quote.total_internal_cost,
             total_client_price=final_quote.total_client_price,
+            total_taxes=total_taxes,
+            total_with_taxes=total_with_taxes,
             margin_percentage=final_quote.margin_percentage,
             notes=final_quote.notes,
             revisions_included=final_quote.revisions_included if hasattr(final_quote, 'revisions_included') else 2,

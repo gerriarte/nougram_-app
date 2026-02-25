@@ -1,13 +1,134 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
-import { Wallet, Info, ArrowUpRight, Percent, Users, Receipt } from 'lucide-react';
+import { Info, ArrowUpRight, Percent, Users, Receipt, Plus, Pencil, Trash2, Save, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 
 export function QuoteFinancialSummary() {
-    const { summary, state, toggleTax, taxes, setTargetMargin, teamMembers } = useQuoteBuilder();
+    const { summary, state, toggleTax, taxes, setTargetMargin, teamMembers, createTax, updateTax, deleteTax, refreshTaxes } = useQuoteBuilder();
+    const [showTaxManager, setShowTaxManager] = useState(false);
+    const [taxError, setTaxError] = useState<string | null>(null);
+    const [taxBusyId, setTaxBusyId] = useState<number | null>(null);
+    const [refreshingTaxes, setRefreshingTaxes] = useState(false);
+    const [newTax, setNewTax] = useState({
+        name: '',
+        code: '',
+        percentage: '',
+    });
+    const [editableTaxes, setEditableTaxes] = useState<Record<number, { name: string; code: string; percentage: string }>>({});
+
+    useEffect(() => {
+        const next: Record<number, { name: string; code: string; percentage: string }> = {};
+        taxes.forEach((tax) => {
+            next[tax.id] = {
+                name: tax.name,
+                code: tax.code || '',
+                percentage: String(tax.percentage ?? 0),
+            };
+        });
+        setEditableTaxes(next);
+    }, [taxes]);
+
+    const taxCodeExists = useMemo(() => {
+        const code = newTax.code.trim().toUpperCase();
+        if (!code) return false;
+        return taxes.some((tax) => (tax.code || '').toUpperCase() === code);
+    }, [newTax.code, taxes]);
+
+    const parsePercent = (value: string) => {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return null;
+        if (num < 0 || num > 100) return null;
+        return num;
+    };
+
+    const handleCreateTax = async () => {
+        setTaxError(null);
+        const name = newTax.name.trim();
+        const code = newTax.code.trim().toUpperCase();
+        const percentage = parsePercent(newTax.percentage);
+
+        if (!name) {
+            setTaxError('El nombre del impuesto es obligatorio.');
+            return;
+        }
+        if (!code) {
+            setTaxError('El código del impuesto es obligatorio.');
+            return;
+        }
+        if (taxCodeExists) {
+            setTaxError('Ya existe un impuesto con ese código.');
+            return;
+        }
+        if (percentage === null) {
+            setTaxError('El porcentaje debe ser un número entre 0 y 100.');
+            return;
+        }
+
+        try {
+            setTaxBusyId(-1);
+            await createTax({ name, code, percentage });
+            setNewTax({ name: '', code: '', percentage: '' });
+        } catch (error) {
+            setTaxError(error instanceof Error ? error.message : 'No se pudo crear el impuesto.');
+        } finally {
+            setTaxBusyId(null);
+        }
+    };
+
+    const handleUpdateTax = async (taxId: number) => {
+        setTaxError(null);
+        const current = editableTaxes[taxId];
+        if (!current) return;
+
+        const name = current.name.trim();
+        const code = current.code.trim().toUpperCase();
+        const percentage = parsePercent(current.percentage);
+
+        if (!name || !code || percentage === null) {
+            setTaxError('Para actualizar, completa nombre, código y porcentaje válido (0-100).');
+            return;
+        }
+
+        try {
+            setTaxBusyId(taxId);
+            await updateTax(taxId, { name, code, percentage });
+        } catch (error) {
+            setTaxError(error instanceof Error ? error.message : 'No se pudo actualizar el impuesto.');
+        } finally {
+            setTaxBusyId(null);
+        }
+    };
+
+    const handleDeleteTax = async (taxId: number) => {
+        setTaxError(null);
+        const ok = window.confirm('¿Eliminar este impuesto?');
+        if (!ok) return;
+        try {
+            setTaxBusyId(taxId);
+            await deleteTax(taxId);
+        } catch (error) {
+            setTaxError(error instanceof Error ? error.message : 'No se pudo eliminar el impuesto.');
+        } finally {
+            setTaxBusyId(null);
+        }
+    };
+
+    const handleRefreshTaxes = async () => {
+        setTaxError(null);
+        try {
+            setRefreshingTaxes(true);
+            await refreshTaxes();
+        } catch (error) {
+            setTaxError(error instanceof Error ? error.message : 'No se pudo recargar impuestos.');
+        } finally {
+            setRefreshingTaxes(false);
+        }
+    };
 
     // Margin Color Logic
     let marginColor = 'text-red-500';
@@ -69,9 +190,19 @@ export function QuoteFinancialSummary() {
                     <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100 space-y-3">
                         <div className="flex items-center justify-between">
                             <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Impuestos</h4>
-                            <span className="text-[10px] bg-white px-2 py-0.5 rounded-full border border-gray-100 font-bold text-gray-400">
-                                {state.selectedTaxIds.length} Activos
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] bg-white px-2 py-0.5 rounded-full border border-gray-100 font-bold text-gray-400">
+                                    {state.selectedTaxIds.length} Activos
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowTaxManager((prev) => !prev)}
+                                    className="text-[10px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest flex items-center gap-1"
+                                >
+                                    <Pencil size={10} />
+                                    Gestionar
+                                </button>
+                            </div>
                         </div>
 
                         <div className="space-y-2.5">
@@ -100,6 +231,128 @@ export function QuoteFinancialSummary() {
                                 );
                             })}
                         </div>
+
+                        {showTaxManager && (
+                            <div className="mt-4 bg-white rounded-2xl border border-gray-100 p-3 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Editar / agregar impuestos</p>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleRefreshTaxes}
+                                        disabled={refreshingTaxes}
+                                        className="h-7 px-2 text-[10px] font-black text-blue-600"
+                                    >
+                                        <RefreshCw size={10} className={refreshingTaxes ? 'animate-spin mr-1' : 'mr-1'} />
+                                        Recargar
+                                    </Button>
+                                </div>
+
+                                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                                    {taxes.map((tax) => (
+                                        <div key={tax.id} className="grid grid-cols-12 gap-2 items-center">
+                                            <Input
+                                                value={editableTaxes[tax.id]?.name || ''}
+                                                onChange={(e) => setEditableTaxes((prev) => ({
+                                                    ...prev,
+                                                    [tax.id]: { ...(prev[tax.id] || { name: '', code: '', percentage: '0' }), name: e.target.value }
+                                                }))}
+                                                className="h-8 text-xs col-span-5"
+                                                placeholder="Nombre"
+                                            />
+                                            <Input
+                                                value={editableTaxes[tax.id]?.code || ''}
+                                                onChange={(e) => setEditableTaxes((prev) => ({
+                                                    ...prev,
+                                                    [tax.id]: { ...(prev[tax.id] || { name: '', code: '', percentage: '0' }), code: e.target.value.toUpperCase() }
+                                                }))}
+                                                className="h-8 text-xs col-span-3 uppercase"
+                                                placeholder="Código"
+                                            />
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                max={100}
+                                                step="0.01"
+                                                value={editableTaxes[tax.id]?.percentage || ''}
+                                                onChange={(e) => setEditableTaxes((prev) => ({
+                                                    ...prev,
+                                                    [tax.id]: { ...(prev[tax.id] || { name: '', code: '', percentage: '0' }), percentage: e.target.value }
+                                                }))}
+                                                className="h-8 text-xs col-span-2 text-right"
+                                                placeholder="%"
+                                            />
+                                            <div className="col-span-2 flex items-center justify-end gap-1">
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => handleUpdateTax(tax.id)}
+                                                    disabled={taxBusyId !== null}
+                                                    className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-50"
+                                                    title="Guardar impuesto"
+                                                >
+                                                    <Save size={12} />
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => handleDeleteTax(tax.id)}
+                                                    disabled={taxBusyId !== null}
+                                                    className="h-8 w-8 p-0 text-red-600 hover:bg-red-50"
+                                                    title="Eliminar impuesto"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="pt-2 border-t border-gray-100 space-y-2">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nuevo impuesto</p>
+                                    <div className="grid grid-cols-12 gap-2 items-center">
+                                        <Input
+                                            value={newTax.name}
+                                            onChange={(e) => setNewTax((prev) => ({ ...prev, name: e.target.value }))}
+                                            className="h-8 text-xs col-span-5"
+                                            placeholder="Nombre"
+                                        />
+                                        <Input
+                                            value={newTax.code}
+                                            onChange={(e) => setNewTax((prev) => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                                            className="h-8 text-xs col-span-3 uppercase"
+                                            placeholder="Código"
+                                        />
+                                        <Input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step="0.01"
+                                            value={newTax.percentage}
+                                            onChange={(e) => setNewTax((prev) => ({ ...prev, percentage: e.target.value }))}
+                                            className="h-8 text-xs col-span-2 text-right"
+                                            placeholder="%"
+                                        />
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={handleCreateTax}
+                                            disabled={taxBusyId !== null}
+                                            className="h-8 text-xs col-span-2"
+                                        >
+                                            <Plus size={12} className="mr-1" />
+                                            Agregar
+                                        </Button>
+                                    </div>
+                                    {taxError && (
+                                        <p className="text-[11px] font-medium text-red-600">{taxError}</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Margin Control */}

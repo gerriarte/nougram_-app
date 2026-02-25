@@ -2,6 +2,7 @@
 Project Service - Business logic for project and quote management
 """
 from typing import Dict, List, Optional, Any
+from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, insert
 from sqlalchemy.orm import selectinload
@@ -717,9 +718,16 @@ class ProjectService:
             .options(
                 selectinload(Quote.items).selectinload(QuoteItem.service),
                 selectinload(Quote.items).selectinload(QuoteItem.allocations),
+                selectinload(Quote.project).selectinload(Project.taxes),
             )
         )
         final_quote = quote_result.scalar_one()
+        total_client_price = final_quote.total_client_price if final_quote.total_client_price is not None else Decimal("0")
+        total_taxes = Decimal("0")
+        for tax in (final_quote.project.taxes if final_quote.project else []):
+            percentage = tax.percentage if tax.percentage is not None else Decimal("0")
+            total_taxes += (total_client_price * percentage) / Decimal("100")
+        total_with_taxes = total_client_price + total_taxes
         
         items_response = []
         for item in final_quote.items:
@@ -756,6 +764,8 @@ class ProjectService:
             version=final_quote.version,
             total_internal_cost=final_quote.total_internal_cost,
             total_client_price=final_quote.total_client_price,
+            total_taxes=total_taxes,
+            total_with_taxes=total_with_taxes,
             margin_percentage=final_quote.margin_percentage,
             notes=final_quote.notes,
             revisions_included=final_quote.revisions_included if hasattr(final_quote, 'revisions_included') else 2,

@@ -113,18 +113,14 @@ function resolveProjectTaxes(
 }
 
 function toRealMarginPercent(
-    basePrice?: string | number,
-    internalCost?: string | number,
-    taxes?: Array<{ percentage: string | number }>
+    basePrice: number,
+    internalCost: number,
+    totalTaxes: number
 ): number {
-    const price = toSafeNumber(basePrice);
-    const cost = toSafeNumber(internalCost);
-    if (!Number.isFinite(price) || price <= 0) return 0;
-    const taxRate = sumTaxRate(taxes);
-    const taxesAmount = price * (taxRate / 100);
-    const realIncome = price - taxesAmount;
+    if (!Number.isFinite(basePrice) || basePrice <= 0) return 0;
+    const realIncome = basePrice - totalTaxes;
     if (realIncome <= 0) return 0;
-    return ((realIncome - cost) / realIncome) * 100;
+    return ((realIncome - internalCost) / realIncome) * 100;
 }
 
 function buildFinancialBreakdown(
@@ -133,16 +129,16 @@ function buildFinancialBreakdown(
 ) {
     const baseAmount = toSafeNumber(quote?.total_client_price);
     const internalCost = toSafeNumber(quote?.total_internal_cost);
-    const taxRate = sumTaxRate(taxes);
-
     const taxAmountFromQuote = toSafeNumber(quote?.total_taxes);
     const billedFromQuote = toSafeNumber(quote?.total_with_taxes);
-
-    const taxAmount = taxAmountFromQuote > 0 ? taxAmountFromQuote : (baseAmount * taxRate) / 100;
+    const taxAmount = taxAmountFromQuote > 0
+        ? taxAmountFromQuote
+        : Math.max(0, billedFromQuote - baseAmount);
     const billedAmount = billedFromQuote > 0 ? billedFromQuote : baseAmount + taxAmount;
+    const taxRate = baseAmount > 0 ? (taxAmount / baseAmount) * 100 : sumTaxRate(taxes);
     const realIncome = Math.max(0, baseAmount - taxAmount);
     const profitAmount = realIncome - internalCost;
-    const margin = Number(toRealMarginPercent(baseAmount, internalCost, taxes).toFixed(2));
+    const margin = Number(toRealMarginPercent(baseAmount, internalCost, taxAmount).toFixed(2));
 
     return {
         baseAmount,
@@ -223,11 +219,11 @@ let servicesFetchInFlight: Promise<Service[]> | null = null;
 
 // Mock Data
 const MOCK_QUOTES: Quote[] = [
-    { id: '1', project: 'App E-commerce', client: 'TechCorp', amount: 25000, currency: 'USD', margin: 42, version: 2, history: [{ version: 1, amount: 22000, date: 'Hace 5d' }], status: 'sent', sentAt: 'Hace 2d', viewedCount: 0, downloadCount: 0, publicToken: 'demo-proposal', tokenExpiresAt: new Date(Date.now() + 86400000 * 30).toISOString() },
-    { id: '2', project: 'Landing Page', client: 'StartupX', amount: 8000, currency: 'USD', margin: 22, version: 1, status: 'viewed', sentAt: 'Hace 1d', viewedCount: 5, downloadCount: 2 },
-    { id: '3', project: 'Branding', client: 'DesignCo', amount: 12000, currency: 'USD', margin: 35, version: 1, status: 'accepted', sentAt: 'Hace 3d', viewedCount: 3, downloadCount: 1 },
-    { id: '4', project: 'SEO Audit', client: 'MarketFit', amount: 4500, currency: 'USD', margin: 8, version: 1, status: 'draft', viewedCount: 0, downloadCount: 0 },
-    { id: '5', project: 'Web Redesign', client: 'OldSchool', amount: 15000, currency: 'USD', margin: 28, version: 3, history: [{ version: 1, amount: 12000, date: 'Hace 1w' }, { version: 2, amount: 14000, date: 'Hace 2d' }], status: 'viewed', sentAt: 'Hace 5h', viewedCount: 12, downloadCount: 4 },
+    { id: '1', project: 'App E-commerce', client: 'TechCorp', totalClientPrice: 21008, totalTaxes: 3992, totalWithTaxes: 25000, currency: 'USD', margin: 42, version: 2, history: [{ version: 1, totalWithTaxes: 22000, date: 'Hace 5d' }], status: 'sent', sentAt: 'Hace 2d', viewedCount: 0, downloadCount: 0, publicToken: 'demo-proposal', tokenExpiresAt: new Date(Date.now() + 86400000 * 30).toISOString() },
+    { id: '2', project: 'Landing Page', client: 'StartupX', totalClientPrice: 6723, totalTaxes: 1277, totalWithTaxes: 8000, currency: 'USD', margin: 22, version: 1, status: 'viewed', sentAt: 'Hace 1d', viewedCount: 5, downloadCount: 2 },
+    { id: '3', project: 'Branding', client: 'DesignCo', totalClientPrice: 10084, totalTaxes: 1916, totalWithTaxes: 12000, currency: 'USD', margin: 35, version: 1, status: 'accepted', sentAt: 'Hace 3d', viewedCount: 3, downloadCount: 1 },
+    { id: '4', project: 'SEO Audit', client: 'MarketFit', totalClientPrice: 3782, totalTaxes: 718, totalWithTaxes: 4500, currency: 'USD', margin: 8, version: 1, status: 'draft', viewedCount: 0, downloadCount: 0 },
+    { id: '5', project: 'Web Redesign', client: 'OldSchool', totalClientPrice: 12605, totalTaxes: 2395, totalWithTaxes: 15000, currency: 'USD', margin: 28, version: 3, history: [{ version: 1, totalWithTaxes: 12000, date: 'Hace 1w' }, { version: 2, totalWithTaxes: 14000, date: 'Hace 2d' }], status: 'viewed', sentAt: 'Hace 5h', viewedCount: 12, downloadCount: 4 },
 ];
 
 function mapProjectStatusToQuoteStatus(status?: string): Quote['status'] {
@@ -256,9 +252,9 @@ function buildQuoteCardFromProject(
         project: project.name,
         client: project.client_name,
         clientId: project.client_id ?? undefined,
-        amount: breakdown.billedAmount,
-        baseAmount: breakdown.baseAmount,
-        taxAmount: breakdown.taxAmount,
+        totalWithTaxes: breakdown.billedAmount,
+        totalClientPrice: breakdown.baseAmount,
+        totalTaxes: breakdown.taxAmount,
         taxRate: breakdown.taxRate,
         internalCost: breakdown.internalCost,
         profitAmount: breakdown.profitAmount,
@@ -319,9 +315,9 @@ export const quoteService = {
                     project: projectDetail.name || project.name,
                     client: projectDetail.client_name || project.client_name,
                     clientId: projectDetail.client_id ?? project.client_id ?? undefined,
-                    amount: breakdown.billedAmount,
-                    baseAmount: breakdown.baseAmount,
-                    taxAmount: breakdown.taxAmount,
+                    totalWithTaxes: breakdown.billedAmount,
+                    totalClientPrice: breakdown.baseAmount,
+                    totalTaxes: breakdown.taxAmount,
                     taxRate: breakdown.taxRate,
                     internalCost: breakdown.internalCost,
                     profitAmount: breakdown.profitAmount,

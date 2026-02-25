@@ -84,10 +84,10 @@ export function useQuotePipeline() {
                 }>('/insights/dashboard');
 
                 // Fallback metrics are always derived from loaded quotes.
-                const fallbackTotal = data.reduce((sum, q) => sum + q.amount, 0);
+                const fallbackTotal = data.reduce((sum, q) => sum + q.totalWithTaxes, 0);
                 const fallbackPipeline = data
                     .filter((q) => q.status === 'sent' || q.status === 'viewed')
-                    .reduce((sum, q) => sum + q.amount, 0);
+                    .reduce((sum, q) => sum + q.totalWithTaxes, 0);
                 const fallbackClosed = data.filter((q) => q.status === 'accepted' || q.status === 'rejected').length;
                 const fallbackWon = data.filter((q) => q.status === 'accepted').length;
                 const fallbackWinRate = fallbackClosed > 0 ? (fallbackWon / fallbackClosed) * 100 : 0;
@@ -192,8 +192,8 @@ export function useQuotePipeline() {
         }
 
         // 4. Amount Range
-        if (filters.minAmount !== '' && q.amount < filters.minAmount) return false;
-        if (filters.maxAmount !== '' && q.amount > filters.maxAmount) return false;
+        if (filters.minAmount !== '' && q.totalWithTaxes < filters.minAmount) return false;
+        if (filters.maxAmount !== '' && q.totalWithTaxes > filters.maxAmount) return false;
 
         // 5. Date Filter (Mock: assuming 'sentAt' is a parseable date or we use created_at)
         // For this mock simplified version, we'll skip complex date parsing unless 'sentAt' format is standardized.

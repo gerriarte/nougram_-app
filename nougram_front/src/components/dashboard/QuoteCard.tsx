@@ -9,16 +9,16 @@ export interface Quote {
     project: string;
     client: string;
     clientId?: number;
-    baseAmount?: number;
-    taxAmount?: number;
+    totalClientPrice?: number;
+    totalTaxes?: number;
     taxRate?: number;
-    amount: number;
+    totalWithTaxes: number;
     internalCost?: number;
     profitAmount?: number;
     currency: string;
     margin: number;
     version: number;
-    history?: { version: number; amount: number; date: string }[];
+    history?: { version: number; totalWithTaxes: number; date: string }[];
     status: 'draft' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'expired';
     sentAt?: string;
     expiresAt?: string;
@@ -38,8 +38,8 @@ interface QuoteCardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
     const router = useRouter();
-    const baseAmount = quote.baseAmount ?? Math.max(0, quote.amount - (quote.taxAmount ?? 0));
-    const taxAmount = quote.taxAmount ?? 0;
+    const baseAmount = quote.totalClientPrice ?? Math.max(0, quote.totalWithTaxes - (quote.totalTaxes ?? 0));
+    const taxAmount = quote.totalTaxes ?? 0;
     const taxRate = quote.taxRate ?? 0;
 
     // Status Logic
@@ -85,7 +85,7 @@ export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
 
                 <div className="mt-4 flex items-baseline gap-2">
                     <span className="text-2xl font-semibold text-[#1D1D1F] tracking-tight">
-                        ${quote.amount.toLocaleString()} <span className="text-sm font-medium text-[#86868B]">{quote.currency}</span>
+                        ${quote.totalWithTaxes.toLocaleString()} <span className="text-sm font-medium text-[#86868B]">{quote.currency}</span>
                     </span>
                 </div>
                 <p className="text-[10px] text-[#9AA0A6] font-medium mt-1 uppercase tracking-wide">

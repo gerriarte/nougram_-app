@@ -8,7 +8,7 @@ import {
     PricingType, Service, Contingency
 } from '@/types/quote-builder';
 
-const MOCK_TAXES: TaxConfig[] = [
+const FALLBACK_TAXES: TaxConfig[] = [
     { id: 1, name: 'IVA', percentage: 19.0 },
     { id: 2, name: 'ReteFuente', percentage: 3.5 },
     { id: 3, name: 'ICA', percentage: 0.966 },
@@ -17,6 +17,7 @@ const MOCK_TAXES: TaxConfig[] = [
 // MOCK_TEAM_MEMBERS moved to resourceService
 import { resourceService } from '@/services/resourceService';
 import { pricingService } from '@/services/pricingService';
+import { taxService } from '@/services/taxService';
 
 // --- INITIAL STATE ---
 const INITIAL_STATE: QuoteBuilderState = {
@@ -95,6 +96,10 @@ interface QuoteBuilderContextType {
     removeItem: (itemId: string) => void;
 
     toggleTax: (taxId: number) => void;
+    refreshTaxes: () => Promise<void>;
+    createTax: (payload: { name: string; code: string; percentage: number; country?: string; description?: string }) => Promise<void>;
+    updateTax: (id: number, payload: { name?: string; code?: string; percentage?: number; country?: string; description?: string }) => Promise<void>;
+    deleteTax: (id: number) => Promise<void>;
     setTargetMargin: (margin: number) => void;
     setContingency: (contingency: Contingency | undefined) => void;
 
@@ -120,13 +125,14 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     const { state: coreState } = useNougram();
     const [state, setState] = useState<QuoteBuilderState>(INITIAL_STATE);
     const [services, setServices] = useState<Service[]>([]);
+    const [taxes, setTaxes] = useState<TaxConfig[]>(FALLBACK_TAXES);
     const [teamMembers, setTeamMembers] = useState<import('@/types/quote-builder').TeamMemberMock[]>([]); // Load from service
     const [summary, setSummary] = useState<CalculationSummary>({
         totalInternalCost: 0, totalClientPrice: 0, totalTaxes: 0, totalWithTaxes: 0, netMarginAmount: 0, netMarginPercent: 0, realIncome: 0,
         contingencyAmount: 0, contingencyTotal: 0
     });
 
-    // --- LOAD RESOURCES ---
+    // --- LOAD BASE DATA ---
     useEffect(() => {
         resourceService.getAllMembers().then(setTeamMembers);
         import('@/services/quoteService').then(({ quoteService }) => {
@@ -136,12 +142,19 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 setServices([]);
             });
         });
+        taxService.getAll(true).then((items) => {
+            if (items.length > 0) {
+                setTaxes(items);
+            }
+        }).catch(() => {
+            setTaxes(FALLBACK_TAXES);
+        });
     }, []);
 
     // --- CALCULATION ENGINE ---
     useEffect(() => {
         calculateTotals();
-    }, [state.items, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency]);
+    }, [state.items, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency, taxes]);
 
     const calculateTotals = () => {
         // 1. Calculate Items
@@ -179,7 +192,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
 
         const totals = pricingService.calculateQuoteTotals(
             calculatedItems,
-            MOCK_TAXES,
+            taxes,
             state.selectedTaxIds,
             state.contingency
         );
@@ -270,6 +283,34 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                     : [...prev.selectedTaxIds, taxId]
             };
         });
+
+    const refreshTaxes = async () => {
+        const items = await taxService.getAll(true);
+        setTaxes(items);
+        setState(prev => ({
+            ...prev,
+            selectedTaxIds: prev.selectedTaxIds.filter((id) => items.some((tax) => tax.id === id))
+        }));
+    };
+
+    const createTax = async (payload: { name: string; code: string; percentage: number; country?: string; description?: string }) => {
+        const created = await taxService.create(payload);
+        setTaxes(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    };
+
+    const updateTax = async (id: number, payload: { name?: string; code?: string; percentage?: number; country?: string; description?: string }) => {
+        const updated = await taxService.update(id, payload);
+        setTaxes(prev => prev.map((tax) => tax.id === id ? updated : tax));
+    };
+
+    const deleteTax = async (id: number) => {
+        await taxService.remove(id);
+        setTaxes(prev => prev.filter((tax) => tax.id !== id));
+        setState(prev => ({
+            ...prev,
+            selectedTaxIds: prev.selectedTaxIds.filter((taxId) => taxId !== id)
+        }));
+    };
 
     const toggleResourceAllocation = () => setState(prev => ({ ...prev, showResourceAllocation: !prev.showResourceAllocation }));
 
@@ -409,8 +450,8 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
 
     return (
         <QuoteBuilderContext.Provider value={{
-            state, services, taxes: MOCK_TAXES, teamMembers,
-            updateProjectInfo, addItem, updateItem, removeItem, toggleTax, setTargetMargin, setContingency,
+            state, services, taxes, teamMembers,
+            updateProjectInfo, addItem, updateItem, removeItem, toggleTax, refreshTaxes, createTax, updateTax, deleteTax, setTargetMargin, setContingency,
             toggleResourceAllocation, addResourceAllocation, updateResourceAllocation, removeResourceAllocation, getMemberUtilization,
             summary, isValid: errors.length === 0, errors,
             saveQuote, loadQuote

@@ -106,10 +106,10 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
                                     {quote.client}
                                 </td>
                                 <td className="px-6 py-4 text-right font-bold text-gray-900">
-                                    ${quote.amount.toLocaleString()} <span className="text-xs text-gray-400 font-normal">{quote.currency}</span>
+                                    ${quote.totalWithTaxes.toLocaleString()} <span className="text-xs text-gray-400 font-normal">{quote.currency}</span>
                                     <div className="text-[10px] font-medium text-gray-400">Total factura (incluye impuestos)</div>
                                     <div className="text-[10px] text-gray-500 mt-0.5">
-                                        Base ${Math.round(quote.baseAmount || 0).toLocaleString()} + Impuestos ${Math.round(quote.taxAmount || 0).toLocaleString()}
+                                        Base ${Math.round(quote.totalClientPrice || 0).toLocaleString()} + Impuestos ${Math.round(quote.totalTaxes || 0).toLocaleString()}
                                     </div>
                                 </td>
                                 <td className="px-6 py-4 text-center">
