@@ -47,6 +47,40 @@ const PROJECT_TYPES = [
     'Otro',
 ];
 
+const QUOTE_EDITOR_META_KEY = 'nougram_quote_editor_meta_v1';
+
+type QuoteEditorMeta = {
+    projectType?: string;
+    projectDescription?: string;
+};
+
+function saveQuoteEditorMeta(projectId: string, meta: QuoteEditorMeta) {
+    if (typeof window === 'undefined' || !projectId) return;
+    try {
+        const raw = localStorage.getItem(QUOTE_EDITOR_META_KEY);
+        const parsed: Record<string, QuoteEditorMeta> = raw ? JSON.parse(raw) : {};
+        parsed[projectId] = {
+            projectType: meta.projectType || '',
+            projectDescription: meta.projectDescription || '',
+        };
+        localStorage.setItem(QUOTE_EDITOR_META_KEY, JSON.stringify(parsed));
+    } catch {
+        // Non-blocking persistence
+    }
+}
+
+function getQuoteEditorMeta(projectId: string): QuoteEditorMeta {
+    if (typeof window === 'undefined' || !projectId) return {};
+    try {
+        const raw = localStorage.getItem(QUOTE_EDITOR_META_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as Record<string, QuoteEditorMeta>;
+        return parsed[projectId] || {};
+    } catch {
+        return {};
+    }
+}
+
 interface QuoteBuilderContextType {
     state: QuoteBuilderState;
     services: Service[];
@@ -285,6 +319,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             clientId: state.clientId ?? undefined,
             clientName: state.clientName,
             clientEmail: state.clientEmail,
+            selectedTaxIds: state.selectedTaxIds,
             amount: summary.totalClientPrice,
             currency: state.currency,
             marginPercentage: summary.netMarginPercent,
@@ -322,12 +357,20 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                     await quoteService.update(state.id, payload as any);
                 }
                 await quoteService.setProjectStatus(state.id, status);
+                saveQuoteEditorMeta(state.id, {
+                    projectType: state.projectType,
+                    projectDescription: state.projectDescription,
+                });
             } else {
                 // Creating new quote
                 const newProjectId = await quoteService.create(payload as any);
                 // Update state ID so subsequent saves are updates
                 setState(prev => ({ ...prev, id: newProjectId, version: 1 }));
                 await quoteService.setProjectStatus(newProjectId, status);
+                saveQuoteEditorMeta(newProjectId, {
+                    projectType: state.projectType,
+                    projectDescription: state.projectDescription,
+                });
             }
         }
     };
@@ -336,6 +379,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         const { quoteService } = await import('@/services/quoteService');
         const q = await quoteService.getBuilderData(id);
         if (q) {
+            const persistedMeta = getQuoteEditorMeta(q.id);
             const inferredProjectType = (() => {
                 const firstNamedItem = (q.items || []).find((item) => typeof item.serviceName === 'string' && item.serviceName.includes(' - '));
                 if (!firstNamedItem?.serviceName) return '';
@@ -354,9 +398,10 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 clientEmail: q.clientEmail || '',
                 clientCompany: q.clientCompany || q.clientName || '',
                 clientRequester: q.clientRequester || '',
-                projectType: inferredProjectType,
-                projectDescription: '',
+                projectType: persistedMeta.projectType || inferredProjectType,
+                projectDescription: persistedMeta.projectDescription || '',
                 currency: (q.currency as any) || 'COP',
+                selectedTaxIds: q.selectedTaxIds || [],
                 items: q.items || [],
             }));
         }

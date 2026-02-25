@@ -32,6 +32,7 @@ export const pricingService = {
         // For now, let's stick to the specific types logic but prioritize resources.
 
         const resourceCost = (item.allocations || []).reduce((sum, alloc) => sum + (alloc.hours * bcr), 0);
+        const fallbackEstimatedHours = Math.max(0, Number(item.estimatedHours || 0));
 
         // Multiplier for recurring (Duration)
         const duration = item.durationMonths || 1;
@@ -39,9 +40,8 @@ export const pricingService = {
 
         switch (item.pricingType) {
             case 'hourly':
-                // Cost is derived purely from resources
-                internalCost = totalResourceCost;
-                // If no resources, cost is 0 (we removed manual estimated hours input)
+                // If resources are assigned, use them; otherwise fallback to estimated hours.
+                internalCost = totalResourceCost > 0 ? totalResourceCost : (fallbackEstimatedHours * bcr);
                 break;
 
             case 'fixed':
