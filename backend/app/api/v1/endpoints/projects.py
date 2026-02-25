@@ -715,9 +715,6 @@ async def update_quote(
         revisions_included = quote_data.revisions_included if quote_data.revisions_included is not None else (quote.revisions_included if quote.revisions_included else 2)
         revision_cost_per_additional = quote_data.revision_cost_per_additional if hasattr(quote_data, 'revision_cost_per_additional') else quote.revision_cost_per_additional
         target_margin_percentage = getattr(quote_data, 'target_margin_percentage', None)
-        # Convert Decimal to float for target_margin_percentage (function expects float)
-        from decimal import Decimal
-        target_margin_float = float(target_margin_percentage) if target_margin_percentage is not None and isinstance(target_margin_percentage, Decimal) else target_margin_percentage
         
         totals = await calculate_quote_totals_enhanced(
             db, 
@@ -725,7 +722,7 @@ async def update_quote(
             blended_rate, 
             tax_ids,
             expenses=None,  # Expenses are managed separately
-            target_margin_percentage=target_margin_float,  # Pass target margin as float
+            target_margin_percentage=target_margin_percentage,
             revisions_included=revisions_included,
             revision_cost_per_additional=revision_cost_per_additional,
             revisions_count=None,

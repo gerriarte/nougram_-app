@@ -7,6 +7,18 @@ from decimal import Decimal
 from app.models.service import Service
 
 
+def _to_decimal(value, default: Decimal = Decimal('0')) -> Decimal:
+    """Normalize numeric input to Decimal for banking-grade precision."""
+    if value is None:
+        return default
+    try:
+        if isinstance(value, Decimal):
+            return value
+        return Decimal(str(value))
+    except (TypeError, ValueError):
+        return default
+
+
 class PricingStrategy(ABC):
     """
     Abstract base class for pricing strategies
@@ -18,7 +30,7 @@ class PricingStrategy(ABC):
         item: Dict,
         service: Service,
         blended_cost_rate: float
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Decimal]:
         """
         Calculate internal cost and client price for an item
         
@@ -44,7 +56,7 @@ class HourlyPricingStrategy(PricingStrategy):
         item: Dict,
         service: Service,
         blended_cost_rate: float
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Decimal]:
         """
         Calculate pricing for hourly services
         
@@ -56,20 +68,18 @@ class HourlyPricingStrategy(PricingStrategy):
         Returns:
             Dictionary with internal_cost and client_price (client_price uses service margin as fallback)
         """
-        estimated_hours = item.get("estimated_hours", 0)
+        estimated_hours = _to_decimal(item.get("estimated_hours", Decimal('0')))
         if estimated_hours <= 0:
-            return {"internal_cost": 0.0, "client_price": 0.0}
-        
-        # Convert estimated_hours to float if it's Decimal to avoid type mixing
-        estimated_hours_float = float(estimated_hours) if isinstance(estimated_hours, Decimal) else estimated_hours
-        internal_cost = blended_cost_rate * estimated_hours_float
+            return {"internal_cost": Decimal('0'), "client_price": Decimal('0')}
+
+        bcr = _to_decimal(blended_cost_rate)
+        internal_cost = bcr * estimated_hours
         
         # Calculate client price with service margin (fallback if no quote-level margin)
         # This will be overridden at quote level if target_margin_percentage is provided
-        if service.default_margin_target and float(service.default_margin_target) > 0 and float(service.default_margin_target) < 1:
-            # Convert Decimal to float to avoid type mixing in division
-            margin_target_float = float(service.default_margin_target)
-            client_price = internal_cost / (1 - margin_target_float)
+        margin_target = _to_decimal(service.default_margin_target)
+        if margin_target > 0 and margin_target < 1:
+            client_price = internal_cost / (Decimal('1') - margin_target)
         else:
             client_price = internal_cost  # Fallback if margin is invalid
         
@@ -89,7 +99,7 @@ class FixedPricingStrategy(PricingStrategy):
         item: Dict,
         service: Service,
         blended_cost_rate: float
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Decimal]:
         """
         Calculate pricing for fixed-price services
         
@@ -101,22 +111,23 @@ class FixedPricingStrategy(PricingStrategy):
         Returns:
             Dictionary with internal_cost and client_price
         """
-        fixed_price = item.get("fixed_price") or service.fixed_price
-        quantity = item.get("quantity", 1.0)
+        fixed_price = _to_decimal(item.get("fixed_price") or service.fixed_price)
+        quantity = _to_decimal(item.get("quantity", Decimal('1')), Decimal('1'))
         
-        if fixed_price is None or fixed_price <= 0:
-            return {"internal_cost": 0.0, "client_price": 0.0}
+        if fixed_price <= 0:
+            return {"internal_cost": Decimal('0'), "client_price": Decimal('0')}
         
         client_price = fixed_price * quantity
         
         # For fixed pricing, internal cost is calculated based on estimated hours if provided
         # Otherwise, we use a conservative estimate
-        estimated_hours = item.get("estimated_hours")
-        if estimated_hours and estimated_hours > 0:
-            internal_cost = blended_cost_rate * estimated_hours * quantity
+        estimated_hours = _to_decimal(item.get("estimated_hours"))
+        if estimated_hours > 0:
+            bcr = _to_decimal(blended_cost_rate)
+            internal_cost = bcr * estimated_hours * quantity
         else:
             # If no hours provided, assume internal cost is 60% of fixed price (conservative)
-            internal_cost = (fixed_price * quantity) * 0.6
+            internal_cost = (fixed_price * quantity) * Decimal('0.6')
         
         return {
             "internal_cost": internal_cost,
@@ -134,7 +145,7 @@ class RecurringPricingStrategy(PricingStrategy):
         item: Dict,
         service: Service,
         blended_cost_rate: float
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Decimal]:
         """
         Calculate pricing for recurring services
         
@@ -146,27 +157,29 @@ class RecurringPricingStrategy(PricingStrategy):
         Returns:
             Dictionary with internal_cost and client_price
         """
-        recurring_price = item.get("recurring_price") or service.recurring_price
+        recurring_price = _to_decimal(item.get("recurring_price") or service.recurring_price)
         billing_frequency = item.get("billing_frequency") or service.billing_frequency or "monthly"
-        quantity = item.get("quantity", 1.0)
+        quantity = _to_decimal(item.get("quantity", Decimal('1')), Decimal('1'))
         
-        if recurring_price is None or recurring_price <= 0:
-            return {"internal_cost": 0.0, "client_price": 0.0}
+        if recurring_price <= 0:
+            return {"internal_cost": Decimal('0'), "client_price": Decimal('0')}
         
         client_price = recurring_price * quantity
         
         # For recurring services, internal cost is based on estimated hours if provided
         # Otherwise, estimate based on typical allocation
-        estimated_hours = item.get("estimated_hours")
-        if estimated_hours and estimated_hours > 0:
-            internal_cost = blended_cost_rate * estimated_hours
+        estimated_hours = _to_decimal(item.get("estimated_hours"))
+        if estimated_hours > 0:
+            bcr = _to_decimal(blended_cost_rate)
+            internal_cost = bcr * estimated_hours
         else:
             # Estimate: monthly retainer typically uses ~20% of monthly billable hours
             # Assuming 160 billable hours/month, 20% = 32 hours
-            estimated_monthly_hours = 32.0
+            estimated_monthly_hours = Decimal('32')
             if billing_frequency == "annual":
-                estimated_monthly_hours *= 12
-            internal_cost = blended_cost_rate * estimated_monthly_hours * quantity
+                estimated_monthly_hours *= Decimal('12')
+            bcr = _to_decimal(blended_cost_rate)
+            internal_cost = bcr * estimated_monthly_hours * quantity
         
         return {
             "internal_cost": internal_cost,
@@ -184,7 +197,7 @@ class ProjectValuePricingStrategy(PricingStrategy):
         item: Dict,
         service: Service,
         blended_cost_rate: float
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Decimal]:
         """
         Calculate pricing for project value services
         
@@ -196,21 +209,22 @@ class ProjectValuePricingStrategy(PricingStrategy):
         Returns:
             Dictionary with internal_cost and client_price
         """
-        project_value = item.get("project_value") or item.get("fixed_price")
-        quantity = item.get("quantity", 1.0)
+        project_value = _to_decimal(item.get("project_value") or item.get("fixed_price"))
+        quantity = _to_decimal(item.get("quantity", Decimal('1')), Decimal('1'))
         
-        if project_value is None or project_value <= 0:
-            return {"internal_cost": 0.0, "client_price": 0.0}
+        if project_value <= 0:
+            return {"internal_cost": Decimal('0'), "client_price": Decimal('0')}
         
         client_price = project_value * quantity
         
         # For project value, internal cost is based on estimated hours if provided
-        estimated_hours = item.get("estimated_hours")
-        if estimated_hours and estimated_hours > 0:
-            internal_cost = blended_cost_rate * estimated_hours * quantity
+        estimated_hours = _to_decimal(item.get("estimated_hours"))
+        if estimated_hours > 0:
+            bcr = _to_decimal(blended_cost_rate)
+            internal_cost = bcr * estimated_hours * quantity
         else:
             # If no hours, assume internal cost is 50% of project value
-            internal_cost = (project_value * quantity) * 0.5
+            internal_cost = (project_value * quantity) * Decimal('0.5')
         
         return {
             "internal_cost": internal_cost,

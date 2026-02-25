@@ -368,7 +368,7 @@ async def calculate_quote_totals_enhanced(
     blended_cost_rate: float,
     tax_ids: List[int] = None,
     expenses: List[Dict] = None,
-    target_margin_percentage: Optional[float] = None,
+    target_margin_percentage: Optional[Decimal] = None,
     revisions_included: int = 2,
     revision_cost_per_additional: Optional[float] = None,
     revisions_count: Optional[int] = None,
@@ -409,8 +409,8 @@ async def calculate_quote_totals_enhanced(
     total_client_price_money = Money(0, currency)
     items_breakdown = []
     
-    # Convertir blended_cost_rate a float si es Decimal
-    bcr_float = float(blended_cost_rate) if isinstance(blended_cost_rate, Decimal) else blended_cost_rate
+    # Normalizar blended_cost_rate a Decimal para mantener precisión
+    bcr_decimal = blended_cost_rate if isinstance(blended_cost_rate, Decimal) else Decimal(str(blended_cost_rate))
     
     # First pass: Calculate internal costs and client prices for all items
     for item in items:
@@ -434,7 +434,7 @@ async def calculate_quote_totals_enhanced(
         
         # Get pricing strategy and calculate costs
         strategy = PricingStrategyFactory.get_strategy(effective_pricing_type)
-        pricing_result = strategy.calculate(item, service, bcr_float)
+        pricing_result = strategy.calculate(item, service, bcr_decimal)
         
         internal_cost = pricing_result["internal_cost"]
         client_price = pricing_result.get("client_price", 0.0)  # Get client_price from strategy
@@ -451,10 +451,9 @@ async def calculate_quote_totals_enhanced(
         
         # ESTÁNDAR NOUGRAM: Si hay target_margin_percentage, recalcular client_price con ese margen
         # Si no, usar el client_price del strategy (que usa margen del servicio)
-        if target_margin_percentage is not None and 0 < target_margin_percentage < 1:
-            # Aplicar margen objetivo a este item
-            # Convertir a float si es Decimal para evitar problemas de tipo
-            margin_percent_float = float(target_margin_percentage) if isinstance(target_margin_percentage, Decimal) else target_margin_percentage
+        if target_margin_percentage is not None and Decimal('0') < target_margin_percentage < Decimal('1'):
+            # Aplicar margen objetivo a este item usando Decimal
+            margin_percent_decimal = target_margin_percentage
             # #region agent log
             try:
                 import json
@@ -465,10 +464,10 @@ async def calculate_quote_totals_enhanced(
                     "data": {
                         "target_margin_percentage": str(target_margin_percentage),
                         "target_margin_percentage_type": str(type(target_margin_percentage).__name__),
-                        "margin_percent_float": str(margin_percent_float),
-                        "margin_percent_float_type": str(type(margin_percent_float).__name__),
-                        "margin_percent_float_x_100": str(margin_percent_float * 100),
-                        "margin_percent_float_x_100_type": str(type(margin_percent_float * 100).__name__)
+                        "margin_percent_decimal": str(margin_percent_decimal),
+                        "margin_percent_decimal_type": str(type(margin_percent_decimal).__name__),
+                        "margin_percent_decimal_x_100": str(margin_percent_decimal * Decimal('100')),
+                        "margin_percent_decimal_x_100_type": str(type(margin_percent_decimal * Decimal('100')).__name__)
                     },
                     "timestamp": __import__("time").time() * 1000,
                     "sessionId": "debug-session",
@@ -482,7 +481,7 @@ async def calculate_quote_totals_enhanced(
             except:
                 pass
             # #endregion
-            client_price_money = internal_cost_money.apply_margin(margin_percent_float * 100)  # Convert to percentage
+            client_price_money = internal_cost_money.apply_margin(margin_percent_decimal * Decimal('100'))  # Convert to percentage
         
         total_client_price_money = total_client_price_money.add(client_price_money)
         
@@ -542,10 +541,9 @@ async def calculate_quote_totals_enhanced(
     
     # ESTÁNDAR NOUGRAM: Si hay target_margin_percentage, aplicar a toda la propuesta
     # Si no, usar client_price de items + expenses_client_price
-    if target_margin_percentage is not None and 0 < target_margin_percentage < 1:
-        # Aplicar margen objetivo a toda la propuesta (incluyendo expenses)
-        # Convertir a float si es Decimal para evitar problemas de tipo
-        margin_percent_float = float(target_margin_percentage) if isinstance(target_margin_percentage, Decimal) else target_margin_percentage
+    if target_margin_percentage is not None and Decimal('0') < target_margin_percentage < Decimal('1'):
+        # Aplicar margen objetivo a toda la propuesta (incluyendo expenses) usando Decimal
+        margin_percent_decimal = target_margin_percentage
         # #region agent log
         try:
             import json
@@ -556,10 +554,10 @@ async def calculate_quote_totals_enhanced(
                 "data": {
                     "target_margin_percentage": str(target_margin_percentage),
                     "target_margin_percentage_type": str(type(target_margin_percentage).__name__),
-                    "margin_percent_float": str(margin_percent_float),
-                    "margin_percent_float_type": str(type(margin_percent_float).__name__),
-                    "margin_percent_float_x_100": str(margin_percent_float * 100),
-                    "margin_percent_float_x_100_type": str(type(margin_percent_float * 100).__name__)
+                    "margin_percent_decimal": str(margin_percent_decimal),
+                    "margin_percent_decimal_type": str(type(margin_percent_decimal).__name__),
+                    "margin_percent_decimal_x_100": str(margin_percent_decimal * Decimal('100')),
+                    "margin_percent_decimal_x_100_type": str(type(margin_percent_decimal * Decimal('100')).__name__)
                 },
                 "timestamp": __import__("time").time() * 1000,
                 "sessionId": "debug-session",
@@ -573,7 +571,7 @@ async def calculate_quote_totals_enhanced(
         except:
             pass
         # #endregion
-        total_client_price_money = total_internal_cost_money.apply_margin(margin_percent_float * 100)  # Convert to percentage
+        total_client_price_money = total_internal_cost_money.apply_margin(margin_percent_decimal * Decimal('100'))  # Convert to percentage
     else:
         # Usar client_price calculado de items + expenses_client_price
         total_client_price_money = total_client_price_money.add(total_expenses_client_price_money)

@@ -145,15 +145,13 @@ async def calculate_quote(
     
     # Calculate quote totals using enhanced function (with taxes, expenses, and revisions if provided)
     tax_ids = request.tax_ids or []
-    # Convert Decimal to float for target_margin_percentage (function expects float)
-    target_margin_float = float(request.target_margin_percentage) if request.target_margin_percentage is not None else None
     totals = await calculate_quote_totals_enhanced(
         db, 
         items_dict, 
         blended_rate, 
         tax_ids, 
         expenses_dict,
-        target_margin_percentage=target_margin_float,  # Pass target margin as float
+        target_margin_percentage=request.target_margin_percentage,
         revisions_included=request.revisions_included or 2,
         revision_cost_per_additional=request.revision_cost_per_additional,
         revisions_count=request.revisions_count,
