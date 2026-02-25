@@ -9,7 +9,12 @@ export interface Quote {
     project: string;
     client: string;
     clientId?: number;
+    baseAmount?: number;
+    taxAmount?: number;
+    taxRate?: number;
     amount: number;
+    internalCost?: number;
+    profitAmount?: number;
     currency: string;
     margin: number;
     version: number;
@@ -33,6 +38,9 @@ interface QuoteCardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
     const router = useRouter();
+    const baseAmount = quote.baseAmount ?? Math.max(0, quote.amount - (quote.taxAmount ?? 0));
+    const taxAmount = quote.taxAmount ?? 0;
+    const taxRate = quote.taxRate ?? 0;
 
     // Status Logic
     const getStatusStyle = (status: string) => {
@@ -83,6 +91,15 @@ export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
                 <p className="text-[10px] text-[#9AA0A6] font-medium mt-1 uppercase tracking-wide">
                     Total facturado (con impuestos)
                 </p>
+                <div className="mt-2 space-y-1 text-[11px] text-[#6B7280]">
+                    <p>
+                        Presupuesto base: <span className="font-semibold text-[#374151]">${baseAmount.toLocaleString()}</span>
+                    </p>
+                    <p>
+                        Impuestos: <span className="font-semibold text-[#374151]">${taxAmount.toLocaleString()}</span>
+                        {taxRate > 0 ? <span className="ml-1 text-[#9AA0A6]">({taxRate.toFixed(2)}%)</span> : null}
+                    </p>
+                </div>
 
                 <div className="flex items-center gap-2 mt-1">
                     <div className={`h-2 w-2 rounded-full ${getMarginColor(quote.margin).replace('text', 'bg')}`} />

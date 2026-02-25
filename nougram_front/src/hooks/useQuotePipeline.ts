@@ -119,7 +119,8 @@ export function useQuotePipeline() {
                 const draftCount = Number(byStatus.Draft || 0);
 
                 setMetrics({
-                    totalQuoted: Number(dashboardResponse.data.total_revenue || fallbackTotal),
+                    // Keep pipeline KPIs aligned with billed totals shown in cards/table.
+                    totalQuoted: fallbackTotal,
                     pipelineValue: fallbackPipeline,
                     winRate: Number(dashboardResponse.data.conversion_rate || fallbackWinRate),
                     avgMargin,

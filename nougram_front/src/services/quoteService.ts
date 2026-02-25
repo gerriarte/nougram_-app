@@ -27,8 +27,10 @@ type ProjectQuoteResponse = {
     version?: number;
     notes?: string;
     total_internal_cost?: string | number;
-    total_client_price?: number;
-    margin_percentage?: number;
+    total_client_price?: string | number;
+    total_with_taxes?: string | number;
+    total_taxes?: string | number;
+    margin_percentage?: string | number;
     items?: Array<{
         id?: number;
         service_id: number;
@@ -94,15 +96,13 @@ function toPercent(value?: string | number): number {
     return num <= 1 ? num * 100 : num;
 }
 
-function sumTaxRate(taxes?: Array<{ percentage: string | number }>): number {
-    return (taxes || []).reduce((acc, tax) => acc + (Number(tax.percentage) || 0), 0);
+function toSafeNumber(value?: string | number): number {
+    const num = Number(value ?? 0);
+    return Number.isFinite(num) ? num : 0;
 }
 
-function toInvoiceAmount(basePrice?: string | number, taxes?: Array<{ percentage: string | number }>): number {
-    const price = Number(basePrice || 0);
-    if (!Number.isFinite(price) || price <= 0) return 0;
-    const taxRate = sumTaxRate(taxes);
-    return price * (1 + taxRate / 100);
+function sumTaxRate(taxes?: Array<{ percentage: string | number }>): number {
+    return (taxes || []).reduce((acc, tax) => acc + (Number(tax.percentage) || 0), 0);
 }
 
 function resolveProjectTaxes(
@@ -117,14 +117,43 @@ function toRealMarginPercent(
     internalCost?: string | number,
     taxes?: Array<{ percentage: string | number }>
 ): number {
-    const price = Number(basePrice || 0);
-    const cost = Number(internalCost || 0);
+    const price = toSafeNumber(basePrice);
+    const cost = toSafeNumber(internalCost);
     if (!Number.isFinite(price) || price <= 0) return 0;
     const taxRate = sumTaxRate(taxes);
     const taxesAmount = price * (taxRate / 100);
     const realIncome = price - taxesAmount;
     if (realIncome <= 0) return 0;
     return ((realIncome - cost) / realIncome) * 100;
+}
+
+function buildFinancialBreakdown(
+    quote: Pick<ProjectQuoteResponse, 'total_client_price' | 'total_internal_cost' | 'total_with_taxes' | 'total_taxes'> | null | undefined,
+    taxes: Array<{ percentage: string | number }>
+) {
+    const baseAmount = toSafeNumber(quote?.total_client_price);
+    const internalCost = toSafeNumber(quote?.total_internal_cost);
+    const taxRate = sumTaxRate(taxes);
+
+    const taxAmountFromQuote = toSafeNumber(quote?.total_taxes);
+    const billedFromQuote = toSafeNumber(quote?.total_with_taxes);
+
+    const taxAmount = taxAmountFromQuote > 0 ? taxAmountFromQuote : (baseAmount * taxRate) / 100;
+    const billedAmount = billedFromQuote > 0 ? billedFromQuote : baseAmount + taxAmount;
+    const realIncome = Math.max(0, baseAmount - taxAmount);
+    const profitAmount = realIncome - internalCost;
+    const margin = Number(toRealMarginPercent(baseAmount, internalCost, taxes).toFixed(2));
+
+    return {
+        baseAmount,
+        internalCost,
+        taxRate,
+        taxAmount,
+        billedAmount,
+        realIncome,
+        profitAmount,
+        margin,
+    };
 }
 
 function getAllocatedHours(item: QuoteItem): number {
@@ -221,22 +250,20 @@ function buildQuoteCardFromProject(
     },
     latestQuote: ProjectQuoteResponse | null
 ): Quote {
-    const amount = Number(toInvoiceAmount(latestQuote?.total_client_price || 0, project.taxes || []));
-    const margin = Number(
-        toRealMarginPercent(
-            latestQuote?.total_client_price || 0,
-            latestQuote?.total_internal_cost || 0,
-            project.taxes || []
-        ).toFixed(2)
-    );
+    const breakdown = buildFinancialBreakdown(latestQuote, project.taxes || []);
     return {
         id: String(project.id),
         project: project.name,
         client: project.client_name,
         clientId: project.client_id ?? undefined,
-        amount,
+        amount: breakdown.billedAmount,
+        baseAmount: breakdown.baseAmount,
+        taxAmount: breakdown.taxAmount,
+        taxRate: breakdown.taxRate,
+        internalCost: breakdown.internalCost,
+        profitAmount: breakdown.profitAmount,
         currency: project.currency || 'USD',
-        margin,
+        margin: breakdown.margin,
         version: Number(latestQuote?.version || 1),
         status: mapProjectStatusToQuoteStatus(project.status),
         viewedCount: 0,
@@ -284,15 +311,7 @@ export const quoteService = {
                 const detailedQuote = await getQuoteDetailForProject(project.id, latestQuote?.id);
                 const baseQuote = detailedQuote || latestQuote;
                 const projectTaxes = resolveProjectTaxes(projectDetail, project);
-
-                const amount = Number(toInvoiceAmount(baseQuote?.total_client_price || 0, projectTaxes));
-                const margin = Number(
-                    toRealMarginPercent(
-                        baseQuote?.total_client_price || 0,
-                        baseQuote?.total_internal_cost || 0,
-                        projectTaxes
-                    ).toFixed(2)
-                );
+                const breakdown = buildFinancialBreakdown(baseQuote, projectTaxes);
                 const version = Number(latestQuote?.version || 1);
 
                 return {
@@ -300,9 +319,14 @@ export const quoteService = {
                     project: projectDetail.name || project.name,
                     client: projectDetail.client_name || project.client_name,
                     clientId: projectDetail.client_id ?? project.client_id ?? undefined,
-                    amount,
+                    amount: breakdown.billedAmount,
+                    baseAmount: breakdown.baseAmount,
+                    taxAmount: breakdown.taxAmount,
+                    taxRate: breakdown.taxRate,
+                    internalCost: breakdown.internalCost,
+                    profitAmount: breakdown.profitAmount,
                     currency: projectDetail.currency || project.currency || 'USD',
-                    margin,
+                    margin: breakdown.margin,
                     version,
                     status: statusMap[project.status] || 'draft',
                     viewedCount: 0,
