@@ -38,16 +38,6 @@ const INITIAL_STATE: QuoteBuilderState = {
     resourceAllocations: []
 };
 
-const PROJECT_TYPES = [
-    'Desarrollo Web',
-    'Diseño UI/UX',
-    'Marketing Digital',
-    'Consultoría',
-    'Desarrollo de Software',
-    'Branding',
-    'Otro',
-];
-
 const QUOTE_EDITOR_META_KEY = 'nougram_quote_editor_meta_v1';
 
 type QuoteEditorMeta = {
@@ -425,7 +415,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 const firstNamedItem = (q.items || []).find((item) => typeof item.serviceName === 'string' && item.serviceName.includes(' - '));
                 if (!firstNamedItem?.serviceName) return '';
                 const [prefix] = firstNamedItem.serviceName.split(' - ');
-                return PROJECT_TYPES.includes(prefix) ? prefix : '';
+                return prefix?.trim() || '';
             })();
 
             setState(prev => ({

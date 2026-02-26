@@ -9,7 +9,7 @@ import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { QuoteItemRow } from './QuoteItemRow';
 import { ContingencySection } from './ContingencySection';
 import { ClientSelector } from './ClientSelector';
-import { Briefcase, FileText, Globe, Lightbulb, Megaphone, Monitor, Palette } from 'lucide-react';
+import { Briefcase, FileText, Globe, Lightbulb, Megaphone, Monitor, Palette, Repeat, Calculator } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export function QuoteBuilderForm() {
@@ -33,16 +33,35 @@ export function QuoteBuilderForm() {
         }
     };
 
-    // Project Types
-    const PROJECT_TYPES = [
-        { value: 'Desarrollo Web', label: 'Desarrollo Web', icon: Globe },
-        { value: 'Diseño UI/UX', label: 'Diseño UI/UX', icon: Palette },
-        { value: 'Marketing Digital', label: 'Marketing Digital', icon: Megaphone },
-        { value: 'Consultoría', label: 'Consultoría', icon: Briefcase },
-        { value: 'Desarrollo de Software', label: 'Desarrollo de Software', icon: Monitor },
-        { value: 'Branding', label: 'Branding', icon: Lightbulb },
-        { value: 'Otro', label: 'Otro', icon: FileText },
-    ];
+    const inferProjectTypeIcon = (serviceName: string, pricingType?: string) => {
+        const name = serviceName.toLowerCase();
+
+        if (name.includes('marketing') || name.includes('ads') || name.includes('campa')) return Megaphone;
+        if (name.includes('ux') || name.includes('ui') || name.includes('dise')) return Palette;
+        if (name.includes('web')) return Globe;
+        if (name.includes('software') || name.includes('app') || name.includes('sistema')) return Monitor;
+        if (name.includes('brand') || name.includes('marca')) return Lightbulb;
+        if (name.includes('consult')) return Briefcase;
+        if (pricingType === 'recurring') return Repeat;
+        if (pricingType === 'project_value' || pricingType === 'fixed') return Calculator;
+        return FileText;
+    };
+
+    const projectTypeOptions = Array.from(
+        services
+            .filter((service) => service.isActive)
+            .reduce((acc, service) => {
+                if (!acc.has(service.name)) {
+                    acc.set(service.name, {
+                        value: service.name,
+                        label: service.name,
+                        icon: inferProjectTypeIcon(service.name, service.pricingType),
+                    });
+                }
+                return acc;
+            }, new Map<string, { value: string; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }>())
+            .values()
+    );
 
     return (
         <div className="space-y-8 pb-12 max-w-5xl mx-auto">
@@ -90,8 +109,14 @@ export function QuoteBuilderForm() {
                     {/* Middle Row: Project Type */}
                     <div className="space-y-3">
                         <label className="text-sm font-semibold text-gray-700">Tipo de Proyecto</label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                            {PROJECT_TYPES.map((type) => {
+                        <Input
+                            placeholder="Escribe o ajusta el nombre del tipo de proyecto"
+                            value={state.projectType || ''}
+                            onChange={(e) => updateProjectInfo({ projectType: e.target.value })}
+                            className="bg-white"
+                        />
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                            {projectTypeOptions.map((type) => {
                                 const Icon = type.icon;
                                 const isSelected = state.projectType === type.value;
                                 return (
@@ -111,6 +136,11 @@ export function QuoteBuilderForm() {
                                     </button>
                                 )
                             })}
+                            {projectTypeOptions.length === 0 && (
+                                <div className="col-span-full rounded-xl border border-dashed border-gray-200 p-4 text-xs text-gray-500">
+                                    No hay servicios activos para sugerir tipos. Puedes escribir un tipo personalizado.
+                                </div>
+                            )}
                         </div>
                     </div>
 
