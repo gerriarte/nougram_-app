@@ -21,12 +21,14 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
     const uniqueCurrencyCountryMap: Record<string, string> = {
         COP: 'COL',
         ARS: 'ARG',
-        PEN: 'PER'
+        PEN: 'PER',
+        MXN: 'MEX'
     };
     const countryLabels: Record<string, string> = {
         COL: 'Colombia',
         ARG: 'Argentina',
-        PER: 'Peru'
+        PER: 'Peru',
+        MEX: 'Mexico'
     };
 
     const countryOptionsByCurrency: Record<string, Array<{ value: string; label: string }>> = {
@@ -140,6 +142,7 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
                             <option value="USD">USD - Dólar Estadounidense</option>
                             <option value="ARS">ARS - Peso Argentino</option>
                             <option value="PEN">PEN - Sol Peruano</option>
+                            <option value="MXN">MXN - Peso Mexicano</option>
                             <option value="EUR">EUR - Euro</option>
                         </select>
                         {errors.currency && <p className="text-red-500 text-sm">{errors.currency}</p>}

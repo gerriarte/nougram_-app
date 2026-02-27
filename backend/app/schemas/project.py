@@ -14,7 +14,7 @@ class ProjectBase(BaseModel):
     client_id: Optional[int] = Field(None, description="Client master catalog ID (preferred)")
     client_name: str = Field(..., description="Client name (snapshot or when no client_id)", min_length=1)
     client_email: Optional[str] = Field(None, description="Client email")
-    currency: str = Field("USD", description="Currency code (USD, COP, ARS, EUR)")
+    currency: str = Field("USD", description="Currency code (USD, COP, ARS, EUR, PEN, MXN)")
     tax_ids: Optional[List[int]] = Field(default_factory=list, description="List of tax IDs to apply")
 
 

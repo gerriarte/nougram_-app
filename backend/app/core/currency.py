@@ -17,6 +17,7 @@ class Currency(str, Enum):
     ARS = "ARS"  # Argentine Peso
     EUR = "EUR"  # Euro
     PEN = "PEN"  # Peruvian Sol
+    MXN = "MXN"  # Mexican Peso
 
 
 CURRENCY_INFO: dict[str, dict[str, Any]] = {
@@ -65,6 +66,15 @@ CURRENCY_INFO: dict[str, dict[str, Any]] = {
         "decimal_separator": ".",
         "grouping": 3,
     },
+    "MXN": {
+        "symbol": "$",
+        "name": "Mexican Peso",
+        "locale": "es-MX",
+        "decimal_places": 2,
+        "thousands_separator": ",",
+        "decimal_separator": ".",
+        "grouping": 3,
+    },
 }
 
 # Exchange rates to USD (base currency)
@@ -76,6 +86,7 @@ EXCHANGE_RATES_TO_USD: dict[str, float] = {
     "ARS": 850.0,    # Example: 1 USD = 850 ARS (update with real rates)
     "EUR": 0.92,     # Example: 1 USD = 0.92 EUR (update with real rates)
     "PEN": 3.7,      # Example: 1 USD = 3.7 PEN (update with real rates)
+    "MXN": 17.0,     # Example: 1 USD = 17.0 MXN (update with real rates)
 }
 
 
@@ -90,7 +101,7 @@ def format_currency(
     
     Args:
         amount: Amount to format (Money, Decimal, or float)
-        currency: Currency code (USD, COP, ARS, EUR, PEN). Si amount es Money, se usa su currency
+        currency: Currency code (USD, COP, ARS, EUR, PEN, MXN). Si amount es Money, se usa su currency
         use_grouping: Whether to use thousands/millions grouping (default: True)
         
     Returns:

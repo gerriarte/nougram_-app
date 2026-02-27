@@ -8,7 +8,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field, field_serializer
 from app.core.pydantic_config import DECIMAL_CONFIG
 
-CurrencyCode = Literal["USD", "COP", "ARS", "EUR"]
+CurrencyCode = Literal["USD", "COP", "ARS", "EUR", "PEN", "MXN"]
 
 
 class CostFixedBase(BaseModel):
@@ -17,7 +17,7 @@ class CostFixedBase(BaseModel):
     """
     name: str = Field(..., description="Cost name", min_length=1)
     amount_monthly: Decimal = Field(..., description="Monthly amount", gt=0)
-    currency: CurrencyCode = Field("USD", description="Currency code (USD, COP, ARS, EUR)")
+    currency: CurrencyCode = Field("USD", description="Currency code (USD, COP, ARS, EUR, PEN, MXN)")
     category: str = Field(..., description="Cost category (e.g., 'Overhead', 'Software')")
     description: Optional[str] = Field(None, description="Cost description")
     

@@ -9,7 +9,7 @@ import { settingsService } from '@/services/settingsService';
 // --- Types ---
 
 import { UserRole } from '@/types/user';
-export type Currency = 'COP' | 'USD' | 'EUR' | 'ARS' | 'PEN';
+export type Currency = 'COP' | 'USD' | 'EUR' | 'ARS' | 'PEN' | 'MXN';
 
 export interface AgencyIdentity {
     name: string;

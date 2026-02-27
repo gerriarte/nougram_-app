@@ -163,6 +163,7 @@ export const onboardingService = {
             COP: 'COL',
             ARS: 'ARG',
             PEN: 'PER',
+            MXN: 'MEX',
             USD: 'USA',
             EUR: 'ESP'
         };
