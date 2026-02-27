@@ -210,26 +210,6 @@ async def create_project(
             current_user=current_user,
             subscription_plan=tenant.subscription_plan
         )
-        
-        # Log audit event
-        from app.core.audit import AuditService, AuditAction
-        await AuditService.log_action(
-            db=db,
-            action=AuditAction.PROJECT_CREATE,
-            user_id=current_user.id,
-            organization_id=tenant.organization_id,
-            resource_type="project",
-            resource_id=result.project_id,
-            request=None,
-            details={"project_name": project_data.name, "client_name": project_data.client_name},
-            status="success"
-        )
-        
-        # Invalidate dashboard cache (projects affect dashboard metrics)
-        from app.core.cache import get_cache
-        cache = get_cache()
-        cache.invalidate_pattern(f"dashboard:{tenant.organization_id}")
-        
         return result
     except HTTPException:
         await db.rollback()

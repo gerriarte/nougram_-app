@@ -1,16 +1,24 @@
 import { getAuthToken, removeAuthToken } from "@/lib/auth";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export type ApiResponse<T> = {
   data?: T;
   error?: string;
+  /** Set when response.ok is false; allows UI to handle 402 (credits) etc. */
+  statusCode?: number;
 };
 
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
+  if (!API_URL) {
+    return {
+      error:
+        "Configuracion faltante: NEXT_PUBLIC_API_URL no esta definida en el entorno de despliegue.",
+    };
+  }
   const normalizedBase = API_URL.replace(/\/+$/, "");
   try {
     const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
@@ -34,18 +42,18 @@ export async function apiRequest<T>(
       if (response.status === 401) {
         removeAuthToken();
         if (typeof window !== "undefined") {
-          // Let UI layers redirect or show auth-expired messaging.
           window.dispatchEvent(new CustomEvent("nougram:auth-expired"));
         }
-        return { error: "No autorizado. Inicia sesión nuevamente." };
+        return { error: "No autorizado. Inicia sesión nuevamente.", statusCode: 401 };
       }
 
       const errorBody = await response.json().catch(() => ({}));
       const message =
-        errorBody?.detail ||
-        errorBody?.message ||
+        (typeof errorBody?.detail === "string"
+          ? errorBody.detail
+          : errorBody?.message) ||
         `Error ${response.status}: ${response.statusText}`;
-      return { error: String(message) };
+      return { error: String(message), statusCode: response.status };
     }
 
     if (response.status === 204) {

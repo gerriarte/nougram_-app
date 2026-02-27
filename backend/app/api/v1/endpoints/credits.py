@@ -1,24 +1,23 @@
 """
-Credit management endpoints
+Credit management endpoints (thin layer: auth + service call + response).
+All data access and business logic live in CreditService and repositories.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
 
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.tenant import get_tenant_context, TenantContext
-from app.core.permissions import require_super_admin, get_user_role
+from app.core.permissions import require_super_admin
 from app.core.logging import get_logger
 from app.models.user import User
 from app.services.credit_service import CreditService
-from app.repositories.credit_transaction_repository import CreditTransactionRepository
 from app.schemas.credit import (
     CreditBalanceResponse,
     CreditTransactionResponse,
     CreditTransactionListResponse,
     GrantManualCreditsRequest,
-    ResetCreditsRequest
+    ResetCreditsRequest,
 )
 
 logger = get_logger(__name__)
@@ -55,26 +54,17 @@ async def get_my_credit_history(
 ):
     """
     Get credit transaction history for the current user's organization
-    
+
     **Permissions:**
     - All authenticated users can view their organization's transaction history
-    
+
     **Returns:**
     - `200 OK`: List of credit transactions
     """
-    transaction_repo = CreditTransactionRepository(db)
-    offset = (page - 1) * page_size
-    
-    transactions = await transaction_repo.get_by_organization_id(
-        organization_id=tenant.organization_id,
-        limit=page_size,
-        offset=offset
+    transactions, total = await CreditService.get_transaction_history_paginated(
+        tenant.organization_id, db, page=page, page_size=page_size
     )
-    
-    # Get total count efficiently at DB level
-    total = await transaction_repo.count_by_organization_id(tenant.organization_id)
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
-    
     return CreditTransactionListResponse(
         items=[CreditTransactionResponse.model_validate(t) for t in transactions],
         total=total,
@@ -95,29 +85,17 @@ async def get_organization_credit_balance(
 ):
     """
     Get credit balance for a specific organization (Admin only)
-    
+
     **Permissions:**
     - **Super Admin**: Allowed
     - **All other users**: Forbidden
-    
+
     **Returns:**
     - `200 OK`: Credit balance information
     - `403 Forbidden`: User doesn't have permission
     - `404 Not Found`: Organization not found
     """
     require_super_admin(current_user)
-    
-    # Verify organization exists
-    from sqlalchemy import select
-    from app.models.organization import Organization
-    result = await db.execute(select(Organization).where(Organization.id == organization_id))
-    org = result.scalar_one_or_none()
-    if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Organization {organization_id} not found"
-        )
-    
     balance = await CreditService.get_credit_balance(organization_id, db)
     return CreditBalanceResponse(**balance)
 
@@ -131,33 +109,21 @@ async def grant_manual_credits(
 ):
     """
     Grant manual credits to an organization (Admin only)
-    
+
     **Permissions:**
     - **Super Admin**: Allowed
     - **All other users**: Forbidden
-    
+
     **Request Body:**
     - `amount`: Number of credits to grant (must be positive)
     - `reason`: Reason for granting credits
-    
+
     **Returns:**
     - `200 OK`: Updated credit balance
     - `403 Forbidden`: User doesn't have permission
     - `404 Not Found`: Organization not found
     """
     require_super_admin(current_user)
-    
-    # Verify organization exists
-    from sqlalchemy import select
-    from app.models.organization import Organization
-    result = await db.execute(select(Organization).where(Organization.id == organization_id))
-    org = result.scalar_one_or_none()
-    if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Organization {organization_id} not found"
-        )
-    
     await CreditService.grant_manual_credits(
         organization_id=organization_id,
         amount=request.amount,
@@ -165,7 +131,6 @@ async def grant_manual_credits(
         reason=request.reason,
         db=db
     )
-    
     balance = await CreditService.get_credit_balance(organization_id, db)
     return CreditBalanceResponse(**balance)
 
@@ -180,42 +145,21 @@ async def get_organization_credit_transactions(
 ):
     """
     Get credit transaction history for a specific organization (Admin only)
-    
+
     **Permissions:**
     - **Super Admin**: Allowed
     - **All other users**: Forbidden
-    
+
     **Returns:**
     - `200 OK`: List of credit transactions
     - `403 Forbidden`: User doesn't have permission
     - `404 Not Found`: Organization not found
     """
     require_super_admin(current_user)
-    
-    # Verify organization exists
-    from sqlalchemy import select
-    from app.models.organization import Organization
-    result = await db.execute(select(Organization).where(Organization.id == organization_id))
-    org = result.scalar_one_or_none()
-    if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Organization {organization_id} not found"
-        )
-    
-    transaction_repo = CreditTransactionRepository(db)
-    offset = (page - 1) * page_size
-    
-    transactions = await transaction_repo.get_by_organization_id(
-        organization_id=organization_id,
-        limit=page_size,
-        offset=offset
+    transactions, total = await CreditService.get_transaction_history_paginated(
+        organization_id, db, page=page, page_size=page_size
     )
-    
-    # Get total count efficiently at DB level
-    total = await transaction_repo.count_by_organization_id(organization_id)
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
-    
     return CreditTransactionListResponse(
         items=[CreditTransactionResponse.model_validate(t) for t in transactions],
         total=total,
@@ -234,33 +178,20 @@ async def reset_monthly_credits(
 ):
     """
     Manually trigger monthly credit reset for an organization (Admin only)
-    
+
     This forces a monthly reset, granting new credits according to the organization's plan.
-    
+
     **Permissions:**
     - **Super Admin**: Allowed
     - **All other users**: Forbidden
-    
+
     **Returns:**
     - `200 OK`: Updated credit balance after reset
     - `403 Forbidden`: User doesn't have permission
     - `404 Not Found`: Organization not found
     """
     require_super_admin(current_user)
-    
-    # Verify organization exists
-    from sqlalchemy import select
-    from app.models.organization import Organization
-    result = await db.execute(select(Organization).where(Organization.id == organization_id))
-    org = result.scalar_one_or_none()
-    if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Organization {organization_id} not found"
-        )
-    
     await CreditService.grant_subscription_credits(organization_id, db, force=True)
-    
     balance = await CreditService.get_credit_balance(organization_id, db)
     return CreditBalanceResponse(**balance)
 

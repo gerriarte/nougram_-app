@@ -1,7 +1,7 @@
 """
 Credit Service for managing organization credits
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
@@ -106,7 +106,32 @@ class CreditService:
             "next_reset_at": account.next_reset_at.isoformat() if account.next_reset_at else None,
             "is_unlimited": account.credits_per_month is None
         }
-    
+
+    @staticmethod
+    async def get_transaction_history_paginated(
+        organization_id: int,
+        db: AsyncSession,
+        page: int,
+        page_size: int,
+    ) -> Tuple[List[CreditTransaction], int]:
+        """
+        Get paginated credit transaction history for an organization.
+        Raises HTTP 404 if organization does not exist (via get_or_create_credit_account).
+
+        Returns:
+            (transactions, total_count)
+        """
+        await CreditService.get_or_create_credit_account(organization_id, db)
+        transaction_repo = CreditTransactionRepository(db)
+        offset = (page - 1) * page_size
+        transactions = await transaction_repo.get_by_organization_id(
+            organization_id=organization_id,
+            limit=page_size,
+            offset=offset,
+        )
+        total = await transaction_repo.count_by_organization_id(organization_id)
+        return transactions, total
+
     @staticmethod
     async def validate_and_consume_credits(
         organization_id: int,

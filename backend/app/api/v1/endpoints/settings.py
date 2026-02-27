@@ -1,23 +1,22 @@
 """
-Agency settings endpoints
+Agency settings endpoints (thin layer: auth + SettingsService + response).
+Currency/country validation and organization.settings access are in SettingsService.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.core.currency import get_all_currencies, get_currency_symbol, is_valid_currency
+from app.core.currency import get_all_currencies, get_currency_symbol
 from app.core.logging import get_logger
 from app.core.permissions import get_user_role
 from app.models.user import User
-from app.models.settings import AgencySettings
-from app.models.organization import Organization
-from app.repositories.settings_repository import SettingsRepository
 from app.schemas.settings import (
-    AgencySettingsResponse, 
+    AgencySettingsResponse,
     AgencySettingsUpdate,
-    ExchangeRatesResponse
+    ExchangeRatesResponse,
 )
+from app.services.settings_service import SettingsService
 from app.services.exchange_rate_service import get_today_exchange_rates
 
 logger = get_logger(__name__)
@@ -38,43 +37,24 @@ async def get_agency_currency_settings(
     If include_rates=true and user is owner or super_admin, also returns today's exchange rates.
     """
     try:
-        # Prioritize organization settings
-        primary_currency = "USD"
-        if current_user.organization_id:
-            from sqlalchemy import select
-            result = await db.execute(select(Organization).where(Organization.id == current_user.organization_id))
-            org = result.scalar_one_or_none()
-            if org and org.settings and org.settings.get('primary_currency'):
-                primary_currency = org.settings['primary_currency']
-            else:
-                # Fallback to AgencySettings
-                settings_repo = SettingsRepository(db)
-                settings = await settings_repo.get_or_create_default()
-                primary_currency = settings.primary_currency
-        else:
-            settings_repo = SettingsRepository(db)
-            settings = await settings_repo.get_or_create_default()
-            primary_currency = settings.primary_currency
-        
-        # Check if user can view exchange rates (owner or super_admin)
+        settings_service = SettingsService(db)
+        primary_currency = await settings_service.get_primary_currency(current_user.organization_id)
+
         user_role = get_user_role(current_user)
         can_view_rates = user_role in ["owner", "super_admin"]
-        
         exchange_rates = None
         if include_rates and can_view_rates:
             try:
                 exchange_rates = await get_today_exchange_rates()
             except Exception as e:
                 logger.warning("Error fetching exchange rates", error=str(e), user_id=current_user.id)
-                # Continue without rates if API fails
-        
+
         return AgencySettingsResponse(
             primary_currency=primary_currency,
             currency_symbol=get_currency_symbol(primary_currency),
             available_currencies=get_all_currencies(),
             exchange_rates=exchange_rates
         )
-        
     except Exception as e:
         logger.error("Error getting currency settings", error=str(e), user_id=current_user.id, exc_info=True)
         raise HTTPException(
@@ -91,43 +71,22 @@ async def update_agency_currency_settings(
 ):
     """
     Update agency primary currency settings
-    
+
     This affects how costs and prices are displayed and calculated.
+    Validation (is_valid_currency) is done in SettingsService.
     """
     try:
-        # Validate currency
-        if not is_valid_currency(settings_data.primary_currency):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid currency: {settings_data.primary_currency}. Supported: USD, COP, ARS, EUR"
-            )
-        
-        # Prioritize updating organization settings
-        if current_user.organization_id:
-            from sqlalchemy import select
-            result = await db.execute(select(Organization).where(Organization.id == current_user.organization_id))
-            org = result.scalar_one_or_none()
-            if org:
-                settings = org.settings or {}
-                settings['primary_currency'] = settings_data.primary_currency
-                org.settings = settings
-                await db.commit()
-                logger.info("Organization currency settings updated", currency=settings_data.primary_currency, org_id=org.id)
-        
-        # Also update global settings as a fallback/sync (optional, but keeps compatibility)
-        settings_repo = SettingsRepository(db)
-        settings = await settings_repo.get_or_create_default()
-        settings.primary_currency = settings_data.primary_currency
-        settings.currency_symbol = get_currency_symbol(settings_data.primary_currency)
-        await settings_repo.update(settings)
-        
+        settings_service = SettingsService(db)
+        await settings_service.update_primary_currency(
+            settings_data.primary_currency,
+            organization_id=current_user.organization_id,
+        )
         logger.info("Currency settings updated successfully", user_id=current_user.id)
         return AgencySettingsResponse(
             primary_currency=settings_data.primary_currency,
             currency_symbol=get_currency_symbol(settings_data.primary_currency),
             available_currencies=get_all_currencies()
         )
-        
     except HTTPException:
         raise
     except Exception as e:

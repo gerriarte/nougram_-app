@@ -95,16 +95,15 @@ class ProjectService:
                 detail=f"Services with ids {list(missing)} not found, inactive, or deleted"
             )
         
-        # Calculate blended cost rate
-        from app.models.organization import Organization
-        org_result = await self.db.execute(select(Organization).where(Organization.id == self.organization_id))
-        org = org_result.scalar_one_or_none()
-        primary_currency = org.settings.get('primary_currency', 'USD') if org and org.settings else 'USD'
-        social_config = org.settings.get('social_charges_config') if org and org.settings else None
-        
+        # Calculate blended cost rate (currency and social_config via SettingsService)
+        from app.services.settings_service import SettingsService
+        settings_service = SettingsService(self.db)
+        primary_currency, social_config = await settings_service.get_organization_currency_and_social_config(
+            self.organization_id
+        )
         logger.info("Calculating blended cost rate...")
         blended_rate = await calculate_blended_cost_rate(
-            self.db, 
+            self.db,
             primary_currency=primary_currency,
             tenant_id=self.organization_id,
             social_charges_config=social_config
@@ -235,6 +234,10 @@ class ProjectService:
             status="success"
         )
         
+        # Invalidate dashboard cache (projects affect dashboard metrics)
+        from app.core.cache import get_cache
+        get_cache().invalidate_pattern(f"dashboard:{self.organization_id}")
+        
         return response
     
     async def create_new_quote_version(
@@ -295,12 +298,12 @@ class ProjectService:
                 detail=f"Services with ids {list(missing)} not found or inactive"
             )
         
-        # Calculate blended cost rate
-        from app.models.organization import Organization
-        org_result = await self.db.execute(select(Organization).where(Organization.id == self.organization_id))
-        org = org_result.scalar_one_or_none()
-        social_config = org.settings.get('social_charges_config') if org and org.settings else None
-        
+        # Calculate blended cost rate (currency and social_config via SettingsService)
+        from app.services.settings_service import SettingsService
+        settings_service = SettingsService(self.db)
+        _, social_config = await settings_service.get_organization_currency_and_social_config(
+            self.organization_id
+        )
         blended_rate = await calculate_blended_cost_rate(
             self.db, 
             project.currency, 
@@ -372,20 +375,23 @@ class ProjectService:
         if quote_allocations:
             self.db.add_all(quote_allocations)
 
-        # 1 quote creation = 1 credit consumption (also for new versions)
+        # 1 new quote version = 1 credit consumption
         await CreditService.validate_and_consume_credits(
             organization_id=self.organization_id,
             amount=1,
             user_id=current_user.id,
-            reason=f"Created quote v{new_version} for project '{project.name}'",
+            reason=f"Created quote v{new_version} for project (new version)",
             db=self.db,
             reference_id=new_quote.id,
         )
-        logger.info(f"Consumed 1 credit for quote version creation by user {current_user.id}")
-        
+        logger.info(f"Consumed 1 credit for new quote version by user {current_user.id}")
         await self.db.commit()
         await self.db.refresh(new_quote)
         
+        # Invalidate dashboard cache (quote affects metrics)
+        from app.core.cache import get_cache
+        get_cache().invalidate_pattern(f"dashboard:{self.organization_id}")
+
         # Build response
         return await self._build_quote_response(new_quote)
     

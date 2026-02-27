@@ -11,9 +11,10 @@ import { ContingencySection } from './ContingencySection';
 import { ClientSelector } from './ClientSelector';
 import { Briefcase, FileText, Globe, Lightbulb, Megaphone, Monitor, Palette } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { PaywallModal } from '@/components/billing/PaywallModal';
 
 export function QuoteBuilderForm() {
-    const { state, services, updateProjectInfo, addItem, summary, isValid, errors, saveQuote } = useQuoteBuilder();
+    const { state, services, updateProjectInfo, addItem, summary, isValid, errors, saveQuote, paywall, clearPaywall } = useQuoteBuilder();
     const router = useRouter();
     const hourlyService = services.find((s) => s.pricingType === 'hourly');
     const fixedService = services.find((s) => s.pricingType === 'fixed');
@@ -45,6 +46,7 @@ export function QuoteBuilderForm() {
     ];
 
     return (
+        <>
         <div className="space-y-8 pb-12 max-w-5xl mx-auto">
             {/* 1. Project Info */}
             <Card className="overflow-hidden border-none shadow-xl bg-white/80 backdrop-blur-2xl">
@@ -204,6 +206,21 @@ export function QuoteBuilderForm() {
                 </div>
             </div>
         </div>
+
+        <PaywallModal
+            isOpen={paywall.open}
+            onClose={clearPaywall}
+            reason={paywall.reason}
+            data={paywall.reason === 'credits_insufficient' ? {
+                availableCredits: paywall.data?.availableCredits,
+                requiredCredits: paywall.data?.requiredCredits,
+            } : undefined}
+            onUpgrade={() => {
+                clearPaywall();
+                router.push('/billing');
+            }}
+        />
+        </>
     );
 }
 

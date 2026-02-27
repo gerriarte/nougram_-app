@@ -2,6 +2,7 @@
 import { Quote } from '@/components/dashboard/QuoteCard';
 import { QuoteBuilderState, CalculationSummary, Service, QuoteItem } from '@/types/quote-builder';
 import { apiRequest } from '@/lib/api-client';
+import { CreditsRequiredError } from '@/lib/errors';
 
 type ProjectListItem = {
     id: number;
@@ -87,6 +88,17 @@ type SendEmailPayload = {
     message?: string;
     includePdf?: boolean;
 };
+
+/** Parse "Available: X, Required: Y" from backend 402 message for PaywallModal. */
+function parseCreditsFromMessage(message?: string): { availableCredits?: number; requiredCredits?: number } {
+    const out: { availableCredits?: number; requiredCredits?: number } = {};
+    if (!message || typeof message !== 'string') return out;
+    const availMatch = message.match(/Available:\s*(\d+)/i);
+    const reqMatch = message.match(/Required:\s*(\d+)/i);
+    if (availMatch) out.availableCredits = parseInt(availMatch[1], 10);
+    if (reqMatch) out.requiredCredits = parseInt(reqMatch[1], 10);
+    return out;
+}
 
 function toPercent(value?: string | number): number {
     const num = Number(value || 0);
@@ -362,6 +374,14 @@ export const quoteService = {
         });
 
         if (response.error || !response.data?.project_id) {
+            if (response.statusCode === 402) {
+                const { availableCredits, requiredCredits } = parseCreditsFromMessage(response.error);
+                throw new CreditsRequiredError(
+                    response.error,
+                    availableCredits,
+                    requiredCredits ?? 1
+                );
+            }
             throw new Error(response.error || 'No se pudo crear el proyecto/cotización');
         }
 
@@ -425,7 +445,7 @@ export const quoteService = {
 
         const payloadItems = (data.items || []).map((item: QuoteItem) => mapQuoteItemToApi(item));
 
-        const response = await apiRequest(
+        const response = await apiRequest<{ id: number; project_id: number; version: number }>(
             `/projects/${id}/quotes/${latestQuote.id}/new-version`,
             {
                 method: 'POST',
@@ -438,6 +458,14 @@ export const quoteService = {
         );
 
         if (response.error) {
+            if (response.statusCode === 402) {
+                const { availableCredits, requiredCredits } = parseCreditsFromMessage(response.error);
+                throw new CreditsRequiredError(
+                    response.error,
+                    availableCredits,
+                    requiredCredits ?? 1
+                );
+            }
             throw new Error(response.error);
         }
     },

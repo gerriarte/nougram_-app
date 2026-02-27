@@ -462,7 +462,13 @@ export default function SuperAdminAccountsPage() {
         setError(null);
         setSuccess(null);
 
-        const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1').replace(/\/+$/, '');
+        const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
+        if (!configuredApiUrl) {
+            setError('Configuracion faltante: NEXT_PUBLIC_API_URL no esta definida.');
+            setExportLoading(false);
+            return;
+        }
+        const apiBase = configuredApiUrl.replace(/\/+$/, '');
         const token = getAuthToken();
         if (!token) {
             setError('No se encontro token de autenticacion para exportar.');
