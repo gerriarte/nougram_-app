@@ -6,6 +6,7 @@ import { useNougram } from '@/context/NougramCoreContext';
 import { TeamMember, FixedCost, SocialChargesConfig, GlobalConfig, BCRCalculation } from '@/types/admin';
 import { teamService } from '@/services/teamService';
 import { socialChargesService } from '@/services/socialChargesService';
+import { settingsService } from '@/services/settingsService';
 
 // Initial Mock Data (to avoid starting empty)
 const DEFAULT_SOCIAL_CHARGES: SocialChargesConfig = {
@@ -80,6 +81,18 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             if (config) setSocialCharges(config);
         };
         void loadSocialCharges();
+    }, []);
+
+    useEffect(() => {
+        const syncPrimaryCurrency = async () => {
+            const primaryCurrency = await settingsService.getPrimaryCurrency();
+            if (!primaryCurrency) return;
+            setGlobalSettings(prev => ({
+                ...prev,
+                primary_currency: primaryCurrency as GlobalConfig['primary_currency']
+            }));
+        };
+        void syncPrimaryCurrency();
     }, []);
 
     const bcr: BCRCalculation = useMemo(() => {

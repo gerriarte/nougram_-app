@@ -1,27 +1,40 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { toast } from 'sonner';
 
 interface StepReadyProps {
     data: any;
+    onPersistOnboarding: () => Promise<void>;
     onGoToDashboard: () => void;
     onCreateQuote: () => void;
 }
 
-export function StepReady({ data, onGoToDashboard, onCreateQuote }: StepReadyProps) {
+export function StepReady({ data, onPersistOnboarding, onGoToDashboard, onCreateQuote }: StepReadyProps) {
     // Extract data
-    const currency = data.identity.currency;
+    const teamMembers = Array.isArray(data.team) ? data.team : [];
+    const currency = data.identity.primaryCurrency;
     const monthlyFixedCosts = data.fixedCosts.totalMonthly;
-    const monthlyPayroll = data.team.salaryWithCharges;
-    const salaryWithCharges = data.team.salaryWithCharges;
+    const monthlyPayroll = teamMembers.reduce((acc: number, member: any) => {
+        const baseSalary = Number(member.salary || 0);
+        const withCharges = member.applySocialCharges ? baseSalary * 1.52852 : baseSalary;
+        return acc + withCharges;
+    }, 0);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isSaved, setIsSaved] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     // Interactive State for "What-if" scenario
-    const [billableHoursPerWeek, setBillableHoursPerWeek] = useState<number>(data.team.billableHours);
+    const initialBillableHours = teamMembers.reduce((acc: number, member: any) => acc + Number(member.billableHours || 0), 0);
+    const [billableHoursPerWeek, setBillableHoursPerWeek] = useState<number>(Math.max(1, initialBillableHours));
 
     // Initial constants
-    const vacationDays = data.team.vacationDays;
+    const averageVacationDays = teamMembers.length > 0
+        ? teamMembers.reduce((acc: number, member: any) => acc + Number(member.vacationDays || 0), 0) / teamMembers.length
+        : 20;
+    const vacationDays = averageVacationDays;
     const weeksPerYear = 52;
     const productiveWeeks = weeksPerYear - (vacationDays / 5);
 
@@ -42,13 +55,38 @@ export function StepReady({ data, onGoToDashboard, onCreateQuote }: StepReadyPro
     // Determine color based on hours (just for visual flair)
     const bcrColor = billableHoursPerWeek < 20 ? 'text-orange-600' : 'text-blue-700';
 
+    const handleComplete = async (action: 'dashboard' | 'quote') => {
+        if (isSaving || isSaved) return;
+        setSaveError(null);
+        setIsSaving(true);
+        try {
+            await onPersistOnboarding();
+            setIsSaved(true);
+            toast.success('Configuración inicial guardada');
+            setIsSaving(false);
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            if (action === 'dashboard') {
+                onGoToDashboard();
+            } else {
+                onCreateQuote();
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'No fue posible guardar tu onboarding';
+            setSaveError(errorMessage);
+            toast.error(errorMessage);
+            setIsSaving(false);
+        }
+    };
+
     return (
         <div className="space-y-8 max-w-3xl mx-auto text-center">
 
             <div className="space-y-2">
                 <span className="text-4xl">🎉</span>
                 <h1 className="text-3xl font-bold text-gray-900">¡Listo! Tu estructura de costos está configurada</h1>
-                <p className="text-gray-600">Este es el mínimo que debes cobrar por hora para ser rentable.</p>
+                <p className="text-gray-600">
+                    Este es tu BCR inicial: el costo mínimo por hora que debes cobrar para no perder dinero.
+                </p>
             </div>
 
             {/* Main BCR Result */}
@@ -84,7 +122,7 @@ export function StepReady({ data, onGoToDashboard, onCreateQuote }: StepReadyPro
                     <Input
                         type="range"
                         min="15"
-                        max="60"
+                        max={Math.max(60, initialBillableHours + 20)}
                         step="1"
                         value={billableHoursPerWeek}
                         onChange={(e) => setBillableHoursPerWeek(parseInt(e.target.value))}
@@ -115,28 +153,50 @@ export function StepReady({ data, onGoToDashboard, onCreateQuote }: StepReadyPro
 
                 <Card>
                     <CardContent className="pt-6 space-y-3">
-                        <h4 className="font-semibold text-gray-900 border-b pb-2">💡 ¿Por qué cálculo anual?</h4>
+                        <h4 className="font-semibold text-gray-900 border-b pb-2">💡 ¿Qué es el BCR?</h4>
                         <p className="text-sm text-gray-600">
-                            Si solo calculáramos mensualmente (4.33 semanas), ignoraríamos tus {vacationDays} días de descanso.
+                            El BCR (Blended Cost Rate) es tu costo por hora considerando salarios, cargas y costos fijos.
+                            Te sirve como base para definir precios rentables en cada cotización.
                         </p>
                         <div className="bg-amber-50 p-2 rounded text-xs text-amber-800 border border-amber-100 mt-2">
-                            ⚠️ Cálculo mensual simple daría: <strong>${Math.round(bcrMonthlyWrong).toLocaleString()}</strong>.
-                            <br />
-                            ¡Estarías subestimando tu costo en un <strong>{Math.round(((bcr - bcrMonthlyWrong) / bcr) * 100)}%</strong>!
+                            Siguiente paso recomendado: completa y revisa todos tus costos operacionales en Admin
+                            antes de emitir cotizaciones al cliente final.
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
+            <Card className="border-indigo-200 bg-indigo-50">
+                <CardContent className="pt-6 text-left space-y-2">
+                    <h4 className="font-semibold text-indigo-900">Antes de crear una cotización</h4>
+                    <p className="text-sm text-indigo-900">
+                        1) Verifica que tu equipo esté completo.
+                        <br />
+                        2) Agrega todos los costos operacionales pendientes (software, servicios, overhead).
+                        <br />
+                        3) Usa este BCR como base para fijar precios y márgenes.
+                    </p>
+                </CardContent>
+            </Card>
+
             {/* Final Actions */}
             <div className="flex flex-col sm:flex-row gap-4 pt-4 justify-center">
-                <Button variant="secondary" onClick={onGoToDashboard} className="w-full sm:w-auto">
+                <Button variant="secondary" onClick={() => void handleComplete('dashboard')} className="w-full sm:w-auto" disabled={isSaving || isSaved}>
                     Ir al Dashboard
                 </Button>
-                <Button size="lg" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={onCreateQuote}>
+                <Button size="lg" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={() => void handleComplete('quote')} disabled={isSaving || isSaved}>
                     Crear mi Primera Cotización →
                 </Button>
             </div>
+            {isSaving && (
+                <p className="text-sm text-gray-500">Guardando configuración inicial...</p>
+            )}
+            {isSaved && (
+                <p className="text-sm text-green-700">Configuración guardada con éxito. Redirigiendo...</p>
+            )}
+            {saveError && (
+                <p className="text-sm text-red-600">{saveError}</p>
+            )}
         </div>
     );
 }

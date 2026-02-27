@@ -3,16 +3,20 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { OnboardingStepper } from '@/components/onboarding/OnboardingStepper';
 import { StepIdentity } from '@/components/onboarding/StepIdentity';
 import { StepFixedCosts } from '@/components/onboarding/StepFixedCosts';
 import { StepMyTeam } from '@/components/onboarding/StepMyTeam';
 import { StepReady } from '@/components/onboarding/StepReady';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { onboardingService } from '@/services/onboardingService';
+import { useNougram } from '@/context/NougramCoreContext';
 
 export default function OnboardingPage() {
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState(1);
+    const { hydrateFromOnboarding } = useNougram();
 
     // Use the hook for state management
     const {
@@ -32,6 +36,17 @@ export default function OnboardingPage() {
         window.scrollTo(0, 0);
     };
 
+    const persistOnboarding = async () => {
+        const result = await onboardingService.completeOnboarding(onboardingData);
+        if (!result.success) {
+            throw new Error(result.error || 'No fue posible completar onboarding');
+        }
+
+        const completedData = { ...onboardingData, status: 'completed' as const, lastStep: 4 };
+        localStorage.setItem('nougram_onboarding_data', JSON.stringify(completedData));
+        hydrateFromOnboarding(completedData);
+    };
+
     const handleGoToDashboard = () => {
         router.push('/dashboard');
     };
@@ -45,7 +60,13 @@ export default function OnboardingPage() {
             {/* Header / Nav */}
             <div className="bg-white border-b border-gray-200 px-4 py-4">
                 <div className="max-w-7xl mx-auto flex items-center gap-2">
-                    <span className="font-bold text-xl text-blue-600">Nougram</span>
+                    <Image
+                        src="/brand/Logo-orange.svg"
+                        alt="Nougram"
+                        width={130}
+                        height={30}
+                        priority
+                    />
                     <span className="text-gray-300">|</span>
                     <span className="text-sm text-gray-500">Configuración Inicial</span>
                 </div>
@@ -86,12 +107,14 @@ export default function OnboardingPage() {
                             onBack={handleBackStep}
                             initialData={onboardingData.team}
                             currency={onboardingData.identity.primaryCurrency}
+                            country={onboardingData.identity.country}
                         />
                     )}
 
                     {currentStep === 4 && (
                         <StepReady
                             data={onboardingData}
+                            onPersistOnboarding={persistOnboarding}
                             onGoToDashboard={handleGoToDashboard}
                             onCreateQuote={handleCreateQuote}
                         />

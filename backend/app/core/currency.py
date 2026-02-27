@@ -16,6 +16,7 @@ class Currency(str, Enum):
     COP = "COP"  # Colombian Peso
     ARS = "ARS"  # Argentine Peso
     EUR = "EUR"  # Euro
+    PEN = "PEN"  # Peruvian Sol
 
 
 CURRENCY_INFO: dict[str, dict[str, Any]] = {
@@ -55,6 +56,15 @@ CURRENCY_INFO: dict[str, dict[str, Any]] = {
         "decimal_separator": ",",  # Decimal separator
         "grouping": 3,  # Group digits by 3 (thousands, millions, etc.)
     },
+    "PEN": {
+        "symbol": "S/",
+        "name": "Peruvian Sol",
+        "locale": "es-PE",
+        "decimal_places": 2,
+        "thousands_separator": ",",
+        "decimal_separator": ".",
+        "grouping": 3,
+    },
 }
 
 # Exchange rates to USD (base currency)
@@ -65,6 +75,7 @@ EXCHANGE_RATES_TO_USD: dict[str, float] = {
     "COP": 4000.0,   # Example: 1 USD = 4000 COP (update with real rates)
     "ARS": 850.0,    # Example: 1 USD = 850 ARS (update with real rates)
     "EUR": 0.92,     # Example: 1 USD = 0.92 EUR (update with real rates)
+    "PEN": 3.7,      # Example: 1 USD = 3.7 PEN (update with real rates)
 }
 
 
@@ -79,7 +90,7 @@ def format_currency(
     
     Args:
         amount: Amount to format (Money, Decimal, or float)
-        currency: Currency code (USD, COP, ARS, EUR). Si amount es Money, se usa su currency
+        currency: Currency code (USD, COP, ARS, EUR, PEN). Si amount es Money, se usa su currency
         use_grouping: Whether to use thousands/millions grouping (default: True)
         
     Returns:

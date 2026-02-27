@@ -83,7 +83,7 @@ export interface QuoteBuilderState {
     clientEmail: string;
     projectType?: string;
     projectDescription?: string;
-    currency: 'COP' | 'USD';
+    currency: 'COP' | 'USD' | 'EUR' | 'ARS' | 'PEN';
 
     // Items
     items: QuoteItem[];

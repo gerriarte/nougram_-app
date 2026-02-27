@@ -59,6 +59,7 @@ class OnboardingExpense(BaseModel):
     category: Literal["rent", "software", "services"] = Field(...)
     amount_monthly: Decimal = Field(..., gt=0)
     currency: str = Field("USD")
+    cost_type: Literal["operational", "amortization"] = Field("operational")
     
     @field_serializer('amount_monthly')
     def serialize_decimal(self, value: Decimal) -> str:

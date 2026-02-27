@@ -6,6 +6,7 @@ import {
     GlobalConfig
 } from "@/types/admin";
 import { adminService } from '@/services/adminService';
+import { settingsService } from '@/services/settingsService';
 
 export function useAdminData() {
     const [isLoading, setIsLoading] = useState(true);
@@ -30,6 +31,17 @@ export function useAdminData() {
         setSocialConfig(s);
         setGlobalConfig(g);
         setIsLoading(false);
+
+        void (async () => {
+            const primaryCurrency = await settingsService.getPrimaryCurrency();
+            if (!primaryCurrency) return;
+
+            setGlobalConfig(prev => {
+                const next = { ...prev, primary_currency: primaryCurrency as GlobalConfig['primary_currency'] };
+                adminService.saveGlobalConfig(next);
+                return next;
+            });
+        })();
     }, []);
 
     // --- UPDATERS (Sync state + Storage) ---

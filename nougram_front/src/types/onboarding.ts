@@ -5,6 +5,7 @@ export interface FixedCostTemplate {
     amount: number;
     currency: string;
     category: 'Tools' | 'Software' | 'Overhead' | 'Other';
+    costType: 'operational' | 'amortization';
     icon: string;
     preSelectedFor?: string[];
     isCustom?: boolean;
@@ -15,9 +16,10 @@ export interface OnboardingData {
         organizationName: string;
         primaryCurrency: string;
         country?: string;
+        profileType: 'freelance' | 'company' | 'agency';
     };
     fixedCosts: Step2FixedCostsData;
-    team: Step3MyTeamData;
+    team: Step3MyTeamData[];
     status: 'in_progress' | 'completed';
     lastStep: number;
 }
@@ -28,6 +30,7 @@ export interface Step2FixedCostsData {
 }
 
 export interface Step3MyTeamData {
+    id: string;
     name: string;
     role: string;
     level: 'Junior' | 'Mid' | 'Senior' | '';

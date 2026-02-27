@@ -8,24 +8,14 @@ const INITIAL_DATA: OnboardingData = {
     identity: {
         organizationName: '',
         primaryCurrency: 'COP',
-        country: 'Colombia'
+        country: 'COL',
+        profileType: 'freelance'
     },
     fixedCosts: {
         selectedTemplates: [],
         totalMonthly: 0
     },
-    team: {
-        name: '',
-        role: '',
-        level: '',
-        salary: 0,
-        totalHours: 40,
-        billableHours: 28,
-        vacationDays: 20,
-        applySocialCharges: true,
-        yearlyBillableHours: 0,
-        hourlyCost: 0
-    },
+    team: [],
     status: 'in_progress',
     lastStep: 1
 };
@@ -40,7 +30,29 @@ export function useOnboarding() {
         const saved = localStorage.getItem('nougram_onboarding_data');
         if (saved) {
             try {
-                setData(JSON.parse(saved));
+                const parsed = JSON.parse(saved);
+                const parsedTeam = Array.isArray(parsed?.team)
+                    ? parsed.team
+                    : (parsed?.team && typeof parsed.team === 'object' ? [parsed.team] : []);
+                setData({
+                    ...INITIAL_DATA,
+                    ...parsed,
+                    identity: { ...INITIAL_DATA.identity, ...(parsed?.identity || {}) },
+                    fixedCosts: { ...INITIAL_DATA.fixedCosts, ...(parsed?.fixedCosts || {}) },
+                    team: parsedTeam.map((member: any, index: number) => ({
+                        id: member?.id || `member-${index + 1}`,
+                        name: member?.name || '',
+                        role: member?.role || '',
+                        level: member?.level || '',
+                        salary: Number(member?.salary || 0),
+                        totalHours: Number(member?.totalHours || 40),
+                        billableHours: Number(member?.billableHours || 28),
+                        vacationDays: Number(member?.vacationDays || 20),
+                        applySocialCharges: Boolean(member?.applySocialCharges),
+                        yearlyBillableHours: Number(member?.yearlyBillableHours || 0),
+                        hourlyCost: Number(member?.hourlyCost || 0)
+                    }))
+                });
             } catch (e) {
                 console.error("Failed to parse onboarding data", e);
             }
@@ -73,23 +85,10 @@ export function useOnboarding() {
         }));
     };
 
-    const updateTeam = (team: Partial<OnboardingData['team']>) => {
-        // Auto-calculate True Hourly Cost whenever team data changes
-        const fullTeam = { ...data.team, ...team };
-
-        const analysis = onboardingService.calculateTrueHourlyCost(
-            fullTeam.applySocialCharges ? fullTeam.salary * 1.52852 : fullTeam.salary, // Approx social charges
-            fullTeam.billableHours,
-            fullTeam.vacationDays
-        );
-
+    const updateTeam = (team: OnboardingData['team']) => {
         setData((prev: OnboardingData) => ({
             ...prev,
-            team: {
-                ...fullTeam,
-                hourlyCost: analysis.hourlyCost,
-                yearlyBillableHours: analysis.annualBillableHours
-            }
+            team
         }));
     };
 

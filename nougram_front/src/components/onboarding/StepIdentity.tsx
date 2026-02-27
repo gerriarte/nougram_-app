@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -13,21 +13,67 @@ interface StepIdentityProps {
 
 export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
     const [organizationName, setOrganizationName] = useState(initialData?.organizationName || '');
-    const [currency, setCurrency] = useState(initialData?.currency || '');
+    const [currency, setCurrency] = useState(initialData?.primaryCurrency || '');
     const [country, setCountry] = useState(initialData?.country || '');
+    const [profileType, setProfileType] = useState(initialData?.profileType || 'freelance');
     const [errors, setErrors] = useState<any>({});
+
+    const uniqueCurrencyCountryMap: Record<string, string> = {
+        COP: 'COL',
+        ARS: 'ARG',
+        PEN: 'PER'
+    };
+    const countryLabels: Record<string, string> = {
+        COL: 'Colombia',
+        ARG: 'Argentina',
+        PER: 'Peru'
+    };
+
+    const countryOptionsByCurrency: Record<string, Array<{ value: string; label: string }>> = {
+        USD: [
+            { value: 'USA', label: 'Estados Unidos' },
+            { value: 'ECU', label: 'Ecuador' },
+            { value: 'PAN', label: 'Panamá' }
+        ],
+        EUR: [
+            { value: 'ESP', label: 'España' },
+            { value: 'DEU', label: 'Alemania' },
+            { value: 'FRA', label: 'Francia' },
+            { value: 'ITA', label: 'Italia' }
+        ]
+    };
+
+    const isCountryLockedByCurrency = Boolean(uniqueCurrencyCountryMap[currency]);
+    const availableCountryOptions = useMemo(
+        () => countryOptionsByCurrency[currency] || [],
+        [currency]
+    );
+
+    useEffect(() => {
+        if (uniqueCurrencyCountryMap[currency]) {
+            setCountry(uniqueCurrencyCountryMap[currency]);
+            return;
+        }
+
+        // For shared currencies (USD/EUR), keep only valid selected options.
+        if (country && !availableCountryOptions.some((opt) => opt.value === country)) {
+            setCountry('');
+        }
+    }, [currency, country, availableCountryOptions]);
 
     const validate = () => {
         const newErrors: any = {};
         if (!organizationName.trim()) newErrors.organizationName = 'El nombre de la organización es requerido';
         if (!currency) newErrors.currency = 'La moneda es requerida';
+        if (!profileType) newErrors.profileType = 'El tipo de empresa es requerido';
+        if (!country) newErrors.country = 'El país es requerido';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
     const handleNext = () => {
         if (validate()) {
-            onNext({ organizationName, currency, country });
+            onNext({ organizationName, primaryCurrency: currency, country, profileType });
         }
     };
 
@@ -61,17 +107,39 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
                     </div>
 
                     <div className="space-y-2">
+                        <Label htmlFor="profileType">Tipo de Empresa *</Label>
+                        <select
+                            id="profileType"
+                            className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ${errors.profileType ? 'border-red-500' : ''}`}
+                            value={profileType}
+                            onChange={(e) => setProfileType(e.target.value)}
+                        >
+                            <option value="freelance">Freelance</option>
+                            <option value="company">Empresa pequeña</option>
+                            <option value="agency">Empresa grande</option>
+                        </select>
+                        {errors.profileType && <p className="text-red-500 text-sm">{errors.profileType}</p>}
+                        <p className="text-xs text-gray-500">ℹ️ Usamos esta selección para personalizar recomendaciones de costos y benchmarks.</p>
+                    </div>
+
+                    <div className="space-y-2">
                         <Label htmlFor="currency">Moneda Primaria *</Label>
                         <select
                             id="currency"
                             className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.currency ? 'border-red-500' : ''}`}
                             value={currency}
-                            onChange={(e) => setCurrency(e.target.value)}
+                            onChange={(e) => {
+                                setCurrency(e.target.value);
+                                if (errors.currency || errors.country) {
+                                    setErrors((prev: any) => ({ ...prev, currency: undefined, country: undefined }));
+                                }
+                            }}
                         >
                             <option value="">Seleccionar moneda...</option>
                             <option value="COP">COP - Peso Colombiano</option>
                             <option value="USD">USD - Dólar Estadounidense</option>
                             <option value="ARS">ARS - Peso Argentino</option>
+                            <option value="PEN">PEN - Sol Peruano</option>
                             <option value="EUR">EUR - Euro</option>
                         </select>
                         {errors.currency && <p className="text-red-500 text-sm">{errors.currency}</p>}
@@ -82,16 +150,23 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
                         <Label htmlFor="country">País</Label>
                         <select
                             id="country"
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.country ? 'border-red-500' : ''}`}
                             value={country}
                             onChange={(e) => setCountry(e.target.value)}
+                            disabled={isCountryLockedByCurrency}
                         >
-                            <option value="">Seleccionar país...</option>
-                            <option value="COL">Colombia</option>
-                            <option value="USA">Estados Unidos</option>
-                            <option value="ARG">Argentina</option>
-                            <option value="MEX">México</option>
+                            {!isCountryLockedByCurrency && <option value="">Seleccionar país...</option>}
+                            {isCountryLockedByCurrency ? (
+                                <option value={country}>{countryLabels[country] || country}</option>
+                            ) : (
+                                availableCountryOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))
+                            )}
                         </select>
+                        {errors.country && <p className="text-red-500 text-sm">{errors.country}</p>}
                         <p className="text-xs text-gray-500">ℹ️ Esto nos ayuda a sugerirte impuestos y cargas sociales correctas.</p>
                     </div>
                 </CardContent>

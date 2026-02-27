@@ -11,7 +11,7 @@ from app.core.pydantic_config import DECIMAL_CONFIG
 
 class AgencySettingsResponse(BaseModel):
     """Schema for agency settings response"""
-    primary_currency: str = Field(..., description="Primary currency code (USD, COP, ARS, EUR)")
+    primary_currency: str = Field(..., description="Primary currency code (USD, COP, ARS, EUR, PEN)")
     currency_symbol: str = Field(..., description="Currency symbol")
     available_currencies: list[dict] = Field(default_factory=list, description="List of available currencies")
     exchange_rates: Optional[Dict[str, Any]] = Field(None, description="Today's exchange rates (only for owner/super_admin)")
@@ -22,7 +22,7 @@ class AgencySettingsResponse(BaseModel):
 
 class AgencySettingsUpdate(BaseModel):
     """Schema for updating agency settings"""
-    primary_currency: str = Field(..., description="Primary currency code (USD, COP, ARS, EUR)")
+    primary_currency: str = Field(..., description="Primary currency code (USD, COP, ARS, EUR, PEN)")
 
 
 class ExchangeRateInfo(BaseModel):

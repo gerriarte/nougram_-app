@@ -11,6 +11,7 @@ from app.models.cost import CostFixed
 from app.models.team import TeamMember
 from app.models.service import Service
 from app.models.settings import AgencySettings
+from app.models.equipment import EquipmentAmortization
 from app.core.currency import normalize_to_primary_currency, EXCHANGE_RATES_TO_USD
 from app.core.pricing_strategies import PricingStrategyFactory
 from app.core.logging import get_logger
@@ -159,8 +160,38 @@ async def calculate_blended_cost_rate(
             pass
         # #endregion
     
+    # Get amortization assets and include monthly depreciation in fixed costs.
+    equipment_query = select(EquipmentAmortization).where(
+        EquipmentAmortization.deleted_at.is_(None),
+        EquipmentAmortization.is_active == True
+    )
+    if tenant_id is not None:
+        equipment_query = equipment_query.where(EquipmentAmortization.organization_id == tenant_id)
+    equipment_result = await db.execute(equipment_query)
+    equipment_assets = equipment_result.scalars().all()
+
+    equipment_amortization_money = []
+    for asset in equipment_assets:
+        useful_life = int(asset.useful_life_months or 0)
+        if useful_life <= 0:
+            continue
+        purchase_price = Decimal(str(asset.purchase_price or 0))
+        salvage_value = Decimal(str(asset.salvage_value or 0))
+        monthly_depreciation = (purchase_price - salvage_value) / Decimal(str(useful_life))
+        if monthly_depreciation <= 0:
+            continue
+        normalized = normalize_to_primary_currency(
+            monthly_depreciation,
+            asset.currency or "USD",
+            primary_currency
+        )
+        if isinstance(normalized, Money):
+            equipment_amortization_money.append(normalized)
+        else:
+            equipment_amortization_money.append(Money(normalized, primary_currency))
+
     # Sum all costs using Money
-    all_costs = fixed_costs_money + salary_amounts
+    all_costs = fixed_costs_money + equipment_amortization_money + salary_amounts
     total_monthly_costs_money = sum_money(all_costs)
     
     # #region agent log
@@ -677,6 +708,30 @@ async def get_organization_cost_breakdown(db: AsyncSession, organization_id: int
             primary_currency
         )
         # Convertir a float para compatibilidad con código legacy
+        total_fixed += float(normalized) if isinstance(normalized, Money) else normalized
+
+    # Include amortization assets into fixed monthly costs.
+    equipment_query = select(EquipmentAmortization).where(
+        EquipmentAmortization.deleted_at.is_(None),
+        EquipmentAmortization.is_active == True,
+        EquipmentAmortization.organization_id == organization_id
+    )
+    equipment_result = await db.execute(equipment_query)
+    equipment_assets = equipment_result.scalars().all()
+    for asset in equipment_assets:
+        useful_life = int(asset.useful_life_months or 0)
+        if useful_life <= 0:
+            continue
+        purchase_price = Decimal(str(asset.purchase_price or 0))
+        salvage_value = Decimal(str(asset.salvage_value or 0))
+        monthly_depreciation = (purchase_price - salvage_value) / Decimal(str(useful_life))
+        if monthly_depreciation <= 0:
+            continue
+        normalized = normalize_to_primary_currency(
+            monthly_depreciation,
+            asset.currency or "USD",
+            primary_currency
+        )
         total_fixed += float(normalized) if isinstance(normalized, Money) else normalized
     
     # 3. Get salaries with social charges

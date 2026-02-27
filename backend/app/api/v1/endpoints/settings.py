@@ -99,7 +99,7 @@ async def update_agency_currency_settings(
         if not is_valid_currency(settings_data.primary_currency):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid currency: {settings_data.primary_currency}. Supported: USD, COP, ARS, EUR"
+                detail=f"Invalid currency: {settings_data.primary_currency}. Supported: USD, COP, ARS, EUR, PEN"
             )
         
         # Prioritize updating organization settings

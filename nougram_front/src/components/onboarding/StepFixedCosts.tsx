@@ -1,9 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Badge } from '../ui/Badge';
 import { onboardingService, ALL_TEMPLATES } from '@/services/onboardingService';
 import { FixedCostTemplate } from '@/types/onboarding';
 
@@ -22,13 +21,65 @@ const INDUSTRIES = [
 ];
 
 export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }: StepFixedCostsProps) {
-    const [selectedCosts, setSelectedCosts] = useState<FixedCostTemplate[]>(initialData?.selectedTemplates || []);
+    type LogicalCategory = 'amortization' | 'operational' | 'tools';
+    const [selectedCosts, setSelectedCosts] = useState<FixedCostTemplate[]>(
+        (initialData?.selectedTemplates || [])
+            .filter((item: any) => item && typeof item.name === 'string')
+            .map((item: any) => ({
+                ...item,
+                amount: Number(item?.amount || 0),
+                costType: item?.costType || 'operational'
+            }))
+    );
     const [activeIndustry, setActiveIndustry] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [showCustomModal, setShowCustomModal] = useState(false);
+    const [editingCostId, setEditingCostId] = useState<string | null>(null);
 
     // Custom Cost State
-    const [customCost, setCustomCost] = useState({ name: '', amount: '', currency: primaryCurrency });
+    const [customCost, setCustomCost] = useState({
+        name: '',
+        amount: '',
+        currency: primaryCurrency,
+        logicalCategory: 'operational' as LogicalCategory
+    });
+    const [editCost, setEditCost] = useState<{
+        id: string;
+        name: string;
+        amount: string;
+        logicalCategory: LogicalCategory;
+    } | null>(null);
+
+    const getLogicalCategory = (cost: FixedCostTemplate): LogicalCategory => {
+        if (cost.costType === 'amortization') return 'amortization';
+        if (cost.category === 'Tools' || cost.category === 'Software') return 'tools';
+        return 'operational';
+    };
+
+    const logicalCategoryLabel = (value: LogicalCategory): string => {
+        if (value === 'amortization') return 'Amortización';
+        if (value === 'tools') return 'Herramientas';
+        return 'Costos operacionales';
+    };
+
+    const getCategoryFields = (cost: FixedCostTemplate, logicalCategory: LogicalCategory): Pick<FixedCostTemplate, 'category' | 'costType'> => {
+        if (logicalCategory === 'tools') {
+            return { category: 'Tools', costType: 'operational' };
+        }
+        if (logicalCategory === 'amortization') {
+            return { category: cost.category, costType: 'amortization' };
+        }
+        return { category: cost.category, costType: 'operational' };
+    };
+
+    const toPrimaryCurrency = (template: FixedCostTemplate): FixedCostTemplate => {
+        const convertedAmount = onboardingService.convertCurrency(template.amount, template.currency, primaryCurrency);
+        return {
+            ...template,
+            amount: Number(convertedAmount.toFixed(2)),
+            currency: primaryCurrency
+        };
+    };
 
     const handleIndustrySelect = (industryId: string) => {
         setActiveIndustry(industryId);
@@ -39,7 +90,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
         const combined = [...selectedCosts];
         industryTemplates.forEach(t => {
             if (!combined.find(existing => existing.id === t.id)) {
-                combined.push(t);
+                combined.push(toPrimaryCurrency(t));
             }
         });
         setSelectedCosts(combined);
@@ -50,7 +101,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
         if (exists) {
             setSelectedCosts(selectedCosts.filter(t => t.id !== template.id));
         } else {
-            setSelectedCosts([...selectedCosts, template]);
+            setSelectedCosts([...selectedCosts, toPrimaryCurrency(template)]);
         }
     };
 
@@ -61,25 +112,63 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
             id: `custom-${Date.now()}`,
             name: customCost.name,
             amount: parseFloat(customCost.amount),
-            currency: customCost.currency,
+            currency: primaryCurrency,
             category: 'Other',
+            costType: 'operational',
             icon: '✨',
             isCustom: true
         };
 
-        setSelectedCosts([...selectedCosts, newCost]);
-        setCustomCost({ name: '', amount: '', currency: primaryCurrency });
+        setSelectedCosts([...selectedCosts, { ...newCost, ...getCategoryFields(newCost, customCost.logicalCategory) }]);
+        setCustomCost({ name: '', amount: '', currency: primaryCurrency, logicalCategory: 'operational' });
         setShowCustomModal(false);
+    };
+
+    const startEditCost = (cost: FixedCostTemplate) => {
+        setEditingCostId(cost.id);
+        setEditCost({
+            id: cost.id,
+            name: cost.name,
+            amount: String(cost.amount),
+            logicalCategory: getLogicalCategory(cost)
+        });
+    };
+
+    const saveEditedCost = () => {
+        if (!editCost || !editCost.name.trim() || !editCost.amount) return;
+        const parsedAmount = parseFloat(editCost.amount);
+        if (Number.isNaN(parsedAmount) || parsedAmount <= 0) return;
+
+        setSelectedCosts((prev) =>
+            prev.map((cost) =>
+                cost.id === editCost.id
+                    ? {
+                        ...cost,
+                        name: editCost.name.trim(),
+                        amount: parsedAmount,
+                        currency: primaryCurrency,
+                        ...getCategoryFields(cost, editCost.logicalCategory)
+                    }
+                    : cost
+            )
+        );
+        setEditingCostId(null);
+        setEditCost(null);
     };
 
     const calculateTotal = () => {
         return selectedCosts.reduce((acc, curr) => {
-            return acc + onboardingService.convertCurrency(curr.amount, curr.currency, primaryCurrency);
+            return acc + curr.amount;
         }, 0);
     };
 
-    const filteredTemplates = ALL_TEMPLATES.filter(t =>
-        t.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const selectedTemplateIds = useMemo(
+        () => new Set(selectedCosts.map((cost) => cost.id)),
+        [selectedCosts]
+    );
+
+    const filteredTemplates = ALL_TEMPLATES.filter((t) =>
+        t.name.toLowerCase().includes(searchTerm.toLowerCase()) && !selectedTemplateIds.has(t.id)
     );
 
     const handleNext = () => {
@@ -128,8 +217,8 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Render Selected Custom Costs First */}
-                    {selectedCosts.filter(c => c.isCustom).map(cost => (
+                    {/* Selected costs (editable) */}
+                    {selectedCosts.map(cost => (
                         <div
                             key={cost.id}
                             className="relative p-4 rounded-lg border border-blue-500 bg-blue-50/50 cursor-pointer"
@@ -147,14 +236,27 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                 </button>
                             </div>
                             <p className="font-medium text-gray-900">
-                                ${cost.amount.toLocaleString()} {cost.currency} <span className="text-xs text-gray-500">/mes</span>
+                                ${Number(cost.amount || 0).toLocaleString()} {primaryCurrency} <span className="text-xs text-gray-500">/mes</span>
                             </p>
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                                <span className={`text-xs px-2 py-1 rounded ${getLogicalCategory(cost) === 'amortization' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                    {logicalCategoryLabel(getLogicalCategory(cost))}
+                                </span>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        startEditCost(cost);
+                                    }}
+                                    className="text-xs text-blue-600 hover:text-blue-800"
+                                >
+                                    Editar
+                                </button>
+                            </div>
                         </div>
                     ))}
 
                     {filteredTemplates.map(template => {
-                        const isSelected = selectedCosts.some(t => t.id === template.id);
-                        const isForeignCurrency = template.currency !== primaryCurrency;
+                        const isSelected = selectedTemplateIds.has(template.id);
                         const convertedAmount = onboardingService.convertCurrency(template.amount, template.currency, primaryCurrency);
 
                         return (
@@ -177,14 +279,11 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
 
                                 <div className="space-y-1">
                                     <p className="font-medium text-gray-900">
-                                        ${template.amount.toLocaleString()} {template.currency} <span className="text-xs text-gray-500">/mes</span>
+                                        ${convertedAmount.toLocaleString()} {primaryCurrency} <span className="text-xs text-gray-500">/mes</span>
                                     </p>
-
-                                    {isSelected && isForeignCurrency && (
-                                        <div className="text-xs text-amber-600 bg-amber-50 p-1 rounded mt-1">
-                                            ⚠️ aprox. ${convertedAmount.toLocaleString()} {primaryCurrency}
-                                        </div>
-                                    )}
+                                    <p className="text-xs text-gray-500">
+                                        {logicalCategoryLabel(getLogicalCategory(template))}
+                                    </p>
                                 </div>
                             </div>
                         );
@@ -217,20 +316,66 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Moneda</label>
+                                    <label className="text-sm font-medium">Categoría</label>
                                     <select
                                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                        value={customCost.currency}
-                                        onChange={e => setCustomCost({ ...customCost, currency: e.target.value })}
+                                        value={customCost.logicalCategory}
+                                        onChange={e => setCustomCost({ ...customCost, logicalCategory: e.target.value as LogicalCategory })}
                                     >
-                                        <option value="COP">COP</option>
-                                        <option value="USD">USD</option>
+                                        <option value="amortization">Amortización</option>
+                                        <option value="operational">Costos operacionales</option>
+                                        <option value="tools">Herramientas (operacional)</option>
                                     </select>
                                 </div>
                             </div>
+                            <p className="text-xs text-gray-500">Moneda aplicada: {primaryCurrency}</p>
                             <div className="flex gap-2 justify-end pt-2">
                                 <Button variant="secondary" onClick={() => setShowCustomModal(false)}>Cancelar</Button>
                                 <Button onClick={handleAddCustom}>Agregar</Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            {/* Edit Cost Modal */}
+            {editingCostId && editCost && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <Card className="max-w-md w-full">
+                        <CardContent className="space-y-4 pt-6">
+                            <h3 className="text-lg font-bold">Editar costo</h3>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Nombre</label>
+                                <Input
+                                    value={editCost.name}
+                                    onChange={e => setEditCost({ ...editCost, name: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Monto ({primaryCurrency})</label>
+                                <Input
+                                    type="number"
+                                    value={editCost.amount}
+                                    onChange={e => setEditCost({ ...editCost, amount: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Tipo de costo</label>
+                                <select
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    value={editCost.logicalCategory}
+                                    onChange={e => setEditCost({ ...editCost, logicalCategory: e.target.value as LogicalCategory })}
+                                >
+                                    <option value="amortization">Amortización</option>
+                                    <option value="operational">Costos operacionales</option>
+                                    <option value="tools">Herramientas (operacional)</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-2 justify-end pt-2">
+                                <Button variant="secondary" onClick={() => { setEditingCostId(null); setEditCost(null); }}>
+                                    Cancelar
+                                </Button>
+                                <Button onClick={saveEditedCost}>Guardar cambios</Button>
                             </div>
                         </CardContent>
                     </Card>

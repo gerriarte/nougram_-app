@@ -3,6 +3,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
     LayoutDashboard,
@@ -10,13 +11,20 @@ import {
     Building2,
     PlusCircle,
     ChevronRight,
-    ShieldCheck,
-    UserCircle2
+    UserCircle2,
+    PanelLeftClose,
+    PanelLeftOpen,
+    ShieldCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+    isCollapsed: boolean;
+    onToggleCollapse: () => void;
+}
+
+export function AdminSidebar({ isCollapsed, onToggleCollapse }: AdminSidebarProps) {
     const pathname = usePathname();
     const { user } = useAuth();
 
@@ -27,127 +35,135 @@ export function AdminSidebar() {
     const BUSINESS_ITEMS = [
         { label: 'Dashboard & Pipeline', href: '/dashboard', icon: LayoutDashboard },
         { label: 'Gestión de Clientes', href: '/dashboard/clients', icon: UserCircle2 },
-        { label: 'Empresa (Tenant)', href: '/dashboard/organization', icon: Building2 },
         { label: 'Nómina (Equipo)', href: '/admin/payroll', icon: UsersRound },
         { label: 'Overhead (Gastos)', href: '/admin/overhead', icon: Building2 },
     ];
 
-    const SUPER_ADMIN_ITEMS = user?.role === 'super_admin'
-        ? [{ label: 'Control de Cuentas', href: '/dashboard/super-admin/accounts', icon: ShieldCheck }]
-        : [];
-
-    const userInitials = user?.fullName
-        ? user.fullName
-            .split(' ')
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((part) => part[0]?.toUpperCase())
-            .join('')
-        : 'U';
-
     return (
-        <aside className="w-72 bg-white/70 backdrop-blur-xl border-r border-white/20 min-h-screen flex flex-col z-20 hidden md:flex sticky top-0">
-            <div className="p-8 pb-10">
-                <div className="flex items-center gap-3 mb-1">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                        <div className="w-4 h-4 bg-white/20 rounded-sm rotate-45" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tighter">Nougram</h1>
+        <aside className={cn(
+            "bg-white/70 backdrop-blur-xl border-r border-white/20 min-h-screen flex flex-col z-20 hidden md:flex sticky top-0 transition-all duration-300",
+            isCollapsed ? "w-24" : "w-72"
+        )}>
+            <div className={cn("pb-8", isCollapsed ? "p-4" : "p-8")}>
+                <div className={cn("mb-1", isCollapsed ? "flex justify-center" : "flex items-center gap-3")}>
+                    <Image
+                        src={isCollapsed ? "/brand/Logo-iso-orange.svg" : "/brand/Logo-orange.svg"}
+                        alt="Nougram"
+                        width={isCollapsed ? 36 : 130}
+                        height={30}
+                        priority
+                    />
                 </div>
-                <p className="text-[10px] font-black text-system-gray uppercase tracking-[0.2em] ml-11">Business OS</p>
+                {!isCollapsed && (
+                    <p className="text-[10px] font-black text-system-gray uppercase tracking-[0.2em] ml-11">Business OS</p>
+                )}
+                <div className={cn("mt-4", isCollapsed ? "flex justify-center" : "flex justify-end")}>
+                    <button
+                        type="button"
+                        onClick={onToggleCollapse}
+                        className="h-9 w-9 rounded-xl border border-gray-200 bg-white text-system-gray hover:text-secondary hover:border-secondary/30 transition-colors flex items-center justify-center"
+                        aria-label={isCollapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral'}
+                        title={isCollapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral'}
+                    >
+                        {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+                    </button>
+                </div>
             </div>
 
-            <nav className="flex-1 px-4 space-y-8">
+            <nav className={cn("flex-1 space-y-8", isCollapsed ? "px-2" : "px-4")}>
                 {/* Main Action */}
                 <div className="space-y-1.5">
-                    <p className="px-4 text-[10px] font-black text-system-gray uppercase tracking-[0.15em] mb-3">Principal</p>
+                    {!isCollapsed && (
+                        <p className="px-4 text-[10px] font-black text-system-gray uppercase tracking-[0.15em] mb-3">Principal</p>
+                    )}
                     {MAIN_ITEMS.map(item => (
                         <Link
                             key={item.href}
                             href={item.href}
+                            title={item.label}
                             className={cn(
                                 "flex items-center justify-between px-4 py-3 rounded-2xl text-[13px] font-bold transition-all group",
                                 pathname.startsWith(item.href)
-                                    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/25"
-                                    : "text-gray-600 hover:bg-white hover:shadow-sm"
+                                    ? "bg-primary text-white shadow-lg"
+                                    : "text-gray-600 hover:bg-white hover:shadow-sm",
+                                isCollapsed && "justify-center px-0"
                             )}
                         >
-                            <div className="flex items-center gap-3">
+                            <div className={cn("flex items-center", isCollapsed ? "justify-center" : "gap-3")}>
                                 <item.icon size={18} strokeWidth={pathname.startsWith(item.href) ? 2.5 : 1.5} />
-                                <span>{item.label}</span>
+                                {!isCollapsed && <span>{item.label}</span>}
                             </div>
-                            {!pathname.startsWith(item.href) && <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />}
+                            {!isCollapsed && !pathname.startsWith(item.href) && <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />}
                         </Link>
                     ))}
                 </div>
 
                 {/* Business Config */}
                 <div className="space-y-1.5">
-                    <p className="px-4 text-[10px] font-black text-system-gray uppercase tracking-[0.15em] mb-3">Negocio</p>
+                    {!isCollapsed && (
+                        <p className="px-4 text-[10px] font-black text-system-gray uppercase tracking-[0.15em] mb-3">Negocio</p>
+                    )}
                     {BUSINESS_ITEMS.map(item => {
                         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                         return (
                             <Link
                                 key={item.href}
                                 href={item.href}
+                                title={item.label}
                                 className={cn(
                                     "flex items-center justify-between px-4 py-3 rounded-2xl text-[13px] font-bold transition-all group",
                                     isActive
-                                        ? "bg-blue-50/50 text-blue-600 ring-1 ring-blue-100/50"
-                                        : "text-gray-600 hover:bg-white hover:shadow-sm"
+                                    ? "bg-accent/70 text-secondary ring-1 ring-accent"
+                                        : "text-gray-600 hover:bg-white hover:shadow-sm",
+                                    isCollapsed && "justify-center px-0"
                                 )}
                             >
-                                <div className="flex items-center gap-3">
-                                    <item.icon size={18} strokeWidth={isActive ? 2 : 1.5} className={isActive ? "text-blue-600" : "text-system-gray"} />
-                                    <span>{item.label}</span>
+                                <div className={cn("flex items-center", isCollapsed ? "justify-center" : "gap-3")}>
+                                    <item.icon size={18} strokeWidth={isActive ? 2 : 1.5} className={isActive ? "text-secondary" : "text-system-gray"} />
+                                    {!isCollapsed && <span>{item.label}</span>}
                                 </div>
-                                {isActive && <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
-                                {!isActive && <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />}
+                                {!isCollapsed && isActive && <div className="w-1.5 h-1.5 rounded-full bg-secondary" />}
+                                {!isCollapsed && !isActive && <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />}
                             </Link>
                         );
                     })}
                 </div>
 
-                {SUPER_ADMIN_ITEMS.length > 0 && (
+                {user?.role === 'super_admin' && (
                     <div className="space-y-1.5">
-                        <p className="px-4 text-[10px] font-black text-system-gray uppercase tracking-[0.15em] mb-3">Super Admin</p>
-                        {SUPER_ADMIN_ITEMS.map(item => {
-                            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-                            return (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    className={cn(
-                                        "flex items-center justify-between px-4 py-3 rounded-2xl text-[13px] font-bold transition-all group",
-                                        isActive
-                                            ? "bg-amber-50/70 text-amber-700 ring-1 ring-amber-200/80"
-                                            : "text-gray-600 hover:bg-white hover:shadow-sm"
-                                    )}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <item.icon size={18} strokeWidth={isActive ? 2 : 1.5} className={isActive ? "text-amber-700" : "text-system-gray"} />
-                                        <span>{item.label}</span>
-                                    </div>
-                                    {isActive && <div className="w-1.5 h-1.5 rounded-full bg-amber-700" />}
-                                    {!isActive && <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />}
-                                </Link>
-                            );
-                        })}
+                        {!isCollapsed && (
+                            <p className="px-4 text-[10px] font-black text-system-gray uppercase tracking-[0.15em] mb-3">Super Admin</p>
+                        )}
+                        <Link
+                            href="/dashboard/super-admin/accounts"
+                            title="Control de Cuentas"
+                            className={cn(
+                                "flex items-center justify-between px-4 py-3 rounded-2xl text-[13px] font-bold transition-all group",
+                                pathname === '/dashboard/super-admin/accounts' || pathname.startsWith('/dashboard/super-admin/accounts/')
+                                    ? "bg-accent/70 text-secondary ring-1 ring-accent"
+                                    : "text-gray-600 hover:bg-white hover:shadow-sm",
+                                isCollapsed && "justify-center px-0"
+                            )}
+                        >
+                            <div className={cn("flex items-center", isCollapsed ? "justify-center" : "gap-3")}>
+                                <ShieldCheck
+                                    size={18}
+                                    strokeWidth={2}
+                                    className={(pathname === '/dashboard/super-admin/accounts' || pathname.startsWith('/dashboard/super-admin/accounts/'))
+                                        ? "text-secondary"
+                                        : "text-system-gray"}
+                                />
+                                {!isCollapsed && <span>Control de Cuentas</span>}
+                            </div>
+                            {!isCollapsed && !(pathname === '/dashboard/super-admin/accounts' || pathname.startsWith('/dashboard/super-admin/accounts/')) && (
+                                <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
+                            )}
+                        </Link>
                     </div>
                 )}
+
             </nav>
 
-            <div className="p-6 m-4 mt-auto rounded-3xl bg-gray-200/30 backdrop-blur-sm border border-white/40">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20">
-                        {userInitials || 'U'}
-                    </div>
-                    <div className="min-w-0">
-                        <p className="text-[13px] font-bold text-gray-900 truncate tracking-tight">{user?.fullName || 'Usuario'}</p>
-                        <p className="text-[11px] font-medium text-system-gray truncate">{user?.role || 'Sin rol'}</p>
-                    </div>
-                </div>
-            </div>
         </aside>
     );
 }

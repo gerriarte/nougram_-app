@@ -4,11 +4,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Equipment } from '@/types/equipment';
 import { calculateDepreciation } from '@/lib/depreciation';
+import { settingsService } from '@/services/settingsService';
 
 // --- Types ---
 
 import { UserRole } from '@/types/user';
-export type Currency = 'COP' | 'USD';
+export type Currency = 'COP' | 'USD' | 'EUR' | 'ARS' | 'PEN';
 
 export interface AgencyIdentity {
     name: string;
@@ -89,6 +90,32 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         }
     }, []);
 
+    // Keep frontend currency aligned with backend organization settings.
+    useEffect(() => {
+        let cancelled = false;
+        const syncPrimaryCurrency = async () => {
+            const primaryCurrency = await settingsService.getPrimaryCurrency();
+            if (!primaryCurrency || cancelled) return;
+
+            setState(prev => (
+                prev.identity.primaryCurrency === primaryCurrency
+                    ? prev
+                    : {
+                        ...prev,
+                        identity: {
+                            ...prev.identity,
+                            primaryCurrency: primaryCurrency as Currency
+                        }
+                    }
+            ));
+        };
+        void syncPrimaryCurrency();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
     // BCR Recalculation Effect
     useEffect(() => {
         const { baseMonthlyCost, billableHours } = state.financials;
@@ -147,16 +174,37 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         setState(prev => ({ ...prev, user: { ...prev.user, role } }));
 
     const hydrateFromOnboarding = (data: any) => {
-        // Reverse engineer basics from onboarding data logic
-        // Assuming data.bcr.hoursBased was the OLD Calc
-        const bcrValue = parseFloat(data.bcr?.hoursBased || '0') || 50000;
-        const hours = 160; // Default capacity assumption if missing
+        const teamMembers = Array.isArray(data?.team)
+            ? data.team
+            : (data?.team && typeof data.team === 'object' ? [data.team] : []);
 
-        // Reverse base cost: Cost = BCR * Hours
-        const baseMonthlyCost = bcrValue * hours;
+        const monthlyFixedCosts = Number(
+            data?.fixedCosts?.totalMonthly
+            ?? (Array.isArray(data?.fixedCosts?.selectedTemplates)
+                ? data.fixedCosts.selectedTemplates.reduce((acc: number, item: any) => acc + Number(item?.amount || 0), 0)
+                : 0)
+        );
 
-        const name = data.identity?.name || 'Agencia';
-        const currency = data.identity?.currency || 'COP';
+        const monthlyPayroll = teamMembers.reduce((acc: number, member: any) => {
+            const salary = Number(member?.salary || 0);
+            const withCharges = member?.applySocialCharges ? salary * 1.52852 : salary;
+            return acc + withCharges;
+        }, 0);
+
+        const monthlyBillableHours = teamMembers.reduce((acc: number, member: any) => {
+            return acc + (Number(member?.billableHours || 0) * 4.33);
+        }, 0);
+
+        const fallbackBcr = parseFloat(data?.bcr?.hoursBased || '0');
+        const baseMonthlyCost = monthlyFixedCosts + monthlyPayroll;
+        const hours = monthlyBillableHours > 0 ? monthlyBillableHours : 160;
+        const bcrValue = hours > 0
+            ? (baseMonthlyCost > 0 ? baseMonthlyCost / hours : fallbackBcr)
+            : fallbackBcr;
+
+        // Support both legacy keys (name/currency) and current onboarding keys
+        const name = data.identity?.organizationName || data.identity?.name || 'Agencia';
+        const currency = data.identity?.primaryCurrency || data.identity?.currency || 'COP';
 
         setState(prev => ({
             ...prev,

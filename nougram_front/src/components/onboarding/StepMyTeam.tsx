@@ -1,19 +1,19 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
-import { Badge } from '../ui/Badge';
 import { Alert } from '../ui/Alert';
 import { onboardingService } from '@/services/onboardingService';
 import { Step3MyTeamData } from '@/types/onboarding';
 
 interface StepMyTeamProps {
-    onNext: (data: Step3MyTeamData) => void;
+    onNext: (data: Step3MyTeamData[]) => void;
     onBack: () => void;
-    initialData?: Step3MyTeamData;
+    initialData?: Step3MyTeamData[];
     currency: string;
+    country?: string;
 }
 
 
@@ -26,248 +26,319 @@ const ROLES = [
     'Otro'
 ];
 
-const LEVELS = ['Junior', 'Mid', 'Senior'];
+const LEVELS: Step3MyTeamData['level'][] = ['Junior', 'Mid', 'Senior'];
+const SOCIAL_CHARGES_RATE = 0.52852;
 
-export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeamProps) {
-    // Member Info
-    const [name, setName] = useState(initialData?.name || '');
-    const [role, setRole] = useState(initialData?.role || '');
-    const [level, setLevel] = useState<Step3MyTeamData['level']>(initialData?.level || '');
-    const [salary, setSalary] = useState<string>(initialData?.salary?.toString() || '');
+const emptyDraft = (isColombia: boolean): Omit<Step3MyTeamData, 'id' | 'yearlyBillableHours' | 'hourlyCost'> => ({
+    name: '',
+    role: '',
+    level: '',
+    salary: 0,
+    totalHours: 40,
+    billableHours: 28,
+    vacationDays: 20,
+    applySocialCharges: isColombia
+});
 
-    // Reality Calculator
-    const [totalHours, setTotalHours] = useState<number>(initialData?.totalHours || 40);
-    const [billableHours, setBillableHours] = useState<number>(initialData?.billableHours || 28);
-
-    // Annual Calculation Defaults
-    const [vacationDays, setVacationDays] = useState<number>(initialData?.vacationDays || 20);
-
-    // Social Charges
-    const [applySocialCharges, setApplySocialCharges] = useState<boolean>(initialData?.applySocialCharges ?? true);
-
-    // Calculations
-    const nonBillableHours = totalHours - billableHours;
-    const salaryNum = parseFloat(salary) || 0;
-
-    // Social Charges Math (Colombia Defaults)
-    const SOCIAL_CHARGES_RATE = 0.52852; // ~52.8%
-    const salaryWithCharges = applySocialCharges ? salaryNum * (1 + SOCIAL_CHARGES_RATE) : salaryNum;
-
-    // True Cost Calculation (Live)
-    const trueCostAnalysis = onboardingService.calculateTrueHourlyCost(
-        salaryWithCharges,
-        billableHours,
-        vacationDays
+export function StepMyTeam({ onNext, onBack, initialData, currency, country }: StepMyTeamProps) {
+    const isColombia = country === 'COL';
+    const [roles, setRoles] = useState<string[]>(ROLES);
+    const [newRole, setNewRole] = useState('');
+    const [members, setMembers] = useState<Step3MyTeamData[]>(initialData || []);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [draft, setDraft] = useState<Omit<Step3MyTeamData, 'id' | 'yearlyBillableHours' | 'hourlyCost'>>(
+        emptyDraft(isColombia)
     );
 
-    // Validation Status
-    const minSalary = onboardingService.getMarketSalaryThreshold(role, level, currency);
-    const isSalaryLow = minSalary && salaryNum < minSalary;
-
-    const handleTotalHoursChange = (val: string) => {
-        const hours = parseInt(val) || 0;
-        setTotalHours(hours);
-        // Default logic: ~70% billable
-        setBillableHours(Math.floor(hours * 0.7));
+    const buildMember = (base: Omit<Step3MyTeamData, 'id' | 'yearlyBillableHours' | 'hourlyCost'>, id: string): Step3MyTeamData => {
+        const salaryWithCharges = base.applySocialCharges && isColombia
+            ? base.salary * (1 + SOCIAL_CHARGES_RATE)
+            : base.salary;
+        const trueCost = onboardingService.calculateTrueHourlyCost(salaryWithCharges, base.billableHours, base.vacationDays);
+        return {
+            ...base,
+            id,
+            applySocialCharges: isColombia ? base.applySocialCharges : false,
+            yearlyBillableHours: trueCost.annualBillableHours,
+            hourlyCost: trueCost.hourlyCost
+        };
     };
 
-    const handleNext = () => {
-        if (!name || !role || !level || !salary) return; // Basic validation
+    const handleAddRole = () => {
+        const trimmed = newRole.trim();
+        if (!trimmed || roles.includes(trimmed)) return;
+        setRoles((prev) => [...prev, trimmed]);
+        setNewRole('');
+        if (!draft.role) {
+            setDraft((prev) => ({ ...prev, role: trimmed }));
+        }
+    };
 
-        onNext({
-            name,
-            role,
-            level,
-            salary: salaryNum,
-            totalHours,
-            billableHours,
-            vacationDays,
-            applySocialCharges,
-            yearlyBillableHours: trueCostAnalysis.annualBillableHours,
-            hourlyCost: trueCostAnalysis.hourlyCost
+    const handleRemoveRole = (roleToRemove: string) => {
+        if (ROLES.includes(roleToRemove)) return;
+        setRoles((prev) => prev.filter((role) => role !== roleToRemove));
+        if (draft.role === roleToRemove) {
+            setDraft((prev) => ({ ...prev, role: '' }));
+        }
+    };
+
+    const clearDraft = () => {
+        setEditingId(null);
+        setDraft(emptyDraft(isColombia));
+    };
+
+    const saveDraftMember = () => {
+        if (!draft.name.trim() || !draft.role || !draft.level || draft.salary <= 0) return;
+        if (editingId) {
+            setMembers((prev) => prev.map((member) => member.id === editingId ? buildMember(draft, editingId) : member));
+            clearDraft();
+            return;
+        }
+        const id = `member-${Date.now()}`;
+        setMembers((prev) => [...prev, buildMember(draft, id)]);
+        clearDraft();
+    };
+
+    const editMember = (member: Step3MyTeamData) => {
+        setEditingId(member.id);
+        setDraft({
+            name: member.name,
+            role: member.role,
+            level: member.level,
+            salary: member.salary,
+            totalHours: member.totalHours,
+            billableHours: member.billableHours,
+            vacationDays: member.vacationDays,
+            applySocialCharges: isColombia ? member.applySocialCharges : false
         });
+    };
+
+    const deleteMember = (id: string) => {
+        setMembers((prev) => prev.filter((member) => member.id !== id));
+    };
+
+    const totals = useMemo(() => {
+        const totalMonthlyCost = members.reduce((acc, member) => {
+            const salaryWithCharges = member.applySocialCharges && isColombia
+                ? member.salary * (1 + SOCIAL_CHARGES_RATE)
+                : member.salary;
+            return acc + salaryWithCharges;
+        }, 0);
+        const totalHourly = members.reduce((acc, member) => acc + member.hourlyCost, 0);
+        const avgHourly = members.length > 0 ? totalHourly / members.length : 0;
+        return {
+            membersCount: members.length,
+            totalMonthlyCost,
+            avgHourly
+        };
+    }, [members, isColombia]);
+
+    const handleNext = () => {
+        if (members.length === 0) return;
+        onNext(members);
     };
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
             <div className="text-center space-y-2">
-                <h1 className="text-2xl font-bold text-gray-900">Configura tu propio costo</h1>
-                <p className="text-gray-600">Calcula cuánto te cuesta realmente tu hora de trabajo.</p>
+                <h1 className="text-2xl font-bold text-gray-900">Configura costos de equipo</h1>
+                <p className="text-gray-600">Agrega uno o varios recursos y calcula su costo real por hora.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                {/* 1. Personal Details */}
                 <Card className="md:col-span-2">
                     <CardContent className="space-y-4 pt-6">
+                        <h3 className="font-semibold text-gray-900">{editingId ? 'Editar recurso' : 'Nuevo recurso'}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Tu Nombre *</Label>
-                                <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Juan Pérez" />
+                                <Label>Nombre *</Label>
+                                <Input
+                                    value={draft.name}
+                                    onChange={e => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+                                    placeholder="Ej: Juan Perez"
+                                />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Tu Rol *</Label>
-                                    <select
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                        value={role}
-                                        onChange={e => setRole(e.target.value)}
-                                    >
-                                        <option value="">Seleccionar...</option>
-                                        {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                                    </select>
+                            <div className="space-y-2">
+                                <Label>Rol / Cargo *</Label>
+                                <select
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    value={draft.role}
+                                    onChange={e => setDraft((prev) => ({ ...prev, role: e.target.value }))}
+                                >
+                                    <option value="">Seleccionar...</option>
+                                    {roles.map(r => <option key={r} value={r}>{r}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Crear nuevo cargo</Label>
+                                <div className="flex gap-2">
+                                    <Input value={newRole} onChange={e => setNewRole(e.target.value)} placeholder="Ej: Analista SEO" />
+                                    <Button type="button" variant="secondary" onClick={handleAddRole}>Agregar</Button>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>Nivel *</Label>
-                                    <select
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                        value={level}
-                                        onChange={e => setLevel(e.target.value as any)}
-                                    >
-                                        <option value="">Seleccionar...</option>
-                                        {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                                    </select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Cargos personalizados</Label>
+                                <div className="flex flex-wrap gap-2">
+                                    {roles.filter((role) => !ROLES.includes(role)).map((role) => (
+                                        <button
+                                            key={role}
+                                            type="button"
+                                            onClick={() => handleRemoveRole(role)}
+                                            className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                        >
+                                            {role} x
+                                        </button>
+                                    ))}
+                                    {roles.filter((role) => !ROLES.includes(role)).length === 0 && (
+                                        <span className="text-xs text-gray-500">Sin cargos personalizados</span>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>Salario Mensual Bruto ({currency}) *</Label>
-                            <Input
-                                type="number"
-                                value={salary}
-                                onChange={e => setSalary(e.target.value)}
-                                placeholder="0"
-                            />
-                            {isSalaryLow && (
-                                <Alert variant="warning" className="bg-amber-50 border-amber-200">
-                                    <p className="text-sm text-amber-800">
-                                        ⚠️ <strong>Validación de Mercado:</strong> Tu salario parece bajo para un {role} {level}.
-                                        El promedio es ~${minSalary?.toLocaleString()} {currency}.
-                                    </p>
-                                </Alert>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Nivel *</Label>
+                                <select
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    value={draft.level}
+                                    onChange={e => setDraft((prev) => ({ ...prev, level: e.target.value as Step3MyTeamData['level'] }))}
+                                >
+                                    <option value="">Seleccionar...</option>
+                                    {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Salario mensual bruto ({currency}) *</Label>
+                                <Input
+                                    type="number"
+                                    value={draft.salary}
+                                    onChange={e => setDraft((prev) => ({ ...prev, salary: Number(e.target.value || 0) }))}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <Label>Horas totales/semana</Label>
+                                <Input
+                                    type="number"
+                                    value={draft.totalHours}
+                                    onChange={e => {
+                                        const total = Number(e.target.value || 0);
+                                        setDraft((prev) => ({ ...prev, totalHours: total, billableHours: Math.min(prev.billableHours, total) }));
+                                    }}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Horas facturables/semana</Label>
+                                <Input
+                                    type="number"
+                                    value={draft.billableHours}
+                                    onChange={e => setDraft((prev) => ({ ...prev, billableHours: Number(e.target.value || 0) }))}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Dias no productivos/anio</Label>
+                                <Input
+                                    type="number"
+                                    value={draft.vacationDays}
+                                    onChange={e => setDraft((prev) => ({ ...prev, vacationDays: Number(e.target.value || 0) }))}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2 justify-end">
+                            {editingId && (
+                                <Button variant="secondary" onClick={clearDraft}>Cancelar edicion</Button>
                             )}
+                            <Button onClick={saveDraftMember}>{editingId ? 'Guardar recurso' : 'Agregar recurso'}</Button>
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* 2. Reality Calculator */}
-                <Card className="bg-blue-50/30 border-blue-100">
+                <Card className="md:col-span-2">
                     <CardContent className="space-y-4 pt-6">
-                        <div className="flex items-center gap-2">
-                            <span className="text-xl">📊</span>
-                            <h3 className="font-semibold text-gray-900">Calculadora de Realidad</h3>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>Horas Totales / Semana</Label>
-                            <Input type="number" value={totalHours} onChange={e => handleTotalHoursChange(e.target.value)} />
-                        </div>
-
-                        <div className="p-3 bg-white rounded border border-blue-200 space-y-2">
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-gray-700">Horas Facturables</span>
-                                <span className="text-lg font-bold text-blue-600">{billableHours}h</span>
-                            </div>
-                            <Input
-                                type="range"
-                                min="0"
-                                max={totalHours}
-                                value={billableHours}
-                                onChange={e => setBillableHours(parseInt(e.target.value))}
-                                className="w-full"
-                            />
-                            <p className="text-xs text-gray-500">
-                                Las {nonBillableHours} horas restantes de la semana se usan en reuniones, admin y capacitación.
-                            </p>
-                        </div>
-
-                        <div className="space-y-2 pt-2">
-                            <Label>Días No Productivos / Año</Label>
-                            <Input
-                                type="number"
-                                value={vacationDays}
-                                onChange={e => setVacationDays(parseInt(e.target.value))}
-                            />
-                            <p className="text-xs text-gray-500">Vacaciones, enfermedad, festivos (Default: 20 días)</p>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* 3. Social Charges */}
-                <Card>
-                    <CardContent className="space-y-4 pt-6">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xl">🔧</span>
-                                <h3 className="font-semibold text-gray-900">Cargas Sociales</h3>
-                            </div>
-                            <input
-                                type="checkbox"
-                                checked={applySocialCharges}
-                                onChange={e => setApplySocialCharges(e.target.checked)}
-                                className="h-5 w-5 text-blue-600 rounded"
-                            />
-                        </div>
-
-                        {applySocialCharges ? (
-                            <div className="space-y-3 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-600">Salario Base:</span>
-                                    <span>${salaryNum.toLocaleString()}</span>
-                                </div>
-                                <div className="border-t border-dashed my-2"></div>
-                                <div className="space-y-1 text-gray-500 text-xs">
-                                    <div className="flex justify-between"><span>Salud (8.5%)</span><span>+${(salaryNum * 0.085).toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>Pensión (12%)</span><span>+${(salaryNum * 0.12).toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>Prestaciones (~21%)</span><span>+${(salaryNum * 0.2185).toLocaleString()}</span></div>
-                                </div>
-                                <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-gray-900">
-                                    <span>Total con Cargas:</span>
-                                    <span>${salaryWithCharges.toLocaleString()}</span>
-                                </div>
-                                <Badge variant="info" className="w-full justify-center">Multiplicador: ~1.53x</Badge>
-                            </div>
+                        <h3 className="font-semibold text-gray-900">Recursos agregados ({members.length})</h3>
+                        {members.length === 0 ? (
+                            <p className="text-sm text-gray-500">Aun no agregas recursos.</p>
                         ) : (
-                            <p className="text-sm text-gray-500 italic">
-                                Habilita esta opción si estás en Colombia para calcular parafiscales y prestaciones de ley automáticamente.
-                            </p>
+                            <div className="space-y-3">
+                                {members.map((member) => (
+                                    <div key={member.id} className="p-3 border rounded-lg bg-white flex items-center justify-between">
+                                        <div>
+                                            <p className="font-medium text-gray-900">{member.name} · {member.role} ({member.level})</p>
+                                            <p className="text-sm text-gray-600">
+                                                {currency} {member.salary.toLocaleString()} / mes · {Math.round(member.hourlyCost).toLocaleString()} {currency}/h
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button variant="secondary" onClick={() => editMember(member)}>Editar</Button>
+                                            <Button variant="secondary" onClick={() => deleteMember(member.id)}>Eliminar</Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </CardContent>
                 </Card>
 
-                {/* 4. True Hourly Cost Summary (NEW) */}
+                <Card className="md:col-span-2">
+                    <CardContent className="space-y-4 pt-6">
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-gray-900">Costos fiscales de contratacion</h3>
+                            <span className={`text-xs px-2 py-1 rounded ${isColombia ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                                {isColombia ? 'Activo para Colombia' : 'Desactivado para este pais'}
+                            </span>
+                        </div>
+                        {!isColombia ? (
+                            <Alert variant="warning" className="bg-amber-50 border-amber-200">
+                                <p className="text-sm text-amber-800">
+                                    El modulo fiscal de contratacion solo aplica para Colombia. Para otras monedas/paises se mantiene desactivado.
+                                </p>
+                            </Alert>
+                        ) : (
+                            <div className="space-y-3 text-sm">
+                                <p className="text-gray-600">Config actual (Colombia): Salud 8.5%, Pension 12%, Prestaciones 21.85%, total aproximado 52.852%.</p>
+                                <div className="space-y-2">
+                                    <label className="inline-flex items-center gap-2 text-gray-700">
+                                        <input
+                                            type="checkbox"
+                                            checked={draft.applySocialCharges}
+                                            onChange={e => setDraft((prev) => ({ ...prev, applySocialCharges: e.target.checked }))}
+                                            className="h-4 w-4"
+                                        />
+                                        Aplicar costos fiscales a este recurso
+                                    </label>
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
                 <Card className="md:col-span-2 bg-slate-900 text-white border-slate-800">
                     <CardContent className="space-y-4 pt-6">
                         <div className="flex items-center gap-2 text-blue-400">
                             <span className="text-xl">💎</span>
-                            <h3 className="font-semibold">Tu Costo Real por Hora (Calculado Anualmente)</h3>
+                            <h3 className="font-semibold">Resumen de equipo</h3>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                            <div className="space-y-1">
-                                <p className="text-slate-400">Costo Total Anual</p>
-                                <p className="text-xl font-bold">${trueCostAnalysis.annualCost.toLocaleString()}</p>
-                                <p className="text-xs text-slate-500">12 meses x ${salaryWithCharges.toLocaleString()}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <p className="text-slate-400">Recursos activos</p>
+                                <p className="text-xl font-bold">{totals.membersCount}</p>
                             </div>
-
-                            <div className="space-y-1">
-                                <p className="text-slate-400">Horas Facturables/Año</p>
-                                <p className="text-xl font-bold">{trueCostAnalysis.annualBillableHours.toLocaleString()} h</p>
-                                <p className="text-xs text-slate-500">{billableHours}h/sem x {(52 - vacationDays / 5).toFixed(1)} sem. productivas</p>
+                            <div>
+                                <p className="text-slate-400">Costo mensual equipo</p>
+                                <p className="text-xl font-bold">{currency} {Math.round(totals.totalMonthlyCost).toLocaleString()}</p>
                             </div>
-
-                            <div className="space-y-1 bg-white/10 p-3 rounded-lg border border-white/20">
-                                <p className="text-blue-200 font-medium">Costo por Hora (BCR)</p>
-                                <p className="text-2xl font-bold text-white">${Math.round(trueCostAnalysis.hourlyCost).toLocaleString()}</p>
-                                <p className="text-xs text-slate-300">Base mínima para no perder dinero</p>
+                            <div>
+                                <p className="text-slate-400">Costo hora promedio</p>
+                                <p className="text-xl font-bold">{currency} {Math.round(totals.avgHourly).toLocaleString()}</p>
                             </div>
-                        </div>
-
-                        <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs text-yellow-200">
-                            ⚠️ Si solo calculáramos mensual ({salaryWithCharges.toLocaleString()} / {billableHours * 4.33}h),
-                            tu BCR sería incorrecto (~${Math.round(salaryWithCharges / (billableHours * 4.33)).toLocaleString()}).
-                            El cálculo anual es más preciso.
                         </div>
                     </CardContent>
                 </Card>
@@ -276,7 +347,7 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
 
             <div className="flex justify-between mt-6">
                 <Button variant="secondary" onClick={onBack}>← Atrás</Button>
-                <Button onClick={handleNext}>Siguiente →</Button>
+                <Button onClick={handleNext} disabled={members.length === 0}>Siguiente →</Button>
             </div>
         </div>
     );

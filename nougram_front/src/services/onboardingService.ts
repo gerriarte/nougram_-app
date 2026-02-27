@@ -5,24 +5,25 @@ import {
     Step2FixedCostsData,
     Step3MyTeamData
 } from '@/types/onboarding'; // We might need to define these types if they don't exist, or use 'any' temporarily and then strict types.
+import { apiRequest } from '@/lib/api-client';
 
 // Mock Data
 export const HARDWARE_TEMPLATES: FixedCostTemplate[] = [
-    { id: "laptop", name: "Laptop de Trabajo", amount: 800000, currency: "COP", category: "Tools", icon: "💻", preSelectedFor: ['dev', 'design', 'marketing'] },
-    { id: "monitor", name: "Monitor Externo", amount: 150000, currency: "COP", category: "Tools", icon: "🖥️", preSelectedFor: ['dev', 'design'] },
+    { id: "laptop", name: "Laptop de Trabajo", amount: 800000, currency: "COP", category: "Tools", costType: "amortization", icon: "💻", preSelectedFor: ['dev', 'design', 'marketing'] },
+    { id: "monitor", name: "Monitor Externo", amount: 150000, currency: "COP", category: "Tools", costType: "amortization", icon: "🖥️", preSelectedFor: ['dev', 'design'] },
 ];
 
 export const SOFTWARE_TEMPLATES: FixedCostTemplate[] = [
-    { id: "adobe_cc", name: "Adobe Creative Cloud", amount: 150000, currency: "COP", category: "Software", icon: "🎨", preSelectedFor: ['design', 'marketing'] },
-    { id: "chatgpt_plus", name: "ChatGPT Plus", amount: 20, currency: "USD", category: "Software", icon: "🤖", preSelectedFor: ['dev', 'marketing', 'design'] },
-    { id: "figma", name: "Figma Professional", amount: 12, currency: "USD", category: "Software", icon: "🎨", preSelectedFor: ['design'] },
-    { id: "notion", name: "Notion Pro", amount: 8, currency: "USD", category: "Software", icon: "📝", preSelectedFor: ['consulting', 'design'] },
+    { id: "adobe_cc", name: "Adobe Creative Cloud", amount: 150000, currency: "COP", category: "Software", costType: "operational", icon: "🎨", preSelectedFor: ['design', 'marketing'] },
+    { id: "chatgpt_plus", name: "ChatGPT Plus", amount: 20, currency: "USD", category: "Software", costType: "operational", icon: "🤖", preSelectedFor: ['dev', 'marketing', 'design'] },
+    { id: "figma", name: "Figma Professional", amount: 12, currency: "USD", category: "Software", costType: "operational", icon: "🎨", preSelectedFor: ['design'] },
+    { id: "notion", name: "Notion Pro", amount: 8, currency: "USD", category: "Software", costType: "operational", icon: "📝", preSelectedFor: ['consulting', 'design'] },
 ];
 
 export const OVERHEAD_TEMPLATES: FixedCostTemplate[] = [
-    { id: "coworking", name: "Arriendo Coworking", amount: 300000, currency: "COP", category: "Overhead", icon: "🏢", preSelectedFor: [] },
-    { id: "internet", name: "Internet", amount: 80000, currency: "COP", category: "Overhead", icon: "🌐", preSelectedFor: ['dev', 'design', 'marketing', 'consulting'] },
-    { id: 'hosting', name: 'Hosting Web', amount: 50000, currency: 'COP', category: 'Overhead', icon: '☁️', preSelectedFor: ['dev'] },
+    { id: "coworking", name: "Arriendo Coworking", amount: 300000, currency: "COP", category: "Overhead", costType: "operational", icon: "🏢", preSelectedFor: [] },
+    { id: "internet", name: "Internet", amount: 80000, currency: "COP", category: "Overhead", costType: "operational", icon: "🌐", preSelectedFor: ['dev', 'design', 'marketing', 'consulting'] },
+    { id: 'hosting', name: 'Hosting Web', amount: 50000, currency: 'COP', category: 'Overhead', costType: "operational", icon: '☁️', preSelectedFor: ['dev'] },
 ];
 
 export const ALL_TEMPLATES = [...HARDWARE_TEMPLATES, ...SOFTWARE_TEMPLATES, ...OVERHEAD_TEMPLATES];
@@ -155,5 +156,65 @@ export const onboardingService = {
         }
 
         return amount;
+    },
+
+    inferCountryFromCurrency: (currency: string): string => {
+        const map: Record<string, string> = {
+            COP: 'COL',
+            ARS: 'ARG',
+            PEN: 'PER',
+            USD: 'USA',
+            EUR: 'ESP'
+        };
+        return map[currency] || 'COL';
+    },
+
+    toBackendExpenseCategory: (category: string): 'rent' | 'software' | 'services' => {
+        if (category === 'Software') return 'software';
+        if (category === 'Overhead') return 'rent';
+        return 'services';
+    },
+
+    completeOnboarding: async (data: OnboardingData): Promise<{ success: boolean; message?: string; error?: string }> => {
+        const country = data.identity.country || onboardingService.inferCountryFromCurrency(data.identity.primaryCurrency);
+        const currency = data.identity.primaryCurrency || 'COP';
+        const teamMembers = Array.isArray(data.team) ? data.team : [];
+
+        const requestBody = {
+            organization_name: data.identity.organizationName || undefined,
+            country,
+            currency,
+            profile_type: data.identity.profileType || 'freelance',
+            team_members: teamMembers
+                .filter((member) => member.name && member.role)
+                .map((member) => ({
+                    name: member.name,
+                    role: member.role || 'General',
+                    salary_monthly_brute: String(member.salary || 0),
+                    currency,
+                    billable_hours_per_month: Math.max(1, Math.round((member.billableHours || 0) * 4.33))
+                })),
+            expenses: (data.fixedCosts.selectedTemplates || []).map((item) => ({
+                name: item.name,
+                category: onboardingService.toBackendExpenseCategory(item.category),
+                amount_monthly: String(item.amount),
+                currency,
+                cost_type: item.costType || 'operational'
+            })),
+            social_charges_config: country === 'COL' && teamMembers.some((member) => member.applySocialCharges)
+                ? { enabled: true, country }
+                : undefined
+        };
+
+        const response = await apiRequest<{ success: boolean; message: string }>('/onboarding/complete', {
+            method: 'POST',
+            body: JSON.stringify(requestBody)
+        });
+
+        if (response.error || !response.data?.success) {
+            return { success: false, error: response.error || 'No fue posible completar onboarding' };
+        }
+
+        return { success: true, message: response.data.message };
     }
 };

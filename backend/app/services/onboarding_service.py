@@ -5,11 +5,13 @@ from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 from decimal import Decimal
+from datetime import date
 import logging
 
 from app.repositories.factory import RepositoryFactory
 from app.repositories.organization_repository import OrganizationRepository
 from app.core.calculations import calculate_blended_cost_rate
+from app.core.currency import EXCHANGE_RATES_TO_USD
 from app.schemas.onboarding import (
     CompleteOnboardingRequest,
     OnboardingTeamMember,
@@ -18,6 +20,7 @@ from app.schemas.onboarding import (
 )
 from app.models.team import TeamMember
 from app.models.cost import CostFixed
+from app.models.equipment import EquipmentAmortization
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +125,9 @@ class OnboardingService:
             
             # Update primary currency
             if request.currency:
-                org.primary_currency = request.currency
+                if org.settings is None:
+                    org.settings = {}
+                org.settings["primary_currency"] = request.currency
             
             # Update settings with onboarding data
             if org.settings is None:
@@ -167,14 +172,44 @@ class OnboardingService:
             
             # 3. Create fixed costs (expenses)
             expenses_created = 0
+            amortization_assets_created = 0
             for expense_data in request.expenses:
-                # Create CostFixed model instance
+                expense_kind = getattr(expense_data, "cost_type", "operational")
+                if expense_kind == "amortization":
+                    # Financially strict: amortizable assets must be persisted as EquipmentAmortization.
+                    category = "Software" if expense_data.category == "software" else "Hardware"
+                    useful_life_months = 24 if category == "Software" else 36
+                    exchange_rate_at_purchase = None
+                    if expense_data.currency and expense_data.currency != "USD":
+                        exchange_rate_at_purchase = Decimal(
+                            str(EXCHANGE_RATES_TO_USD.get(expense_data.currency, 1.0))
+                        )
+
+                    asset = EquipmentAmortization(
+                        name=expense_data.name,
+                        description=f"Onboarding amortization asset: {expense_data.name}",
+                        category=category,
+                        purchase_price=expense_data.amount_monthly,
+                        purchase_date=date.today(),
+                        currency=expense_data.currency,
+                        exchange_rate_at_purchase=exchange_rate_at_purchase,
+                        useful_life_months=useful_life_months,
+                        salvage_value=Decimal("0"),
+                        depreciation_method="straight_line",
+                        is_active=True,
+                        organization_id=self.organization_id
+                    )
+                    self.db.add(asset)
+                    amortization_assets_created += 1
+                    continue
+
+                # Operational expense remains in CostFixed
                 cost_fixed = CostFixed(
                     name=expense_data.name,
                     category=expense_data.category,
                     amount_monthly=expense_data.amount_monthly,
                     currency=expense_data.currency,
-                    description=f"Operational expense: {expense_data.name}",
+                    description=f"{expense_kind.capitalize()} expense: {expense_data.name}",
                     organization_id=self.organization_id
                 )
                 await self.cost_repo.create(cost_fixed)
@@ -191,7 +226,8 @@ class OnboardingService:
             
             logger.info(
                 f"Onboarding completed for organization {self.organization_id}: "
-                f"{team_members_created} team members, {expenses_created} expenses"
+                f"{team_members_created} team members, {expenses_created} operational expenses, "
+                f"{amortization_assets_created} amortization assets"
             )
             
             return {
@@ -204,7 +240,7 @@ class OnboardingService:
                 "organization": {
                     "id": org.id,
                     "name": org.name,
-                    "primary_currency": org.primary_currency,
+                    "primary_currency": (org.settings or {}).get("primary_currency", request.currency),
                     "settings": org.settings
                 }
             }
