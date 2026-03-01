@@ -30,6 +30,12 @@ nougram_-app/
 | staging   | Pre-producción        |
 | production| Clientes reales       |
 
+### GitFlow y Railway (prod / staging)
+- **prod**: despliega desde `main`
+- **staging**: despliega desde `develop` (pruebas antes de prod)
+
+Ver [GITFLOW.md](GITFLOW.md).
+
 ## Quick Start
 
 ```bash
