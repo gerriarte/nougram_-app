@@ -375,9 +375,10 @@ export const quoteService = {
 
         if (response.error || !response.data?.project_id) {
             if (response.statusCode === 402) {
+                const errorMessage = response.error || 'Creditos insuficientes para crear la cotizacion';
                 const { availableCredits, requiredCredits } = parseCreditsFromMessage(response.error);
                 throw new CreditsRequiredError(
-                    response.error,
+                    errorMessage,
                     availableCredits,
                     requiredCredits ?? 1
                 );
