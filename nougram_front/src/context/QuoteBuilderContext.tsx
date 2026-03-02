@@ -7,14 +7,8 @@ import {
     QuoteBuilderState, QuoteItem, TaxConfig, CalculationSummary,
     PricingType, Service, Contingency
 } from '@/types/quote-builder';
+import { taxService } from '@/services/taxService';
 
-const MOCK_TAXES: TaxConfig[] = [
-    { id: 1, name: 'IVA', percentage: 19.0 },
-    { id: 2, name: 'ReteFuente', percentage: 3.5 },
-    { id: 3, name: 'ICA', percentage: 0.966 },
-];
-
-// MOCK_TEAM_MEMBERS moved to resourceService
 import { resourceService } from '@/services/resourceService';
 import { pricingService } from '@/services/pricingService';
 import { CreditsRequiredError } from '@/lib/errors';
@@ -126,6 +120,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     const { state: coreState } = useNougram();
     const [state, setState] = useState<QuoteBuilderState>(INITIAL_STATE);
     const [services, setServices] = useState<Service[]>([]);
+    const [taxes, setTaxes] = useState<TaxConfig[]>([]);
     const [teamMembers, setTeamMembers] = useState<import('@/types/quote-builder').TeamMemberMock[]>([]); // Load from service
     const [summary, setSummary] = useState<CalculationSummary>({
         totalInternalCost: 0, totalClientPrice: 0, totalTaxes: 0, totalWithTaxes: 0, netMarginAmount: 0, netMarginPercent: 0, realIncome: 0,
@@ -141,6 +136,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     // --- LOAD RESOURCES ---
     useEffect(() => {
         resourceService.getAllMembers().then(setTeamMembers);
+        taxService.getAll(true).then(setTaxes).catch(() => setTaxes([]));
         import('@/services/quoteService').then(({ quoteService }) => {
             quoteService.getAvailableServices().then((available) => {
                 if (available.length > 0) setServices(available);
@@ -153,7 +149,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     // --- CALCULATION ENGINE ---
     useEffect(() => {
         calculateTotals();
-    }, [state.items, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency]);
+    }, [state.items, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency, taxes]);
 
     const calculateTotals = () => {
         // 1. Calculate Items
@@ -191,7 +187,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
 
         const totals = pricingService.calculateQuoteTotals(
             calculatedItems,
-            MOCK_TAXES,
+            taxes,
             state.selectedTaxIds,
             state.contingency
         );
@@ -415,7 +411,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
 
     return (
         <QuoteBuilderContext.Provider value={{
-            state, services, taxes: MOCK_TAXES, teamMembers,
+            state, services, taxes, teamMembers,
             updateProjectInfo, addItem, updateItem, removeItem, toggleTax, setTargetMargin, setContingency,
             toggleResourceAllocation, addResourceAllocation, updateResourceAllocation, removeResourceAllocation, getMemberUtilization,
             summary, isValid: errors.length === 0, errors,

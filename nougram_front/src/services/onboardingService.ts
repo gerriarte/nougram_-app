@@ -1,51 +1,8 @@
 
 import {
     FixedCostTemplate,
-    OnboardingData,
-    Step2FixedCostsData,
-    Step3MyTeamData
-} from '@/types/onboarding'; // We might need to define these types if they don't exist, or use 'any' temporarily and then strict types.
-
-// Mock Data
-export const HARDWARE_TEMPLATES: FixedCostTemplate[] = [
-    { id: "laptop", name: "Laptop de Trabajo", amount: 800000, currency: "COP", category: "Tools", amortizable: true, icon: "💻", preSelectedFor: ['dev', 'design', 'marketing'] },
-    { id: "monitor", name: "Monitor Externo", amount: 150000, currency: "COP", category: "Tools", amortizable: true, icon: "🖥️", preSelectedFor: ['dev', 'design'] },
-];
-
-export const SOFTWARE_TEMPLATES: FixedCostTemplate[] = [
-    { id: "adobe_cc", name: "Adobe Creative Cloud", amount: 150000, currency: "COP", category: "Software", icon: "🎨", preSelectedFor: ['design', 'marketing'] },
-    { id: "chatgpt_plus", name: "ChatGPT Plus", amount: 20, currency: "USD", category: "Software", icon: "🤖", preSelectedFor: ['dev', 'marketing', 'design'] },
-    { id: "figma", name: "Figma Professional", amount: 12, currency: "USD", category: "Software", icon: "🎨", preSelectedFor: ['design'] },
-    { id: "notion", name: "Notion Pro", amount: 8, currency: "USD", category: "Software", icon: "📝", preSelectedFor: ['consulting', 'design'] },
-];
-
-export const OVERHEAD_TEMPLATES: FixedCostTemplate[] = [
-    { id: "coworking", name: "Arriendo Coworking", amount: 300000, currency: "COP", category: "Overhead", icon: "🏢", preSelectedFor: [] },
-    { id: "internet", name: "Internet", amount: 80000, currency: "COP", category: "Overhead", icon: "🌐", preSelectedFor: ['dev', 'design', 'marketing', 'consulting'] },
-    { id: 'hosting', name: 'Hosting Web', amount: 50000, currency: 'COP', category: 'Overhead', icon: '☁️', preSelectedFor: ['dev'] },
-];
-
-export const ALL_TEMPLATES = [...HARDWARE_TEMPLATES, ...SOFTWARE_TEMPLATES, ...OVERHEAD_TEMPLATES];
-
-export const BENCHMARKS = {
-    freelance: {
-        description: "Operación individual enfocada en proyectos especializados.",
-        avgMargin: 38,
-        avgMonthlyIncome: "3,500",
-    },
-    company: {
-        description: "Empresa pequeña con estructura y costos operativos fijos.",
-        avgMargin: 32,
-        avgMonthlyIncome: "12,000",
-        avgTeamSize: 6,
-    },
-    agency: {
-        description: "Agencia con múltiples servicios y equipo multidisciplinario.",
-        avgMargin: 35,
-        avgMonthlyIncome: "25,000",
-        avgTeamSize: 12,
-    },
-} as const;
+} from '@/types/onboarding';
+import { apiRequest } from '@/lib/api-client';
 
 // Types
 export interface CurrencyRate {
@@ -55,44 +12,49 @@ export interface CurrencyRate {
     lastUpdated: string;
 }
 
-// Mock Exchange Rates
-const MOCK_RATES: Record<string, number> = {
-    'USD_COP': 4000,
-    'COP_USD': 0.00025,
-    'EUR_COP': 4300,
-    'COP_EUR': 0.00023,
+type OnboardingTemplatesResponse = {
+    items: FixedCostTemplate[];
+    source: string;
+};
+
+type ExchangeRatesResponse = {
+    rates: Record<string, { rate: number | string; rate_to_usd: number | string; last_updated: string }>;
+    base_currency: string;
 };
 
 export const onboardingService = {
 
-    getTemplates: async () => {
-        // Simulate API delay
-        return new Promise<any[]>((resolve) => {
-            setTimeout(() => resolve(ALL_TEMPLATES), 100);
-        });
+    getTemplates: async (): Promise<FixedCostTemplate[]> => {
+        const response = await apiRequest<OnboardingTemplatesResponse>('/onboarding/templates');
+        if (response.error || !response.data?.items) return [];
+        return response.data.items;
     },
 
-    getExchangeRate: async (from: string, to: string): Promise<CurrencyRate> => {
-        // Simulate API
-        return new Promise((resolve) => {
-            const key = `${from}_${to}`;
-            const rate = from === to ? 1 : (MOCK_RATES[key] || 1);
-            setTimeout(() => {
-                resolve({
-                    from,
-                    to,
-                    rate,
-                    lastUpdated: new Date().toISOString()
-                });
-            }, 50);
+    getExchangeRates: async (): Promise<Record<string, { rate: number; lastUpdated: string }>> => {
+        const response = await apiRequest<ExchangeRatesResponse>('/settings/currency/exchange-rates');
+        if (response.error || !response.data?.rates) return {};
+
+        const normalized: Record<string, { rate: number; lastUpdated: string }> = {};
+        Object.entries(response.data.rates).forEach(([code, info]) => {
+            normalized[code] = {
+                rate: Number(info.rate),
+                lastUpdated: info.last_updated,
+            };
         });
+        return normalized;
     },
 
-    convertCurrency: (amount: number, from: string, to: string): number => {
+    convertCurrency: (
+        amount: number,
+        from: string,
+        to: string,
+        rates: Record<string, { rate: number; lastUpdated: string }> = {}
+    ): number => {
         if (from === to) return amount;
-        const key = `${from}_${to}`;
-        const rate = MOCK_RATES[key] || 1;
-        return amount * rate;
+        const fromRate = rates[from]?.rate;
+        const toRate = rates[to]?.rate;
+        if (!fromRate || !toRate) return amount;
+        return (amount / fromRate) * toRate;
     },
 
     /**
@@ -128,32 +90,19 @@ export const onboardingService = {
         };
     },
 
-    getMarketSalaryThreshold: (role: string, level: string, currency: string): number | null => {
-        // Mock Data for COP. In a real app, this would be an API call or a larger dataset.
-        // Base baselines for Mid level
-        const baselines: Record<string, number> = {
-            'Diseñador UI/UX': 3500000,
-            'Desarrollador Frontend': 4000000,
-            'Desarrollador Backend': 4500000,
-            'Product Manager': 5000000,
-            'CEO/Founder': 6000000,
-            'Otro': 2000000
-        };
-
-        const base = baselines[role];
-        if (!base) return null;
-
-        let multiplier = 1;
-        if (level === 'Junior') multiplier = 0.7;
-        if (level === 'Senior') multiplier = 1.5;
-
-        let amount = base * multiplier;
-
-        // Simple conversion if checking against USD (mock)
-        if (currency === 'USD') {
-            amount = amount / 4000;
+    getExchangeRate: async (from: string, to: string): Promise<CurrencyRate> => {
+        const rates = await onboardingService.getExchangeRates();
+        if (from === to) {
+            return { from, to, rate: 1, lastUpdated: new Date().toISOString() };
         }
-
-        return amount;
-    }
+        const fromRate = rates[from]?.rate;
+        const toRate = rates[to]?.rate;
+        const converted = fromRate && toRate ? (1 / fromRate) * toRate : 1;
+        return {
+            from,
+            to,
+            rate: converted,
+            lastUpdated: rates[to]?.lastUpdated || new Date().toISOString(),
+        };
+    },
 };

@@ -11,10 +11,12 @@ import { useEquipment } from '@/hooks/useEquipment';
 import { calculateDepreciation } from '@/lib/depreciation';
 
 import EquipmentList from '@/components/admin/equipment/EquipmentList';
+import { formatCurrency } from '@/lib/utils';
 
 export default function OverheadPage() {
     const { state } = useNougram();
     const { equipment } = useEquipment();
+    const currency = state.identity.primaryCurrency || 'COP';
     const [activeTab, setActiveTab] = useState<'fixed' | 'equipment'>('fixed');
 
     const equipmentStats = useMemo(() => {
@@ -75,7 +77,7 @@ export default function OverheadPage() {
                                 <p className="text-xs font-bold text-blue-800 uppercase">Impacto Total BCR</p>
                                 <div className="flex items-baseline gap-2">
                                     <p className="text-2xl font-bold text-blue-900">
-                                        +${(equipmentStats.totalAmortization / (state.financials.billableHours || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        +{formatCurrency((equipmentStats.totalAmortization / (state.financials.billableHours || 1)), currency)}
                                     </p>
                                     <span className="text-xs text-blue-600">/ hora</span>
                                 </div>
@@ -83,7 +85,7 @@ export default function OverheadPage() {
                             <div className="bg-white p-4 rounded-lg border shadow-sm">
                                 <p className="text-xs font-bold text-gray-400 uppercase">Amortización Mensual</p>
                                 <p className="text-2xl font-bold text-gray-900">
-                                    ${equipmentStats.totalAmortization.toLocaleString()}
+                                    {formatCurrency(equipmentStats.totalAmortization, currency)}
                                 </p>
                             </div>
                             <div className="bg-white p-4 rounded-lg border shadow-sm">

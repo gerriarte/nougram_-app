@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -7,7 +7,6 @@ import { Label } from '../ui/Label';
 import { Badge } from '../ui/Badge';
 import { Alert } from '../ui/Alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
-import { onboardingService } from '@/services/onboardingService';
 import { Step3MyTeamData } from '@/types/onboarding';
 
 interface StepMyTeamProps {
@@ -146,10 +145,6 @@ export function StepMyTeam({
         hourlyCost: aggregateAnnualHours > 0 ? aggregateAnnualCost / aggregateAnnualHours : 0,
     };
     const displayedBcr = backendBcr ?? trueCostAnalysis.hourlyCost;
-
-    // Validation Status
-    const minSalary = onboardingService.getMarketSalaryThreshold(selectedRole, level, currency);
-    const isSalaryLow = minSalary && salaryNum < minSalary;
 
     const handleTotalHoursChange = (val: string) => {
         const hours = parseInt(val) || 0;
@@ -303,14 +298,6 @@ export function StepMyTeam({
                                 onChange={e => setSalary(e.target.value)}
                                 placeholder="0"
                             />
-                            {isSalaryLow && (
-                                <Alert variant="warning" className="bg-amber-50 border-amber-200">
-                                    <p className="text-sm text-amber-800">
-                                        ⚠️ <strong>Validación de Mercado:</strong> Tu salario parece bajo para un {selectedRole} {level}.
-                                        El promedio es ~${minSalary?.toLocaleString()} {currency}.
-                                    </p>
-                                </Alert>
-                            )}
                         </div>
                     </CardContent>
                 </Card>

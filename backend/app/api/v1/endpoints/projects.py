@@ -545,8 +545,8 @@ async def get_quote(
     # Use RepositoryFactory to get project repository with tenant scoping
     project_repo = RepositoryFactory.create_project_repository(db, tenant.organization_id)
     
-    # Verify project exists and belongs to tenant (validates ownership)
-    project = await project_repo.get_by_id(project_id, include_deleted=False)
+    # Verify project exists and belongs to tenant (load taxes eagerly for totals computation)
+    project = await project_repo.get_by_id_with_quotes(project_id, include_deleted=False)
     if not project:
         raise ResourceNotFoundError("Project", project_id)
     

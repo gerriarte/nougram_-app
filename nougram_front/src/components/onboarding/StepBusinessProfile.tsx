@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { User, Building2, Briefcase, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BENCHMARKS } from '@/services/onboardingService';
+import { apiRequest } from '@/lib/api-client';
 
 interface StepBusinessProfileProps {
     onNext: (type: 'freelance' | 'company' | 'agency') => void;
@@ -10,35 +10,73 @@ interface StepBusinessProfileProps {
     initialType?: 'freelance' | 'company' | 'agency';
 }
 
-const profiles = [
+const profileMeta = [
     {
         id: 'freelance',
         title: 'Freelance',
         icon: User,
-        description: BENCHMARKS.freelance.description,
+        description: 'Operación individual enfocada en proyectos especializados.',
         color: 'bg-blue-500',
-        benchmarks: BENCHMARKS.freelance
     },
     {
         id: 'company',
         title: 'Empresa',
         icon: Building2,
-        description: BENCHMARKS.company.description,
+        description: 'Empresa con estructura y costos operativos definidos.',
         color: 'bg-purple-500',
-        benchmarks: BENCHMARKS.company
     },
     {
         id: 'agency',
         title: 'Agencia',
         icon: Briefcase,
-        description: BENCHMARKS.agency.description,
+        description: 'Agencia con múltiples servicios y equipo multidisciplinario.',
         color: 'bg-orange-500',
-        benchmarks: BENCHMARKS.agency
     }
 ] as const;
 
+type BenchmarksByProfile = Record<
+    'freelance' | 'company' | 'agency',
+    { avgMargin?: number; avgMonthlyIncome?: number; avgTeamSize?: number }
+>;
+
 export function StepBusinessProfile({ onNext, onBack, initialType }: StepBusinessProfileProps) {
-    const [selected, setSelected] = React.useState<typeof profiles[number]['id'] | null>(initialType || null);
+    const [selected, setSelected] = React.useState<typeof profileMeta[number]['id'] | null>(initialType || null);
+    const [benchmarks, setBenchmarks] = React.useState<BenchmarksByProfile>({
+        freelance: {},
+        company: {},
+        agency: {},
+    });
+
+    React.useEffect(() => {
+        const loadBenchmarks = async () => {
+            const profileIds: Array<'freelance' | 'company' | 'agency'> = ['freelance', 'company', 'agency'];
+            const responses = await Promise.all(
+                profileIds.map((profileId) =>
+                    apiRequest<{ benchmarks?: { avg_margin?: number; avg_monthly_income?: number; avg_team_size?: number } }>(
+                        `/onboarding/benchmarks?profile_type=${profileId}`
+                    )
+                )
+            );
+
+            const next: BenchmarksByProfile = {
+                freelance: {},
+                company: {},
+                agency: {},
+            };
+
+            profileIds.forEach((profileId, index) => {
+                const b = responses[index].data?.benchmarks;
+                if (!b) return;
+                next[profileId] = {
+                    avgMargin: b.avg_margin,
+                    avgMonthlyIncome: b.avg_monthly_income,
+                    avgTeamSize: b.avg_team_size,
+                };
+            });
+            setBenchmarks(next);
+        };
+        void loadBenchmarks();
+    }, []);
 
     const handleContinue = () => {
         if (selected) {
@@ -67,9 +105,10 @@ export function StepBusinessProfile({ onNext, onBack, initialType }: StepBusines
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {profiles.map((profile, index) => {
+                {profileMeta.map((profile, index) => {
                     const Icon = profile.icon;
                     const isSelected = selected === profile.id;
+                    const profileBenchmarks = benchmarks[profile.id];
 
                     return (
                         <motion.div
@@ -105,18 +144,18 @@ export function StepBusinessProfile({ onNext, onBack, initialType }: StepBusines
                                 <div className="text-xs space-y-1 text-gray-600">
                                     <div className="flex justify-between">
                                         <span>Margen:</span>
-                                        <span className="font-medium text-[#1d1d1f]">{profile.benchmarks.avgMargin}%</span>
+                                        <span className="font-medium text-[#1d1d1f]">{profileBenchmarks.avgMargin ?? '-'}%</span>
                                     </div>
-                                    {'avgMonthlyIncome' in profile.benchmarks && (
+                                    {profileBenchmarks.avgMonthlyIncome !== undefined && (
                                         <div className="flex justify-between">
                                             <span>Ingreso:</span>
-                                            <span className="font-medium text-[#1d1d1f]">${profile.benchmarks.avgMonthlyIncome}</span>
+                                            <span className="font-medium text-[#1d1d1f]">${profileBenchmarks.avgMonthlyIncome}</span>
                                         </div>
                                     )}
-                                    {'avgTeamSize' in profile.benchmarks && (
+                                    {profileBenchmarks.avgTeamSize !== undefined && (
                                         <div className="flex justify-between">
                                             <span>Equipo:</span>
-                                            <span className="font-medium text-[#1d1d1f]">{profile.benchmarks.avgTeamSize} personas</span>
+                                            <span className="font-medium text-[#1d1d1f]">{profileBenchmarks.avgTeamSize} personas</span>
                                         </div>
                                     )}
                                 </div>

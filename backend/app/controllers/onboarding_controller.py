@@ -109,6 +109,19 @@ class OnboardingController(BaseController):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error retrieving benchmarks"
             )
+
+    async def get_templates(self) -> dict:
+        """
+        Get onboarding inventory templates from backend source.
+        """
+        try:
+            return await self.onboarding_service.get_inventory_templates()
+        except Exception as e:
+            self.logger.error(f"Error getting onboarding templates: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error retrieving onboarding templates"
+            )
     
     async def complete_onboarding(
         self,

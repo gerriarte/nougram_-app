@@ -6,36 +6,88 @@ import {
     MonthProjection,
     BreakEvenStatus
 } from '@/types/break-even';
-
-// Mock data imported for now, but service structure allows for API replacement
-import { MOCK_BREAK_EVEN_DATA } from '@/data/mock-break-even';
-
-const SIMULATION_DELAY_MS = 500;
+import { financialSummaryService } from '@/services/financialSummaryService';
 
 export const breakEvenService = {
     /**
      * Fetches the current break even analysis data.
      */
     getAnalysis: async (): Promise<BreakEvenAnalysisResponse> => {
-        // Simulate API call
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve({ ...MOCK_BREAK_EVEN_DATA });
-            }, SIMULATION_DELAY_MS);
-        });
+        const summary = await financialSummaryService.get();
+        if (!summary) {
+            throw new Error('No se pudo obtener el resumen financiero desde backend');
+        }
+
+        const totalFixedCosts = Number(summary.monthlyFixedCosts || 0);
+        const totalCosts = Number((summary.monthlyFixedCosts || 0) + (summary.monthlyPayroll || 0));
+        const totalBillableHours = Number(summary.totalBillableHours || 0);
+        const blendedCostRate = Number(summary.blendedCostRate || 0);
+        const breakEvenHours = blendedCostRate > 0 ? totalCosts / blendedCostRate : 0;
+        const currentAllocatedHours = totalBillableHours;
+        const hoursToBreakEven = Math.max(0, breakEvenHours - currentAllocatedHours);
+        const safetyMarginHours = Math.max(0, currentAllocatedHours - breakEvenHours);
+        const safetyMarginPercentage = breakEvenHours > 0 ? (safetyMarginHours / breakEvenHours) * 100 : 0;
+        const breakEvenRevenue = breakEvenHours * blendedCostRate;
+        const currentProjectedRevenue = currentAllocatedHours * blendedCostRate;
+        const revenueToBreakEven = Math.max(0, breakEvenRevenue - currentProjectedRevenue);
+        const currentUtilizationRate = totalBillableHours > 0 ? (currentAllocatedHours / totalBillableHours) * 100 : 0;
+        const breakEvenUtilizationRate = totalBillableHours > 0 ? (breakEvenHours / totalBillableHours) * 100 : 0;
+        const averageMargin = blendedCostRate > 0 ? ((blendedCostRate * 1.5 - blendedCostRate) / (blendedCostRate * 1.5)) * 100 : 0;
+
+        const status: BreakEvenStatus =
+            currentAllocatedHours > breakEvenHours
+                ? 'above_break_even'
+                : Math.abs(currentAllocatedHours - breakEvenHours) < 1
+                    ? 'at_break_even'
+                    : 'below_break_even';
+
+        return {
+            period: 'monthly',
+            currency: summary.currency || 'USD',
+            total_fixed_costs: totalFixedCosts,
+            total_costs: totalCosts,
+            total_billable_hours_available: totalBillableHours,
+            break_even_hours: breakEvenHours,
+            current_allocated_hours: currentAllocatedHours,
+            hours_to_break_even: hoursToBreakEven,
+            safety_margin_hours: safetyMarginHours,
+            safety_margin_percentage: safetyMarginPercentage,
+            break_even_revenue: breakEvenRevenue,
+            current_projected_revenue: currentProjectedRevenue,
+            revenue_to_break_even: revenueToBreakEven,
+            average_margin: averageMargin,
+            operating_leverage: totalFixedCosts > 0 ? totalCosts / totalFixedCosts : 0,
+            current_utilization_rate: currentUtilizationRate,
+            break_even_utilization_rate: breakEvenUtilizationRate,
+            status,
+            status_message:
+                status === 'above_break_even'
+                    ? 'Estás por encima del punto de equilibrio'
+                    : status === 'at_break_even'
+                        ? 'Estás en punto de equilibrio'
+                        : 'Aún estás por debajo del punto de equilibrio',
+            cost_breakdown: [
+                {
+                    category: 'Costos Fijos',
+                    amount: totalFixedCosts,
+                    percentage: totalCosts > 0 ? (totalFixedCosts / totalCosts) * 100 : 0,
+                    color: '#6366F1',
+                },
+                {
+                    category: 'Nómina',
+                    amount: Number(summary.monthlyPayroll || 0),
+                    percentage: totalCosts > 0 ? (Number(summary.monthlyPayroll || 0) / totalCosts) * 100 : 0,
+                    color: '#14B8A6',
+                },
+            ],
+        };
     },
 
     /**
      * Calculates a new scenario based on the base data and configuration.
      */
     calculateScenario: async (baseData: BreakEvenAnalysisResponse, config: ScenarioConfig): Promise<ScenarioResult> => {
-        // Simulate API calculation or perform client-side calculation (as currently done)
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const result = calculateScenarioLogic(baseData, config);
-                resolve(result);
-            }, SIMULATION_DELAY_MS / 2); // Faster than full fetch
-        });
+        return calculateScenarioLogic(baseData, config);
     },
 
     /**
@@ -46,16 +98,11 @@ export const breakEvenService = {
         months: number = 12,
         growthRate: number = 0
     ): Promise<BreakEvenProjectionResponse> => {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const result = generateProjectionLogic(baseData, months, growthRate);
-                resolve(result);
-            }, SIMULATION_DELAY_MS);
-        });
+        return generateProjectionLogic(baseData, months, growthRate);
     }
 };
 
-// --- LOGIC HELPERS (Moved from mock-break-even.ts) ---
+// --- Logic helpers ---
 
 const calculateScenarioLogic = (baseData: BreakEvenAnalysisResponse, config: ScenarioConfig): ScenarioResult => {
     const currentFixedCosts = baseData.total_fixed_costs;

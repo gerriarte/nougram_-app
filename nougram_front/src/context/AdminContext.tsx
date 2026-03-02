@@ -56,16 +56,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     // 1. State
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
-    const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([
-        { id: '1', name: 'Oficina', category: 'Rent', amountMonthly: 2000000, currency: 'COP', isActive: true },
-        { id: '2', name: 'Software', category: 'Software', amountMonthly: 500000, currency: 'COP', isActive: true }
-    ]);
+    const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
 
     const [socialCharges, setSocialCharges] = useState<SocialChargesConfig>(DEFAULT_SOCIAL_CHARGES);
     const [globalSettings, setGlobalSettings] = useState<GlobalConfig>(DEFAULT_GLOBAL);
 
     // 2. Calculation Logic
-    const { updateFinancialBasics } = useNougram(); // Connect to Core
+    const { state: nougramState, updateFinancialBasics } = useNougram(); // Connect to Core
 
     useEffect(() => {
         const raw = localStorage.getItem('nougram_onboarding_data');
@@ -109,6 +106,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         };
         void loadSocialCharges();
     }, []);
+
+    useEffect(() => {
+        const primaryCurrency = (nougramState.identity.primaryCurrency || 'COP') as GlobalConfig['primary_currency'];
+        setGlobalSettings((prev) => (
+            prev.primary_currency === primaryCurrency
+                ? prev
+                : { ...prev, primary_currency: primaryCurrency }
+        ));
+    }, [nougramState.identity.primaryCurrency]);
 
     const bcr: BCRCalculation = useMemo(() => {
         // A. Payroll Costs

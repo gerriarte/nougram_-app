@@ -23,6 +23,22 @@ router = APIRouter()
 
 
 @router.get(
+    "/templates",
+    summary="Get onboarding inventory templates"
+)
+async def get_onboarding_templates(
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get onboarding inventory template catalog from backend source.
+    """
+    controller = OnboardingController(db, tenant, current_user)
+    return await controller.get_templates()
+
+
+@router.get(
     "/benchmarks",
     response_model=BenchmarksResponse,
     summary="Get benchmarks for a business profile"

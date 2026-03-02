@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { FixedCost, CostCategory } from '@/types/admin';
+import { useNougram } from '@/context/NougramCoreContext';
 
 type FixedCostInput = Omit<FixedCost, 'id' | 'isActive'>;
 
@@ -28,6 +29,8 @@ const CATEGORIES: CostCategory[] = [
 ];
 
 export function FixedCostForm({ open, onOpenChange, initialData, onSave }: FixedCostFormProps) {
+    const { state } = useNougram();
+    const primaryCurrency = state.identity.primaryCurrency || 'COP';
     const [formData, setFormData] = useState<FixedCostInput>(DEFAULT_FORM);
 
     useEffect(() => {
@@ -35,9 +38,9 @@ export function FixedCostForm({ open, onOpenChange, initialData, onSave }: Fixed
             const { id, isActive, ...rest } = initialData;
             setFormData(rest);
         } else {
-            setFormData(DEFAULT_FORM);
+            setFormData({ ...DEFAULT_FORM, currency: primaryCurrency as FixedCostInput['currency'] });
         }
-    }, [initialData, open]);
+    }, [initialData, open, primaryCurrency]);
 
     const handleSave = () => {
         if (!formData.name || formData.amountMonthly <= 0) {

@@ -3,10 +3,14 @@
 
 import React from 'react';
 import { useAdmin } from '@/context/AdminContext';
+import { useNougram } from '@/context/NougramCoreContext';
 import { Card, CardContent } from '@/components/ui/Card';
+import { formatCurrency } from '@/lib/utils';
 
 export function OverheadSummary() {
     const { bcr, fixedCosts } = useAdmin();
+    const { state } = useNougram();
+    const currency = state.identity.primaryCurrency || 'COP';
 
     // Group costs by type (Software vs Overhead/Other)
     const softwareCosts = fixedCosts
@@ -23,7 +27,7 @@ export function OverheadSummary() {
                 <CardContent className="p-6">
                     <p className="text-sm font-medium text-gray-500 uppercase">Total Gastos Fijos</p>
                     <p className="text-3xl font-bold text-gray-900 mt-2">
-                        ${bcr.totalFixedCosts.toLocaleString()}
+                        {formatCurrency(bcr.totalFixedCosts, currency)}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Mensual</p>
                 </CardContent>
@@ -33,7 +37,7 @@ export function OverheadSummary() {
                 <CardContent className="p-6">
                     <p className="text-sm font-medium text-gray-500 uppercase">Overhead Operacional</p>
                     <p className="text-2xl font-bold text-gray-700 mt-2">
-                        ${overheadCosts.toLocaleString()}
+                        {formatCurrency(overheadCosts, currency)}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Oficina, Arriendo, Servicios</p>
                 </CardContent>
@@ -43,7 +47,7 @@ export function OverheadSummary() {
                 <CardContent className="p-6">
                     <p className="text-sm font-medium text-gray-500 uppercase">Herramientas & Software</p>
                     <p className="text-2xl font-bold text-gray-700 mt-2">
-                        ${softwareCosts.toLocaleString()}
+                        {formatCurrency(softwareCosts, currency)}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Licencias, SaaS</p>
                 </CardContent>

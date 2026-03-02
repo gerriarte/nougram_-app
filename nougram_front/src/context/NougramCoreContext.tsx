@@ -10,7 +10,7 @@ import { apiRequest } from '@/lib/api-client';
 // --- Types ---
 
 import { UserRole } from '@/types/user';
-export type Currency = 'COP' | 'USD';
+export type Currency = 'COP' | 'USD' | 'EUR' | 'ARS' | 'PEN' | 'MXN';
 
 export interface AgencyIdentity {
     name: string;
@@ -176,25 +176,6 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
     const switchRole = (role: UserRole) =>
         setState(prev => ({ ...prev, user: { ...prev.user, role } }));
 
-    const convertToPrimaryCurrency = (
-        amount: number,
-        from: string,
-        to: Currency
-    ): number => {
-        if (!Number.isFinite(amount)) return 0;
-        if (from === to) return amount;
-        const rates: Record<string, number> = {
-            USD_COP: 4000,
-            COP_USD: 0.00025,
-            EUR_COP: 4300,
-            COP_EUR: 0.00023,
-            USD_EUR: 0.93,
-            EUR_USD: 1.07,
-        };
-        const key = `${from}_${to}`;
-        return amount * (rates[key] ?? 1);
-    };
-
     const hydrateFromOnboarding = (data: any) => {
         const name = data.identity?.organizationName || data.identity?.name || 'Agencia';
         const currency = (data.identity?.primaryCurrency || data.identity?.currency || 'COP') as Currency;
@@ -210,14 +191,15 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         const nonAmortizableCosts = selectedTemplates
             .filter((template) => !(template.amortizable || template.category === 'Tools'))
             .reduce((sum, template) => {
-                return sum + convertToPrimaryCurrency(template.amount || 0, template.currency || currency, currency);
+                // Onboarding inventory amounts are normalized to primary currency before persistence.
+                return sum + (Number(template.amount) || 0);
             }, 0);
 
         const baseMonthlyCost = salaryWithCharges + nonAmortizableCosts;
         const equipmentFromOnboarding: Equipment[] = selectedTemplates
             .filter((template) => template.amortizable || template.category === 'Tools')
             .map((template) => {
-                const purchasePrice = convertToPrimaryCurrency(template.amount || 0, template.currency || currency, currency);
+                const purchasePrice = Number(template.amount) || 0;
                 return {
                     id: `onboarding-${template.id}`,
                     name: template.name,

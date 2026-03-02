@@ -42,7 +42,6 @@ AI_RATE_LIMIT = "10/minute"  # Conservative limit for all plans (can be adjusted
 class AIAnalysisRequest(BaseModel):
     """Request for AI analysis"""
     question: Optional[str] = None
-    use_mock_data: bool = False  # Para testing sin datos reales
 
 
 class AIAnalysisResponse(BaseModel):
@@ -76,10 +75,7 @@ async def analyze_financial_data(
     
     try:
         # Build context with financial data
-        if request.use_mock_data:
-            context = _get_mock_financial_context()
-        else:
-            context = await _build_financial_context_safe(db, tenant.organization_id, tenant.organization)
+        context = await _build_financial_context_safe(db, tenant.organization_id, tenant.organization)
         
         # Get AI analysis
         result = await ai_service.analyze_financial_data(
@@ -120,43 +116,6 @@ async def get_ai_status():
     return {
         "available": ai_service.is_available(),
         "message": "AI service is ready" if ai_service.is_available() else "OPENAI_API_KEY not configured"
-    }
-
-
-@router.get("/demo")
-async def demo_analysis(
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Quick demo analysis with mock data (no database required)
-    """
-    
-    if not ai_service.is_available():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AI service not configured. Please set OPENAI_API_KEY in environment variables."
-        )
-    
-    # Use mock data
-    context = _get_mock_financial_context()
-    
-    # Get AI analysis
-    result = await ai_service.analyze_financial_data(
-        context=context,
-        question="Dame un análisis completo de la salud financiera y 3 recomendaciones prioritarias"
-    )
-    
-    if not result.get('success'):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.get('error', 'Unknown error')
-        )
-    
-    return {
-        "success": True,
-        "analysis": result.get('analysis'),
-        "usage": result.get('usage'),
-        "note": "Este análisis usa datos de ejemplo para demostración"
     }
 
 
@@ -702,92 +661,6 @@ async def generate_executive_summary(
         )
 
 
-def _get_mock_financial_context() -> dict:
-    """
-    Generate mock financial data for testing/demo
-    """
-    return {
-        'total_monthly_costs': 15000.00,
-        'blended_cost_rate': 45.50,
-        'team_size': 4,
-        'total_monthly_hours': 550.0,
-        'primary_currency': 'USD',
-        'costs_by_currency': {
-            'USD': 12000.00,
-            'ARS': 3000.00
-        },
-        'services': [
-            {
-                'name': 'Desarrollo Frontend React',
-                'default_margin_target': 0.40,
-                'is_active': True
-            },
-            {
-                'name': 'Desarrollo Backend Python',
-                'default_margin_target': 0.45,
-                'is_active': True
-            },
-            {
-                'name': 'Diseño UI/UX',
-                'default_margin_target': 0.35,
-                'is_active': True
-            },
-            {
-                'name': 'Consultoría DevOps',
-                'default_margin_target': 0.50,
-                'is_active': True
-            }
-        ],
-        'projects': [
-            {
-                'name': 'Rediseño E-commerce',
-                'client': 'TechStore Inc',
-                'status': 'won',
-                'total_price': 35000.00,
-                'total_cost': 20000.00,
-                'margin_percentage': 42.86,
-                'created_at': '2024-10-15T10:00:00'
-            },
-            {
-                'name': 'App Mobile Banking',
-                'client': 'FinanceBank',
-                'status': 'won',
-                'total_price': 58000.00,
-                'total_cost': 32000.00,
-                'margin_percentage': 44.83,
-                'created_at': '2024-10-20T14:30:00'
-            },
-            {
-                'name': 'Portal B2B',
-                'client': 'Logistics Corp',
-                'status': 'in_progress',
-                'total_price': 42000.00,
-                'total_cost': 26000.00,
-                'margin_percentage': 38.10,
-                'created_at': '2024-11-01T09:00:00'
-            },
-            {
-                'name': 'Sistema CRM',
-                'client': 'Sales Solutions',
-                'status': 'lost',
-                'total_price': 28000.00,
-                'total_cost': 18000.00,
-                'margin_percentage': 35.71,
-                'created_at': '2024-09-25T16:00:00'
-            },
-            {
-                'name': 'Integración ERP',
-                'client': 'Manufacturing Ltd',
-                'status': 'won',
-                'total_price': 65000.00,
-                'total_cost': 38000.00,
-                'margin_percentage': 41.54,
-                'created_at': '2024-11-05T11:00:00'
-            }
-        ]
-    }
-
-
 async def _build_financial_context_safe(db: AsyncSession, organization_id: int, organization: "Organization" = None) -> dict:
     """
     Build financial context safely, with fallbacks for missing data
@@ -932,10 +805,5 @@ async def _build_financial_context_safe(db: AsyncSession, organization_id: int, 
             primary_currency = getattr(settings_obj, 'primary_currency', 'USD') if settings_obj else 'USD'
         
         context['primary_currency'] = primary_currency
-    
-    # Si no hay datos suficientes, usar mock
-    if context.get('team_size', 0) == 0 and len(context.get('projects', [])) == 0:
-        print("No real data found, using mock data as fallback")
-        return _get_mock_financial_context()
     
     return context

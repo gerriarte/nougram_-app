@@ -25,6 +25,99 @@ logger = logging.getLogger(__name__)
 
 class OnboardingService:
     """Service for onboarding operations"""
+
+    INVENTORY_TEMPLATE_CATALOG = [
+        {
+            "id": "laptop",
+            "name": "Laptop de Trabajo",
+            "amount": "800000",
+            "currency": "COP",
+            "category": "Tools",
+            "amortizable": True,
+            "icon": "💻",
+            "preSelectedFor": ["dev", "design", "marketing"],
+        },
+        {
+            "id": "monitor",
+            "name": "Monitor Externo",
+            "amount": "150000",
+            "currency": "COP",
+            "category": "Tools",
+            "amortizable": True,
+            "icon": "🖥️",
+            "preSelectedFor": ["dev", "design"],
+        },
+        {
+            "id": "adobe_cc",
+            "name": "Adobe Creative Cloud",
+            "amount": "150000",
+            "currency": "COP",
+            "category": "Software",
+            "amortizable": False,
+            "icon": "🎨",
+            "preSelectedFor": ["design", "marketing"],
+        },
+        {
+            "id": "chatgpt_plus",
+            "name": "ChatGPT Plus",
+            "amount": "20",
+            "currency": "USD",
+            "category": "Software",
+            "amortizable": False,
+            "icon": "🤖",
+            "preSelectedFor": ["dev", "marketing", "design"],
+        },
+        {
+            "id": "figma",
+            "name": "Figma Professional",
+            "amount": "12",
+            "currency": "USD",
+            "category": "Software",
+            "amortizable": False,
+            "icon": "🎨",
+            "preSelectedFor": ["design"],
+        },
+        {
+            "id": "notion",
+            "name": "Notion Pro",
+            "amount": "8",
+            "currency": "USD",
+            "category": "Software",
+            "amortizable": False,
+            "icon": "📝",
+            "preSelectedFor": ["consulting", "design"],
+        },
+        {
+            "id": "coworking",
+            "name": "Arriendo Coworking",
+            "amount": "300000",
+            "currency": "COP",
+            "category": "Overhead",
+            "amortizable": False,
+            "icon": "🏢",
+            "preSelectedFor": [],
+        },
+        {
+            "id": "internet",
+            "name": "Internet",
+            "amount": "80000",
+            "currency": "COP",
+            "category": "Overhead",
+            "amortizable": False,
+            "icon": "🌐",
+            "preSelectedFor": ["dev", "design", "marketing", "consulting"],
+        },
+        {
+            "id": "hosting",
+            "name": "Hosting Web",
+            "amount": "50000",
+            "currency": "COP",
+            "category": "Overhead",
+            "amortizable": False,
+            "icon": "☁️",
+            "preSelectedFor": ["dev"],
+        },
+    ]
     
     def __init__(self, db: AsyncSession, organization_id: int):
         """
@@ -39,6 +132,13 @@ class OnboardingService:
         self.org_repo = OrganizationRepository(db)
         self.team_repo = RepositoryFactory.create_team_repository(db, organization_id)
         self.cost_repo = RepositoryFactory.create_cost_repository(db, organization_id)
+
+    async def get_inventory_templates(self) -> Dict[str, Any]:
+        """Return onboarding inventory template catalog from backend source."""
+        return {
+            "items": self.INVENTORY_TEMPLATE_CATALOG,
+            "source": "backend_catalog",
+        }
     
     async def get_benchmarks(
         self,

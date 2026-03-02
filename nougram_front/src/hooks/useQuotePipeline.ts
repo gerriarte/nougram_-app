@@ -88,6 +88,18 @@ export function useQuotePipeline() {
                 const fallbackPipeline = data
                     .filter((q) => q.status === 'sent' || q.status === 'viewed')
                     .reduce((sum, q) => sum + q.totalWithTaxes, 0);
+                const inconsistentTotals = data.filter((q) => {
+                    const base = Number(q.totalClientPrice || 0);
+                    const taxes = Number(q.totalTaxes || 0);
+                    const expected = base + taxes;
+                    return Math.abs(Number(q.totalWithTaxes || 0) - expected) > 1;
+                });
+                if (inconsistentTotals.length > 0) {
+                    console.warn(
+                        'Pipeline consistency warning: billed totals differ from base+taxes for quotes:',
+                        inconsistentTotals.map((q) => q.id)
+                    );
+                }
                 const fallbackClosed = data.filter((q) => q.status === 'accepted' || q.status === 'rejected').length;
                 const fallbackWon = data.filter((q) => q.status === 'accepted').length;
                 const fallbackWinRate = fallbackClosed > 0 ? (fallbackWon / fallbackClosed) * 100 : 0;
@@ -116,7 +128,6 @@ export function useQuotePipeline() {
                 const sentCount = Number(byStatus.Sent || 0);
                 const wonCount = Number(byStatus.Won || 0);
                 const lostCount = Number(byStatus.Lost || 0);
-                const draftCount = Number(byStatus.Draft || 0);
 
                 setMetrics({
                     // Keep pipeline KPIs aligned with billed totals shown in cards/table.
@@ -124,7 +135,8 @@ export function useQuotePipeline() {
                     pipelineValue: fallbackPipeline,
                     winRate: Number(dashboardResponse.data.conversion_rate || fallbackWinRate),
                     avgMargin,
-                    sentCount: sentCount + draftCount,
+                    // Active pipeline count must match sent/viewed cards in UI.
+                    sentCount: Math.max(sentCount, fallbackSent),
                     wonCount,
                     lostCount,
                 });
@@ -195,10 +207,8 @@ export function useQuotePipeline() {
         if (filters.minAmount !== '' && q.totalWithTaxes < filters.minAmount) return false;
         if (filters.maxAmount !== '' && q.totalWithTaxes > filters.maxAmount) return false;
 
-        // 5. Date Filter (Mock: assuming 'sentAt' is a parseable date or we use created_at)
-        // For this mock simplified version, we'll skip complex date parsing unless 'sentAt' format is standardized.
-        // Assuming 'sentAt' is "Hace 2d", this is hard to filter without real dates.
-        // TODO: Implement Date Filter when backend provides ISO dates.
+        // 5. Date Filter
+        // TODO: Implement when pipeline cards receive ISO dates from backend.
 
         return true;
     });

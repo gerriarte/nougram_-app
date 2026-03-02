@@ -1,10 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
-import { onboardingService, ALL_TEMPLATES } from '@/services/onboardingService';
+import { onboardingService } from '@/services/onboardingService';
 import { FixedCostTemplate } from '@/types/onboarding';
 
 interface StepFixedCostsProps {
@@ -22,11 +22,15 @@ const INDUSTRIES = [
 ];
 
 export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }: StepFixedCostsProps) {
+    const [availableTemplates, setAvailableTemplates] = useState<FixedCostTemplate[]>([]);
+    const [exchangeRates, setExchangeRates] = useState<Record<string, { rate: number; lastUpdated: string }>>({});
+
     const normalizeTemplateToPrimary = (template: FixedCostTemplate): FixedCostTemplate => {
         const normalizedAmount = onboardingService.convertCurrency(
             template.amount || 0,
             template.currency || primaryCurrency,
-            primaryCurrency
+            primaryCurrency,
+            exchangeRates
         );
         return {
             ...template,
@@ -46,10 +50,22 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
     // Custom Cost State
     const [customCost, setCustomCost] = useState({ name: '', amount: '', currency: primaryCurrency });
 
+    useEffect(() => {
+        const loadOnboardingCatalog = async () => {
+            const [templates, rates] = await Promise.all([
+                onboardingService.getTemplates(),
+                onboardingService.getExchangeRates(),
+            ]);
+            setAvailableTemplates(templates);
+            setExchangeRates(rates);
+        };
+        void loadOnboardingCatalog();
+    }, []);
+
     const handleIndustrySelect = (industryId: string) => {
         setActiveIndustry(industryId);
         // Pre-select templates
-        const industryTemplates = ALL_TEMPLATES.filter(t => t.preSelectedFor?.includes(industryId));
+        const industryTemplates = availableTemplates.filter(t => t.preSelectedFor?.includes(industryId));
 
         // Merge with existing selection (avoid duplicates by ID)
         const combined = [...selectedCosts];
@@ -95,11 +111,11 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
 
     const calculateTotal = () => {
         return selectedCosts.reduce((acc, curr) => {
-            return acc + onboardingService.convertCurrency(curr.amount, curr.currency, primaryCurrency);
+            return acc + onboardingService.convertCurrency(curr.amount, curr.currency, primaryCurrency, exchangeRates);
         }, 0);
     };
 
-    const filteredTemplates = ALL_TEMPLATES.filter(t =>
+    const filteredTemplates = availableTemplates.filter(t =>
         t.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -215,7 +231,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                         const selectedTemplate = selectedCosts.find((c) => c.id === template.id);
                         const displayedAmount = selectedTemplate
                             ? selectedTemplate.amount
-                            : onboardingService.convertCurrency(template.amount, template.currency, primaryCurrency);
+                            : onboardingService.convertCurrency(template.amount, template.currency, primaryCurrency, exchangeRates);
 
                         return (
                             <div

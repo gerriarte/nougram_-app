@@ -12,6 +12,7 @@ interface BCRSummaryCardProps {
 
 export function BCRSummaryCard({ summary, isLoading }: BCRSummaryCardProps) {
     const [isExpanded, setIsExpanded] = React.useState(false);
+    const summaryCurrency = (summary?.primary_currency || "COP").toUpperCase();
 
     if (isLoading) {
         return (
@@ -51,7 +52,7 @@ export function BCRSummaryCard({ summary, isLoading }: BCRSummaryCardProps) {
                     Costo Hora Real (BCR)
                 </h3>
                 <div className="text-3xl font-bold text-blue-600">
-                    {formatCurrency(summary.blended_cost_rate)}
+                    {formatCurrency(summary.blended_cost_rate, summaryCurrency)}
                     <span className="text-sm font-medium text-gray-500 ml-1">/{summary.primary_currency.toLowerCase()}</span>
                 </div>
             </div>
@@ -60,7 +61,7 @@ export function BCRSummaryCard({ summary, isLoading }: BCRSummaryCardProps) {
                 <div className="px-6 py-4 space-y-3">
                     <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Total Mensual</span>
-                        <span className="font-medium">{formatCurrency(summary.total_monthly_costs)}</span>
+                        <span className="font-medium">{formatCurrency(summary.total_monthly_costs, summaryCurrency)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Horas Facturables</span>
@@ -74,17 +75,17 @@ export function BCRSummaryCard({ summary, isLoading }: BCRSummaryCardProps) {
 
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Salarios (con cargas)</span>
-                            <span className="font-medium">{formatCurrency(summary.total_salaries)}</span>
+                            <span className="font-medium">{formatCurrency(summary.total_salaries, summaryCurrency)}</span>
                         </div>
 
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Overhead Fijo</span>
-                            <span className="font-medium">{formatCurrency(summary.total_fixed_overhead)}</span>
+                            <span className="font-medium">{formatCurrency(summary.total_fixed_overhead, summaryCurrency)}</span>
                         </div>
 
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Herramientas / SaaS</span>
-                            <span className="font-medium">{formatCurrency(summary.total_tools_costs)}</span>
+                            <span className="font-medium">{formatCurrency(summary.total_tools_costs, summaryCurrency)}</span>
                         </div>
 
                         <div className="pt-2 border-t border-dashed border-gray-200 flex justify-between text-sm text-gray-500">

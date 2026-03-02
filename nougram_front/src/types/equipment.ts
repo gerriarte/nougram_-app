@@ -1,7 +1,7 @@
 
 export type EquipmentCategory = 'Hardware' | 'Software' | 'Vehicles' | 'Office Equipment';
 export type DepreciationMethod = 'straight_line' | 'declining_balance';
-export type Currency = 'COP' | 'USD' | 'EUR';
+export type Currency = 'COP' | 'USD' | 'EUR' | 'ARS' | 'PEN' | 'MXN';
 
 export interface Equipment {
     id: string;

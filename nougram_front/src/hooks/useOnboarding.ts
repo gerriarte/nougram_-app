@@ -1,9 +1,9 @@
 
-import { useState, useEffect, useCallback } from 'react';
-import { onboardingService, ALL_TEMPLATES, CurrencyRate } from '@/services/onboardingService';
+import { useState, useEffect } from 'react';
+import { onboardingService } from '@/services/onboardingService';
 import { OnboardingData, FixedCostTemplate } from '@/types/onboarding';
 
-// Initial Mock Data
+// Initial onboarding state
 const INITIAL_DATA: OnboardingData = {
     identity: {
         organizationName: '',

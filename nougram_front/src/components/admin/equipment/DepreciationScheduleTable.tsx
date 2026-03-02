@@ -3,7 +3,6 @@
 
 import React, { useState, useMemo } from 'react';
 import { Equipment } from '@/types/equipment';
-import { equipmentService } from '@/services/equipmentService';
 import { Button } from '@/components/ui/Button';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 

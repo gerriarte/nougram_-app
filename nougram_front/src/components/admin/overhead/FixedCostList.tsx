@@ -8,9 +8,13 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { FixedCostForm } from './FixedCostForm';
 import { FixedCost } from '@/types/admin';
+import { useNougram } from '@/context/NougramCoreContext';
+import { formatCurrency } from '@/lib/utils';
 
 export function FixedCostList() {
     const { fixedCosts, deleteFixedCost, updateFixedCost, addFixedCost } = useAdmin();
+    const { state } = useNougram();
+    const currency = state.identity.primaryCurrency || 'COP';
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingCost, setEditingCost] = useState<FixedCost | undefined>(undefined);
 
@@ -74,7 +78,7 @@ export function FixedCostList() {
                                         <Badge variant="default">{cost.category}</Badge>
                                     </td>
                                     <td className="px-4 py-3 font-semibold">
-                                        ${cost.amountMonthly.toLocaleString()} {cost.currency}
+                                        {formatCurrency(cost.amountMonthly, cost.currency || currency)} {cost.currency}
                                     </td>
                                     <td className="px-4 py-3">
                                         <Badge variant={cost.isActive ? 'success' : 'default'} className="cursor-pointer" onClick={() => updateFixedCost(cost.id, { isActive: !cost.isActive })}>

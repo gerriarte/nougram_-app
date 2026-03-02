@@ -18,11 +18,16 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
 
     const handleCopyLink = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        const token = await quoteService.generatePublicLink(id);
-        const url = `${window.location.origin}/proposal/${token}`;
-        await navigator.clipboard.writeText(url);
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 2000);
+        try {
+            const token = await quoteService.generatePublicLink(id);
+            const url = `${window.location.origin}/proposal/${token}`;
+            await navigator.clipboard.writeText(url);
+            setCopiedId(id);
+            setTimeout(() => setCopiedId(null), 2000);
+        } catch (error) {
+            console.error('No fue posible generar el enlace público', error);
+            alert('La generación de enlace público aún no está habilitada por backend.');
+        }
     };
 
     const getStatusColor = (status: string) => {
@@ -65,8 +70,7 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
 
     const formatDate = (dateStr?: string) => {
         if (!dateStr) return 'Reciente';
-        // Try to parse relative "Hace ..." or simple date?
-        // The mock data has "Hace 2d". We can just display it.
+        // Keep backend-formatted relative strings as-is.
         return dateStr;
     };
 

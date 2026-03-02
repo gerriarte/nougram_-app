@@ -119,7 +119,7 @@ class QuoteItemResponse(BaseModel):
     id: int
     service_id: int
     service_name: Optional[str] = None
-    estimated_hours: float
+    estimated_hours: Optional[float] = None
     internal_cost: Optional[Decimal] = None
     client_price: Optional[Decimal] = None
     margin_percentage: Optional[Decimal] = None

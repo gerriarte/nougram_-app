@@ -254,15 +254,6 @@ let serviceSeedInFlight: Promise<Service[]> | null = null;
 let servicesCache: Service[] | null = null;
 let servicesFetchInFlight: Promise<Service[]> | null = null;
 
-// Mock Data
-const MOCK_QUOTES: Quote[] = [
-    { id: '1', project: 'App E-commerce', client: 'TechCorp', totalClientPrice: 21008, totalTaxes: 3992, totalWithTaxes: 25000, currency: 'USD', margin: 42, version: 2, history: [{ version: 1, totalWithTaxes: 22000, date: 'Hace 5d' }], status: 'sent', sentAt: 'Hace 2d', viewedCount: 0, downloadCount: 0, publicToken: 'demo-proposal', tokenExpiresAt: new Date(Date.now() + 86400000 * 30).toISOString() },
-    { id: '2', project: 'Landing Page', client: 'StartupX', totalClientPrice: 6723, totalTaxes: 1277, totalWithTaxes: 8000, currency: 'USD', margin: 22, version: 1, status: 'viewed', sentAt: 'Hace 1d', viewedCount: 5, downloadCount: 2 },
-    { id: '3', project: 'Branding', client: 'DesignCo', totalClientPrice: 10084, totalTaxes: 1916, totalWithTaxes: 12000, currency: 'USD', margin: 35, version: 1, status: 'accepted', sentAt: 'Hace 3d', viewedCount: 3, downloadCount: 1 },
-    { id: '4', project: 'SEO Audit', client: 'MarketFit', totalClientPrice: 3782, totalTaxes: 718, totalWithTaxes: 4500, currency: 'USD', margin: 8, version: 1, status: 'draft', viewedCount: 0, downloadCount: 0 },
-    { id: '5', project: 'Web Redesign', client: 'OldSchool', totalClientPrice: 12605, totalTaxes: 2395, totalWithTaxes: 15000, currency: 'USD', margin: 28, version: 3, history: [{ version: 1, totalWithTaxes: 12000, date: 'Hace 1w' }, { version: 2, totalWithTaxes: 14000, date: 'Hace 2d' }], status: 'viewed', sentAt: 'Hace 5h', viewedCount: 12, downloadCount: 4 },
-];
-
 function mapProjectStatusToQuoteStatus(status?: string): Quote['status'] {
     switch (status) {
         case 'Sent':
@@ -723,82 +714,24 @@ export const quoteService = {
     },
     // Public Proposal System
     generatePublicLink: async (id: string, daysValid: number = 30): Promise<string> => {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const idx = MOCK_QUOTES.findIndex(q => q.id === id);
-                if (idx !== -1) {
-                    const token = crypto.randomUUID();
-                    const expiresAt = new Date();
-                    expiresAt.setDate(expiresAt.getDate() + daysValid);
-
-                    MOCK_QUOTES[idx] = {
-                        ...MOCK_QUOTES[idx],
-                        publicToken: token,
-                        tokenExpiresAt: expiresAt.toISOString()
-                    };
-                    resolve(token);
-                } else {
-                    resolve('');
-                }
-            }, 300);
-        });
+        void id;
+        void daysValid;
+        throw new Error('Generación de enlaces públicos requiere endpoint backend aún no disponible.');
     },
 
     getQuoteByToken: async (token: string): Promise<Quote | null> => {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const quote = MOCK_QUOTES.find(q => q.publicToken === token);
-                if (!quote) {
-                    resolve(null);
-                    return;
-                }
-
-                // Check expiration
-                if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
-                    resolve(null); // Or throw error 'expired'
-                    return;
-                }
-
-                // Increment view count
-                quote.viewedCount += 1;
-                quote.lastViewedAt = new Date().toISOString();
-                if (quote.status === 'sent') {
-                    quote.status = 'viewed';
-                }
-
-                resolve(quote);
-            }, 400);
-        });
+        void token;
+        return null;
     },
 
     acceptQuote: async (token: string): Promise<boolean> => {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const idx = MOCK_QUOTES.findIndex(q => q.publicToken === token);
-                if (idx !== -1) {
-                    MOCK_QUOTES[idx].status = 'accepted';
-                    // In a real app, trigger email notification to Admin
-                    console.log(`Quote ${MOCK_QUOTES[idx].id} ACCEPTED by client`);
-                    resolve(true);
-                } else {
-                    resolve(false);
-                }
-            }, 500);
-        });
+        void token;
+        throw new Error('Aceptación de propuesta pública requiere endpoint backend aún no disponible.');
     },
 
     rejectQuote: async (token: string, reason?: string): Promise<boolean> => {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const idx = MOCK_QUOTES.findIndex(q => q.publicToken === token);
-                if (idx !== -1) {
-                    MOCK_QUOTES[idx].status = 'rejected';
-                    console.log(`Quote ${MOCK_QUOTES[idx].id} REJECTED by client. Reason: ${reason}`);
-                    resolve(true);
-                } else {
-                    resolve(false);
-                }
-            }, 500);
-        });
+        void token;
+        void reason;
+        throw new Error('Rechazo de propuesta pública requiere endpoint backend aún no disponible.');
     }
 };
