@@ -143,11 +143,22 @@ function buildFinancialBreakdown(
     const internalCost = toSafeNumber(quote?.total_internal_cost);
     const taxAmountFromQuote = toSafeNumber(quote?.total_taxes);
     const billedFromQuote = toSafeNumber(quote?.total_with_taxes);
-    const taxAmount = taxAmountFromQuote > 0
+    const taxRateFromProject = sumTaxRate(taxes);
+    const taxAmountFromRates = baseAmount > 0 && taxRateFromProject > 0
+        ? (baseAmount * taxRateFromProject) / 100
+        : 0;
+    const hasExplicitTaxFromQuote = taxAmountFromQuote > 0;
+    const hasBilledDeltaFromQuote = billedFromQuote > 0 && Math.abs(billedFromQuote - baseAmount) > 0.01;
+    const taxAmount = hasExplicitTaxFromQuote
         ? taxAmountFromQuote
-        : Math.max(0, billedFromQuote - baseAmount);
-    const billedAmount = billedFromQuote > 0 ? billedFromQuote : baseAmount + taxAmount;
-    const taxRate = baseAmount > 0 ? (taxAmount / baseAmount) * 100 : sumTaxRate(taxes);
+        : hasBilledDeltaFromQuote
+            ? Math.max(0, billedFromQuote - baseAmount)
+            : taxAmountFromRates;
+    // If quote totals come without tax breakdown but project taxes exist, derive billed from base + rates.
+    const billedAmount = (billedFromQuote > 0 && (hasExplicitTaxFromQuote || hasBilledDeltaFromQuote))
+        ? billedFromQuote
+        : baseAmount + taxAmount;
+    const taxRate = baseAmount > 0 ? (taxAmount / baseAmount) * 100 : taxRateFromProject;
     const realIncome = Math.max(0, baseAmount - taxAmount);
     const profitAmount = realIncome - internalCost;
     const margin = Number(toRealMarginPercent(baseAmount, internalCost, taxAmount).toFixed(2));

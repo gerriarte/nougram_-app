@@ -146,6 +146,16 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         });
     }, []);
 
+    // Keep new quotes aligned with organization primary currency.
+    useEffect(() => {
+        const orgCurrency = (coreState.identity.primaryCurrency || 'COP') as QuoteBuilderState['currency'];
+        setState((prev) => {
+            if (prev.id) return prev;
+            if (prev.currency === orgCurrency) return prev;
+            return { ...prev, currency: orgCurrency };
+        });
+    }, [coreState.identity.primaryCurrency]);
+
     // --- CALCULATION ENGINE ---
     useEffect(() => {
         calculateTotals();
