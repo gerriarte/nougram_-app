@@ -8,11 +8,21 @@ interface StepReadyProps {
     data: any;
     onGoToDashboard: () => void;
     onCreateQuote: () => void;
+    backendBcr?: number | null;
+    backendBcrLoading?: boolean;
     isPersisting?: boolean;
     persistError?: string | null;
 }
 
-export function StepReady({ data, onGoToDashboard, onCreateQuote, isPersisting, persistError }: StepReadyProps) {
+export function StepReady({
+    data,
+    onGoToDashboard,
+    onCreateQuote,
+    backendBcr,
+    backendBcrLoading,
+    isPersisting,
+    persistError
+}: StepReadyProps) {
     // Extract data
     const currency = data.identity.primaryCurrency || data.identity.currency || 'COP';
     const monthlyFixedCosts = data.fixedCosts.totalMonthly;
@@ -50,7 +60,8 @@ export function StepReady({ data, onGoToDashboard, onCreateQuote, isPersisting, 
 
     const annualBillableHours = billableHoursPerWeek * productiveWeeks;
 
-    const bcr = annualBillableHours > 0 ? (totalAnnualCosts / annualBillableHours) : 0;
+    const localBcr = annualBillableHours > 0 ? (totalAnnualCosts / annualBillableHours) : 0;
+    const bcr = backendBcr ?? localBcr;
 
     // Monthly Calculation (for comparison "The Wrong Way")
     const monthlyBillableHours = billableHoursPerWeek * 4.33;
@@ -76,7 +87,9 @@ export function StepReady({ data, onGoToDashboard, onCreateQuote, isPersisting, 
                     <h2 className={`text-6xl font-extrabold ${bcrColor} mb-2`}>
                         ${Math.round(bcr).toLocaleString()} <span className="text-2xl font-normal text-gray-500">{currency}</span>
                     </h2>
-                    <p className="text-xs text-blue-600/80 font-medium">(Cálculo anual preciso)</p>
+                    <p className="text-xs text-blue-600/80 font-medium">
+                        {backendBcrLoading ? 'Actualizando con motor financiero central...' : 'Calculado por motor financiero central'}
+                    </p>
                 </CardContent>
             </Card>
 

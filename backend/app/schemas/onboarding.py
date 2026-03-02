@@ -109,6 +109,8 @@ class TemporaryBCRRequest(BaseModel):
     """Request to calculate BCR with temporary onboarding data"""
     team_members: List[OnboardingTeamMember] = Field(..., min_items=1)
     expenses: List[OnboardingExpense] = Field(default_factory=list)
+    inventory_items: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    social_charges_config: Optional[Dict[str, Any]] = None
     currency: str = Field("USD")
 
 

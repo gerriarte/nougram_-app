@@ -14,8 +14,6 @@ from app.core.calculations import calculate_blended_cost_rate
 from app.core.currency import EXCHANGE_RATES_TO_USD
 from app.schemas.onboarding import (
     CompleteOnboardingRequest,
-    OnboardingTeamMember,
-    OnboardingExpense,
     TemporaryBCRRequest
 )
 from app.models.team import TeamMember
@@ -157,8 +155,11 @@ class OnboardingService:
             # 2. Create team members
             team_members_created = 0
             for member_data in request.team_members:
-                # Convert monthly hours to weekly (approximate)
-                billable_hours_per_week = max(1, member_data.billable_hours_per_month // 4)
+                # Convert monthly hours to weekly using the same 4.33 factor used in BCR engine.
+                billable_hours_per_week = max(
+                    1,
+                    int(round(Decimal(str(member_data.billable_hours_per_month)) / Decimal("4.33")))
+                )
                 
                 # Create TeamMember model instance
                 team_member = TeamMember(
@@ -217,6 +218,48 @@ class OnboardingService:
                 )
                 await self.cost_repo.create(cost_fixed)
                 expenses_created += 1
+
+            # 3.1 Create amortization assets from onboarding inventory snapshot
+            for inventory_item in request.inventory_items or []:
+                try:
+                    is_amortizable = bool(inventory_item.get("amortizable"))
+                    if not is_amortizable:
+                        continue
+
+                    category_raw = str(inventory_item.get("category") or "")
+                    category = "Software" if category_raw.lower() == "software" else "Hardware"
+                    useful_life_months = 24 if category == "Software" else 36
+
+                    purchase_price = Decimal(str(inventory_item.get("amount_monthly") or "0"))
+                    if purchase_price <= 0:
+                        continue
+
+                    item_currency = str(inventory_item.get("currency") or request.currency or "USD")
+                    exchange_rate_at_purchase = None
+                    if item_currency != "USD":
+                        exchange_rate_at_purchase = Decimal(
+                            str(EXCHANGE_RATES_TO_USD.get(item_currency, 1.0))
+                        )
+
+                    asset = EquipmentAmortization(
+                        name=str(inventory_item.get("name") or "Activo onboarding"),
+                        description="Generated from onboarding inventory",
+                        category=category,
+                        purchase_price=purchase_price,
+                        purchase_date=date.today(),
+                        currency=item_currency,
+                        exchange_rate_at_purchase=exchange_rate_at_purchase,
+                        useful_life_months=useful_life_months,
+                        salvage_value=Decimal("0"),
+                        depreciation_method="straight_line",
+                        is_active=True,
+                        organization_id=self.organization_id
+                    )
+                    self.db.add(asset)
+                    amortization_assets_created += 1
+                except Exception:
+                    # Keep onboarding resilient if one malformed inventory item is received.
+                    continue
             
             await self.db.commit()
             
@@ -267,8 +310,25 @@ class OnboardingService:
             Dictionary with calculated BCR and breakdown
         """
         # Calculate total salaries
+        social_multiplier = Decimal("1")
+        social_config = request.social_charges_config or {}
+        if social_config.get("enable_social_charges"):
+            total_percentage = Decimal("0")
+            total_percentage += Decimal(str(social_config.get("health_percentage", 0) or 0))
+            total_percentage += Decimal(str(social_config.get("pension_percentage", 0) or 0))
+            total_percentage += Decimal(str(social_config.get("arl_percentage", 0) or 0))
+            total_percentage += Decimal(str(social_config.get("parafiscales_percentage", 0) or 0))
+            total_percentage += Decimal(str(social_config.get("prima_services_percentage", 0) or 0))
+            total_percentage += Decimal(str(social_config.get("cesantias_percentage", 0) or 0))
+            total_percentage += Decimal(str(social_config.get("int_cesantias_percentage", 0) or 0))
+            total_percentage += Decimal(str(social_config.get("vacations_percentage", 0) or 0))
+            if total_percentage == 0:
+                total_percentage = Decimal(str(social_config.get("total_percentage", 0) or 0))
+            if total_percentage > 0:
+                social_multiplier = Decimal("1") + (total_percentage / Decimal("100"))
+
         total_salaries = sum(
-            Decimal(str(member.salary_monthly_brute))
+            Decimal(str(member.salary_monthly_brute)) * social_multiplier
             for member in request.team_members
         )
         
@@ -277,15 +337,29 @@ class OnboardingService:
             Decimal(str(expense.amount_monthly))
             for expense in request.expenses
         )
+
+        total_amortization = Decimal("0")
+        for item in request.inventory_items or []:
+            if not bool(item.get("amortizable")):
+                continue
+            amount = Decimal(str(item.get("amount_monthly") or "0"))
+            if amount <= 0:
+                continue
+            category = str(item.get("category") or "").lower()
+            useful_life_months = Decimal("24") if category == "software" else Decimal("36")
+            total_amortization += amount / useful_life_months
         
         # Calculate total monthly costs
-        total_monthly_costs = total_salaries + total_expenses
+        total_monthly_costs = total_salaries + total_expenses + total_amortization
         
-        # Calculate total billable hours per month
-        total_hours = sum(
-            member.billable_hours_per_month
-            for member in request.team_members
-        )
+        # Keep parity with persisted model: monthly -> weekly int -> monthly (x 4.33)
+        total_hours = Decimal("0")
+        for member in request.team_members:
+            weekly_hours = max(
+                1,
+                int(round(Decimal(str(member.billable_hours_per_month)) / Decimal("4.33")))
+            )
+            total_hours += Decimal(str(weekly_hours)) * Decimal("4.33")
         
         # Calculate BCR
         if total_hours > 0:
@@ -297,6 +371,7 @@ class OnboardingService:
             "blended_cost_rate": str(bcr),
             "total_monthly_costs": str(total_monthly_costs),
             "total_fixed_overhead": str(total_expenses),
+            "total_tools_costs": str(total_amortization),
             "total_salaries": str(total_salaries),
             "total_monthly_hours": float(total_hours),
             "team_members_count": len(request.team_members),

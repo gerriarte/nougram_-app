@@ -6,6 +6,7 @@ import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Badge } from '../ui/Badge';
 import { Alert } from '../ui/Alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
 import { onboardingService } from '@/services/onboardingService';
 import { Step3MyTeamData } from '@/types/onboarding';
 
@@ -14,6 +15,8 @@ interface StepMyTeamProps {
     onBack: () => void;
     initialData?: Step3MyTeamData;
     currency: string;
+    backendBcr?: number | null;
+    backendBcrLoading?: boolean;
 }
 
 
@@ -51,7 +54,15 @@ type TeamMemberDraft = {
     applySocialCharges: boolean;
 };
 
-export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeamProps) {
+export function StepMyTeam({
+    onNext,
+    onBack,
+    initialData,
+    currency,
+    backendBcr,
+    backendBcrLoading
+}: StepMyTeamProps) {
+    const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
     const [payrollHeadcount, setPayrollHeadcount] = useState<number>(initialData?.payrollHeadcount || 1);
     // Member Info
     const [name, setName] = useState(initialData?.name || '');
@@ -134,6 +145,7 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
         annualBillableHours: aggregateAnnualHours,
         hourlyCost: aggregateAnnualHours > 0 ? aggregateAnnualCost / aggregateAnnualHours : 0,
     };
+    const displayedBcr = backendBcr ?? trueCostAnalysis.hourlyCost;
 
     // Validation Status
     const minSalary = onboardingService.getMarketSalaryThreshold(selectedRole, level, currency);
@@ -189,6 +201,14 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
     const removeAdditionalMember = (id: string) => {
         setAdditionalMembers((prev) => prev.filter((member) => member.id !== id));
     };
+
+    const validAdditionalMembers = additionalMembers.filter(
+        (member) =>
+            member.name.trim() &&
+            member.role.trim() &&
+            (parseFloat(member.salary) || 0) > 0 &&
+            member.billableHours > 0
+    );
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
@@ -411,8 +431,10 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
 
                             <div className="space-y-1 bg-white/10 p-3 rounded-lg border border-white/20">
                                 <p className="text-blue-200 font-medium">Costo por Hora (BCR)</p>
-                                <p className="text-2xl font-bold text-white">${Math.round(trueCostAnalysis.hourlyCost).toLocaleString()}</p>
-                                <p className="text-xs text-slate-300">Base mínima para no perder dinero</p>
+                                <p className="text-2xl font-bold text-white">${Math.round(displayedBcr).toLocaleString()}</p>
+                                <p className="text-xs text-slate-300">
+                                    {backendBcrLoading ? 'Sincronizando con motor central...' : 'Base mínima para no perder dinero'}
+                                </p>
                             </div>
                         </div>
 
@@ -427,25 +449,80 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
                 {/* 5. Additional team members (optional) */}
                 <Card className="md:col-span-2">
                     <CardContent className="space-y-4 pt-6">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-3">
                             <div>
                                 <h3 className="font-semibold text-gray-900">Miembros adicionales del equipo (opcional)</h3>
                                 <p className="text-xs text-gray-500">
-                                    Agrega aqui los otros miembros de nomina para mejorar la precision del BCR.
+                                    Gestiona los otros miembros de nómina en una vista dedicada para evitar confusiones.
                                 </p>
                             </div>
+                            <Button type="button" variant="secondary" onClick={() => setIsTeamModalOpen(true)}>
+                                Gestionar miembros
+                            </Button>
+                        </div>
+
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                                <div>
+                                    <p className="text-xs uppercase tracking-wide text-gray-500">Registrados</p>
+                                    <p className="font-semibold text-gray-900">{validAdditionalMembers.length}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs uppercase tracking-wide text-gray-500">Borradores</p>
+                                    <p className="font-semibold text-gray-900">{additionalMembers.length - validAdditionalMembers.length}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs uppercase tracking-wide text-gray-500">Objetivo nómina</p>
+                                    <p className="font-semibold text-gray-900">{Math.max(payrollHeadcount - 1, 0)} adicionales</p>
+                                </div>
+                            </div>
+                            {additionalMembers.length === 0 && (
+                                <p className="text-sm text-gray-500 italic mt-3">
+                                    Aún no agregas miembros adicionales. Usa "Gestionar miembros" para cargarlos.
+                                </p>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
+            </div>
+
+            <div className="flex justify-between mt-6">
+                <Button variant="secondary" onClick={onBack}>← Atrás</Button>
+                <Button onClick={handleNext}>Siguiente →</Button>
+            </div>
+
+            <Dialog open={isTeamModalOpen} onOpenChange={setIsTeamModalOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+                    <div className="p-6 border-b border-gray-100">
+                        <DialogHeader>
+                            <DialogTitle>Miembros adicionales del equipo</DialogTitle>
+                            <DialogDescription>
+                                Agrega y edita aquí los miembros adicionales para mejorar la precisión del BCR sin saturar el flujo principal.
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+
+                    <div className="p-6 overflow-y-auto space-y-4">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm text-gray-600">
+                                Registrados: <strong>{validAdditionalMembers.length}</strong> de <strong>{Math.max(payrollHeadcount - 1, 0)}</strong> adicionales esperados.
+                            </p>
                             <Button type="button" variant="secondary" onClick={addAdditionalMember}>
                                 + Agregar miembro
                             </Button>
                         </div>
 
                         {additionalMembers.length === 0 && (
-                            <p className="text-sm text-gray-500 italic">Aun no agregas miembros adicionales.</p>
+                            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+                                <p className="text-sm text-gray-600">No hay miembros adicionales todavía.</p>
+                                <p className="text-xs text-gray-500 mt-1">Empieza agregando el siguiente miembro de nómina.</p>
+                            </div>
                         )}
 
                         <div className="space-y-3">
                             {additionalMembers.map((member, idx) => (
-                                <div key={member.id} className="rounded-lg border border-gray-200 p-4 space-y-3">
+                                <div key={member.id} className="rounded-lg border border-gray-200 p-4 space-y-3 bg-white">
                                     <div className="flex items-center justify-between">
                                         <p className="text-sm font-semibold text-gray-700">Miembro {idx + 2}</p>
                                         <Button
@@ -489,15 +566,15 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
                                 </div>
                             ))}
                         </div>
-                    </CardContent>
-                </Card>
+                    </div>
 
-            </div>
-
-            <div className="flex justify-between mt-6">
-                <Button variant="secondary" onClick={onBack}>← Atrás</Button>
-                <Button onClick={handleNext}>Siguiente →</Button>
-            </div>
+                    <DialogFooter className="p-4 border-t border-gray-100 bg-gray-50">
+                        <Button type="button" variant="secondary" onClick={() => setIsTeamModalOpen(false)}>
+                            Cerrar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
