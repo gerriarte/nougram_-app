@@ -16,14 +16,30 @@ export function StepReady({ data, onGoToDashboard, onCreateQuote, isPersisting, 
     // Extract data
     const currency = data.identity.primaryCurrency || data.identity.currency || 'COP';
     const monthlyFixedCosts = data.fixedCosts.totalMonthly;
-    const monthlyPayroll = data.team.salaryWithCharges || (data.team.applySocialCharges ? (data.team.salary || 0) * 1.52852 : (data.team.salary || 0));
+    const modeledMembers = Array.isArray(data.team?.teamMembers) ? data.team.teamMembers : [];
+    const monthlyPayroll = modeledMembers.length > 0
+        ? modeledMembers.reduce((sum: number, member: any) => {
+            const salary = Number(member.salary) || 0;
+            const withCharges = member.applySocialCharges ? salary * 1.52852 : salary;
+            return sum + withCharges;
+        }, 0)
+        : (data.team.salaryWithCharges || (data.team.applySocialCharges ? (data.team.salary || 0) * 1.52852 : (data.team.salary || 0)));
     const salaryWithCharges = monthlyPayroll;
 
     // Interactive State for "What-if" scenario
-    const [billableHoursPerWeek, setBillableHoursPerWeek] = useState<number>(data.team.billableHours);
+    const [billableHoursPerWeek, setBillableHoursPerWeek] = useState<number>(
+        modeledMembers.length > 0
+            ? modeledMembers.reduce((sum: number, member: any) => sum + (Number(member.billableHours) || 0), 0)
+            : data.team.billableHours
+    );
 
     // Initial constants
-    const vacationDays = data.team.vacationDays;
+    const vacationDays = modeledMembers.length > 0
+        ? Math.round(
+            modeledMembers.reduce((sum: number, member: any) => sum + (Number(member.vacationDays) || 0), 0) /
+            modeledMembers.length
+        )
+        : data.team.vacationDays;
     const weeksPerYear = 52;
     const productiveWeeks = weeksPerYear - (vacationDays / 5);
 

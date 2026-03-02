@@ -39,6 +39,18 @@ function InfoTip({ text }: { text: string }) {
     );
 }
 
+type TeamMemberDraft = {
+    id: string;
+    name: string;
+    role: string;
+    level: 'Junior' | 'Mid' | 'Senior' | '';
+    salary: string;
+    totalHours: number;
+    billableHours: number;
+    vacationDays: number;
+    applySocialCharges: boolean;
+};
+
 export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeamProps) {
     const [payrollHeadcount, setPayrollHeadcount] = useState<number>(initialData?.payrollHeadcount || 1);
     // Member Info
@@ -62,6 +74,19 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
 
     // Social Charges
     const [applySocialCharges, setApplySocialCharges] = useState<boolean>(initialData?.applySocialCharges ?? true);
+    const [additionalMembers, setAdditionalMembers] = useState<TeamMemberDraft[]>(
+        (initialData?.teamMembers || []).slice(1).map((member, index) => ({
+            id: `member-${index + 1}`,
+            name: member.name,
+            role: member.role,
+            level: member.level,
+            salary: String(member.salary || ''),
+            totalHours: member.totalHours || 40,
+            billableHours: member.billableHours || 28,
+            vacationDays: member.vacationDays || 20,
+            applySocialCharges: member.applySocialCharges ?? true,
+        }))
+    );
 
     // Calculations
     const nonBillableHours = totalHours - billableHours;
@@ -70,16 +95,47 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
     // Social Charges Math (Colombia Defaults)
     const SOCIAL_CHARGES_RATE = 0.52852; // ~52.8%
     const salaryWithCharges = applySocialCharges ? salaryNum * (1 + SOCIAL_CHARGES_RATE) : salaryNum;
+    const selectedRole = isCustomRole ? customRole : role;
 
-    // True Cost Calculation (Live)
-    const trueCostAnalysis = onboardingService.calculateTrueHourlyCost(
-        salaryWithCharges,
-        billableHours,
-        vacationDays
-    );
+    const modeledMembers = [
+        {
+            name,
+            role: selectedRole,
+            level,
+            salary: salaryNum,
+            totalHours,
+            billableHours,
+            vacationDays,
+            applySocialCharges,
+        },
+        ...additionalMembers.map((member) => ({
+            name: member.name,
+            role: member.role,
+            level: member.level,
+            salary: parseFloat(member.salary) || 0,
+            totalHours: member.totalHours,
+            billableHours: member.billableHours,
+            vacationDays: member.vacationDays,
+            applySocialCharges: member.applySocialCharges,
+        })),
+    ].filter((member) => member.name && member.role && member.salary > 0 && member.billableHours > 0);
+
+    // True Cost Calculation (Live) with all modeled members
+    const aggregateAnnualCost = modeledMembers.reduce((sum, member) => {
+        const monthly = member.applySocialCharges ? member.salary * (1 + SOCIAL_CHARGES_RATE) : member.salary;
+        return sum + (monthly * 12);
+    }, 0);
+    const aggregateAnnualHours = modeledMembers.reduce((sum, member) => {
+        const productiveWeeks = 52 - (member.vacationDays / 5);
+        return sum + (member.billableHours * productiveWeeks);
+    }, 0);
+    const trueCostAnalysis = {
+        annualCost: aggregateAnnualCost,
+        annualBillableHours: aggregateAnnualHours,
+        hourlyCost: aggregateAnnualHours > 0 ? aggregateAnnualCost / aggregateAnnualHours : 0,
+    };
 
     // Validation Status
-    const selectedRole = isCustomRole ? customRole : role;
     const minSalary = onboardingService.getMarketSalaryThreshold(selectedRole, level, currency);
     const isSalaryLow = minSalary && salaryNum < minSalary;
 
@@ -104,8 +160,34 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
             vacationDays,
             applySocialCharges,
             yearlyBillableHours: trueCostAnalysis.annualBillableHours,
-            hourlyCost: trueCostAnalysis.hourlyCost
+            hourlyCost: trueCostAnalysis.hourlyCost,
+            teamMembers: modeledMembers
         });
+    };
+
+    const addAdditionalMember = () => {
+        setAdditionalMembers((prev) => [
+            ...prev,
+            {
+                id: `member-${Date.now()}`,
+                name: '',
+                role: '',
+                level: '',
+                salary: '',
+                totalHours: 40,
+                billableHours: 28,
+                vacationDays: 20,
+                applySocialCharges: true,
+            },
+        ]);
+    };
+
+    const updateAdditionalMember = (id: string, updates: Partial<TeamMemberDraft>) => {
+        setAdditionalMembers((prev) => prev.map((member) => (member.id === id ? { ...member, ...updates } : member)));
+    };
+
+    const removeAdditionalMember = (id: string) => {
+        setAdditionalMembers((prev) => prev.filter((member) => member.id !== id));
     };
 
     return (
@@ -129,7 +211,9 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
                     <Alert variant="warning" className="bg-amber-100 border-amber-200">
                         <p className="text-sm text-amber-900">
                             Para un BCR preciso, registra todos los miembros del equipo en nómina.
-                            {payrollHeadcount > 1 ? ` Actualmente estas modelando 1 de ${payrollHeadcount}.` : ' Actualmente estas modelando 1 persona.'}
+                            {payrollHeadcount > 1
+                                ? ` Actualmente estas modelando ${modeledMembers.length} de ${payrollHeadcount}.`
+                                : ' Actualmente estas modelando 1 persona.'}
                         </p>
                     </Alert>
                 </CardContent>
@@ -336,6 +420,74 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
                             ⚠️ Si solo calculáramos mensual ({salaryWithCharges.toLocaleString()} / {billableHours * 4.33}h),
                             tu BCR sería incorrecto (~${Math.round(salaryWithCharges / (billableHours * 4.33)).toLocaleString()}).
                             El cálculo anual es más preciso.
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* 5. Additional team members (optional) */}
+                <Card className="md:col-span-2">
+                    <CardContent className="space-y-4 pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="font-semibold text-gray-900">Miembros adicionales del equipo (opcional)</h3>
+                                <p className="text-xs text-gray-500">
+                                    Agrega aqui los otros miembros de nomina para mejorar la precision del BCR.
+                                </p>
+                            </div>
+                            <Button type="button" variant="secondary" onClick={addAdditionalMember}>
+                                + Agregar miembro
+                            </Button>
+                        </div>
+
+                        {additionalMembers.length === 0 && (
+                            <p className="text-sm text-gray-500 italic">Aun no agregas miembros adicionales.</p>
+                        )}
+
+                        <div className="space-y-3">
+                            {additionalMembers.map((member, idx) => (
+                                <div key={member.id} className="rounded-lg border border-gray-200 p-4 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-sm font-semibold text-gray-700">Miembro {idx + 2}</p>
+                                        <Button
+                                            type="button"
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={() => removeAdditionalMember(member.id)}
+                                        >
+                                            Eliminar
+                                        </Button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <Input
+                                            placeholder="Nombre"
+                                            value={member.name}
+                                            onChange={(e) => updateAdditionalMember(member.id, { name: e.target.value })}
+                                        />
+                                        <Input
+                                            placeholder="Rol/Cargo"
+                                            value={member.role}
+                                            onChange={(e) => updateAdditionalMember(member.id, { role: e.target.value })}
+                                        />
+                                        <Input
+                                            type="number"
+                                            placeholder={`Salario mensual (${currency})`}
+                                            value={member.salary}
+                                            onChange={(e) => updateAdditionalMember(member.id, { salary: e.target.value })}
+                                        />
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            placeholder="Horas facturables/semana"
+                                            value={member.billableHours}
+                                            onChange={(e) =>
+                                                updateAdditionalMember(member.id, {
+                                                    billableHours: Math.max(1, parseInt(e.target.value || '1', 10)),
+                                                })
+                                            }
+                                        />
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </CardContent>
                 </Card>

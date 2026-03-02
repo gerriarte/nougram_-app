@@ -25,7 +25,8 @@ const INITIAL_DATA: OnboardingData = {
         vacationDays: 20,
         applySocialCharges: true,
         yearlyBillableHours: 0,
-        hourlyCost: 0
+        hourlyCost: 0,
+        teamMembers: []
     },
     status: 'in_progress',
     lastStep: 1

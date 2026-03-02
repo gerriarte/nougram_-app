@@ -83,6 +83,7 @@ export default function RegisterPage() {
           applySocialCharges: true,
           yearlyBillableHours: 0,
           hourlyCost: 0,
+          teamMembers: [],
         },
         status: 'in_progress',
         lastStep: 1,

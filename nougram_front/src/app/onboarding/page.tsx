@@ -59,20 +59,22 @@ export default function OnboardingPage() {
             amortizable: Boolean(item.amortizable || item.category === 'Tools'),
         }));
 
+        const normalizedTeamMembers = (onboardingData.team?.teamMembers || [])
+            .filter((member) => member.name && member.role && member.salary > 0)
+            .map((member) => ({
+                name: member.name,
+                role: member.role || 'Generalista',
+                salary_monthly_brute: String(member.salary || 0),
+                currency,
+                billable_hours_per_month: Math.max(1, Math.round((member.billableHours || 28) * 4.33)),
+            }));
+
         return {
             organization_name: onboardingData.identity.organizationName || undefined,
             country,
             currency,
             profile_type: 'agency',
-            team_members: onboardingData.team?.name
-                ? [{
-                    name: onboardingData.team.name,
-                    role: onboardingData.team.role || 'Generalista',
-                    salary_monthly_brute: String(onboardingData.team.salary || 0),
-                    currency,
-                    billable_hours_per_month: Math.max(1, Math.round((onboardingData.team.billableHours || 28) * 4.33)),
-                }]
-                : [],
+            team_members: normalizedTeamMembers,
             expenses: nonAmortizableExpenses,
             inventory_items: inventoryItems,
         };

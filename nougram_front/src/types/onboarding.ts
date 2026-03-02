@@ -41,4 +41,14 @@ export interface Step3MyTeamData {
     applySocialCharges: boolean;
     yearlyBillableHours: number; // Calculated
     hourlyCost: number; // Calculated
+    teamMembers?: Array<{
+        name: string;
+        role: string;
+        level: 'Junior' | 'Mid' | 'Senior' | '';
+        salary: number;
+        totalHours: number;
+        billableHours: number;
+        vacationDays: number;
+        applySocialCharges: boolean;
+    }>;
 }
