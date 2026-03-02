@@ -13,7 +13,7 @@ interface StepIdentityProps {
 
 export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
     const [organizationName, setOrganizationName] = useState(initialData?.organizationName || '');
-    const [currency, setCurrency] = useState(initialData?.currency || '');
+    const [currency, setCurrency] = useState(initialData?.primaryCurrency || initialData?.currency || '');
     const [country, setCountry] = useState(initialData?.country || '');
     const [errors, setErrors] = useState<any>({});
 
@@ -27,7 +27,7 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
 
     const handleNext = () => {
         if (validate()) {
-            onNext({ organizationName, currency, country });
+            onNext({ organizationName, primaryCurrency: currency, country });
         }
     };
 

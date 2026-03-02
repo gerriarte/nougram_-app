@@ -22,7 +22,12 @@ const INDUSTRIES = [
 ];
 
 export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }: StepFixedCostsProps) {
-    const [selectedCosts, setSelectedCosts] = useState<FixedCostTemplate[]>(initialData?.selectedTemplates || []);
+    const [selectedCosts, setSelectedCosts] = useState<FixedCostTemplate[]>(
+        (initialData?.selectedTemplates || []).map((item) => ({
+            ...item,
+            quantity: item.quantity && item.quantity > 0 ? item.quantity : 1,
+        }))
+    );
     const [activeIndustry, setActiveIndustry] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [showCustomModal, setShowCustomModal] = useState(false);
@@ -50,8 +55,12 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
         if (exists) {
             setSelectedCosts(selectedCosts.filter(t => t.id !== template.id));
         } else {
-            setSelectedCosts([...selectedCosts, template]);
+            setSelectedCosts([...selectedCosts, { ...template, quantity: 1 }]);
         }
+    };
+
+    const updateSelectedCost = (id: string, updates: Partial<FixedCostTemplate>) => {
+        setSelectedCosts((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
     };
 
     const handleAddCustom = () => {
@@ -62,6 +71,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
             name: customCost.name,
             amount: parseFloat(customCost.amount),
             currency: customCost.currency,
+            quantity: 1,
             category: 'Other',
             icon: '✨',
             isCustom: true
@@ -89,8 +99,14 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
             <div className="text-center space-y-2">
-                <h1 className="text-2xl font-bold text-gray-900">¿Qué herramientas y servicios usas?</h1>
-                <p className="text-gray-600">Selecciona los costos fijos que ya tienes. Puedes agregar costos personalizados.</p>
+                <h1 className="text-2xl font-bold text-gray-900">Define tu inventario operativo</h1>
+                <p className="text-gray-600">
+                    Entre mas detallado sea tu inventario, mejor sera tu proyeccion financiera: computadores, monitores,
+                    mobiliario, software, servicios y cualquier activo relevante.
+                </p>
+                <p className="text-xs text-gray-500">
+                    Importante: el monto ingresado en cada item representa el total acumulado de la cantidad indicada.
+                </p>
             </div>
 
             {/* Quick Select & Actions */}
@@ -149,6 +165,34 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                             <p className="font-medium text-gray-900">
                                 ${cost.amount.toLocaleString()} {cost.currency} <span className="text-xs text-gray-500">/mes</span>
                             </p>
+                            <div className="grid grid-cols-2 gap-2 mt-3">
+                                <div>
+                                    <p className="text-[11px] text-gray-500 mb-1">Cantidad</p>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={cost.quantity ?? 1}
+                                        onChange={(e) =>
+                                            updateSelectedCost(cost.id, {
+                                                quantity: Math.max(1, Number(e.target.value) || 1),
+                                            })
+                                        }
+                                    />
+                                </div>
+                                <div>
+                                    <p className="text-[11px] text-gray-500 mb-1">Monto total</p>
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        value={cost.amount}
+                                        onChange={(e) =>
+                                            updateSelectedCost(cost.id, {
+                                                amount: Math.max(0, Number(e.target.value) || 0),
+                                            })
+                                        }
+                                    />
+                                </div>
+                            </div>
                         </div>
                     ))}
 
@@ -179,10 +223,47 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                     <p className="font-medium text-gray-900">
                                         ${template.amount.toLocaleString()} {template.currency} <span className="text-xs text-gray-500">/mes</span>
                                     </p>
+                                    {(template.amortizable || template.category === 'Tools') && (
+                                        <span className="inline-block text-[10px] font-semibold uppercase tracking-wide text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-0.5">
+                                            Amortización
+                                        </span>
+                                    )}
 
                                     {isSelected && isForeignCurrency && (
                                         <div className="text-xs text-amber-600 bg-amber-50 p-1 rounded mt-1">
                                             ⚠️ aprox. ${convertedAmount.toLocaleString()} {primaryCurrency}
+                                        </div>
+                                    )}
+                                    {isSelected && (
+                                        <div className="grid grid-cols-2 gap-2 mt-3">
+                                            <div>
+                                                <p className="text-[11px] text-gray-500 mb-1">Cantidad</p>
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    value={selectedCosts.find((c) => c.id === template.id)?.quantity ?? 1}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onChange={(e) =>
+                                                        updateSelectedCost(template.id, {
+                                                            quantity: Math.max(1, Number(e.target.value) || 1),
+                                                        })
+                                                    }
+                                                />
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] text-gray-500 mb-1">Monto total</p>
+                                                <Input
+                                                    type="number"
+                                                    min={0}
+                                                    value={selectedCosts.find((c) => c.id === template.id)?.amount ?? template.amount}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onChange={(e) =>
+                                                        updateSelectedCost(template.id, {
+                                                            amount: Math.max(0, Number(e.target.value) || 0),
+                                                        })
+                                                    }
+                                                />
+                                            </div>
                                         </div>
                                     )}
                                 </div>

@@ -19,31 +19,12 @@ type RegisterResponse = {
 export default function RegisterPage() {
   const router = useRouter();
   const [organizationName, setOrganizationName] = useState('');
-  const [organizationSlug, setOrganizationSlug] = useState('');
   const [adminFullName, setAdminFullName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const generateSlug = (name: string): string =>
-    name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim()
-      .slice(0, 50);
-
-  const onOrganizationNameChange = (value: string) => {
-    setOrganizationName(value);
-    if (!organizationSlug) {
-      setOrganizationSlug(generateSlug(value));
-    }
-  };
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -67,7 +48,6 @@ export default function RegisterPage() {
       method: 'POST',
       body: JSON.stringify({
         organization_name: organizationName.trim(),
-        organization_slug: organizationSlug.trim() || undefined,
         admin_email: adminEmail.trim(),
         admin_full_name: adminFullName.trim(),
         admin_password: adminPassword,
@@ -82,6 +62,32 @@ export default function RegisterPage() {
     }
 
     setAuthToken(response.data.access_token);
+    localStorage.setItem(
+      'nougram_onboarding_data',
+      JSON.stringify({
+        identity: {
+          organizationName: organizationName.trim(),
+          primaryCurrency: 'COP',
+          country: 'COL',
+        },
+        fixedCosts: { selectedTemplates: [], totalMonthly: 0 },
+        team: {
+          payrollHeadcount: 1,
+          name: '',
+          role: '',
+          level: '',
+          salary: 0,
+          totalHours: 40,
+          billableHours: 28,
+          vacationDays: 20,
+          applySocialCharges: true,
+          yearlyBillableHours: 0,
+          hourlyCost: 0,
+        },
+        status: 'in_progress',
+        lastStep: 1,
+      })
+    );
     router.replace('/onboarding');
   };
 
@@ -110,21 +116,10 @@ export default function RegisterPage() {
             <Input
               id="organizationName"
               value={organizationName}
-              onChange={(e) => onOrganizationNameChange(e.target.value)}
+              onChange={(e) => setOrganizationName(e.target.value)}
               required
               disabled={submitting}
               placeholder="Nougram Studio"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="organizationSlug">Slug</Label>
-            <Input
-              id="organizationSlug"
-              value={organizationSlug}
-              onChange={(e) => setOrganizationSlug(e.target.value)}
-              disabled={submitting}
-              placeholder="nougram-studio"
             />
           </div>
 

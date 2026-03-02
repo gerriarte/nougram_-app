@@ -8,14 +8,16 @@ interface StepReadyProps {
     data: any;
     onGoToDashboard: () => void;
     onCreateQuote: () => void;
+    isPersisting?: boolean;
+    persistError?: string | null;
 }
 
-export function StepReady({ data, onGoToDashboard, onCreateQuote }: StepReadyProps) {
+export function StepReady({ data, onGoToDashboard, onCreateQuote, isPersisting, persistError }: StepReadyProps) {
     // Extract data
-    const currency = data.identity.currency;
+    const currency = data.identity.primaryCurrency || data.identity.currency || 'COP';
     const monthlyFixedCosts = data.fixedCosts.totalMonthly;
-    const monthlyPayroll = data.team.salaryWithCharges;
-    const salaryWithCharges = data.team.salaryWithCharges;
+    const monthlyPayroll = data.team.salaryWithCharges || (data.team.applySocialCharges ? (data.team.salary || 0) * 1.52852 : (data.team.salary || 0));
+    const salaryWithCharges = monthlyPayroll;
 
     // Interactive State for "What-if" scenario
     const [billableHoursPerWeek, setBillableHoursPerWeek] = useState<number>(data.team.billableHours);
@@ -129,12 +131,17 @@ export function StepReady({ data, onGoToDashboard, onCreateQuote }: StepReadyPro
             </div>
 
             {/* Final Actions */}
+            {persistError && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-3">
+                    No se pudo guardar el onboarding en backend: {persistError}
+                </div>
+            )}
             <div className="flex flex-col sm:flex-row gap-4 pt-4 justify-center">
-                <Button variant="secondary" onClick={onGoToDashboard} className="w-full sm:w-auto">
+                <Button variant="secondary" onClick={onGoToDashboard} className="w-full sm:w-auto" disabled={isPersisting}>
                     Ir al Dashboard
                 </Button>
-                <Button size="lg" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={onCreateQuote}>
-                    Crear mi Primera Cotización →
+                <Button size="lg" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={onCreateQuote} disabled={isPersisting}>
+                    {isPersisting ? 'Guardando onboarding...' : 'Crear mi Primera Cotización →'}
                 </Button>
             </div>
         </div>

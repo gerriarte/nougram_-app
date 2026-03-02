@@ -22,16 +22,34 @@ const ROLES = [
     'Desarrollador Frontend',
     'Desarrollador Backend',
     'Product Manager',
-    'CEO/Founder',
-    'Otro'
+    'CEO/Founder'
 ];
 
 const LEVELS = ['Junior', 'Mid', 'Senior'];
 
+function InfoTip({ text }: { text: string }) {
+    return (
+        <span
+            className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-700 text-[10px] font-bold cursor-help"
+            title={text}
+            aria-label={text}
+        >
+            i
+        </span>
+    );
+}
+
 export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeamProps) {
+    const [payrollHeadcount, setPayrollHeadcount] = useState<number>(initialData?.payrollHeadcount || 1);
     // Member Info
     const [name, setName] = useState(initialData?.name || '');
     const [role, setRole] = useState(initialData?.role || '');
+    const [customRole, setCustomRole] = useState(
+        initialData?.role && !ROLES.includes(initialData.role) ? initialData.role : ''
+    );
+    const [isCustomRole, setIsCustomRole] = useState(
+        Boolean(initialData?.role && !ROLES.includes(initialData.role))
+    );
     const [level, setLevel] = useState<Step3MyTeamData['level']>(initialData?.level || '');
     const [salary, setSalary] = useState<string>(initialData?.salary?.toString() || '');
 
@@ -61,7 +79,8 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
     );
 
     // Validation Status
-    const minSalary = onboardingService.getMarketSalaryThreshold(role, level, currency);
+    const selectedRole = isCustomRole ? customRole : role;
+    const minSalary = onboardingService.getMarketSalaryThreshold(selectedRole, level, currency);
     const isSalaryLow = minSalary && salaryNum < minSalary;
 
     const handleTotalHoursChange = (val: string) => {
@@ -72,11 +91,12 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
     };
 
     const handleNext = () => {
-        if (!name || !role || !level || !salary) return; // Basic validation
+        if (!name || !selectedRole || !level || !salary) return; // Basic validation
 
         onNext({
+            payrollHeadcount,
             name,
-            role,
+            role: selectedRole,
             level,
             salary: salaryNum,
             totalHours,
@@ -92,8 +112,28 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
         <div className="space-y-6 max-w-3xl mx-auto">
             <div className="text-center space-y-2">
                 <h1 className="text-2xl font-bold text-gray-900">Configura tu propio costo</h1>
-                <p className="text-gray-600">Calcula cuánto te cuesta realmente tu hora de trabajo.</p>
+                <p className="text-gray-600">Calcula cuánto te cuesta realmente tu hora de trabajo y registra la base de nómina.</p>
             </div>
+
+            <Card className="bg-amber-50 border-amber-200">
+                <CardContent className="space-y-3 pt-6">
+                    <div className="space-y-2 max-w-xs">
+                        <Label>Cantidad de personas en nómina</Label>
+                        <Input
+                            type="number"
+                            min={1}
+                            value={payrollHeadcount}
+                            onChange={(e) => setPayrollHeadcount(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                        />
+                    </div>
+                    <Alert variant="warning" className="bg-amber-100 border-amber-200">
+                        <p className="text-sm text-amber-900">
+                            Para un BCR preciso, registra todos los miembros del equipo en nómina.
+                            {payrollHeadcount > 1 ? ` Actualmente estas modelando 1 de ${payrollHeadcount}.` : ' Actualmente estas modelando 1 persona.'}
+                        </p>
+                    </Alert>
+                </CardContent>
+            </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -107,15 +147,34 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label>Tu Rol *</Label>
+                                    <Label>Tu Rol/Cargo *</Label>
                                     <select
                                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                        value={role}
-                                        onChange={e => setRole(e.target.value)}
+                                        value={isCustomRole ? '__custom__' : role}
+                                        onChange={e => {
+                                            if (e.target.value === '__custom__') {
+                                                setIsCustomRole(true);
+                                                setRole('');
+                                            } else {
+                                                setIsCustomRole(false);
+                                                setRole(e.target.value);
+                                            }
+                                        }}
                                     >
                                         <option value="">Seleccionar...</option>
                                         {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                                        <option value="__custom__">+ Crear nuevo rol/cargo</option>
                                     </select>
+                                    {isCustomRole && (
+                                        <Input
+                                            value={customRole}
+                                            onChange={(e) => setCustomRole(e.target.value)}
+                                            placeholder="Ej: Estratega de Contenidos"
+                                        />
+                                    )}
+                                    <p className="text-xs text-gray-500">
+                                        Usa el desplegable o crea un rol nuevo en este mismo campo.
+                                    </p>
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Nivel *</Label>
@@ -142,7 +201,7 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
                             {isSalaryLow && (
                                 <Alert variant="warning" className="bg-amber-50 border-amber-200">
                                     <p className="text-sm text-amber-800">
-                                        ⚠️ <strong>Validación de Mercado:</strong> Tu salario parece bajo para un {role} {level}.
+                                        ⚠️ <strong>Validación de Mercado:</strong> Tu salario parece bajo para un {selectedRole} {level}.
                                         El promedio es ~${minSalary?.toLocaleString()} {currency}.
                                     </p>
                                 </Alert>
@@ -160,13 +219,19 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Horas Totales / Semana</Label>
+                            <div className="flex items-center gap-2">
+                                <Label>Horas Totales / Semana</Label>
+                                <InfoTip text="Horas laborales totales semanales de esta persona (facturables + no facturables). Usa el promedio real para mejorar precision del BCR." />
+                            </div>
                             <Input type="number" value={totalHours} onChange={e => handleTotalHoursChange(e.target.value)} />
                         </div>
 
                         <div className="p-3 bg-white rounded border border-blue-200 space-y-2">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-gray-700">Horas Facturables</span>
+                                <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                                    Horas Facturables
+                                    <InfoTip text="Horas que realmente se cobran a clientes cada semana. Menos horas facturables elevan el BCR." />
+                                </span>
                                 <span className="text-lg font-bold text-blue-600">{billableHours}h</span>
                             </div>
                             <Input
@@ -183,7 +248,10 @@ export function StepMyTeam({ onNext, onBack, initialData, currency }: StepMyTeam
                         </div>
 
                         <div className="space-y-2 pt-2">
-                            <Label>Días No Productivos / Año</Label>
+                            <div className="flex items-center gap-2">
+                                <Label>Días No Productivos / Año</Label>
+                                <InfoTip text="Incluye vacaciones, festivos, enfermedad y otros dias no facturables. Este dato ajusta el calculo anual del BCR." />
+                            </div>
                             <Input
                                 type="number"
                                 value={vacationDays}

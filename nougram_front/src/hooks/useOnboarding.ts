@@ -15,6 +15,7 @@ const INITIAL_DATA: OnboardingData = {
         totalMonthly: 0
     },
     team: {
+        payrollHeadcount: 1,
         name: '',
         role: '',
         level: '',

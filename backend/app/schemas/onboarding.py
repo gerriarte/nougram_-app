@@ -59,6 +59,7 @@ class OnboardingExpense(BaseModel):
     category: Literal["rent", "software", "services"] = Field(...)
     amount_monthly: Decimal = Field(..., gt=0)
     currency: str = Field("USD")
+    quantity: int = Field(1, ge=1, description="Quantity of equal items included in total amount")
     
     @field_serializer('amount_monthly')
     def serialize_decimal(self, value: Decimal) -> str:
@@ -81,6 +82,9 @@ class CompleteOnboardingRequest(BaseModel):
     
     # Operational expenses
     expenses: List[OnboardingExpense] = Field(default_factory=list)
+
+    # Inventory snapshot (includes amortizable assets and tools selected in onboarding)
+    inventory_items: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     
     # Tax structure (optional)
     tax_structure: Optional[Dict[str, Any]] = None

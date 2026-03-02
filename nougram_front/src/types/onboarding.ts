@@ -4,7 +4,9 @@ export interface FixedCostTemplate {
     name: string;
     amount: number;
     currency: string;
+    quantity?: number;
     category: 'Tools' | 'Software' | 'Overhead' | 'Other';
+    amortizable?: boolean;
     icon: string;
     preSelectedFor?: string[];
     isCustom?: boolean;
@@ -28,6 +30,7 @@ export interface Step2FixedCostsData {
 }
 
 export interface Step3MyTeamData {
+    payrollHeadcount: number;
     name: string;
     role: string;
     level: 'Junior' | 'Mid' | 'Senior' | '';

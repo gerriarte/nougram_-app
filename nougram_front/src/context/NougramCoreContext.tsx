@@ -4,6 +4,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Equipment } from '@/types/equipment';
 import { calculateDepreciation } from '@/lib/depreciation';
+import { FixedCostTemplate } from '@/types/onboarding';
+import { apiRequest } from '@/lib/api-client';
 
 // --- Types ---
 
@@ -73,6 +75,15 @@ const NougramCoreContext = createContext<NougramCoreContextType | undefined>(und
 export function NougramCoreProvider({ children }: { children: React.ReactNode }) {
     const [state, setState] = useState<NougramState>(DEFAULT_STATE);
 
+    type OrganizationMeResponse = {
+        id: number;
+        name: string;
+        settings?: {
+            currency?: Currency;
+            primary_currency?: Currency;
+        } | null;
+    };
+
     // Initial Hydration from Persistence 
     useEffect(() => {
         const stored = localStorage.getItem('nougram_onboarding_data');
@@ -87,6 +98,25 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         } else {
             setState(prev => ({ ...prev, isHydrated: true }));
         }
+    }, []);
+
+    useEffect(() => {
+        const hydrateOrganizationName = async () => {
+            const response = await apiRequest<OrganizationMeResponse>('/organizations/me');
+            if (response.error || !response.data) return;
+            const backendCurrency =
+                response.data.settings?.currency ||
+                response.data.settings?.primary_currency;
+            setState((prev) => ({
+                ...prev,
+                identity: {
+                    ...prev.identity,
+                    name: response.data?.name || prev.identity.name,
+                    primaryCurrency: backendCurrency || prev.identity.primaryCurrency,
+                },
+            }));
+        };
+        void hydrateOrganizationName();
     }, []);
 
     // BCR Recalculation Effect
@@ -146,17 +176,64 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
     const switchRole = (role: UserRole) =>
         setState(prev => ({ ...prev, user: { ...prev.user, role } }));
 
+    const convertToPrimaryCurrency = (
+        amount: number,
+        from: string,
+        to: Currency
+    ): number => {
+        if (!Number.isFinite(amount)) return 0;
+        if (from === to) return amount;
+        const rates: Record<string, number> = {
+            USD_COP: 4000,
+            COP_USD: 0.00025,
+            EUR_COP: 4300,
+            COP_EUR: 0.00023,
+            USD_EUR: 0.93,
+            EUR_USD: 1.07,
+        };
+        const key = `${from}_${to}`;
+        return amount * (rates[key] ?? 1);
+    };
+
     const hydrateFromOnboarding = (data: any) => {
-        // Reverse engineer basics from onboarding data logic
-        // Assuming data.bcr.hoursBased was the OLD Calc
-        const bcrValue = parseFloat(data.bcr?.hoursBased || '0') || 50000;
-        const hours = 160; // Default capacity assumption if missing
+        const name = data.identity?.organizationName || data.identity?.name || 'Agencia';
+        const currency = (data.identity?.primaryCurrency || data.identity?.currency || 'COP') as Currency;
+        const selectedTemplates: FixedCostTemplate[] = Array.isArray(data.fixedCosts?.selectedTemplates)
+            ? data.fixedCosts.selectedTemplates
+            : [];
 
-        // Reverse base cost: Cost = BCR * Hours
-        const baseMonthlyCost = bcrValue * hours;
+        const onboardingHours = Number(data.team?.billableHours);
+        const hours = Number.isFinite(onboardingHours) && onboardingHours > 0 ? onboardingHours * 4.33 : 160;
 
-        const name = data.identity?.name || 'Agencia';
-        const currency = data.identity?.currency || 'COP';
+        const salary = Number(data.team?.salary) || 0;
+        const salaryWithCharges = data.team?.applySocialCharges ? salary * 1.52852 : salary;
+        const nonAmortizableCosts = selectedTemplates
+            .filter((template) => !(template.amortizable || template.category === 'Tools'))
+            .reduce((sum, template) => {
+                return sum + convertToPrimaryCurrency(template.amount || 0, template.currency || currency, currency);
+            }, 0);
+
+        const baseMonthlyCost = salaryWithCharges + nonAmortizableCosts;
+        const equipmentFromOnboarding: Equipment[] = selectedTemplates
+            .filter((template) => template.amortizable || template.category === 'Tools')
+            .map((template) => {
+                const purchasePrice = convertToPrimaryCurrency(template.amount || 0, template.currency || currency, currency);
+                return {
+                    id: `onboarding-${template.id}`,
+                    name: template.name,
+                    description: 'Generado desde onboarding (costo amortizable)',
+                    category: 'Hardware',
+                    purchasePrice: Number(purchasePrice.toFixed(2)),
+                    purchaseDate: new Date().toISOString().slice(0, 10),
+                    currency,
+                    usefulLifeMonths: 36,
+                    salvageValue: 0,
+                    depreciationMethod: 'straight_line',
+                    isActive: true,
+                    createdAt: new Date().toISOString(),
+                };
+            });
+        const bcrValue = hours > 0 ? baseMonthlyCost / hours : 0;
 
         setState(prev => ({
             ...prev,
@@ -167,6 +244,7 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
                 billableHours: hours,
                 bcr: bcrValue
             },
+            equipment: equipmentFromOnboarding,
             isHydrated: true
         }));
     };

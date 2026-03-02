@@ -139,6 +139,9 @@ class OnboardingService:
                 org.settings["tax_structure"] = request.tax_structure
             if request.social_charges_config:
                 org.settings["social_charges_config"] = request.social_charges_config
+            if request.inventory_items:
+                # Keep inventory detail for future modules (assets, amortization, audits).
+                org.settings["onboarding_inventory_items"] = request.inventory_items
             
             # Mark settings as modified so SQLAlchemy detects the change
             flag_modified(org, "settings")

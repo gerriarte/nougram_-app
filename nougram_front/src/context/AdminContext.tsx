@@ -6,6 +6,7 @@ import { useNougram } from '@/context/NougramCoreContext';
 import { TeamMember, FixedCost, SocialChargesConfig, GlobalConfig, BCRCalculation } from '@/types/admin';
 import { teamService } from '@/services/teamService';
 import { socialChargesService } from '@/services/socialChargesService';
+import { FixedCostTemplate } from '@/types/onboarding';
 
 // Initial Mock Data (to avoid starting empty)
 const DEFAULT_SOCIAL_CHARGES: SocialChargesConfig = {
@@ -65,6 +66,33 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
     // 2. Calculation Logic
     const { updateFinancialBasics } = useNougram(); // Connect to Core
+
+    useEffect(() => {
+        const raw = localStorage.getItem('nougram_onboarding_data');
+        if (!raw) return;
+        try {
+            const parsed = JSON.parse(raw);
+            const selectedTemplates: FixedCostTemplate[] = Array.isArray(parsed?.fixedCosts?.selectedTemplates)
+                ? parsed.fixedCosts.selectedTemplates
+                : [];
+            const onboardingFixedCosts: FixedCost[] = selectedTemplates
+                .filter((template) => !(template.amortizable || template.category === 'Tools'))
+                .map((template) => ({
+                    id: `onboarding-${template.id}`,
+                    name: template.name,
+                    description: 'Importado desde onboarding',
+                    category: template.category === 'Software' ? 'Software' : template.category === 'Overhead' ? 'Overhead' : 'Other',
+                    amountMonthly: Number(template.amount) || 0,
+                    currency: (template.currency as FixedCost['currency']) || 'COP',
+                    isActive: true,
+                }));
+            if (onboardingFixedCosts.length > 0) {
+                setFixedCosts(onboardingFixedCosts);
+            }
+        } catch (error) {
+            console.error('No se pudo hidratar gastos fijos desde onboarding', error);
+        }
+    }, []);
 
     useEffect(() => {
         const loadTeamMembers = async () => {

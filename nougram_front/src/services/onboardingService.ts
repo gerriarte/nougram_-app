@@ -8,8 +8,8 @@ import {
 
 // Mock Data
 export const HARDWARE_TEMPLATES: FixedCostTemplate[] = [
-    { id: "laptop", name: "Laptop de Trabajo", amount: 800000, currency: "COP", category: "Tools", icon: "💻", preSelectedFor: ['dev', 'design', 'marketing'] },
-    { id: "monitor", name: "Monitor Externo", amount: 150000, currency: "COP", category: "Tools", icon: "🖥️", preSelectedFor: ['dev', 'design'] },
+    { id: "laptop", name: "Laptop de Trabajo", amount: 800000, currency: "COP", category: "Tools", amortizable: true, icon: "💻", preSelectedFor: ['dev', 'design', 'marketing'] },
+    { id: "monitor", name: "Monitor Externo", amount: 150000, currency: "COP", category: "Tools", amortizable: true, icon: "🖥️", preSelectedFor: ['dev', 'design'] },
 ];
 
 export const SOFTWARE_TEMPLATES: FixedCostTemplate[] = [

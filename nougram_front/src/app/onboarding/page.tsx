@@ -9,10 +9,14 @@ import { StepFixedCosts } from '@/components/onboarding/StepFixedCosts';
 import { StepMyTeam } from '@/components/onboarding/StepMyTeam';
 import { StepReady } from '@/components/onboarding/StepReady';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { apiRequest } from '@/lib/api-client';
+import { FixedCostTemplate } from '@/types/onboarding';
 
 export default function OnboardingPage() {
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState(1);
+    const [persistError, setPersistError] = useState<string | null>(null);
+    const [persisting, setPersisting] = useState(false);
 
     // Use the hook for state management
     const {
@@ -32,11 +36,77 @@ export default function OnboardingPage() {
         window.scrollTo(0, 0);
     };
 
-    const handleGoToDashboard = () => {
+    const buildOnboardingPayload = () => {
+        const currency = onboardingData.identity.primaryCurrency || 'COP';
+        const country = onboardingData.identity.country || 'COL';
+        const selectedTemplates: FixedCostTemplate[] = onboardingData.fixedCosts?.selectedTemplates || [];
+        const nonAmortizableExpenses = selectedTemplates
+            .filter((item) => !(item.amortizable || item.category === 'Tools'))
+            .map((item) => ({
+                name: item.name,
+                category: item.category === 'Software' ? 'software' : 'services',
+                amount_monthly: String(item.amount || 0),
+                currency: item.currency || currency,
+                quantity: item.quantity || 1,
+            }));
+        const inventoryItems = selectedTemplates.map((item) => ({
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            amount_monthly: String(item.amount || 0),
+            currency: item.currency || currency,
+            quantity: item.quantity || 1,
+            amortizable: Boolean(item.amortizable || item.category === 'Tools'),
+        }));
+
+        return {
+            organization_name: onboardingData.identity.organizationName || undefined,
+            country,
+            currency,
+            profile_type: 'agency',
+            team_members: onboardingData.team?.name
+                ? [{
+                    name: onboardingData.team.name,
+                    role: onboardingData.team.role || 'Generalista',
+                    salary_monthly_brute: String(onboardingData.team.salary || 0),
+                    currency,
+                    billable_hours_per_month: Math.max(1, Math.round((onboardingData.team.billableHours || 28) * 4.33)),
+                }]
+                : [],
+            expenses: nonAmortizableExpenses,
+            inventory_items: inventoryItems,
+        };
+    };
+
+    const persistOnboardingInBackend = async (): Promise<boolean> => {
+        const alreadyPersisted = localStorage.getItem('nougram_onboarding_persisted_v1') === 'true';
+        if (alreadyPersisted) {
+            return true;
+        }
+        setPersistError(null);
+        setPersisting(true);
+        const response = await apiRequest('/onboarding/complete', {
+            method: 'POST',
+            body: JSON.stringify(buildOnboardingPayload()),
+        });
+        setPersisting(false);
+        if (response.error) {
+            setPersistError(response.error);
+            return false;
+        }
+        localStorage.setItem('nougram_onboarding_persisted_v1', 'true');
+        return true;
+    };
+
+    const handleGoToDashboard = async () => {
+        const ok = await persistOnboardingInBackend();
+        if (!ok) return;
         router.push('/dashboard');
     };
 
-    const handleCreateQuote = () => {
+    const handleCreateQuote = async () => {
+        const ok = await persistOnboardingInBackend();
+        if (!ok) return;
         router.push('/projects/new');
     };
 
@@ -92,6 +162,8 @@ export default function OnboardingPage() {
                     {currentStep === 4 && (
                         <StepReady
                             data={onboardingData}
+                            persistError={persistError}
+                            isPersisting={persisting}
                             onGoToDashboard={handleGoToDashboard}
                             onCreateQuote={handleCreateQuote}
                         />
