@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { NougramCoreProvider } from '@/context/NougramCoreContext';
+import { Toaster } from '@/components/ui/Toaster';
 
 export const metadata: Metadata = {
   title: "Nougram Cotizador",
@@ -18,6 +19,7 @@ export default function RootLayout({
 
         <NougramCoreProvider>
           {children}
+          <Toaster />
         </NougramCoreProvider>
 
       </body>

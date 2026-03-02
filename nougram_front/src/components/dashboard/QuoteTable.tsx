@@ -54,6 +54,15 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
         return 'text-red-600';
     };
 
+    const getFollowUpHint = (quote: Quote) => {
+        if (quote.status === 'draft') return 'Pendiente por enviar';
+        if (quote.status === 'sent' && quote.viewedCount === 0) return 'Enviada, sin apertura';
+        if (quote.status === 'viewed') return `Vista ${quote.viewedCount || 1} vez${(quote.viewedCount || 1) > 1 ? 'es' : ''}`;
+        if (quote.status === 'accepted') return 'Cerrada como ganada';
+        if (quote.status === 'rejected') return 'Cerrada como perdida';
+        return 'Seguimiento activo';
+    };
+
     const formatDate = (dateStr?: string) => {
         if (!dateStr) return 'Reciente';
         // Try to parse relative "Hace ..." or simple date?
@@ -97,8 +106,11 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
                                     {quote.client}
                                 </td>
                                 <td className="px-6 py-4 text-right font-bold text-gray-900">
-                                    ${quote.amount.toLocaleString()} <span className="text-xs text-gray-400 font-normal">{quote.currency}</span>
-                                    <div className="text-[10px] font-medium text-gray-400">Incluye impuestos</div>
+                                    ${quote.totalWithTaxes.toLocaleString()} <span className="text-xs text-gray-400 font-normal">{quote.currency}</span>
+                                    <div className="text-[10px] font-medium text-gray-400">Total factura (incluye impuestos)</div>
+                                    <div className="text-[10px] text-gray-500 mt-0.5">
+                                        Base ${Math.round(quote.totalClientPrice || 0).toLocaleString()} + Impuestos ${Math.round(quote.totalTaxes || 0).toLocaleString()}
+                                    </div>
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <div className={`font-bold ${getMarginColor(quote.margin)} text-xs px-2 py-1 rounded-full bg-opacity-10 inline-block`}>
@@ -106,6 +118,9 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
                                     </div>
                                 </td>
                                 <td className="px-6 py-4">
+                                    <div className="mb-1 text-[10px] text-gray-500 uppercase tracking-wide">
+                                        {getFollowUpHint(quote)}
+                                    </div>
                                     <select
                                         value={quote.status}
                                         onChange={(e) => onStatusChange(quote.id, e.target.value as Quote['status'])}

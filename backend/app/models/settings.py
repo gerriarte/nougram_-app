@@ -14,7 +14,7 @@ class AgencySettings(Base):
     __tablename__ = "agency_settings"
     
     id = Column(Integer, primary_key=True, index=True)
-    primary_currency = Column(String, default="USD", nullable=False)  # USD, COP, ARS, EUR
+    primary_currency = Column(String, default="USD", nullable=False)  # USD, COP, ARS, EUR, PEN, MXN
     currency_symbol = Column(String, default="$", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

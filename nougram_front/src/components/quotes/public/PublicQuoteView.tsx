@@ -118,7 +118,7 @@ export function PublicQuoteView({ quote: initialQuote }: PublicQuoteViewProps) {
                                         <p className="text-sm text-gray-500 mt-1">Implementación completa según requerimientos.</p>
                                     </div>
                                     <span className="font-bold text-gray-900">
-                                        ${quote.amount.toLocaleString()} {quote.currency}
+                                        ${quote.totalWithTaxes.toLocaleString()} {quote.currency}
                                     </span>
                                 </div>
                             </div>
@@ -137,7 +137,7 @@ export function PublicQuoteView({ quote: initialQuote }: PublicQuoteViewProps) {
 
                             <div className="flex items-baseline gap-2 mb-2">
                                 <span className="text-4xl font-bold text-gray-900 tracking-tight">
-                                    ${quote.amount.toLocaleString()}
+                                    ${quote.totalWithTaxes.toLocaleString()}
                                 </span>
                                 <span className="text-lg font-medium text-gray-400">{quote.currency}</span>
                             </div>

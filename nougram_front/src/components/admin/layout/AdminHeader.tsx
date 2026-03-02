@@ -2,10 +2,11 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, LogOut, ChevronDown } from 'lucide-react';
+import { Users, LogOut, ChevronDown, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api-client';
+import Link from 'next/link';
 
 type OrganizationResponse = {
     id: number;
@@ -59,7 +60,7 @@ export function AdminHeader() {
         <header className="bg-white/60 backdrop-blur-md border-b border-white/20 h-20 px-10 flex items-center justify-between sticky top-0 z-30">
             {/* Left: Context */}
             <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                 <h2 className="text-system-gray text-xs font-black uppercase tracking-[0.2em]">{workspaceName} Workspace</h2>
             </div>
 
@@ -74,7 +75,7 @@ export function AdminHeader() {
                         <p className="text-[10px] font-black text-system-gray uppercase tracking-widest mt-1.5">{user?.role || 'sin_rol'}</p>
                     </div>
                     <div className="relative">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-500/20 border border-white/20">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-secondary text-white flex items-center justify-center font-bold text-lg shadow-lg border border-white/20">
                             {userInitials || 'U'}
                         </div>
                         <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-lg flex items-center justify-center shadow-sm border border-gray-100">
@@ -98,8 +99,14 @@ export function AdminHeader() {
                             </div>
 
                             <div className="px-2 space-y-1">
+                                <Link href="/dashboard/organization" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-white hover:text-secondary hover:shadow-sm rounded-2xl transition-all group">
+                                    <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                                        <Building2 size={16} strokeWidth={2} />
+                                    </div>
+                                    Empresa (Tenant)
+                                </Link>
                                 {user?.role === 'owner' && (
-                                    <a href="/dashboard/users" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm rounded-2xl transition-all group">
+                                    <a href="/dashboard/users" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-white hover:text-secondary hover:shadow-sm rounded-2xl transition-all group">
                                         <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
                                             <Users size={16} strokeWidth={2} />
                                         </div>

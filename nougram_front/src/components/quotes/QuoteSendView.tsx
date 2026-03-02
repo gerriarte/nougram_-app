@@ -160,7 +160,7 @@ export function QuoteSendView({ quote, initialToEmail, onSend, onCancel }: Quote
                                     <p className="font-semibold text-gray-900">{quote.project}</p>
                                     <p className="text-gray-500">Versión: {quote.version}</p>
                                     <p className="text-lg font-bold text-gray-900 mt-1">
-                                        ${quote.amount.toLocaleString()} {quote.currency}
+                                        ${quote.totalWithTaxes.toLocaleString()} {quote.currency}
                                     </p>
                                     <div className="mt-3">
                                         <Button size="sm" className="w-full bg-[#1D1D1F] text-white">

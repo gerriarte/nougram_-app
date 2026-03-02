@@ -38,7 +38,11 @@ export interface QuoteItem {
 export interface TaxConfig {
     id: number;
     name: string;
+    code?: string;
     percentage: number; // 19.0
+    country?: string;
+    description?: string;
+    isActive?: boolean;
 }
 
 export interface ResourceAllocation {
@@ -79,7 +83,7 @@ export interface QuoteBuilderState {
     clientEmail: string;
     projectType?: string;
     projectDescription?: string;
-    currency: 'COP' | 'USD';
+    currency: 'COP' | 'USD' | 'EUR' | 'ARS' | 'PEN' | 'MXN';
 
     // Items
     items: QuoteItem[];

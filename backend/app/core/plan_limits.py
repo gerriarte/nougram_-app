@@ -15,14 +15,14 @@ PLAN_LIMITS: Dict[str, Dict[str, int]] = {
     },
     "starter": {
         "max_users": 5,
-        "max_projects": 25,
+        "max_projects": 10,
         "max_services": 50,
         "max_team_members": 10,
         "credits_per_month": 100,
     },
     "professional": {
         "max_users": 20,
-        "max_projects": 100,
+        "max_projects": 20,
         "max_services": 200,
         "max_team_members": 50,
         "credits_per_month": 500,
@@ -253,7 +253,7 @@ PLAN_INFO: Dict[str, Dict[str, Any]] = {
         "yearly_price": 299.99,  # ~2 months free
         "features": [
             "Up to 5 users",
-            "Up to 25 projects",
+            "Up to 10 projects",
             "Up to 50 services",
             "Up to 10 team members",
             "Advanced quote generation",
@@ -263,7 +263,7 @@ PLAN_INFO: Dict[str, Dict[str, Any]] = {
         ],
         "limits": {
             "max_users": 5,
-            "max_projects": 25,
+            "max_projects": 10,
             "max_services": 50,
             "max_team_members": 10,
             "credits_per_month": 100,
@@ -276,7 +276,7 @@ PLAN_INFO: Dict[str, Dict[str, Any]] = {
         "yearly_price": 999.99,  # ~2 months free
         "features": [
             "Up to 20 users",
-            "Up to 100 projects",
+            "Up to 20 projects",
             "Up to 200 services",
             "Up to 50 team members",
             "Advanced quote generation",
@@ -288,7 +288,7 @@ PLAN_INFO: Dict[str, Dict[str, Any]] = {
         ],
         "limits": {
             "max_users": 20,
-            "max_projects": 100,
+            "max_projects": 20,
             "max_services": 200,
             "max_team_members": 50,
             "credits_per_month": 500,

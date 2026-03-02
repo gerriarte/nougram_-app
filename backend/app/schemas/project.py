@@ -14,7 +14,7 @@ class ProjectBase(BaseModel):
     client_id: Optional[int] = Field(None, description="Client master catalog ID (preferred)")
     client_name: str = Field(..., description="Client name (snapshot or when no client_id)", min_length=1)
     client_email: Optional[str] = Field(None, description="Client email")
-    currency: str = Field("USD", description="Currency code (USD, COP, ARS, EUR)")
+    currency: str = Field("USD", description="Currency code (USD, COP, ARS, EUR, PEN, MXN)")
     tax_ids: Optional[List[int]] = Field(default_factory=list, description="List of tax IDs to apply")
 
 
@@ -60,6 +60,8 @@ class QuoteResponse(BaseModel):
     version: int
     total_internal_cost: Optional[Decimal] = None
     total_client_price: Optional[Decimal] = None
+    total_taxes: Optional[Decimal] = None
+    total_with_taxes: Optional[Decimal] = None
     margin_percentage: Optional[Decimal] = None  # Calculated margin (result)
     target_margin_percentage: Optional[Decimal] = None  # Target margin for the quote (0-1)
     notes: Optional[str] = None
@@ -69,7 +71,7 @@ class QuoteResponse(BaseModel):
     updated_at: Optional[datetime] = None
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
-    @field_serializer('total_internal_cost', 'total_client_price', 'margin_percentage',
+    @field_serializer('total_internal_cost', 'total_client_price', 'total_taxes', 'total_with_taxes', 'margin_percentage',
                       'target_margin_percentage', 'revision_cost_per_additional')
     def serialize_decimal(self, value: Optional[Decimal]) -> Optional[str]:
         """Serializa Decimal como string para mantener precisión"""

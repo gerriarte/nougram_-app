@@ -82,7 +82,11 @@ class OnboardingController(BaseController):
                     else "US"
                 )
             if not currency:
-                currency = self.tenant.organization.primary_currency or "USD"
+                currency = (
+                    self.tenant.organization.settings.get("primary_currency", "USD")
+                    if self.tenant.organization.settings
+                    else "USD"
+                )
             
             # Get benchmarks from service
             benchmarks_data = await self.onboarding_service.get_benchmarks(

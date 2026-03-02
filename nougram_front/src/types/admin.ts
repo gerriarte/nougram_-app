@@ -1,7 +1,7 @@
 
 // Core Data Types for Admin & User Management
 
-export type Currency = 'COP' | 'USD' | 'EUR';
+export type Currency = 'COP' | 'USD' | 'EUR' | 'ARS' | 'PEN' | 'MXN';
 
 // --- Payroll & Team ---
 

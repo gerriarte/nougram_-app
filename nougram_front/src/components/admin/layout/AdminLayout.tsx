@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminProvider } from '@/context/AdminContext';
 import { AdminSidebar } from './AdminSidebar';
@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 export function AdminLayout({ children, hideRightPanel = false }: { children: React.ReactNode, hideRightPanel?: boolean }) {
     const router = useRouter();
     const { isAuthenticated, loading } = useAuth();
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     useEffect(() => {
         if (!loading && !isAuthenticated) {
@@ -32,7 +33,10 @@ export function AdminLayout({ children, hideRightPanel = false }: { children: Re
         <AdminProvider>
             <div className="flex min-h-screen bg-background">
                 {/* Sidebar */}
-                <AdminSidebar />
+                <AdminSidebar
+                    isCollapsed={isSidebarCollapsed}
+                    onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+                />
 
                 {/* Main Content Column */}
                 <div className="flex-1 flex flex-col min-w-0">

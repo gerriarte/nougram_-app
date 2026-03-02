@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Building2, ArrowLeft, Users, CreditCard, Hash } from 'lucide-react';
+import { Building2, ArrowLeft, Users, CreditCard, Hash, Save, RefreshCw } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { apiRequest } from '@/lib/api-client';
+import { useAuth } from '@/hooks/useAuth';
 
 type OrganizationResponse = {
   id: number;
@@ -17,9 +18,25 @@ type OrganizationResponse = {
 };
 
 export default function OrganizationPage() {
+  const { user } = useAuth();
   const [organization, setOrganization] = useState<OrganizationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState('');
+  const [planDraft, setPlanDraft] = useState('free');
+  const [savingName, setSavingName] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [nameMessage, setNameMessage] = useState<string | null>(null);
+  const [planMessage, setPlanMessage] = useState<string | null>(null);
+
+  const canManageSubscription = user?.role === 'owner' || user?.role === 'super_admin';
+
+  const PLAN_OPTIONS = [
+    { value: 'free', label: 'Free' },
+    { value: 'starter', label: 'Starter' },
+    { value: 'professional', label: 'Professional' },
+    { value: 'enterprise', label: 'Enterprise' },
+  ];
 
   useEffect(() => {
     const loadOrganization = async () => {
@@ -34,11 +51,60 @@ export default function OrganizationPage() {
       }
 
       setOrganization(response.data);
+      setNameDraft(response.data.name || '');
+      setPlanDraft(response.data.subscription_plan || 'free');
       setLoading(false);
     };
 
     void loadOrganization();
   }, []);
+
+  const handleSaveName = async () => {
+    if (!organization) return;
+    const trimmed = nameDraft.trim();
+    setNameMessage(null);
+    if (!trimmed) {
+      setNameMessage('El nombre de la empresa es obligatorio.');
+      return;
+    }
+
+    setSavingName(true);
+    const response = await apiRequest<OrganizationResponse>(`/organizations/${organization.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name: trimmed }),
+    });
+    setSavingName(false);
+
+    if (response.error || !response.data) {
+      setNameMessage(response.error || 'No se pudo guardar el nombre de la empresa.');
+      return;
+    }
+
+    setOrganization(response.data);
+    setNameDraft(response.data.name);
+    setNameMessage('Nombre actualizado correctamente.');
+  };
+
+  const handleSavePlan = async () => {
+    if (!organization) return;
+    setPlanMessage(null);
+
+    setSavingPlan(true);
+    const response = await apiRequest<OrganizationResponse>(`/organizations/${organization.id}/subscription`, {
+      method: 'PUT',
+      body: JSON.stringify({ plan: planDraft }),
+    });
+    setSavingPlan(false);
+
+    if (response.error || !response.data) {
+      setPlanMessage(response.error || 'No se pudo actualizar el tipo de suscripción.');
+      return;
+    }
+
+    setOrganization(response.data);
+    setPlanDraft(response.data.subscription_plan || 'free');
+    setPlanMessage('Tipo de suscripción actualizado.');
+  };
 
   return (
     <AdminLayout>
@@ -81,7 +147,28 @@ export default function OrganizationPage() {
               <p className="text-xs font-semibold uppercase tracking-wide text-system-gray mb-1">
                 Nombre
               </p>
-              <p className="text-lg font-bold text-gray-900">{organization.name}</p>
+              <div className="space-y-3">
+                <input
+                  value={nameDraft}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  placeholder="Nombre de la empresa"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveName}
+                  disabled={savingName}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {savingName ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                  Guardar nombre
+                </button>
+                {nameMessage && (
+                  <p className={`text-xs font-semibold ${nameMessage.includes('correctamente') ? 'text-green-600' : 'text-red-600'}`}>
+                    {nameMessage}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-gray-200 bg-white p-5">
@@ -95,9 +182,41 @@ export default function OrganizationPage() {
             <div className="rounded-2xl border border-gray-200 bg-white p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-system-gray mb-1 flex items-center gap-1">
                 <CreditCard size={13} />
-                Plan
+                Tipo de suscripción
               </p>
-              <p className="text-lg font-bold text-gray-900">{organization.subscription_plan || 'free'}</p>
+              <div className="space-y-3">
+                <select
+                  value={planDraft}
+                  onChange={(event) => setPlanDraft(event.target.value)}
+                  disabled={!canManageSubscription}
+                  className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                >
+                  {PLAN_OPTIONS.map((plan) => (
+                    <option key={plan.value} value={plan.value}>
+                      {plan.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleSavePlan}
+                  disabled={savingPlan || !canManageSubscription}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {savingPlan ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                  Guardar suscripción
+                </button>
+                {!canManageSubscription && (
+                  <p className="text-xs font-semibold text-amber-600">
+                    Solo Owner o Super Admin pueden cambiar la suscripción.
+                  </p>
+                )}
+                {planMessage && (
+                  <p className={`text-xs font-semibold ${planMessage.includes('actualizado') ? 'text-green-600' : 'text-red-600'}`}>
+                    {planMessage}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-gray-200 bg-white p-5">
