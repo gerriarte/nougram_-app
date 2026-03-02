@@ -159,18 +159,19 @@ export function StepMyTeam({
     };
 
     const handleNext = () => {
-        if (!name || !selectedRole || !level || !salary) return; // Basic validation
+        if (modeledMembers.length === 0) return;
+        const fallbackMember = modeledMembers[0];
 
         onNext({
             payrollHeadcount,
-            name,
-            role: selectedRole,
-            level,
-            salary: salaryNum,
-            totalHours,
-            billableHours,
-            vacationDays,
-            applySocialCharges,
+            name: name || fallbackMember?.name || '',
+            role: selectedRole || fallbackMember?.role || '',
+            level: (level || fallbackMember?.level || '') as Step3MyTeamData['level'],
+            salary: salaryNum || fallbackMember?.salary || 0,
+            totalHours: totalHours || fallbackMember?.totalHours || 40,
+            billableHours: billableHours || fallbackMember?.billableHours || 28,
+            vacationDays: vacationDays || fallbackMember?.vacationDays || 20,
+            applySocialCharges: applySocialCharges ?? fallbackMember?.applySocialCharges ?? true,
             yearlyBillableHours: trueCostAnalysis.annualBillableHours,
             hourlyCost: trueCostAnalysis.hourlyCost,
             teamMembers: modeledMembers
@@ -482,6 +483,31 @@ export function StepMyTeam({
                                 </p>
                             )}
                         </div>
+
+                        <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <p className="text-sm font-semibold text-blue-900">Lista que se guardará en dashboard</p>
+                                <span className="text-xs font-bold text-blue-700 bg-white border border-blue-200 rounded-full px-2 py-0.5">
+                                    {modeledMembers.length} miembro(s)
+                                </span>
+                            </div>
+                            {modeledMembers.length === 0 ? (
+                                <p className="text-sm text-blue-700 mt-2">
+                                    Agrega al menos un miembro válido (nombre, rol, salario y horas facturables) para continuar.
+                                </p>
+                            ) : (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {modeledMembers.map((member, index) => (
+                                        <span
+                                            key={`${member.name}-${index}`}
+                                            className="text-xs font-medium text-blue-800 bg-white border border-blue-200 rounded-full px-3 py-1"
+                                        >
+                                            {member.name} - {member.role}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
 
@@ -504,6 +530,92 @@ export function StepMyTeam({
                     </div>
 
                     <div className="p-6 overflow-y-auto space-y-4">
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold text-blue-900">Miembro principal (tú)</p>
+                                <span className="text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-full px-2 py-0.5">
+                                    Obligatorio
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <Input
+                                    placeholder="Nombre"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                />
+                                <div className="space-y-2">
+                                    <select
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                        value={isCustomRole ? '__custom__' : role}
+                                        onChange={(e) => {
+                                            if (e.target.value === '__custom__') {
+                                                setIsCustomRole(true);
+                                                setRole('');
+                                            } else {
+                                                setIsCustomRole(false);
+                                                setRole(e.target.value);
+                                            }
+                                        }}
+                                    >
+                                        <option value="">Rol/Cargo</option>
+                                        {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                                        <option value="__custom__">+ Crear nuevo rol/cargo</option>
+                                    </select>
+                                    {isCustomRole && (
+                                        <Input
+                                            value={customRole}
+                                            onChange={(e) => setCustomRole(e.target.value)}
+                                            placeholder="Rol personalizado"
+                                        />
+                                    )}
+                                </div>
+                                <select
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    value={level}
+                                    onChange={(e) => setLevel(e.target.value as Step3MyTeamData['level'])}
+                                >
+                                    <option value="">Nivel</option>
+                                    {LEVELS.map((lvl) => <option key={lvl} value={lvl}>{lvl}</option>)}
+                                </select>
+                                <Input
+                                    type="number"
+                                    placeholder={`Salario mensual (${currency})`}
+                                    value={salary}
+                                    onChange={(e) => setSalary(e.target.value)}
+                                />
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    placeholder="Horas totales/semana"
+                                    value={totalHours}
+                                    onChange={(e) => handleTotalHoursChange(e.target.value)}
+                                />
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    placeholder="Horas facturables/semana"
+                                    value={billableHours}
+                                    onChange={(e) => setBillableHours(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                                />
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    placeholder="Días no productivos/año"
+                                    value={vacationDays}
+                                    onChange={(e) => setVacationDays(Math.max(0, parseInt(e.target.value || '0', 10)))}
+                                />
+                                <label className="flex items-center gap-2 text-sm text-gray-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={applySocialCharges}
+                                        onChange={(e) => setApplySocialCharges(e.target.checked)}
+                                        className="h-4 w-4 rounded"
+                                    />
+                                    Aplicar cargas sociales
+                                </label>
+                            </div>
+                        </div>
+
                         <div className="flex items-center justify-between">
                             <p className="text-sm text-gray-600">
                                 Registrados: <strong>{validAdditionalMembers.length}</strong> de <strong>{Math.max(payrollHeadcount - 1, 0)}</strong> adicionales esperados.
@@ -545,6 +657,16 @@ export function StepMyTeam({
                                             value={member.role}
                                             onChange={(e) => updateAdditionalMember(member.id, { role: e.target.value })}
                                         />
+                                        <select
+                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                            value={member.level}
+                                            onChange={(e) => updateAdditionalMember(member.id, { level: e.target.value as TeamMemberDraft['level'] })}
+                                        >
+                                            <option value="">Nivel</option>
+                                            {LEVELS.map((lvl) => (
+                                                <option key={lvl} value={lvl}>{lvl}</option>
+                                            ))}
+                                        </select>
                                         <Input
                                             type="number"
                                             placeholder={`Salario mensual (${currency})`}

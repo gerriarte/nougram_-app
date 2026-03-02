@@ -22,11 +22,22 @@ const INDUSTRIES = [
 ];
 
 export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }: StepFixedCostsProps) {
+    const normalizeTemplateToPrimary = (template: FixedCostTemplate): FixedCostTemplate => {
+        const normalizedAmount = onboardingService.convertCurrency(
+            template.amount || 0,
+            template.currency || primaryCurrency,
+            primaryCurrency
+        );
+        return {
+            ...template,
+            amount: Number(normalizedAmount.toFixed(2)),
+            currency: primaryCurrency,
+            quantity: template.quantity && template.quantity > 0 ? template.quantity : 1,
+        };
+    };
+
     const [selectedCosts, setSelectedCosts] = useState<FixedCostTemplate[]>(
-        (initialData?.selectedTemplates || []).map((item) => ({
-            ...item,
-            quantity: item.quantity && item.quantity > 0 ? item.quantity : 1,
-        }))
+        (initialData?.selectedTemplates || []).map((item) => normalizeTemplateToPrimary(item))
     );
     const [activeIndustry, setActiveIndustry] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -44,7 +55,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
         const combined = [...selectedCosts];
         industryTemplates.forEach(t => {
             if (!combined.find(existing => existing.id === t.id)) {
-                combined.push(t);
+                combined.push(normalizeTemplateToPrimary(t));
             }
         });
         setSelectedCosts(combined);
@@ -55,7 +66,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
         if (exists) {
             setSelectedCosts(selectedCosts.filter(t => t.id !== template.id));
         } else {
-            setSelectedCosts([...selectedCosts, { ...template, quantity: 1 }]);
+            setSelectedCosts([...selectedCosts, normalizeTemplateToPrimary(template)]);
         }
     };
 
@@ -106,6 +117,9 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                 </p>
                 <p className="text-xs text-gray-500">
                     Importante: el monto ingresado en cada item representa el total acumulado de la cantidad indicada.
+                </p>
+                <p className="text-xs text-blue-600">
+                    Todos los valores de este paso se muestran y editan en {primaryCurrency}.
                 </p>
             </div>
 
@@ -163,7 +177,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                 </button>
                             </div>
                             <p className="font-medium text-gray-900">
-                                ${cost.amount.toLocaleString()} {cost.currency} <span className="text-xs text-gray-500">/mes</span>
+                                ${cost.amount.toLocaleString()} {primaryCurrency} <span className="text-xs text-gray-500">/mes</span>
                             </p>
                             <div className="grid grid-cols-2 gap-2 mt-3">
                                 <div>
@@ -198,8 +212,10 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
 
                     {filteredTemplates.map(template => {
                         const isSelected = selectedCosts.some(t => t.id === template.id);
-                        const isForeignCurrency = template.currency !== primaryCurrency;
-                        const convertedAmount = onboardingService.convertCurrency(template.amount, template.currency, primaryCurrency);
+                        const selectedTemplate = selectedCosts.find((c) => c.id === template.id);
+                        const displayedAmount = selectedTemplate
+                            ? selectedTemplate.amount
+                            : onboardingService.convertCurrency(template.amount, template.currency, primaryCurrency);
 
                         return (
                             <div
@@ -221,18 +237,12 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
 
                                 <div className="space-y-1">
                                     <p className="font-medium text-gray-900">
-                                        ${template.amount.toLocaleString()} {template.currency} <span className="text-xs text-gray-500">/mes</span>
+                                        ${displayedAmount.toLocaleString()} {primaryCurrency} <span className="text-xs text-gray-500">/mes</span>
                                     </p>
                                     {(template.amortizable || template.category === 'Tools') && (
                                         <span className="inline-block text-[10px] font-semibold uppercase tracking-wide text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-0.5">
                                             Amortización
                                         </span>
-                                    )}
-
-                                    {isSelected && isForeignCurrency && (
-                                        <div className="text-xs text-amber-600 bg-amber-50 p-1 rounded mt-1">
-                                            ⚠️ aprox. ${convertedAmount.toLocaleString()} {primaryCurrency}
-                                        </div>
                                     )}
                                     {isSelected && (
                                         <div className="grid grid-cols-2 gap-2 mt-3">
@@ -299,14 +309,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Moneda</label>
-                                    <select
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                        value={customCost.currency}
-                                        onChange={e => setCustomCost({ ...customCost, currency: e.target.value })}
-                                    >
-                                        <option value="COP">COP</option>
-                                        <option value="USD">USD</option>
-                                    </select>
+                                    <Input value={primaryCurrency} disabled />
                                 </div>
                             </div>
                             <div className="flex gap-2 justify-end pt-2">
