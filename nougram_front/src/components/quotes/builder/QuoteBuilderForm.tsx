@@ -87,7 +87,7 @@ export function QuoteBuilderForm() {
                             <label className="text-sm font-semibold text-gray-700">Nombre del Proyecto</label>
                             <Input
                                 placeholder="Ej: Rediseño Ecommerce 2026"
-                                value={state.projectName}
+                                value={state.projectName || ''}
                                 onChange={e => updateProjectInfo({ projectName: e.target.value })}
                                 className="bg-white"
                             />

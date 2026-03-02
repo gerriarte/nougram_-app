@@ -75,6 +75,14 @@ export function QuoteFinancialSummary() {
                         </div>
 
                         <div className="space-y-2.5">
+                            {taxes.length === 0 && (
+                                <div className="rounded-xl border border-dashed border-gray-200 bg-white p-3 text-xs text-gray-600">
+                                    No tienes impuestos activos configurados para esta organización.
+                                    <a href="/admin/taxes" className="ml-1 font-semibold text-blue-600 hover:text-blue-700">
+                                        Configurar impuestos
+                                    </a>
+                                </div>
+                            )}
                             {taxes.map(tax => {
                                 const isSelected = state.selectedTaxIds.includes(tax.id);
                                 const amount = isSelected ? summary.totalClientPrice * (tax.percentage / 100) : 0;

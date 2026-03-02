@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Edit, ArrowUpRight, Link as LinkIcon, Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { quoteService } from '@/services/quoteService';
+import { useNougram } from '@/context/NougramCoreContext';
 
 interface QuoteTableProps {
     quotes: Quote[];
@@ -15,6 +16,8 @@ interface QuoteTableProps {
 export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
     const router = useRouter();
     const [copiedId, setCopiedId] = React.useState<string | null>(null);
+    const { state } = useNougram();
+    const displayCurrency = state.identity.primaryCurrency || 'COP';
 
     const handleCopyLink = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -110,7 +113,7 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
                                     {quote.client}
                                 </td>
                                 <td className="px-6 py-4 text-right font-bold text-gray-900">
-                                    ${quote.totalWithTaxes.toLocaleString()} <span className="text-xs text-gray-400 font-normal">{quote.currency}</span>
+                                    ${quote.totalWithTaxes.toLocaleString()} <span className="text-xs text-gray-400 font-normal">{displayCurrency}</span>
                                     <div className="text-[10px] font-medium text-gray-400">Total factura (incluye impuestos)</div>
                                     <div className="text-[10px] text-gray-500 mt-0.5">
                                         Base ${Math.round(quote.totalClientPrice || 0).toLocaleString()} + Impuestos ${Math.round(quote.totalTaxes || 0).toLocaleString()}

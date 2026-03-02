@@ -3,6 +3,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Eye, Clock, CheckCircle2, XCircle, MoreHorizontal, ArrowUpRight, Copy, Send } from 'lucide-react';
+import { useNougram } from '@/context/NougramCoreContext';
 
 export interface Quote {
     id: string;
@@ -38,9 +39,11 @@ interface QuoteCardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
     const router = useRouter();
+    const { state } = useNougram();
     const baseAmount = quote.totalClientPrice ?? Math.max(0, quote.totalWithTaxes - (quote.totalTaxes ?? 0));
     const taxAmount = quote.totalTaxes ?? 0;
     const taxRate = quote.taxRate ?? 0;
+    const displayCurrency = state.identity.primaryCurrency || quote.currency || 'COP';
 
     // Status Logic
     const getStatusStyle = (status: string) => {
@@ -85,7 +88,7 @@ export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
 
                 <div className="mt-4 flex items-baseline gap-2">
                     <span className="text-2xl font-semibold text-[#1D1D1F] tracking-tight">
-                        ${quote.totalWithTaxes.toLocaleString()} <span className="text-sm font-medium text-[#86868B]">{quote.currency}</span>
+                        ${quote.totalWithTaxes.toLocaleString()} <span className="text-sm font-medium text-[#86868B]">{displayCurrency}</span>
                     </span>
                 </div>
                 <p className="text-[10px] text-[#9AA0A6] font-medium mt-1 uppercase tracking-wide">
