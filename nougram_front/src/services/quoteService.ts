@@ -32,6 +32,7 @@ type ProjectQuoteResponse = {
     total_with_taxes?: string | number;
     total_taxes?: string | number;
     margin_percentage?: string | number;
+    target_margin_percentage?: string | number;
     items?: Array<{
         id?: number;
         service_id: number;
