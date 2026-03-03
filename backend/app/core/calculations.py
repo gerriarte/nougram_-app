@@ -434,6 +434,15 @@ async def calculate_quote_totals_enhanced(
         taxes, items, expenses, revisions_cost
     """
     from app.models.tax import Tax
+
+    # Defensive normalization for legacy payloads that may still send 35 instead of 0.35.
+    if target_margin_percentage is not None:
+        if not isinstance(target_margin_percentage, Decimal):
+            target_margin_percentage = Decimal(str(target_margin_percentage))
+        if target_margin_percentage > Decimal('1') and target_margin_percentage <= Decimal('100'):
+            target_margin_percentage = target_margin_percentage / Decimal('100')
+        elif target_margin_percentage > Decimal('100') or target_margin_percentage < Decimal('0'):
+            target_margin_percentage = None
     
     # ESTÁNDAR NOUGRAM: Usar Money para todos los cálculos
     total_internal_cost_money = Money(0, currency)

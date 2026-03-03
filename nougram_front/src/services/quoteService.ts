@@ -109,6 +109,14 @@ function toPercent(value?: string | number): number {
     return num <= 1 ? num * 100 : num;
 }
 
+function toMarginRatio(value?: string | number): number {
+    const num = Number(value ?? 0.35);
+    if (!Number.isFinite(num) || num <= 0) return 0.35;
+    if (num > 1 && num <= 100) return num / 100;
+    if (num > 100) return 0.35;
+    return num;
+}
+
 function toSafeNumber(value?: string | number): number {
     const num = Number(value ?? 0);
     return Number.isFinite(num) ? num : 0;
@@ -415,7 +423,7 @@ export const quoteService = {
                 currency: data.currency || 'COP',
                 tax_ids: data.selectedTaxIds || [],
                 quote_items: quoteItems,
-                target_margin_percentage: typeof data.targetMargin === 'number' ? data.targetMargin : undefined,
+                target_margin_percentage: typeof data.targetMargin === 'number' ? toMarginRatio(data.targetMargin) : undefined,
                 revisions_included: 2,
                 allow_low_margin: Boolean(data.allowLowMargin),
             }),
@@ -462,7 +470,7 @@ export const quoteService = {
                 method: 'PUT',
                 body: JSON.stringify({
                     items: payloadItems,
-                    target_margin_percentage: typeof data.targetMargin === 'number' ? data.targetMargin : undefined,
+                    target_margin_percentage: typeof data.targetMargin === 'number' ? toMarginRatio(data.targetMargin) : undefined,
                     allow_low_margin: Boolean(data.allowLowMargin),
                 }),
             }
@@ -498,7 +506,7 @@ export const quoteService = {
                 method: 'POST',
                 body: JSON.stringify({
                     items: payloadItems,
-                    target_margin_percentage: typeof data.targetMargin === 'number' ? data.targetMargin : undefined,
+                    target_margin_percentage: typeof data.targetMargin === 'number' ? toMarginRatio(data.targetMargin) : undefined,
                     allow_low_margin: Boolean(data.allowLowMargin),
                 }),
             }
@@ -721,7 +729,7 @@ export const quoteService = {
             clientCompany: projectResponse.data.client_name,
             clientRequester: '',
             currency: (projectResponse.data.currency as 'COP' | 'USD') || 'COP',
-            targetMargin: Number(detail?.target_margin_percentage || 0.35),
+            targetMargin: toMarginRatio(detail?.target_margin_percentage),
             selectedTaxIds: (projectResponse.data.taxes || []).map((tax) => Number(tax.id)).filter((id) => Number.isFinite(id)),
             items,
         };
