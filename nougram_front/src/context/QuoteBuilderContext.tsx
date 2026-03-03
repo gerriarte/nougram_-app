@@ -136,7 +136,21 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     // --- LOAD RESOURCES ---
     useEffect(() => {
         resourceService.getAllMembers().then(setTeamMembers);
-        taxService.getAll(true).then(setTaxes).catch(() => setTaxes([]));
+        const loadTaxes = async () => {
+            try {
+                const country = coreState.identity.country;
+                const byCountry = await taxService.getAll({ activeOnly: true, country });
+                if (byCountry.length > 0) {
+                    setTaxes(byCountry);
+                    return;
+                }
+                const globalTaxes = await taxService.getAll(true);
+                setTaxes(globalTaxes);
+            } catch {
+                setTaxes([]);
+            }
+        };
+        void loadTaxes();
         import('@/services/quoteService').then(({ quoteService }) => {
             quoteService.getAvailableServices().then((available) => {
                 if (available.length > 0) setServices(available);
@@ -144,7 +158,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 setServices([]);
             });
         });
-    }, []);
+    }, [coreState.identity.country]);
 
     // Keep new quotes aligned with organization primary currency.
     useEffect(() => {

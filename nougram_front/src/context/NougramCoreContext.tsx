@@ -16,6 +16,7 @@ export interface AgencyIdentity {
     name: string;
     logo?: string;
     primaryCurrency: Currency;
+    country?: string;
 }
 
 export interface FinancialState {
@@ -57,7 +58,7 @@ interface NougramCoreContextType {
 }
 
 const DEFAULT_STATE: NougramState = {
-    identity: { name: 'Mi Agencia', primaryCurrency: 'COP' },
+    identity: { name: 'Mi Agencia', primaryCurrency: 'COP', country: 'CO' },
     financials: {
         baseMonthlyCost: 0,
         billableHours: 160,
@@ -81,6 +82,7 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         settings?: {
             currency?: Currency;
             primary_currency?: Currency;
+            country?: string;
         } | null;
     };
 
@@ -107,12 +109,14 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
             const backendCurrency =
                 response.data.settings?.currency ||
                 response.data.settings?.primary_currency;
+            const backendCountry = response.data.settings?.country;
             setState((prev) => ({
                 ...prev,
                 identity: {
                     ...prev.identity,
                     name: response.data?.name || prev.identity.name,
                     primaryCurrency: backendCurrency || prev.identity.primaryCurrency,
+                    country: backendCountry || prev.identity.country,
                 },
             }));
         };
@@ -179,6 +183,7 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
     const hydrateFromOnboarding = (data: any) => {
         const name = data.identity?.organizationName || data.identity?.name || 'Agencia';
         const currency = (data.identity?.primaryCurrency || data.identity?.currency || 'COP') as Currency;
+        const country = data.identity?.country || 'CO';
         const selectedTemplates: FixedCostTemplate[] = Array.isArray(data.fixedCosts?.selectedTemplates)
             ? data.fixedCosts.selectedTemplates
             : [];
@@ -219,7 +224,7 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
 
         setState(prev => ({
             ...prev,
-            identity: { ...prev.identity, name, primaryCurrency: currency },
+            identity: { ...prev.identity, name, primaryCurrency: currency, country },
             financials: {
                 ...prev.financials,
                 baseMonthlyCost,

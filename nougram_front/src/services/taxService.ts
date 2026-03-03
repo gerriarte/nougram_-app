@@ -40,10 +40,24 @@ function mapTax(item: TaxApiItem): TaxConfig {
 }
 
 export const taxService = {
-    async getAll(activeOnly = true): Promise<TaxConfig[]> {
-        const query = activeOnly
-            ? '/taxes/?page=1&page_size=200&active_only=true'
-            : '/taxes/?page=1&page_size=200';
+    async getAll(
+        options: boolean | { activeOnly?: boolean; country?: string } = true
+    ): Promise<TaxConfig[]> {
+        const resolved = typeof options === 'boolean'
+            ? { activeOnly: options, country: undefined as string | undefined }
+            : { activeOnly: options.activeOnly ?? true, country: options.country };
+
+        const params = new URLSearchParams({
+            page: '1',
+            page_size: '200',
+        });
+        if (resolved.activeOnly) {
+            params.set('active_only', 'true');
+        }
+        if (resolved.country && resolved.country.trim().length > 0) {
+            params.set('country', resolved.country.trim().toUpperCase());
+        }
+        const query = `/taxes/?${params.toString()}`;
 
         const response = await apiRequest<TaxListResponse>(query);
         if (response.error) {

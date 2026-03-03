@@ -5,6 +5,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { Wallet, Info, ArrowUpRight, Percent, Users, Receipt } from 'lucide-react';
+import Link from 'next/link';
 
 export function QuoteFinancialSummary() {
     const { summary, state, toggleTax, taxes, setTargetMargin, teamMembers } = useQuoteBuilder();
@@ -78,9 +79,9 @@ export function QuoteFinancialSummary() {
                             {taxes.length === 0 && (
                                 <div className="rounded-xl border border-dashed border-gray-200 bg-white p-3 text-xs text-gray-600">
                                     No tienes impuestos activos configurados para esta organización.
-                                    <a href="/admin/taxes" className="ml-1 font-semibold text-blue-600 hover:text-blue-700">
+                                    <Link href="/admin/taxes" className="ml-1 font-semibold text-blue-600 hover:text-blue-700">
                                         Configurar impuestos
-                                    </a>
+                                    </Link>
                                 </div>
                             )}
                             {taxes.map(tax => {

@@ -14,7 +14,8 @@ import {
     UserCircle2,
     PanelLeftClose,
     PanelLeftOpen,
-    ShieldCheck
+    ShieldCheck,
+    Receipt
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,6 +38,7 @@ export function AdminSidebar({ isCollapsed, onToggleCollapse }: AdminSidebarProp
         { label: 'Gestión de Clientes', href: '/dashboard/clients', icon: UserCircle2 },
         { label: 'Nómina (Equipo)', href: '/admin/payroll', icon: UsersRound },
         { label: 'Overhead (Gastos)', href: '/admin/overhead', icon: Building2 },
+        { label: 'Impuestos', href: '/admin/taxes', icon: Receipt },
     ];
 
     return (
