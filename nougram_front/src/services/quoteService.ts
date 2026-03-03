@@ -661,6 +661,7 @@ export const quoteService = {
         clientCompany?: string;
         clientRequester?: string;
         currency: 'COP' | 'USD';
+        targetMargin: number;
         selectedTaxIds: number[];
         items: QuoteItem[];
     } | null> => {
@@ -719,6 +720,7 @@ export const quoteService = {
             clientCompany: projectResponse.data.client_name,
             clientRequester: '',
             currency: (projectResponse.data.currency as 'COP' | 'USD') || 'COP',
+            targetMargin: Number(detail?.target_margin_percentage || 0.35),
             selectedTaxIds: (projectResponse.data.taxes || []).map((tax) => Number(tax.id)).filter((id) => Number.isFinite(id)),
             items,
         };

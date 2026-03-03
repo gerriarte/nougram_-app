@@ -49,7 +49,7 @@ export const taxService = {
 
         const params = new URLSearchParams({
             page: '1',
-            page_size: '200',
+            page_size: '100',
         });
         if (resolved.activeOnly) {
             params.set('active_only', 'true');

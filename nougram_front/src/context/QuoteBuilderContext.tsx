@@ -176,41 +176,8 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     }, [state.items, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency, taxes]);
 
     const calculateTotals = () => {
-        // 1. Calculate Items
-        const calculatedItems = state.items.map(item => {
-            // Recalculate each item based on current inputs & global factors using Service
-            const result = pricingService.calculateItem(item, coreState.financials.bcr, state.targetMargin);
-            return {
-                ...item,
-                internalCost: result.internalCost,
-                clientPrice: result.clientPrice,
-                marginPercentage: result.marginPercentage
-            };
-        });
-
-        // Update items in state if they changed? 
-        // No, this causes infinite loop if we setState here.
-        // We should just use these calculated values for the summary.
-        // Ideally, `updateItem` should trigger a recalculation and update the state.
-        // For now, let's keep the pattern where we calculate derived values for summary
-        // BUT ALSO we need to update the items in the state so the UI shows the correct cost/price.
-
-        // Refactor: We won't update state here to avoid loops.
-        // Instead, valid approach: verify if values changed, then update.
-        // OR simpler: Trust that `updateItem` handles the calculation (backend simulation).
-
-        // Let's implement the "Backend Simulation" properly:
-        // When an item is updated, we call the service and save the result.
-        // calculatedTotals just sums up what's in the state.
-
-        // However, Target Margin is global. If it changes, all items need update.
-        // So we do need a way to batch update items.
-
-        // For this refactor, let's assume `calculateTotals` is responsible for global summary
-        // passing the current state items to the service.
-
         const totals = pricingService.calculateQuoteTotals(
-            calculatedItems,
+            state.items,
             taxes,
             state.selectedTaxIds,
             state.contingency
@@ -315,7 +282,23 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         setState(prev => ({ ...prev, resourceAllocations: prev.resourceAllocations.filter(a => a.id !== id) }));
 
 
-    const setTargetMargin = (margin: number) => setState(prev => ({ ...prev, targetMargin: margin }));
+    const setTargetMargin = (margin: number) =>
+        setState((prev) => {
+            const nextItems = prev.items.map((item) => {
+                const calculated = pricingService.calculateItem(item, coreState.financials.bcr, margin);
+                return {
+                    ...item,
+                    internalCost: calculated.internalCost,
+                    clientPrice: calculated.clientPrice,
+                    marginPercentage: calculated.marginPercentage,
+                };
+            });
+            return {
+                ...prev,
+                targetMargin: margin,
+                items: nextItems,
+            };
+        });
     const setContingency = (contingency: Contingency | undefined) => setState(prev => ({ ...prev, contingency }));
 
     // --- VALIDATION ---
@@ -413,8 +396,8 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 return PROJECT_TYPES.includes(prefix) ? prefix : '';
             })();
 
-            setState(prev => ({
-                ...prev,
+            setState(() => ({
+                ...INITIAL_STATE,
                 step: 'editor',
                 id: q.id,
                 version: q.version,
@@ -427,6 +410,9 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 projectType: persistedMeta.projectType || inferredProjectType,
                 projectDescription: persistedMeta.projectDescription || '',
                 currency: (q.currency as any) || 'COP',
+                targetMargin: typeof q.targetMargin === 'number' && Number.isFinite(q.targetMargin)
+                    ? q.targetMargin
+                    : INITIAL_STATE.targetMargin,
                 selectedTaxIds: q.selectedTaxIds || [],
                 items: q.items || [],
             }));
