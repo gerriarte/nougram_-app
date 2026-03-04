@@ -15,6 +15,11 @@ export interface QuoteSendPayload {
     proposalId?: number;
 }
 
+type ActionResult = {
+    ok: boolean;
+    message: string;
+};
+
 interface QuoteSendViewProps {
     quote: Quote;
     initialToEmail?: string;
@@ -22,9 +27,9 @@ interface QuoteSendViewProps {
     initialProposalText?: string;
     proposalVersion?: number;
     initialProposalId?: number;
-    onSend: (data: QuoteSendPayload) => Promise<void>;
-    onSaveProposal: (payload: { title: string; text: string }) => Promise<number | undefined>;
-    onGenerateProposalAI: () => Promise<{ title: string; text: string; version?: number } | null>;
+    onSend: (data: QuoteSendPayload) => Promise<ActionResult>;
+    onSaveProposal: (payload: { title: string; text: string }) => Promise<{ proposalId?: number; message: string }>;
+    onGenerateProposalAI: () => Promise<{ title: string; text: string; version?: number; message: string } | null>;
     onCancel: () => void;
 }
 
@@ -52,35 +57,57 @@ export function QuoteSendView({
     const [isSending, setIsSending] = useState(false);
     const [isSavingProposal, setIsSavingProposal] = useState(false);
     const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
+    const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     const handleSend = async () => {
         if (!to.trim()) {
-            alert('Ingresa el correo del cliente antes de enviar.');
+            setActionFeedback({ type: 'error', text: 'Ingresa el correo del destinatario antes de enviar.' });
             return;
         }
         setIsSending(true);
-        await onSend({ to, subject, message, includePdf, trackingOpen, proposalId });
-        setIsSending(false);
+        try {
+            const result = await onSend({ to, subject, message, includePdf, trackingOpen, proposalId });
+            setActionFeedback({ type: result.ok ? 'success' : 'error', text: result.message });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'No se pudo enviar la cotización';
+            setActionFeedback({ type: 'error', text: message });
+        } finally {
+            setIsSending(false);
+        }
     };
 
     const handleSaveProposal = async () => {
         setIsSavingProposal(true);
-        const savedId = await onSaveProposal({ title: proposalTitle, text: proposalText });
-        if (savedId) {
-            setProposalId(savedId);
+        try {
+            const result = await onSaveProposal({ title: proposalTitle, text: proposalText });
+            if (result.proposalId) {
+                setProposalId(result.proposalId);
+            }
+            setActionFeedback({ type: 'success', text: result.message });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'No se pudo guardar la propuesta';
+            setActionFeedback({ type: 'error', text: message });
+        } finally {
+            setIsSavingProposal(false);
         }
-        setIsSavingProposal(false);
     };
 
     const handleGenerateProposal = async () => {
         setIsGeneratingProposal(true);
-        const generated = await onGenerateProposalAI();
-        if (generated) {
-            setProposalTitle(generated.title);
-            setProposalText(generated.text);
-            setCurrentProposalVersion(generated.version);
+        try {
+            const generated = await onGenerateProposalAI();
+            if (generated) {
+                setProposalTitle(generated.title);
+                setProposalText(generated.text);
+                setCurrentProposalVersion(generated.version);
+                setActionFeedback({ type: 'success', text: generated.message });
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'No se pudo generar propuesta con IA';
+            setActionFeedback({ type: 'error', text: message });
+        } finally {
+            setIsGeneratingProposal(false);
         }
-        setIsGeneratingProposal(false);
     };
 
     return (
@@ -95,6 +122,17 @@ export function QuoteSendView({
                         </Button>
                         <h1 className="text-2xl font-bold text-[#1D1D1F]">Enviar Cotización</h1>
                     </div>
+                    {actionFeedback && (
+                        <div
+                            className={`rounded-md border px-3 py-2 text-sm ${
+                                actionFeedback.type === 'success'
+                                    ? 'border-green-200 bg-green-50 text-green-800'
+                                    : 'border-red-200 bg-red-50 text-red-800'
+                            }`}
+                        >
+                            {actionFeedback.text}
+                        </div>
+                    )}
 
                     <Card>
                         <CardContent className="space-y-6 pt-6">
@@ -134,6 +172,9 @@ export function QuoteSendView({
                                         </Button>
                                     </div>
                                 </div>
+                                {proposalId && proposalText && (
+                                    <p className="text-xs text-green-600 font-medium">Listo para enviar</p>
+                                )}
                                 <Input
                                     value={proposalTitle}
                                     onChange={e => setProposalTitle(e.target.value)}

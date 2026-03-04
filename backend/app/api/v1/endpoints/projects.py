@@ -93,6 +93,22 @@ def _proposal_to_notes_text(proposal_body: dict | None) -> str:
         if deliverable_lines:
             parts.append("\nEntregables:\n" + "\n".join(deliverable_lines))
 
+    scope = proposal_body.get("scope")
+    if isinstance(scope, str) and scope.strip():
+        parts.append(f"\nAlcance:\n{scope.strip()}")
+
+    timeline = proposal_body.get("timeline")
+    if isinstance(timeline, str) and timeline.strip():
+        parts.append(f"\nCronograma / hitos:\n{timeline.strip()}")
+
+    conditions = proposal_body.get("conditions")
+    if isinstance(conditions, str) and conditions.strip():
+        parts.append(f"\nCondiciones:\n{conditions.strip()}")
+
+    free_text = proposal_body.get("free_text")
+    if isinstance(free_text, str) and free_text.strip():
+        parts.append(free_text.strip())
+
     return "\n".join(parts).strip()
 
 
@@ -1268,6 +1284,9 @@ async def send_quote_email(
         )
         
         if success:
+            if project.status != "Sent":
+                project.status = "Sent"
+            await db.commit()
             logger.info(
                 f"Quote {quote_id} sent by email to {email_data.to_email}",
                 user_id=current_user.id,
@@ -1657,6 +1676,9 @@ async def send_quote_email(
         )
         
         if success:
+            if project.status != "Sent":
+                project.status = "Sent"
+            await db.commit()
             logger.info(
                 f"Quote {quote_id} sent by email to {email_data.to_email}",
                 user_id=current_user.id,

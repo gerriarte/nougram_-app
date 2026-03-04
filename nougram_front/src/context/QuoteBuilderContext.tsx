@@ -96,7 +96,7 @@ interface QuoteBuilderContextType {
     isValid: boolean;
     errors: string[];
 
-    saveQuote: (status?: 'Draft' | 'Sent') => Promise<void>;
+    saveQuote: (status?: 'Draft' | 'Sent') => Promise<string | undefined>;
     loadQuote: (id: string) => Promise<void>;
 
     /** 402 / credits paywall: show PaywallModal when reason is set */
@@ -164,6 +164,19 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     useEffect(() => {
         calculateTotals();
     }, [state.items, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency, taxes]);
+
+    useEffect(() => {
+        if (!state.selectedTaxIds.length) return;
+        const activeTaxIds = new Set(
+            (taxes || [])
+                .filter((tax) => tax.isActive !== false)
+                .map((tax) => tax.id)
+        );
+        const normalizedTaxIds = state.selectedTaxIds.filter((taxId) => activeTaxIds.has(taxId));
+        if (normalizedTaxIds.length !== state.selectedTaxIds.length) {
+            setState((prev) => ({ ...prev, selectedTaxIds: normalizedTaxIds }));
+        }
+    }, [taxes, state.selectedTaxIds]);
 
     const calculateTotals = () => {
         const totals = pricingService.calculateQuoteTotals(
@@ -318,13 +331,19 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     // --- PERSISTENCE ---
     const saveQuote = async (status: 'Draft' | 'Sent' = 'Draft') => {
         const { quoteService } = await import('@/services/quoteService');
+        const activeTaxIds = new Set(
+            (taxes || [])
+                .filter((tax) => tax.isActive !== false)
+                .map((tax) => tax.id)
+        );
+        const sanitizedTaxIds = (state.selectedTaxIds || []).filter((taxId) => activeTaxIds.has(taxId));
 
         const payload = {
             projectName: state.projectName,
             clientId: state.clientId ?? undefined,
             clientName: state.clientName,
             clientEmail: state.clientEmail,
-            selectedTaxIds: state.selectedTaxIds,
+            selectedTaxIds: sanitizedTaxIds,
             amount: summary.totalClientPrice,
             currency: state.currency,
             marginPercentage: summary.netMarginPercent,
@@ -333,7 +352,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             items: state.items
         };
 
-        if (state.items.length === 0) return;
+        if (state.items.length === 0) return undefined;
 
         try {
             if (state.id) {
@@ -349,6 +368,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                     projectType: state.projectType,
                     projectDescription: state.projectDescription,
                 });
+                return state.id;
             } else {
                 const newProjectId = await quoteService.create(payload as any);
                 setState(prev => ({ ...prev, id: newProjectId, version: 1 }));
@@ -357,6 +377,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                     projectType: state.projectType,
                     projectDescription: state.projectDescription,
                 });
+                return newProjectId;
             }
         } catch (err) {
             if (err instanceof CreditsRequiredError) {
@@ -378,6 +399,15 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         const { quoteService } = await import('@/services/quoteService');
         const q = await quoteService.getBuilderData(id);
         if (q) {
+            setTaxes((prevTaxes) => {
+                const next = [...prevTaxes];
+                for (const selectedTax of q.selectedTaxes || []) {
+                    if (!next.some((tax) => tax.id === selectedTax.id)) {
+                        next.push(selectedTax);
+                    }
+                }
+                return next;
+            });
             const persistedMeta = getQuoteEditorMeta(q.id);
             const inferredProjectType = (() => {
                 const firstNamedItem = (q.items || []).find((item) => typeof item.serviceName === 'string' && item.serviceName.includes(' - '));

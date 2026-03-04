@@ -1,10 +1,18 @@
 import { apiRequest } from '@/lib/api-client';
 
+/** Hybrid commercial proposal: guided sections + free text */
 export type ProposalBody = {
   description?: string;
   objectives?: string[];
   deliverables?: Array<{ name: string; status?: string }>;
   executive_summary?: string;
+  /** Alcance del proyecto */
+  scope?: string;
+  /** Cronograma o hitos */
+  timeline?: string;
+  /** Condiciones comerciales o legales */
+  conditions?: string;
+  /** Ajustes narrativos finales */
   free_text?: string;
   [key: string]: unknown;
 };

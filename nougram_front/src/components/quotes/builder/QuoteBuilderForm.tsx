@@ -20,14 +20,16 @@ export function QuoteBuilderForm() {
     const fixedService = services.find((s) => s.pricingType === 'fixed');
     const recurringService = services.find((s) => s.pricingType === 'recurring');
 
-    const handleSave = async (status: 'Draft' | 'Sent') => {
+    const handleSave = async (status: 'Draft' | 'Sent', continueToNextStep: boolean = false) => {
         if (!isValid && status === 'Sent') return;
 
         try {
-            await saveQuote(status);
-            // Simulate status update based on button clicked?
-            // For now saveQuote simulates "Create".
-            router.push('/dashboard');
+            const projectId = await saveQuote(status);
+            if (continueToNextStep && projectId) {
+                router.push(`/dashboard/quotes/${projectId}/next-step`);
+            } else {
+                router.push('/dashboard');
+            }
         } catch (e) {
             const message = e instanceof Error ? e.message : 'Error guardando cotización';
             alert(message);
@@ -262,7 +264,7 @@ export function QuoteBuilderForm() {
                     <Button
                         className={`w-full sm:w-auto ${isValid ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                         disabled={!isValid}
-                        onClick={() => handleSave('Sent')}
+                        onClick={() => handleSave('Draft', true)}
                     >
                         Guardar y Continuar
                     </Button>

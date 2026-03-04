@@ -8,6 +8,7 @@ import { formatMoneyAmount } from '@/lib/utils';
 
 export interface Quote {
     id: string;
+    quoteId?: number;
     project: string;
     client: string;
     clientId?: number;

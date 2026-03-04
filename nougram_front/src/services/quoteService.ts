@@ -1,6 +1,6 @@
 
 import { Quote } from '@/components/dashboard/QuoteCard';
-import { QuoteBuilderState, CalculationSummary, Service, QuoteItem } from '@/types/quote-builder';
+import { QuoteBuilderState, CalculationSummary, Service, QuoteItem, TaxConfig } from '@/types/quote-builder';
 import { apiRequest } from '@/lib/api-client';
 import { CreditsRequiredError } from '@/lib/errors';
 
@@ -69,6 +69,7 @@ type ProjectResponse = {
     taxes?: Array<{
         id: number;
         name: string;
+        code?: string;
         percentage: string | number;
     }>;
 };
@@ -92,6 +93,11 @@ type SendEmailPayload = {
     includePdf?: boolean;
     proposalId?: number;
     proposalMessage?: string;
+};
+
+type QuoteEmailApiResponse = {
+    success: boolean;
+    message: string;
 };
 
 /** Parse "Available: X, Required: Y" from backend 402 message for PaywallModal. */
@@ -400,7 +406,11 @@ export const quoteService = {
         if (!projectResponse.data) return null;
         const latestQuote = await quoteService.getLatestQuoteForProject(projectId);
         const detailedQuote = await getQuoteDetailForProject(Number(projectId), latestQuote?.id);
-        return buildQuoteCardFromProject(projectResponse.data, detailedQuote || latestQuote);
+        const quote = buildQuoteCardFromProject(projectResponse.data, detailedQuote || latestQuote);
+        return {
+            ...quote,
+            quoteId: latestQuote?.id,
+        };
     },
     getProjectClientEmail: async (projectId: string): Promise<string> => {
         const projectResponse = await apiRequest<ProjectResponse>(`/projects/${projectId}`);
@@ -556,19 +566,22 @@ export const quoteService = {
         return {} as CalculationSummary;
     },
 
-    sendEmail: async (id: string, data: SendEmailPayload): Promise<void> => {
-        const quotesResponse = await apiRequest<ProjectQuoteResponse[]>(`/projects/${id}/quotes`);
-        if (quotesResponse.error) {
-            throw new Error(quotesResponse.error);
+    sendEmail: async (id: string, data: SendEmailPayload, quoteId?: number): Promise<QuoteEmailApiResponse> => {
+        let targetQuoteId = quoteId;
+        if (!targetQuoteId) {
+            const quotesResponse = await apiRequest<ProjectQuoteResponse[]>(`/projects/${id}/quotes`);
+            if (quotesResponse.error) {
+                throw new Error(quotesResponse.error);
+            }
+            const quotes = quotesResponse.data || [];
+            const latestQuote = quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0];
+            if (!latestQuote) {
+                throw new Error('No existe una cotización para enviar');
+            }
+            targetQuoteId = latestQuote.id;
         }
-        const quotes = quotesResponse.data || [];
-        const latestQuote = quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0];
 
-        if (!latestQuote) {
-            throw new Error('No existe una cotización para enviar');
-        }
-
-        const response = await apiRequest(`/projects/${id}/quotes/${latestQuote.id}/send-email`, {
+        const response = await apiRequest<QuoteEmailApiResponse>(`/projects/${id}/quotes/${targetQuoteId}/send-email`, {
             method: 'POST',
             body: JSON.stringify({
                 to_email: data?.to || '',
@@ -586,6 +599,10 @@ export const quoteService = {
         if (response.error) {
             throw new Error(response.error);
         }
+        if (!response.data?.success) {
+            throw new Error(response.data?.message || 'No se pudo enviar la cotización');
+        }
+        return response.data;
     },
     setProjectStatus: async (projectId: string, status: 'Draft' | 'Sent' | 'Won' | 'Lost'): Promise<void> => {
         const response = await apiRequest(`/projects/${projectId}`, {
@@ -676,6 +693,7 @@ export const quoteService = {
         currency: 'COP' | 'USD';
         targetMargin: number;
         selectedTaxIds: number[];
+        selectedTaxes: TaxConfig[];
         items: QuoteItem[];
     } | null> => {
         const projectResponse = await apiRequest<ProjectResponse>(`/projects/${projectId}`);
@@ -735,6 +753,13 @@ export const quoteService = {
             currency: (projectResponse.data.currency as 'COP' | 'USD') || 'COP',
             targetMargin: toMarginRatio(detail?.target_margin_percentage),
             selectedTaxIds: (projectResponse.data.taxes || []).map((tax) => Number(tax.id)).filter((id) => Number.isFinite(id)),
+            selectedTaxes: (projectResponse.data.taxes || []).map((tax) => ({
+                id: Number(tax.id),
+                name: tax.name,
+                percentage: Number(tax.percentage || 0),
+                code: tax.code,
+                isActive: true,
+            })),
             items,
         };
     },

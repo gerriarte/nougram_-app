@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = ""
     SMTP_FROM_NAME: str = "Nougram"
     SMTP_USE_TLS: bool = True
+    # Supported values: "smtp", "mailersend"
+    EMAIL_PROVIDER: str = "smtp"
+    MAILERSEND_API_KEY: str = ""
+    MAILERSEND_BASE_URL: str = "https://api.mailersend.com/v1"
+    MAILERSEND_FROM_EMAIL: str = ""
+    MAILERSEND_FROM_NAME: str = "Nougram"
     
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5000"

@@ -1,18 +1,229 @@
 """
 Email sending module for quotes and notifications
 """
+import base64
 import aiosmtplib
+import httpx
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from typing import List, Optional
-from io import BytesIO
 
 from app.core.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+MAILERSEND_TIMEOUT_SECONDS = 20
+
+
+def _get_from_identity() -> tuple[str, str]:
+    provider = (settings.EMAIL_PROVIDER or "smtp").strip().lower()
+    if provider == "mailersend":
+        from_email = (settings.MAILERSEND_FROM_EMAIL or settings.SMTP_FROM_EMAIL or "").strip()
+        from_name = (settings.MAILERSEND_FROM_NAME or settings.SMTP_FROM_NAME or "Nougram").strip()
+        return from_email, from_name
+    return (settings.SMTP_FROM_EMAIL or "").strip(), (settings.SMTP_FROM_NAME or "Nougram").strip()
+
+
+def _read_attachment_bytes(content: object) -> bytes:
+    if hasattr(content, "read"):
+        data = content.read()
+        if hasattr(content, "seek"):
+            content.seek(0)
+        if isinstance(data, bytes):
+            return data
+        if isinstance(data, str):
+            return data.encode("utf-8")
+        return bytes(data)
+    if isinstance(content, bytes):
+        return content
+    if isinstance(content, str):
+        return content.encode("utf-8")
+    return bytes(content)
+
+
+async def _send_email_via_mailersend(
+    to_email: str,
+    subject: str,
+    body_html: str,
+    body_text: Optional[str] = None,
+    attachments: Optional[List[dict]] = None,
+    cc: Optional[List[str]] = None,
+    bcc: Optional[List[str]] = None,
+) -> bool:
+    api_key = (settings.MAILERSEND_API_KEY or "").strip()
+    from_email, from_name = _get_from_identity()
+    if not api_key or not from_email:
+        logger.warning(
+            "MailerSend not configured. Missing API key or from email.",
+            level="warning",
+            module=__name__,
+            function="_send_email_via_mailersend",
+        )
+        return False
+
+    payload: dict = {
+        "from": {"email": from_email, "name": from_name},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "html": body_html,
+    }
+    if body_text:
+        payload["text"] = body_text
+    if cc:
+        payload["cc"] = [{"email": email} for email in cc if email]
+    if bcc:
+        payload["bcc"] = [{"email": email} for email in bcc if email]
+
+    if attachments:
+        encoded_attachments: list[dict] = []
+        for attachment in attachments:
+            filename = str(attachment.get("filename") or "attachment")
+            content = attachment.get("content")
+            if not content:
+                continue
+            raw_bytes = _read_attachment_bytes(content)
+            encoded_attachments.append(
+                {
+                    "filename": filename,
+                    "content": base64.b64encode(raw_bytes).decode("utf-8"),
+                }
+            )
+        if encoded_attachments:
+            payload["attachments"] = encoded_attachments
+
+    url = f"{settings.MAILERSEND_BASE_URL.rstrip('/')}/email"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=MAILERSEND_TIMEOUT_SECONDS) as client:
+            response = await client.post(url, json=payload, headers=headers)
+        if response.status_code in (200, 201, 202):
+            logger.info(
+                f"Email sent successfully to {to_email}",
+                level="info",
+                module=__name__,
+                function="_send_email_via_mailersend",
+                subject=subject,
+            )
+            return True
+
+        logger.error(
+            f"MailerSend request failed for {to_email}",
+            level="error",
+            module=__name__,
+            function="_send_email_via_mailersend",
+            status_code=response.status_code,
+            response_body=response.text[:800],
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            f"Error sending email to {to_email} via MailerSend",
+            level="error",
+            module=__name__,
+            function="_send_email_via_mailersend",
+            error=str(e),
+            exc_info=True,
+        )
+        return False
+
+
+async def _send_email_via_smtp(
+    to_email: str,
+    subject: str,
+    body_html: str,
+    body_text: Optional[str] = None,
+    attachments: Optional[List[dict]] = None,
+    cc: Optional[List[str]] = None,
+    bcc: Optional[List[str]] = None,
+) -> bool:
+    # Check if email is configured
+    if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        logger.warning("Email not configured. SMTP settings missing.")
+        return False
+
+    from_email, from_name = _get_from_identity()
+    if not from_email:
+        logger.warning("Email not configured. SMTP_FROM_EMAIL missing.")
+        return False
+
+    try:
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['From'] = f"{from_name} <{from_email}>"
+        msg['To'] = to_email
+        msg['Subject'] = subject
+
+        if cc:
+            msg['Cc'] = ', '.join(cc)
+
+        # Add body
+        if body_text:
+            part1 = MIMEText(body_text, 'plain')
+            msg.attach(part1)
+
+        part2 = MIMEText(body_html, 'html')
+        msg.attach(part2)
+
+        # Add attachments
+        if attachments:
+            for attachment in attachments:
+                filename = attachment.get('filename', 'attachment')
+                content = attachment.get('content')
+
+                if content:
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(_read_attachment_bytes(content))
+                    encoders.encode_base64(part)
+                    part.add_header(
+                        'Content-Disposition',
+                        f'attachment; filename= {filename}'
+                    )
+                    msg.attach(part)
+
+        # Get all recipients
+        recipients = [to_email]
+        if cc:
+            recipients.extend(cc)
+        if bcc:
+            recipients.extend(bcc)
+
+        # Send email
+        await aiosmtplib.send(
+            msg,
+            hostname=settings.SMTP_HOST,
+            port=settings.SMTP_PORT,
+            username=settings.SMTP_USER,
+            password=settings.SMTP_PASSWORD,
+            use_tls=settings.SMTP_USE_TLS,
+            recipients=recipients
+        )
+
+        logger.info(
+            f"Email sent successfully to {to_email}",
+            level="info",
+            module=__name__,
+            function="_send_email_via_smtp",
+            subject=subject,
+        )
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error sending email to {to_email} via SMTP",
+            level="error",
+            module=__name__,
+            function="_send_email_via_smtp",
+            error=str(e),
+            exc_info=True,
+        )
+        return False
 
 
 async def send_email(
@@ -39,70 +250,27 @@ async def send_email(
     Returns:
         bool: True if email was sent successfully, False otherwise
     """
-    # Check if email is configured
-    if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-        logger.warning("Email not configured. SMTP settings missing.")
-        return False
-    
-    try:
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['From'] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        
-        if cc:
-            msg['Cc'] = ', '.join(cc)
-        
-        # Add body
-        if body_text:
-            part1 = MIMEText(body_text, 'plain')
-            msg.attach(part1)
-        
-        part2 = MIMEText(body_html, 'html')
-        msg.attach(part2)
-        
-        # Add attachments
-        if attachments:
-            for attachment in attachments:
-                filename = attachment.get('filename', 'attachment')
-                content = attachment.get('content')
-                
-                if content:
-                    part = MIMEBase('application', 'octet-stream')
-                    part.set_payload(content.read())
-                    encoders.encode_base64(part)
-                    part.add_header(
-                        'Content-Disposition',
-                        f'attachment; filename= {filename}'
-                    )
-                    msg.attach(part)
-                    content.seek(0)  # Reset for potential reuse
-        
-        # Get all recipients
-        recipients = [to_email]
-        if cc:
-            recipients.extend(cc)
-        if bcc:
-            recipients.extend(bcc)
-        
-        # Send email
-        await aiosmtplib.send(
-            msg,
-            hostname=settings.SMTP_HOST,
-            port=settings.SMTP_PORT,
-            username=settings.SMTP_USER,
-            password=settings.SMTP_PASSWORD,
-            use_tls=settings.SMTP_USE_TLS,
-            recipients=recipients
+    provider = (settings.EMAIL_PROVIDER or "smtp").strip().lower()
+    if provider == "mailersend":
+        return await _send_email_via_mailersend(
+            to_email=to_email,
+            subject=subject,
+            body_html=body_html,
+            body_text=body_text,
+            attachments=attachments,
+            cc=cc,
+            bcc=bcc,
         )
-        
-        logger.info(f"Email sent successfully to {to_email}", subject=subject)
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error sending email to {to_email}", error=str(e), exc_info=True)
-        return False
+
+    return await _send_email_via_smtp(
+        to_email=to_email,
+        subject=subject,
+        body_html=body_html,
+        body_text=body_text,
+        attachments=attachments,
+        cc=cc,
+        bcc=bcc,
+    )
 
 
 def generate_quote_email_html(

@@ -167,6 +167,10 @@ async def generate_proposal_with_ai(
             {"name": "Plan de trabajo", "status": "propuesto"},
         ],
         "executive_summary": result.get("summary", ""),
+        "scope": "",
+        "timeline": "",
+        "conditions": "",
+        "free_text": "",
         "extra_instructions": payload.extra_instructions or "",
     }
 
