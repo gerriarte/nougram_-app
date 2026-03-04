@@ -64,9 +64,29 @@ export function QuoteBuilderForm() {
             .values()
     );
 
+    const jumpToSection = (id: string) => {
+        if (typeof window === 'undefined') return;
+        const target = document.getElementById(id);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
     return (
         <>
         <div className="space-y-8 pb-12 max-w-5xl mx-auto">
+            <div className="sticky top-2 z-20 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur p-3 shadow-sm">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Flujo de cotización</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <Button type="button" variant="secondary" className="justify-start" onClick={() => jumpToSection('quote-client-section')}>
+                        1. Cliente
+                    </Button>
+                    <Button type="button" variant="secondary" className="justify-start" onClick={() => jumpToSection('quote-proposal-type-section')}>
+                        2. Tipo de propuesta
+                    </Button>
+                    <Button type="button" variant="secondary" className="justify-start" onClick={() => jumpToSection('quote-final-proposal-summary')}>
+                        3. Propuesta final
+                    </Button>
+                </div>
+            </div>
             {/* 1. Project Info */}
             <Card className="overflow-hidden border-none shadow-xl bg-white/80 backdrop-blur-2xl">
                 <CardHeader className="bg-gray-50/50 border-b border-gray-100 flex flex-row justify-between items-start">
@@ -92,7 +112,7 @@ export function QuoteBuilderForm() {
                                 className="bg-white"
                             />
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-3" id="quote-client-section">
                             <label className="text-sm font-semibold text-gray-700">Cliente</label>
                             <ClientSelector
                                 value={state.clientCompany || state.clientName}
@@ -109,7 +129,7 @@ export function QuoteBuilderForm() {
                     </div>
 
                     {/* Middle Row: Project Type */}
-                    <div className="space-y-3">
+                    <div className="space-y-3" id="quote-proposal-type-section">
                         <label className="text-sm font-semibold text-gray-700">Tipo de Proyecto</label>
                         <Input
                             placeholder="Escribe o ajusta el nombre del tipo de proyecto"
@@ -219,7 +239,7 @@ export function QuoteBuilderForm() {
             )}
 
             {/* 4. Actions */}
-            <div className="sticky bottom-4 z-30">
+            <div className="sticky bottom-4 z-30" id="quote-final-proposal-section">
                 <div className="max-w-5xl mx-auto flex gap-3 justify-end rounded-2xl border border-gray-200 bg-white/95 backdrop-blur-xl shadow-lg p-3">
                     <Button
                         variant="ghost"

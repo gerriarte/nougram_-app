@@ -73,12 +73,26 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
   const [newClientEmail, setNewClientEmail] = useState('');
 
   const displayValue = value || 'Seleccionar o crear cliente...';
+  const listboxId = 'quote-client-selector-listbox';
+
+  const handleTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      setIsOpen(true);
+    }
+  };
 
   return (
     <div className="relative group">
-      <div
-        className="relative cursor-pointer"
+      <button
+        type="button"
+        className="relative cursor-pointer w-full text-left"
         onClick={() => setIsOpen(true)}
+        onKeyDown={handleTriggerKeyDown}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls={listboxId}
+        aria-label="Selector de cliente"
       >
         <div
           className={`
@@ -98,12 +112,17 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
           </span>
           <Search className="w-4 h-4 text-gray-400" />
         </div>
-      </div>
+      </button>
 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-          <div className="absolute z-20 top-full left-0 w-full mt-2 bg-white/80 backdrop-blur-xl border border-gray-100/50 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 origin-top">
+          <div
+            id={listboxId}
+            role="listbox"
+            aria-label="Resultados de clientes"
+            className="absolute z-20 top-full left-0 w-full mt-2 bg-white/80 backdrop-blur-xl border border-gray-100/50 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 origin-top"
+          >
             <div className="p-2 border-b border-gray-100">
               <Input
                 autoFocus
@@ -138,6 +157,9 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
               {!loading &&
                 clients.map((client) => (
                   <button
+                    type="button"
+                    role="option"
+                    aria-selected={client.id === clientId}
                     key={client.id}
                     className="w-full text-left px-4 py-3 hover:bg-blue-50/50 transition-colors border-b border-gray-50 last:border-0 group"
                     onClick={() => handleSelect(client)}

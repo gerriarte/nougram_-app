@@ -28,7 +28,9 @@ export default function LoginPage() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
-    const result = await login(email.trim(), password);
+    const safeEmail = String(email ?? '').trim();
+    const safePassword = String(password ?? '');
+    const result = await login(safeEmail, safePassword);
     setSubmitting(false);
 
     if (!result.success) {
@@ -64,7 +66,7 @@ export default function LoginPage() {
               id="email"
               type="email"
               autoComplete="email"
-              value={email}
+              value={email ?? ''}
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={submitting}
@@ -78,7 +80,7 @@ export default function LoginPage() {
               id="password"
               type="password"
               autoComplete="current-password"
-              value={password}
+              value={password ?? ''}
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={submitting}

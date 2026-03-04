@@ -22,7 +22,7 @@ export function QuoteBuilderLayout() {
                 </div>
 
                 {/* Right: Sticky Financial Summary */}
-                <div className="w-full lg:w-[420px] flex-shrink-0">
+                <div className="w-full lg:w-[420px] flex-shrink-0" id="quote-final-proposal-summary">
                     <QuoteFinancialSummary />
                 </div>
             </div>
