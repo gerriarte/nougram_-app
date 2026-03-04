@@ -489,10 +489,13 @@ async def calculate_quote_totals_enhanced(
         
         total_internal_cost_money = total_internal_cost_money.add(internal_cost_money)
         
-        # ESTÁNDAR NOUGRAM: Si hay target_margin_percentage, recalcular client_price con ese margen
-        # Si no, usar el client_price del strategy (que usa margen del servicio)
-        if target_margin_percentage is not None and Decimal('0') < target_margin_percentage < Decimal('1'):
-            # Aplicar margen objetivo a este item usando Decimal
+        # Apply target margin only to margin-driven pricing types.
+        # Fixed/project-value items keep their explicit client prices.
+        if (
+            target_margin_percentage is not None
+            and Decimal('0') < target_margin_percentage < Decimal('1')
+            and effective_pricing_type in ("hourly", "recurring")
+        ):
             margin_percent_decimal = target_margin_percentage
             # #region agent log
             try:
@@ -579,42 +582,8 @@ async def calculate_quote_totals_enhanced(
     # Add expenses to totals
     total_internal_cost_money = total_internal_cost_money.add(total_expenses_cost_money)
     
-    # ESTÁNDAR NOUGRAM: Si hay target_margin_percentage, aplicar a toda la propuesta
-    # Si no, usar client_price de items + expenses_client_price
-    if target_margin_percentage is not None and Decimal('0') < target_margin_percentage < Decimal('1'):
-        # Aplicar margen objetivo a toda la propuesta (incluyendo expenses) usando Decimal
-        margin_percent_decimal = target_margin_percentage
-        # #region agent log
-        try:
-            import json
-            import os
-            log_data = {
-                "location": "calculations.py:439",
-                "message": "before apply_margin (total)",
-                "data": {
-                    "target_margin_percentage": str(target_margin_percentage),
-                    "target_margin_percentage_type": str(type(target_margin_percentage).__name__),
-                    "margin_percent_decimal": str(margin_percent_decimal),
-                    "margin_percent_decimal_type": str(type(margin_percent_decimal).__name__),
-                    "margin_percent_decimal_x_100": str(margin_percent_decimal * Decimal('100')),
-                    "margin_percent_decimal_x_100_type": str(type(margin_percent_decimal * Decimal('100')).__name__)
-                },
-                "timestamp": __import__("time").time() * 1000,
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "C"
-            }
-            log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-        except:
-            pass
-        # #endregion
-        total_client_price_money = total_internal_cost_money.apply_margin(margin_percent_decimal * Decimal('100'))  # Convert to percentage
-    else:
-        # Usar client_price calculado de items + expenses_client_price
-        total_client_price_money = total_client_price_money.add(total_expenses_client_price_money)
+    # Total client price is always built from item-level prices + expense client prices.
+    total_client_price_money = total_client_price_money.add(total_expenses_client_price_money)
     
     # Calculate additional revision costs (Sprint 16)
     # ESTÁNDAR NOUGRAM: Usar Money para revisions

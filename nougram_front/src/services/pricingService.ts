@@ -114,8 +114,7 @@ export const pricingService = {
         items: QuoteItem[],
         taxes: TaxConfig[],
         selectedTaxIds: number[],
-        contingency?: { type: 'fixed' | 'percentage'; value: number },
-        targetMargin?: number
+        contingency?: { type: 'fixed' | 'percentage'; value: number }
     ): QuoteCalculationResult => {
         let totalInternalCost = 0;
         let totalClientPrice = 0;
@@ -125,16 +124,6 @@ export const pricingService = {
             totalInternalCost += item.internalCost;
             totalClientPrice += item.clientPrice;
         });
-
-        // Keep editor preview aligned with backend quote-level margin logic:
-        // when a target margin exists, base price is derived from total internal cost.
-        const normalizedMargin = Number(targetMargin);
-        if (Number.isFinite(normalizedMargin) && normalizedMargin > 0 && normalizedMargin < 1) {
-            const divisor = 1 - normalizedMargin;
-            if (divisor > 0) {
-                totalClientPrice = totalInternalCost / divisor;
-            }
-        }
 
         // Calculate Contingency
         let contingencyAmount = 0;
