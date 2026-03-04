@@ -180,7 +180,8 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             state.items,
             taxes,
             state.selectedTaxIds,
-            state.contingency
+            state.contingency,
+            state.targetMargin
         );
 
         setSummary(totals);
