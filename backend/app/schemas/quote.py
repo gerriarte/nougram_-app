@@ -188,6 +188,8 @@ class QuoteEmailRequest(BaseModel):
     to_email: str = Field(..., description="Recipient email address")
     subject: Optional[str] = Field(None, description="Email subject (optional, will be auto-generated if not provided)")
     message: Optional[str] = Field(None, description="Additional message to include in email body")
+    proposal_id: Optional[int] = Field(None, description="Optional proposal document ID to use as proposal body")
+    proposal_message: Optional[str] = Field(None, description="Optional proposal plain text/body override")
     cc: Optional[List[str]] = Field(default_factory=list, description="CC email addresses")
     bcc: Optional[List[str]] = Field(default_factory=list, description="BCC email addresses")
     include_pdf: bool = Field(True, description="Include PDF attachment")

@@ -15,6 +15,7 @@ from app.repositories.tax_repository import TaxRepository
 from app.repositories.settings_repository import SettingsRepository
 from app.repositories.equipment_repository import EquipmentRepository
 from app.repositories.organization_repository import OrganizationRepository
+from app.repositories.proposal_repository import ProposalRepository
 from app.repositories.subscription_repository import SubscriptionRepository
 from app.repositories.audit_log_repository import AuditLogRepository
 from app.repositories.credit_account_repository import CreditAccountRepository
@@ -44,6 +45,7 @@ class RepositoryFactory:
         'user': UserRepository,
         'tax': TaxRepository,
         'settings': SettingsRepository,
+        'proposal': ProposalRepository,
     }
     
     @staticmethod
@@ -129,5 +131,10 @@ class RepositoryFactory:
     def create_invitation_repository(db: AsyncSession, tenant_id: Optional[int] = None) -> InvitationRepository:
         """Create InvitationRepository with optional tenant context"""
         return InvitationRepository(db, tenant_id=tenant_id)
+
+    @staticmethod
+    def create_proposal_repository(db: AsyncSession, tenant_id: int) -> ProposalRepository:
+        """Create ProposalRepository with tenant context"""
+        return ProposalRepository(db, tenant_id=tenant_id)
 
 

@@ -61,6 +61,41 @@ def _compute_quote_tax_totals(quote: Quote, project: Project) -> tuple[Decimal, 
     return total_taxes, total_with_taxes
 
 
+def _proposal_to_notes_text(proposal_body: dict | None) -> str:
+    if not proposal_body:
+        return ""
+    parts: list[str] = []
+    summary = proposal_body.get("executive_summary")
+    if isinstance(summary, str) and summary.strip():
+        parts.append(summary.strip())
+
+    description = proposal_body.get("description")
+    if isinstance(description, str) and description.strip():
+        parts.append(f"\nDescripcion del proyecto:\n{description.strip()}")
+
+    objectives = proposal_body.get("objectives")
+    if isinstance(objectives, list) and objectives:
+        objective_lines = [f"- {obj}" for obj in objectives if isinstance(obj, str) and obj.strip()]
+        if objective_lines:
+            parts.append("\nObjetivos:\n" + "\n".join(objective_lines))
+
+    deliverables = proposal_body.get("deliverables")
+    if isinstance(deliverables, list) and deliverables:
+        deliverable_lines = []
+        for item in deliverables:
+            if isinstance(item, dict):
+                name = str(item.get("name") or "").strip()
+                status = str(item.get("status") or "").strip()
+                if name:
+                    deliverable_lines.append(f"- {name}" + (f" ({status})" if status else ""))
+            elif isinstance(item, str) and item.strip():
+                deliverable_lines.append(f"- {item.strip()}")
+        if deliverable_lines:
+            parts.append("\nEntregables:\n" + "\n".join(deliverable_lines))
+
+    return "\n".join(parts).strip()
+
+
 @router.get("/", response_model=ProjectListResponse, summary="List all projects")
 async def list_projects(
     tenant: TenantContext = Depends(get_tenant_context),
@@ -1170,6 +1205,16 @@ async def send_quote_email(
         # Generate email subject
         subject = email_data.subject or f"Quote for {project.name} - Version {quote.version}"
         
+        proposal_text = ""
+        if email_data.proposal_id is not None:
+            proposal_repo = RepositoryFactory.create_proposal_repository(db, tenant.organization_id)
+            proposal = await proposal_repo.get_by_id(email_data.proposal_id)
+            if not proposal or proposal.project_id != project_id:
+                raise HTTPException(status_code=404, detail="Proposal not found for this project")
+            proposal_text = _proposal_to_notes_text(proposal.body_json if isinstance(proposal.body_json, dict) else {})
+
+        email_notes = proposal_text or email_data.proposal_message or quote.notes or email_data.message
+
         # Generate email body
         html_body = generate_quote_email_html(
             project_name=project.name,
@@ -1177,7 +1222,7 @@ async def send_quote_email(
             quote_version=quote.version,
             total_with_taxes=total_with_taxes,
             currency=project.currency,
-            notes=quote.notes or email_data.message
+            notes=email_notes
         )
         
         text_body = generate_quote_email_text(
@@ -1186,7 +1231,7 @@ async def send_quote_email(
             quote_version=quote.version,
             total_with_taxes=total_with_taxes,
             currency=project.currency,
-            notes=quote.notes or email_data.message
+            notes=email_notes
         )
         
         # Prepare attachments
@@ -1549,6 +1594,16 @@ async def send_quote_email(
         # Generate email subject
         subject = email_data.subject or f"Quote for {project.name} - Version {quote.version}"
         
+        proposal_text = ""
+        if email_data.proposal_id is not None:
+            proposal_repo = RepositoryFactory.create_proposal_repository(db, tenant.organization_id)
+            proposal = await proposal_repo.get_by_id(email_data.proposal_id)
+            if not proposal or proposal.project_id != project_id:
+                raise HTTPException(status_code=404, detail="Proposal not found for this project")
+            proposal_text = _proposal_to_notes_text(proposal.body_json if isinstance(proposal.body_json, dict) else {})
+
+        email_notes = proposal_text or email_data.proposal_message or quote.notes or email_data.message
+
         # Generate email body
         html_body = generate_quote_email_html(
             project_name=project.name,
@@ -1556,7 +1611,7 @@ async def send_quote_email(
             quote_version=quote.version,
             total_with_taxes=total_with_taxes,
             currency=project.currency,
-            notes=quote.notes or email_data.message
+            notes=email_notes
         )
         
         text_body = generate_quote_email_text(
@@ -1565,7 +1620,7 @@ async def send_quote_email(
             quote_version=quote.version,
             total_with_taxes=total_with_taxes,
             currency=project.currency,
-            notes=quote.notes or email_data.message
+            notes=email_notes
         )
         
         # Prepare attachments

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent } from '@/components/ui/Card';
-import { ArrowLeft, Send, Paperclip, Eye } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Eye, Sparkles, Save } from 'lucide-react';
 import { Quote } from '@/components/dashboard/QuoteCard';
 
 export interface QuoteSendPayload {
@@ -12,22 +12,46 @@ export interface QuoteSendPayload {
     message: string;
     includePdf: boolean;
     trackingOpen: boolean;
+    proposalId?: number;
 }
 
 interface QuoteSendViewProps {
     quote: Quote;
     initialToEmail?: string;
+    initialProposalTitle?: string;
+    initialProposalText?: string;
+    proposalVersion?: number;
+    initialProposalId?: number;
     onSend: (data: QuoteSendPayload) => Promise<void>;
+    onSaveProposal: (payload: { title: string; text: string }) => Promise<number | undefined>;
+    onGenerateProposalAI: () => Promise<{ title: string; text: string; version?: number } | null>;
     onCancel: () => void;
 }
 
-export function QuoteSendView({ quote, initialToEmail, onSend, onCancel }: QuoteSendViewProps) {
+export function QuoteSendView({
+    quote,
+    initialToEmail,
+    initialProposalTitle,
+    initialProposalText,
+    proposalVersion,
+    initialProposalId,
+    onSend,
+    onSaveProposal,
+    onGenerateProposalAI,
+    onCancel
+}: QuoteSendViewProps) {
     const [to, setTo] = useState(initialToEmail || '');
     const [subject, setSubject] = useState(`Cotización para ${quote.project} - ${quote.version}`);
     const [message, setMessage] = useState('');
+    const [proposalTitle, setProposalTitle] = useState(initialProposalTitle || `Propuesta para ${quote.project}`);
+    const [proposalText, setProposalText] = useState(initialProposalText || '');
+    const [currentProposalVersion, setCurrentProposalVersion] = useState<number | undefined>(proposalVersion);
+    const [proposalId, setProposalId] = useState<number | undefined>(initialProposalId);
     const [includePdf, setIncludePdf] = useState(true);
     const [trackingOpen, setTrackingOpen] = useState(true);
     const [isSending, setIsSending] = useState(false);
+    const [isSavingProposal, setIsSavingProposal] = useState(false);
+    const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
 
     const handleSend = async () => {
         if (!to.trim()) {
@@ -35,8 +59,28 @@ export function QuoteSendView({ quote, initialToEmail, onSend, onCancel }: Quote
             return;
         }
         setIsSending(true);
-        await onSend({ to, subject, message, includePdf, trackingOpen });
+        await onSend({ to, subject, message, includePdf, trackingOpen, proposalId });
         setIsSending(false);
+    };
+
+    const handleSaveProposal = async () => {
+        setIsSavingProposal(true);
+        const savedId = await onSaveProposal({ title: proposalTitle, text: proposalText });
+        if (savedId) {
+            setProposalId(savedId);
+        }
+        setIsSavingProposal(false);
+    };
+
+    const handleGenerateProposal = async () => {
+        setIsGeneratingProposal(true);
+        const generated = await onGenerateProposalAI();
+        if (generated) {
+            setProposalTitle(generated.title);
+            setProposalText(generated.text);
+            setCurrentProposalVersion(generated.version);
+        }
+        setIsGeneratingProposal(false);
     };
 
     return (
@@ -71,6 +115,35 @@ export function QuoteSendView({ quote, initialToEmail, onSend, onCancel }: Quote
                                     placeholder="Escribe un mensaje opcional..."
                                     value={message}
                                     onChange={e => setMessage(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="border-t border-gray-100 pt-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-semibold text-gray-900">
+                                        Propuesta comercial independiente {currentProposalVersion ? `(V${currentProposalVersion})` : ''}
+                                    </h3>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" onClick={handleGenerateProposal} disabled={isGeneratingProposal}>
+                                            <Sparkles size={14} className="mr-1" />
+                                            {isGeneratingProposal ? 'Generando...' : 'Generar IA'}
+                                        </Button>
+                                        <Button variant="outline" size="sm" onClick={handleSaveProposal} disabled={isSavingProposal}>
+                                            <Save size={14} className="mr-1" />
+                                            {isSavingProposal ? 'Guardando...' : 'Guardar propuesta'}
+                                        </Button>
+                                    </div>
+                                </div>
+                                <Input
+                                    value={proposalTitle}
+                                    onChange={e => setProposalTitle(e.target.value)}
+                                    placeholder="Titulo de propuesta"
+                                />
+                                <textarea
+                                    className="flex min-h-[180px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+                                    placeholder="Escribe aqui descripcion, objetivos y entregables..."
+                                    value={proposalText}
+                                    onChange={e => setProposalText(e.target.value)}
                                 />
                             </div>
 
@@ -155,6 +228,12 @@ export function QuoteSendView({ quote, initialToEmail, onSend, onCancel }: Quote
                                 )}
 
                                 <p>Adjunto encontrarás la cotización para el proyecto <strong>{quote.project}</strong>.</p>
+                                {proposalText && (
+                                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                                        <p className="text-xs text-blue-700 font-semibold uppercase mb-1">{proposalTitle}</p>
+                                        <p className="whitespace-pre-wrap text-sm text-blue-900">{proposalText}</p>
+                                    </div>
+                                )}
 
                                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 mt-4">
                                     <p className="font-semibold text-gray-900">{quote.project}</p>

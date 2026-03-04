@@ -90,6 +90,8 @@ type SendEmailPayload = {
     subject?: string;
     message?: string;
     includePdf?: boolean;
+    proposalId?: number;
+    proposalMessage?: string;
 };
 
 /** Parse "Available: X, Required: Y" from backend 402 message for PaywallModal. */
@@ -572,6 +574,8 @@ export const quoteService = {
                 to_email: data?.to || '',
                 subject: data?.subject,
                 message: data?.message,
+                proposal_id: data?.proposalId,
+                proposal_message: data?.proposalMessage,
                 include_pdf: Boolean(data?.includePdf ?? true),
                 include_docx: false,
                 cc: [],
