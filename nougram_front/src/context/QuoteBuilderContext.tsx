@@ -50,6 +50,14 @@ type QuoteEditorMeta = {
     projectDescription?: string;
 };
 
+function normalizeOptionalText(value: unknown): string {
+    if (typeof value !== 'string') return '';
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (trimmed.toLowerCase() === 'undefined' || trimmed.toLowerCase() === 'null') return '';
+    return trimmed;
+}
+
 function saveQuoteEditorMeta(projectId: string, meta: QuoteEditorMeta) {
     if (typeof window === 'undefined' || !projectId) return;
     try {
@@ -402,12 +410,12 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 step: 'editor',
                 id: q.id,
                 version: q.version,
-                projectName: q.projectName || '',
+                projectName: normalizeOptionalText(q.projectName),
                 clientId: q.clientId ?? undefined,
-                clientName: q.clientName || '',
-                clientEmail: q.clientEmail || '',
-                clientCompany: q.clientCompany || q.clientName || '',
-                clientRequester: q.clientRequester || '',
+                clientName: normalizeOptionalText(q.clientName),
+                clientEmail: normalizeOptionalText(q.clientEmail),
+                clientCompany: normalizeOptionalText(q.clientCompany) || normalizeOptionalText(q.clientName),
+                clientRequester: normalizeOptionalText(q.clientRequester),
                 projectType: persistedMeta.projectType || inferredProjectType,
                 projectDescription: persistedMeta.projectDescription || '',
                 currency: (q.currency as any) || 'COP',

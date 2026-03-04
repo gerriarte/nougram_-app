@@ -64,6 +64,14 @@ export function QuoteBuilderForm() {
             .values()
     );
 
+    const normalizeOptionalText = (value: unknown): string => {
+        if (typeof value !== 'string') return '';
+        const trimmed = value.trim();
+        if (!trimmed) return '';
+        if (trimmed.toLowerCase() === 'undefined' || trimmed.toLowerCase() === 'null') return '';
+        return trimmed;
+    };
+
     const jumpToSection = (id: string) => {
         if (typeof window === 'undefined') return;
         const target = document.getElementById(id);
@@ -115,14 +123,14 @@ export function QuoteBuilderForm() {
                         <div className="space-y-3" id="quote-client-section">
                             <label className="text-sm font-semibold text-gray-700">Cliente</label>
                             <ClientSelector
-                                value={state.clientCompany || state.clientName}
+                                value={normalizeOptionalText(state.clientCompany) || normalizeOptionalText(state.clientName)}
                                 clientId={state.clientId ?? undefined}
                                 onChange={(clientId, name, email, company, requester) => updateProjectInfo({
                                     clientId: clientId ?? undefined,
-                                    clientName: name,
-                                    clientEmail: email || '',
-                                    clientCompany: company || name,
-                                    clientRequester: requester || ''
+                                    clientName: normalizeOptionalText(name),
+                                    clientEmail: normalizeOptionalText(email),
+                                    clientCompany: normalizeOptionalText(company) || normalizeOptionalText(name),
+                                    clientRequester: normalizeOptionalText(requester)
                                 })}
                             />
                         </div>

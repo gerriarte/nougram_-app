@@ -15,6 +15,14 @@ export interface Client {
   email?: string;
 }
 
+function normalizeOptionalText(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.toLowerCase() === 'undefined' || trimmed.toLowerCase() === 'null') return '';
+  return trimmed;
+}
+
 type ClientSearchResponse = {
   items: ClientSearchItem[];
   total: number;
@@ -37,10 +45,10 @@ export const clientService = {
     if (response.error || !response.data?.items) return [];
     return response.data.items.map((c) => ({
       id: c.id,
-      name: String(c.display_name || ''),
-      company: String(c.display_name || ''),
-      requester: c.requester_name ?? undefined,
-      email: c.email ?? undefined,
+      name: normalizeOptionalText(c.display_name),
+      company: normalizeOptionalText(c.display_name),
+      requester: normalizeOptionalText(c.requester_name) || undefined,
+      email: normalizeOptionalText(c.email) || undefined,
     }));
   },
 
@@ -62,10 +70,10 @@ export const clientService = {
     if (response.error || !response.data) return null;
     return {
       id: response.data.id,
-      name: String(response.data.display_name || ''),
-      company: String(response.data.display_name || ''),
-      requester: response.data.requester_name ?? undefined,
-      email: response.data.email ?? undefined,
+      name: normalizeOptionalText(response.data.display_name),
+      company: normalizeOptionalText(response.data.display_name),
+      requester: normalizeOptionalText(response.data.requester_name) || undefined,
+      email: normalizeOptionalText(response.data.email) || undefined,
     };
   },
 };
