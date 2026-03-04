@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown, DollarSign, PieChart, Activity, AlertCircle, 
 import { motion } from 'framer-motion';
 import type { PipelineMetrics } from '@/hooks/useQuotePipeline';
 import type { Quote } from '@/components/dashboard/QuoteCard';
+import { formatMoneyAmount } from '@/lib/utils';
 
 interface KPIWidgetsProps {
     metrics: PipelineMetrics;
@@ -28,7 +29,7 @@ export function KPIWidgets({ metrics }: KPIWidgetsProps) {
     const cards: KpiCard[] = [
         {
             title: 'Total Cotizado',
-            value: `$${Math.round(metrics.totalQuoted).toLocaleString()}`,
+            value: `$${formatMoneyAmount(metrics.totalQuoted)}`,
             trend: 'up',
             icon: DollarSign,
             color: 'text-blue-500',
@@ -36,7 +37,7 @@ export function KPIWidgets({ metrics }: KPIWidgetsProps) {
         },
         {
             title: 'Pipeline Value',
-            value: `$${Math.round(metrics.pipelineValue).toLocaleString()}`,
+            value: `$${formatMoneyAmount(metrics.pipelineValue)}`,
             subtitle: `${metrics.sentCount} activas`,
             icon: Activity,
             color: 'text-purple-500',

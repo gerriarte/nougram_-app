@@ -7,6 +7,7 @@ import { Edit, ArrowUpRight, Link as LinkIcon, Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { quoteService } from '@/services/quoteService';
 import { useNougram } from '@/context/NougramCoreContext';
+import { formatMoneyAmount } from '@/lib/utils';
 
 interface QuoteTableProps {
     quotes: Quote[];
@@ -113,10 +114,10 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
                                     {quote.client}
                                 </td>
                                 <td className="px-6 py-4 text-right font-bold text-gray-900">
-                                    ${quote.totalWithTaxes.toLocaleString()} <span className="text-xs text-gray-400 font-normal">{displayCurrency}</span>
+                                    ${formatMoneyAmount(quote.totalWithTaxes)} <span className="text-xs text-gray-400 font-normal">{displayCurrency}</span>
                                     <div className="text-[10px] font-medium text-gray-400">Total factura (incluye impuestos)</div>
                                     <div className="text-[10px] text-gray-500 mt-0.5">
-                                        Base ${Math.round(quote.totalClientPrice || 0).toLocaleString()} + Impuestos ${Math.round(quote.totalTaxes || 0).toLocaleString()}
+                                        Base ${formatMoneyAmount(quote.totalClientPrice || 0)} + Impuestos ${formatMoneyAmount(quote.totalTaxes || 0)}
                                     </div>
                                 </td>
                                 <td className="px-6 py-4 text-center">

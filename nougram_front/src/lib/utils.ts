@@ -18,3 +18,14 @@ export const formatCurrency = (value: number | string, currency: string = "COP")
         maximumFractionDigits: 0,
     }).format(numberValue);
 };
+
+// Keep monetary displays visually consistent across quote editor and pipeline.
+export const formatMoneyAmount = (value: number | string) => {
+    const numberValue = typeof value === "string" ? parseFloat(value) : value;
+    if (isNaN(numberValue)) return "0";
+
+    return new Intl.NumberFormat("es-CO", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(numberValue);
+};

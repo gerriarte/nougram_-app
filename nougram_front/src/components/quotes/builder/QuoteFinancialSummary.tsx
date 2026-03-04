@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { Wallet, Info, ArrowUpRight, Percent, Users, Receipt } from 'lucide-react';
 import Link from 'next/link';
+import { formatMoneyAmount } from '@/lib/utils';
 
 export function QuoteFinancialSummary() {
     const { summary, state, toggleTax, taxes, setTargetMargin, teamMembers } = useQuoteBuilder();
@@ -59,7 +60,7 @@ export function QuoteFinancialSummary() {
                     <div className="flex items-baseline gap-1">
                         <span className="text-sm font-bold text-gray-400">$</span>
                         <p className="text-5xl font-black text-gray-900 tracking-tighter">
-                            {summary.totalClientPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            {formatMoneyAmount(summary.totalClientPrice)}
                         </p>
                     </div>
                 </div>
@@ -103,7 +104,7 @@ export function QuoteFinancialSummary() {
                                             {tax.name} <span className="text-[10px] text-gray-400">({tax.percentage}%)</span>
                                         </label>
                                         <span className={`text-xs font-black ${isSelected ? 'text-gray-900' : 'text-gray-400'}`}>
-                                            ${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                            ${formatMoneyAmount(amount)}
                                         </span>
                                     </div>
                                 );
@@ -146,7 +147,7 @@ export function QuoteFinancialSummary() {
                         <p className="text-xs text-blue-100 font-medium">Incluye impuestos</p>
                     </div>
                         <p className="text-2xl font-black tracking-tighter">
-                        ${summary.totalWithTaxes.toLocaleString()}
+                        ${formatMoneyAmount(summary.totalWithTaxes)}
                     </p>
                 </div>
 
@@ -160,12 +161,12 @@ export function QuoteFinancialSummary() {
                     <div className="space-y-3">
                         <div className="flex justify-between items-center px-1">
                             <span className="text-xs font-bold text-gray-500">Ingreso Neto (Excl. Impuestos)</span>
-                            <span className="text-sm font-black text-gray-900">${summary.realIncome.toLocaleString()}</span>
+                            <span className="text-sm font-black text-gray-900">${formatMoneyAmount(summary.realIncome)}</span>
                         </div>
 
                         <div className="flex justify-between items-center px-1">
                             <span className="text-xs font-bold text-gray-500">Costo Operativo (Total BCR)</span>
-                            <span className="text-sm font-black text-red-500">-${summary.totalInternalCost.toLocaleString()}</span>
+                            <span className="text-sm font-black text-red-500">-${formatMoneyAmount(summary.totalInternalCost)}</span>
                         </div>
 
                         {/* Resulting Benefit */}
@@ -182,7 +183,7 @@ export function QuoteFinancialSummary() {
                                 </div>
                             </div>
                             <p className={`text-xl font-black ${marginColor} mt-2 opacity-80`}>
-                                ${summary.netMarginAmount.toLocaleString()}
+                                ${formatMoneyAmount(summary.netMarginAmount)}
                             </p>
                         </div>
                     </div>

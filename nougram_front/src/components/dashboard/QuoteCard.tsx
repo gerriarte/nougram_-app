@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Eye, Clock, CheckCircle2, XCircle, MoreHorizontal, ArrowUpRight, Copy, Send } from 'lucide-react';
 import { useNougram } from '@/context/NougramCoreContext';
+import { formatMoneyAmount } from '@/lib/utils';
 
 export interface Quote {
     id: string;
@@ -88,7 +89,7 @@ export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
 
                 <div className="mt-4 flex items-baseline gap-2">
                     <span className="text-2xl font-semibold text-[#1D1D1F] tracking-tight">
-                        ${quote.totalWithTaxes.toLocaleString()} <span className="text-sm font-medium text-[#86868B]">{displayCurrency}</span>
+                        ${formatMoneyAmount(quote.totalWithTaxes)} <span className="text-sm font-medium text-[#86868B]">{displayCurrency}</span>
                     </span>
                 </div>
                 <p className="text-[10px] text-[#9AA0A6] font-medium mt-1 uppercase tracking-wide">
@@ -96,10 +97,10 @@ export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
                 </p>
                 <div className="mt-2 space-y-1 text-[11px] text-[#6B7280]">
                     <p>
-                        Presupuesto base: <span className="font-semibold text-[#374151]">${baseAmount.toLocaleString()}</span>
+                        Presupuesto base: <span className="font-semibold text-[#374151]">${formatMoneyAmount(baseAmount)}</span>
                     </p>
                     <p>
-                        Impuestos: <span className="font-semibold text-[#374151]">${taxAmount.toLocaleString()}</span>
+                        Impuestos: <span className="font-semibold text-[#374151]">${formatMoneyAmount(taxAmount)}</span>
                         {taxRate > 0 ? <span className="ml-1 text-[#9AA0A6]">({taxRate.toFixed(2)}%)</span> : null}
                     </p>
                 </div>
