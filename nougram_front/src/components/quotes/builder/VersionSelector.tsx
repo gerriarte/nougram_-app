@@ -7,24 +7,25 @@ import { History, GitBranch, Plus } from 'lucide-react';
 
 interface QuoteVersion {
     version: number;
-    createdAt: string;
-    totalAmount: number;
-    isCurrent: boolean;
 }
 
 interface VersionSelectorProps {
     currentVersion: string; // 'v1', 'v2'
+    versions?: QuoteVersion[];
     onSelectVersion?: (version: string) => void;
     onCreateNewVersion?: () => void;
 }
 
-const MOCK_VERSIONS: QuoteVersion[] = [
-    { version: 1, createdAt: 'Hace 2 días', totalAmount: 15000000, isCurrent: false },
-    { version: 2, createdAt: 'Hace 1 hora', totalAmount: 16500000, isCurrent: true },
-];
+function parseVersionLabel(versionLabel: string): number {
+    const numeric = Number(versionLabel.replace(/[^0-9]/g, ''));
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+}
 
-export function VersionSelector({ currentVersion, onSelectVersion, onCreateNewVersion }: VersionSelectorProps) {
-    // In a real implementation, we would fetch versions based on the project ID from context
+export function VersionSelector({ currentVersion, versions, onSelectVersion, onCreateNewVersion }: VersionSelectorProps) {
+    const currentNumeric = parseVersionLabel(currentVersion);
+    const availableVersions = (versions && versions.length > 0)
+        ? versions
+        : [{ version: currentNumeric }];
 
     return (
         <div className="flex items-center gap-2 bg-white p-1 rounded-lg border border-gray-200">
@@ -34,7 +35,7 @@ export function VersionSelector({ currentVersion, onSelectVersion, onCreateNewVe
             </div>
 
             <div className="flex items-center gap-1">
-                {MOCK_VERSIONS.map((v) => (
+                {availableVersions.map((v) => (
                     <button
                         key={v.version}
                         onClick={() => onSelectVersion?.(`v${v.version}`)}
