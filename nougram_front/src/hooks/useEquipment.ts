@@ -1,33 +1,57 @@
 
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
 import { Equipment, DepreciationResult } from '@/types/equipment';
 import { calculateDepreciation } from '@/lib/depreciation';
-import { useNougram } from '@/context/NougramCoreContext';
+import { equipmentService } from '@/services/equipmentService';
 
 export function useEquipment() {
-    const { state, addEquipment: addToCore, updateEquipment: updateInCore, removeEquipment: removeFromCore } = useNougram();
+    const [equipment, setEquipment] = useState<Equipment[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    const equipment = state.equipment;
+    const refresh = useCallback(async () => {
+        setLoading(true);
+        const items = await equipmentService.getAll();
+        setEquipment(items);
+        setLoading(false);
+    }, []);
+
+    useEffect(() => {
+        void refresh();
+    }, [refresh]);
 
     const addEquipment = async (data: Omit<Equipment, 'id' | 'createdAt'>) => {
-        const newEq: Equipment = {
-            ...data,
-            id: crypto.randomUUID(),
-            createdAt: new Date().toISOString()
-        };
-        addToCore(newEq);
-        return newEq;
+        setError(null);
+        const created = await equipmentService.create(data);
+        if (!created) {
+            setError('No se pudo crear el equipo');
+            return null;
+        }
+        setEquipment(prev => [created, ...prev]);
+        return created;
     };
 
     const updateEquipment = async (id: string, data: Partial<Equipment>) => {
-        updateInCore(id, data);
-        const updated = equipment.find(e => e.id === id);
-        return updated ? { ...updated, ...data } : null;
+        setError(null);
+        const updated = await equipmentService.update(id, data);
+        if (!updated) {
+            setError('No se pudo actualizar el equipo');
+            return null;
+        }
+        setEquipment(prev => prev.map(item => (item.id === id ? updated : item)));
+        return updated;
     };
 
     const removeEquipment = async (id: string) => {
-        removeFromCore(id);
+        setError(null);
+        const ok = await equipmentService.remove(id);
+        if (!ok) {
+            setError('No se pudo eliminar el equipo');
+            return;
+        }
+        setEquipment(prev => prev.filter(item => item.id !== id));
     };
 
     const getStats = (eq: Equipment): DepreciationResult => {
@@ -36,12 +60,12 @@ export function useEquipment() {
 
     return {
         equipment,
-        loading: false,
-        error: null,
+        loading,
+        error,
         addEquipment,
         updateEquipment,
         removeEquipment,
         getStats,
-        refresh: async () => undefined
+        refresh
     };
 }

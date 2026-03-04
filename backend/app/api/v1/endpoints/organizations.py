@@ -1,7 +1,8 @@
 """
 Organization management endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from datetime import timedelta
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional
@@ -9,6 +10,7 @@ from typing import Optional
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user, get_password_hash, create_access_token
+from app.core.rate_limiting import limiter
 from app.core.tenant import get_tenant_context, TenantContext
 from app.core.exceptions import ResourceNotFoundError
 from app.core.permissions import check_permission, PERM_INVITE_USERS, PERM_MANAGE_SUBSCRIPTION, PermissionError, get_user_role
@@ -337,7 +339,9 @@ async def create_organization(
 
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED, summary="Register new organization (Public)")
+@limiter.limit("3/minute")
 async def register_organization(
+    request: Request,
     registration_data: OrganizationRegisterRequest,
     db: AsyncSession = Depends(get_db)
 ):
@@ -347,7 +351,7 @@ async def register_organization(
     This endpoint is **public** (no authentication required) and creates:
     1. A new organization
     2. An admin user for that organization
-    3. Returns organization details and access token for immediate login
+    3. Returns organization details and triggers email verification flow
     
     **Request Body:**
     - `organization_name`: Organization name (required)
@@ -364,8 +368,8 @@ async def register_organization(
     **Response includes:**
     - `organization`: Created organization object
     - `user`: Created admin user object
-    - `access_token`: JWT token for immediate authentication
-    - `token_type`: "bearer"
+    - `requires_email_verification`: Indicates user must verify email before login
+    - `message`: User-facing message
     
     **Example Request:**
     ```json
@@ -397,9 +401,11 @@ async def register_organization(
             detail=f"Organization with slug '{slug}' already exists. Please choose a different name."
         )
     
+    normalized_email = registration_data.admin_email.strip().lower()
+
     # Check if email already exists
     existing_user = await db.execute(
-        select(User).where(User.email == registration_data.admin_email)
+        select(User).where(User.email == normalized_email)
     )
     if existing_user.scalar_one_or_none():
         raise HTTPException(
@@ -421,65 +427,66 @@ async def register_organization(
     await db.refresh(org)
     
     # Create admin user - always as "owner" role
-    from app.core.permissions import get_role_type
     admin_user = User(
-        email=registration_data.admin_email,
+        email=normalized_email,
         full_name=registration_data.admin_full_name,
         hashed_password=get_password_hash(registration_data.admin_password),
         organization_id=org.id,
         role="owner",  # Always create as owner
-        role_type="tenant"  # Tenant role type
+        role_type="tenant",  # Tenant role type
+        email_verified=False,
+        email_verified_at=None,
     )
     
     db.add(admin_user)
     await db.commit()
     await db.refresh(admin_user)
 
-    # Send welcome email (best effort, do not fail registration on email issues)
+    # Send verification email (best effort, do not fail registration on email issues)
     try:
         from app.core.email import (
             send_email,
-            generate_welcome_email_html,
-            generate_welcome_email_text,
+            generate_email_verification_email_html,
+            generate_email_verification_email_text,
         )
-        login_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
-        welcome_sent = await send_email(
+        expiration_minutes = int(getattr(settings, "EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES", 1440))
+        verification_token = create_access_token(
+            {
+                "sub": str(admin_user.id),
+                "email": admin_user.email,
+                "purpose": "email_verification",
+            },
+            expires_delta=timedelta(minutes=expiration_minutes),
+        )
+        verification_url = f"{settings.FRONTEND_URL.rstrip('/')}/verify-email?token={verification_token}"
+        verification_sent = await send_email(
             to_email=admin_user.email,
-            subject="Bienvenido a Nougram",
-            body_html=generate_welcome_email_html(
+            subject="Verifica tu correo - Nougram",
+            body_html=generate_email_verification_email_html(
                 full_name=admin_user.full_name,
-                organization_name=org.name,
-                login_url=login_url,
+                verification_url=verification_url,
+                expiration_minutes=expiration_minutes,
             ),
-            body_text=generate_welcome_email_text(
+            body_text=generate_email_verification_email_text(
                 full_name=admin_user.full_name,
-                organization_name=org.name,
-                login_url=login_url,
+                verification_url=verification_url,
+                expiration_minutes=expiration_minutes,
             ),
         )
-        if not welcome_sent:
+        if not verification_sent:
             logger.warning(
-                "Welcome email could not be sent",
+                "Email verification message could not be sent",
                 organization_id=org.id,
                 user_id=admin_user.id,
                 email=admin_user.email,
             )
     except Exception as exc:
         logger.warning(
-            "Welcome email failed with exception",
+            "Email verification failed with exception",
             organization_id=org.id,
             user_id=admin_user.id,
             error=str(exc),
         )
-    
-    # Generate access token
-    token_data = {
-        "sub": str(admin_user.id),
-        "email": admin_user.email,
-        "name": admin_user.full_name,
-        "organization_id": org.id
-    }
-    access_token = create_access_token(token_data)
     
     logger.info(f"Organization registered: {org.id} ({org.name}) with admin user {admin_user.id}")
     
@@ -510,8 +517,8 @@ async def register_organization(
             "full_name": admin_user.full_name,
             "role": admin_user.role
         },
-        "access_token": access_token,
-        "token_type": "bearer"
+        "requires_email_verification": True,
+        "message": "Revisa tu correo para verificar tu cuenta antes de iniciar sesion."
     }
 
 

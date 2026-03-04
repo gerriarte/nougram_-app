@@ -127,3 +127,15 @@ class TemporaryBCRResponse(BaseModel):
         "Values are calculated with temporary data and may differ after saving",
         description="Disclaimer about temporary calculation"
     )
+
+
+class OnboardingDraftRequest(BaseModel):
+    """Request to save onboarding draft data."""
+    data: Dict[str, Any] = Field(..., description="Raw onboarding draft payload")
+
+
+class OnboardingDraftResponse(BaseModel):
+    """Response for onboarding draft read/write."""
+    success: bool
+    organization_id: int
+    data: Dict[str, Any] = Field(default_factory=dict)

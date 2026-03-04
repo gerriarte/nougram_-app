@@ -15,6 +15,8 @@ from app.schemas.onboarding import (
     BenchmarksResponse,
     CompleteOnboardingRequest,
     CompleteOnboardingResponse,
+    OnboardingDraftRequest,
+    OnboardingDraftResponse,
     TemporaryBCRRequest,
     TemporaryBCRResponse
 )
@@ -129,6 +131,41 @@ async def complete_onboarding(
     
     controller = OnboardingController(db, tenant, current_user)
     return await controller.complete_onboarding(request)
+
+
+@router.post(
+    "/draft",
+    response_model=OnboardingDraftResponse,
+    summary="Save onboarding draft in backend"
+)
+async def save_onboarding_draft(
+    request: OnboardingDraftRequest,
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Save onboarding draft data as organization-scoped server state.
+    """
+    controller = OnboardingController(db, tenant, current_user)
+    return await controller.save_onboarding_draft(request)
+
+
+@router.get(
+    "/draft",
+    response_model=OnboardingDraftResponse,
+    summary="Get onboarding draft from backend"
+)
+async def get_onboarding_draft(
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Retrieve onboarding draft data for current organization.
+    """
+    controller = OnboardingController(db, tenant, current_user)
+    return await controller.get_onboarding_draft()
 
 
 @router.post(

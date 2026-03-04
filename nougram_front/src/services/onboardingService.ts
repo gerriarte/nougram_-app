@@ -22,12 +22,32 @@ type ExchangeRatesResponse = {
     base_currency: string;
 };
 
+type OnboardingDraftResponse = {
+    success: boolean;
+    organization_id: number;
+    data: Record<string, unknown>;
+};
+
 export const onboardingService = {
 
     getTemplates: async (): Promise<FixedCostTemplate[]> => {
         const response = await apiRequest<OnboardingTemplatesResponse>('/onboarding/templates');
         if (response.error || !response.data?.items) return [];
         return response.data.items;
+    },
+
+    getDraft: async <T>(): Promise<T | null> => {
+        const response = await apiRequest<OnboardingDraftResponse>('/onboarding/draft');
+        if (response.error || !response.data?.data) return null;
+        return response.data.data as T;
+    },
+
+    saveDraft: async <T extends Record<string, unknown>>(data: T): Promise<boolean> => {
+        const response = await apiRequest<OnboardingDraftResponse>('/onboarding/draft', {
+            method: 'POST',
+            body: JSON.stringify({ data }),
+        });
+        return !response.error;
     },
 
     getExchangeRates: async (): Promise<Record<string, { rate: number; lastUpdated: string }>> => {

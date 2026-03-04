@@ -7,15 +7,14 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Equipment, EquipmentCategory, DepreciationMethod, Currency } from '@/types/equipment';
 import { calculateDepreciation } from '@/lib/depreciation';
-import { useEquipment } from '@/hooks/useEquipment';
 
 interface EquipmentFormProps {
     onClose: () => void;
     initialData?: Equipment;
+    onSave: (payload: Omit<Equipment, 'id' | 'createdAt'>, id?: string) => Promise<void>;
 }
 
-export function EquipmentForm({ onClose, initialData }: EquipmentFormProps) {
-    const { addEquipment, updateEquipment } = useEquipment();
+export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormProps) {
     const [formData, setFormData] = useState<Partial<Equipment>>({
         category: 'Hardware',
         currency: 'COP',
@@ -53,11 +52,7 @@ export function EquipmentForm({ onClose, initialData }: EquipmentFormProps) {
         }
 
         try {
-            if (initialData) {
-                await updateEquipment(initialData.id, formData);
-            } else {
-                await addEquipment(formData as any);
-            }
+            await onSave(formData as Omit<Equipment, 'id' | 'createdAt'>, initialData?.id);
             onClose();
         } catch (error) {
             console.error(error);

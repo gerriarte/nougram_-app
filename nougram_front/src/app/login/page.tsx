@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, isAuthenticated, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,9 +21,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.replace('/dashboard');
+      const redirectParam = searchParams.get('redirect') || '/dashboard';
+      const safeRedirect = redirectParam.startsWith('/') ? redirectParam : '/dashboard';
+      router.replace(safeRedirect);
     }
-  }, [loading, isAuthenticated, router]);
+  }, [loading, isAuthenticated, router, searchParams]);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -30,6 +33,12 @@ export default function LoginPage() {
     setError(null);
     const safeEmail = String(email ?? '').trim();
     const safePassword = String(password ?? '');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(safeEmail)) {
+      setSubmitting(false);
+      setError('Ingresa un correo electrónico válido.');
+      return;
+    }
     const result = await login(safeEmail, safePassword);
     setSubmitting(false);
 
@@ -37,7 +46,9 @@ export default function LoginPage() {
       setError(result.error || 'Error al iniciar sesión');
       return;
     }
-    router.replace('/dashboard');
+    const redirectParam = searchParams.get('redirect') || '/dashboard';
+    const safeRedirect = redirectParam.startsWith('/') ? redirectParam : '/dashboard';
+    router.replace(safeRedirect);
   };
 
   return (

@@ -179,6 +179,7 @@ class TestOperationalCostService:
             "test-id",
             period_start=date(2024, 1, 1),
             period_end=date(2024, 1, 31),
+            operational_subtotal=Decimal("0"),
         )
         assert total == Decimal("0.0000")
 
@@ -217,6 +218,7 @@ class TestOperationalCostService:
             "test-id",
             period_start=date.today().replace(day=1),
             period_end=date.today(),
+            operational_subtotal=Decimal("200"),
         )
         # 19% of 200 = 38
         assert total.quantize(Decimal("0.01")) == Decimal("38.00")
@@ -257,4 +259,67 @@ class TestOperationalCostService:
                 "test-id",
                 period_start=date.today().replace(day=1),
                 period_end=date.today(),
+                operational_subtotal=Decimal("100"),
             )
+
+    async def test_compute_tax_costs_from_configured_active_taxes_when_no_won_quotes(
+        self, db_session: AsyncSession
+    ):
+        import uuid
+        org = Organization(
+            name="OpCost Tax Config Org",
+            slug=f"opcost-tax-config-{uuid.uuid4().hex[:8]}",
+            subscription_plan="free",
+            subscription_status="active",
+        )
+        db_session.add(org)
+        await db_session.flush()
+
+        tax = Tax(
+            name="IVA Config",
+            code=f"IVA_CFG_{org.id}_{datetime.utcnow().timestamp()}",
+            percentage=Decimal("19"),
+            is_active=True,
+            organization_id=org.id,
+        )
+        db_session.add(tax)
+        await db_session.commit()
+
+        total = await _compute_tax_costs(
+            db_session,
+            org.id,
+            "USD",
+            "test-id",
+            period_start=date.today().replace(day=1),
+            period_end=date.today(),
+            operational_subtotal=Decimal("1000"),
+        )
+        assert total.quantize(Decimal("0.01")) == Decimal("190.00")
+
+    async def test_compute_amortization_fallback_from_onboarding_inventory_settings(
+        self, db_session: AsyncSession, test_organization: Organization
+    ):
+        test_organization.settings = {
+            "onboarding_inventory_items": [
+                {
+                    "name": "Laptop legacy",
+                    "category": "hardware",
+                    "amount_monthly": "1200",
+                    "currency": "USD",
+                    "amortizable": True,
+                }
+            ]
+        }
+        db_session.add(test_organization)
+        await db_session.commit()
+        await db_session.refresh(test_organization)
+
+        total, ok = await _compute_amortization(
+            db_session,
+            test_organization.id,
+            "USD",
+            "test-id",
+        )
+        # hardware => 36 months => 1200/36 = 33.33...
+        assert total.quantize(Decimal("0.01")) == Decimal("33.33")
+        assert ok is True

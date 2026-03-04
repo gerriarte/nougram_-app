@@ -87,6 +87,7 @@ async def get_current_month_operational_costs(
         calculation_id,
         period_start=period_start,
         period_end=period_end,
+        operational_subtotal=resource_costs + fixed_costs + amortization,
     )
 
     total_operational_cost = (
@@ -278,7 +279,56 @@ async def _compute_amortization(
             total += norm.amount
         else:
             total += Decimal(str(norm))
+    # Fallback for organizations that still have onboarding inventory in settings
+    # but no persisted EquipmentAmortization rows yet.
+    if total == 0:
+        settings_fallback = await _compute_amortization_from_onboarding_settings(
+            db=db,
+            organization_id=organization_id,
+            primary_currency=primary_currency,
+        )
+        total += settings_fallback
+
     return total.quantize(Decimal("0.0001")), integrity_ok
+
+
+async def _compute_amortization_from_onboarding_settings(
+    db: AsyncSession,
+    organization_id: int,
+    primary_currency: str,
+) -> Decimal:
+    """Legacy-safe fallback: derive monthly amortization from onboarding inventory settings."""
+    org_result = await db.execute(
+        select(Organization).where(Organization.id == organization_id)
+    )
+    org = org_result.scalar_one_or_none()
+    if not org or not org.settings:
+        return Decimal("0")
+
+    inventory_items = org.settings.get("onboarding_inventory_items") or []
+    total = Decimal("0")
+    for item in inventory_items:
+        try:
+            if not bool(item.get("amortizable")):
+                continue
+            amount = Decimal(str(item.get("amount_monthly") or "0"))
+            if amount <= 0:
+                continue
+            category = str(item.get("category") or "").lower()
+            useful_life_months = Decimal("24") if category == "software" else Decimal("36")
+            monthly = amount / useful_life_months
+            item_currency = str(item.get("currency") or primary_currency or "USD")
+            normalized = normalize_to_primary_currency(
+                monthly, item_currency, primary_currency
+            )
+            if isinstance(normalized, Money):
+                total += normalized.amount
+            else:
+                total += Decimal(str(normalized))
+        except Exception:
+            # Keep fallback resilient to malformed legacy entries.
+            continue
+    return total.quantize(Decimal("0.0001"))
 
 
 async def _compute_tax_costs(
@@ -288,6 +338,7 @@ async def _compute_tax_costs(
     calculation_id: str,
     period_start: date,
     period_end: date,
+    operational_subtotal: Decimal,
 ) -> Decimal:
     """
     Operational tax cost for the period based on taxes attached to Won projects.
@@ -336,6 +387,27 @@ async def _compute_tax_costs(
             total += normalized.amount
         else:
             total += Decimal(str(normalized))
+    # If there are no Won quotes in period but taxes are configured, apply current
+    # active taxes to current operational subtotal as canonical monthly applicable tax burden.
+    if total == 0 and operational_subtotal > 0:
+        configured_taxes_result = await db.execute(
+            select(Tax.percentage).where(
+                Tax.organization_id == organization_id,
+                Tax.is_active == True,
+                Tax.deleted_at.is_(None),
+            )
+        )
+        configured_taxes = configured_taxes_result.scalars().all()
+        configured_total = Decimal("0")
+        for percentage_raw in configured_taxes:
+            percentage = _to_decimal(percentage_raw)
+            if percentage < 0:
+                raise BusinessLogicError(
+                    f"Invalid negative tax percentage in organization {organization_id}"
+                )
+            configured_total += operational_subtotal * (percentage / Decimal("100"))
+        total += configured_total
+
     return total.quantize(Decimal("0.0001"))
 
 

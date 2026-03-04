@@ -6,6 +6,7 @@ import { Equipment } from '@/types/equipment';
 import { calculateDepreciation } from '@/lib/depreciation';
 import { FixedCostTemplate } from '@/types/onboarding';
 import { apiRequest } from '@/lib/api-client';
+import { equipmentService } from '@/services/equipmentService';
 
 // --- Types ---
 
@@ -86,20 +87,15 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         } | null;
     };
 
-    // Initial Hydration from Persistence 
+    // Initial hydration from backend-only sources.
     useEffect(() => {
-        const stored = localStorage.getItem('nougram_onboarding_data');
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored);
-                hydrateFromOnboarding(parsed);
-            } catch (e) {
-                console.error("Hydration failed", e);
-                setState(prev => ({ ...prev, isHydrated: true }));
-            }
-        } else {
+        const hydrateFromBackend = async () => {
+            const equipment = await equipmentService.getAll();
+            setState(prev => ({ ...prev, equipment, isHydrated: true }));
+        };
+        void hydrateFromBackend().catch(() => {
             setState(prev => ({ ...prev, isHydrated: true }));
-        }
+        });
     }, []);
 
     useEffect(() => {

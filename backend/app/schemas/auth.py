@@ -42,6 +42,7 @@ class UserResponse(BaseModel):
     has_calendar_connected: bool = False
     role: str = Field(default="product_manager", description="User role")  # Always str, never enum
     organization_id: Optional[int] = Field(None, description="Organization ID for multi-tenant support")
+    email_verified: bool = Field(default=True, description="Whether user email is verified")
 
     class Config:
         from_attributes = False  # Disable to avoid enum issues
@@ -92,4 +93,14 @@ class ResetPasswordRequest(BaseModel):
 
 class ResetPasswordResponse(BaseModel):
     """Response after successful password reset."""
+    message: str
+
+
+class VerifyEmailRequest(BaseModel):
+    """Request to verify user email using token."""
+    token: str = Field(..., min_length=16, description="Email verification token")
+
+
+class VerifyEmailResponse(BaseModel):
+    """Response after successful email verification."""
     message: str

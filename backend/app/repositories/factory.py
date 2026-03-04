@@ -13,6 +13,7 @@ from app.repositories.team_repository import TeamRepository
 from app.repositories.user_repository import UserRepository
 from app.repositories.tax_repository import TaxRepository
 from app.repositories.settings_repository import SettingsRepository
+from app.repositories.equipment_repository import EquipmentRepository
 from app.repositories.organization_repository import OrganizationRepository
 from app.repositories.subscription_repository import SubscriptionRepository
 from app.repositories.audit_log_repository import AuditLogRepository
@@ -39,6 +40,7 @@ class RepositoryFactory:
         'service': ServiceRepository,
         'project': ProjectRepository,
         'team': TeamRepository,
+        'equipment': EquipmentRepository,
         'user': UserRepository,
         'tax': TaxRepository,
         'settings': SettingsRepository,
@@ -102,6 +104,11 @@ class RepositoryFactory:
     def create_settings_repository(db: AsyncSession) -> SettingsRepository:
         """Create SettingsRepository (no tenant scoping)"""
         return SettingsRepository(db, tenant_id=None)
+
+    @staticmethod
+    def create_equipment_repository(db: AsyncSession, tenant_id: int) -> EquipmentRepository:
+        """Create EquipmentRepository with tenant context"""
+        return EquipmentRepository(db, tenant_id=tenant_id)
     
     @staticmethod
     def create_organization_repository(db: AsyncSession) -> OrganizationRepository:

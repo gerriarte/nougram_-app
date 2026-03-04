@@ -46,6 +46,12 @@ export async function apiRequest<T>(
         }
         return { error: "No autorizado. Inicia sesión nuevamente.", statusCode: 401 };
       }
+      if (response.status === 429) {
+        return {
+          error: "Demasiados intentos. Espera un minuto e intenta nuevamente.",
+          statusCode: 429,
+        };
+      }
 
       const errorBody = await response.json().catch(() => ({}));
       const message =

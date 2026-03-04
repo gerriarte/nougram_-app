@@ -26,6 +26,39 @@ Flujo de trabajo basado en GitFlow con ambientes **prod** y **staging** en Railw
 2. **Proyecto staging**: conectar al mismo repo, branch `develop`, variables de staging.
 3. No usar fallback a `localhost` en variables; definir `NEXT_PUBLIC_API_URL` por ambiente.
 
+### Backend para staging (staging → develop)
+
+Para que el frontend staging pueda iniciar sesión, el backend debe estar desplegado y configurado. Ejemplo con backend en `https://qaback.nougram.co` y frontend en `https://qa.nougram.co`:
+
+**1. Crear servicio Backend en Railway**
+- Nuevo servicio en el mismo proyecto (o uno dedicado a staging)
+- Root directory: `backend`
+- Branch: `develop`
+- Build: Nixpacks detecta Python, o usar Dockerfile en `backend/`
+- Start command: `alembic upgrade head && gunicorn main:app -c gunicorn_config.py -w 1 -b 0.0.0.0:$PORT`
+- Puerto: Railway inyecta `PORT`; exponer con `0.0.0.0:$PORT`
+
+**2. Variables de entorno del Backend (staging)**
+
+| Variable | Valor | Nota |
+|----------|-------|------|
+| `DATABASE_URL` | `postgresql+asyncpg://...` | Postgres de Railway (addon) |
+| `SECRET_KEY` | clave segura | Distinta a prod si quieres aislar sesiones |
+| `CORS_ORIGINS` | `https://qa.nougram.co` | **URL exacta del frontend staging** (sin barra final) |
+| `FRONTEND_URL` | `https://qa.nougram.co` | Para links de invitación/reset |
+| `ENVIRONMENT` | `staging` o `production` | En prod no crea tablas; usa Alembic |
+
+**3. Dominio público**
+- Asignar dominio custom `qaback.nougram.co` al servicio backend, o usar el `.railway.app` que da Railway.
+
+**4. Variables del Frontend staging**
+- `NEXT_PUBLIC_API_URL` = `https://qaback.nougram.co/api/v1` (base del API, sin barra final)
+
+**Errores frecuentes**
+- **"Error de conexión"**: backend no alcanzable. Revisar que la URL sea correcta y que el backend esté en ejecución.
+- **CORS**: si el frontend está en otro dominio, `CORS_ORIGINS` debe incluir esa URL exactamente.
+- **Ruta truncada**: `NEXT_PUBLIC_API_URL` debe terminar en `/api/v1` (no `/api/v`).
+
 ---
 
 ## Ramas temporales (crear al trabajar)

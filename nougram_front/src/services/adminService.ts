@@ -36,71 +36,35 @@ const INITIAL_COSTS: FixedCostInput[] = [
     { id: 2, name: "Suscripción Figma", category: "Software", amount_monthly: "200000", currency: "COP", description: "Licencia Team" }
 ];
 
-// --- STORAGE KEYS ---
-const KEY_MEMBERS = "nougram_admin_members";
-const KEY_COSTS = "nougram_admin_costs";
-const KEY_SOCIAL = "nougram_admin_social";
-const KEY_GLOBAL = "nougram_admin_global";
-
 export const adminService = {
     // --- LOADERS ---
     getMembers: (): TeamMemberInput[] => {
-        if (typeof window === "undefined") return INITIAL_MEMBERS;
-        const stored = localStorage.getItem(KEY_MEMBERS);
-        return stored ? JSON.parse(stored) : INITIAL_MEMBERS;
+        return INITIAL_MEMBERS;
     },
 
     getCosts: (): FixedCostInput[] => {
-        if (typeof window === "undefined") return INITIAL_COSTS;
-        const stored = localStorage.getItem(KEY_COSTS);
-        return stored ? JSON.parse(stored) : INITIAL_COSTS;
+        return INITIAL_COSTS;
     },
 
     getSocialConfig: (): SocialChargesConfig => {
-        if (typeof window === "undefined") return INITIAL_SOCIAL_CHARGES;
-        const stored = localStorage.getItem(KEY_SOCIAL);
-        return stored ? JSON.parse(stored) : INITIAL_SOCIAL_CHARGES;
+        return INITIAL_SOCIAL_CHARGES;
     },
 
     getGlobalConfig: (): GlobalConfig => {
-        if (typeof window === "undefined") return INITIAL_GLOBAL_CONFIG;
-        const stored = localStorage.getItem(KEY_GLOBAL);
-        return stored ? JSON.parse(stored) : INITIAL_GLOBAL_CONFIG;
+        return INITIAL_GLOBAL_CONFIG;
     },
 
     // --- SAVERS ---
-    saveMembers: (data: TeamMemberInput[]) => {
-        if (typeof window !== "undefined") {
-            localStorage.setItem(KEY_MEMBERS, JSON.stringify(data));
-        }
-    },
+    saveMembers: (_data: TeamMemberInput[]) => undefined,
 
-    saveCosts: (data: FixedCostInput[]) => {
-        if (typeof window !== "undefined") {
-            localStorage.setItem(KEY_COSTS, JSON.stringify(data));
-        }
-    },
+    saveCosts: (_data: FixedCostInput[]) => undefined,
 
-    saveSocialConfig: (data: SocialChargesConfig) => {
-        if (typeof window !== "undefined") {
-            localStorage.setItem(KEY_SOCIAL, JSON.stringify(data));
-        }
-    },
+    saveSocialConfig: (_data: SocialChargesConfig) => undefined,
 
-    saveGlobalConfig: (data: GlobalConfig) => {
-        if (typeof window !== "undefined") {
-            localStorage.setItem(KEY_GLOBAL, JSON.stringify(data));
-        }
-    },
+    saveGlobalConfig: (_data: GlobalConfig) => undefined,
 
     // --- RESET ---
     resetDefaults: () => {
-        if (typeof window !== "undefined") {
-            localStorage.removeItem(KEY_MEMBERS);
-            localStorage.removeItem(KEY_COSTS);
-            localStorage.removeItem(KEY_SOCIAL);
-            localStorage.removeItem(KEY_GLOBAL);
-        }
         return {
             members: INITIAL_MEMBERS,
             costs: INITIAL_COSTS,

@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { OnboardingStepper } from '@/components/onboarding/OnboardingStepper';
 import { StepIdentity } from '@/components/onboarding/StepIdentity';
 import { StepFixedCosts } from '@/components/onboarding/StepFixedCosts';
@@ -36,10 +37,22 @@ export default function OnboardingPage() {
     // Use the hook for state management
     const {
         data: onboardingData,
+        isLoading,
+        isSaving,
+        saveError,
+        lastSavedAt,
         updateIdentity,
         updateFixedCosts,
-        updateTeam
+        updateTeam,
+        updateProgress
     } = useOnboarding();
+
+    useEffect(() => {
+        if (isLoading) return;
+        if (onboardingData.lastStep > 1 && currentStep === 1) {
+            setCurrentStep(onboardingData.lastStep);
+        }
+    }, [isLoading, onboardingData.lastStep, currentStep]);
 
     const handleNext = () => {
         setCurrentStep((prev) => prev + 1);
@@ -146,10 +159,6 @@ export default function OnboardingPage() {
     }, [onboardingData.identity, onboardingData.fixedCosts, onboardingData.team]);
 
     const persistOnboardingInBackend = async (): Promise<boolean> => {
-        const alreadyPersisted = localStorage.getItem('nougram_onboarding_persisted_v1') === 'true';
-        if (alreadyPersisted) {
-            return true;
-        }
         setPersistError(null);
         setPersisting(true);
         const response = await apiRequest('/onboarding/complete', {
@@ -161,7 +170,7 @@ export default function OnboardingPage() {
             setPersistError(response.error);
             return false;
         }
-        localStorage.setItem('nougram_onboarding_persisted_v1', 'true');
+        updateProgress(4, 'completed');
         return true;
     };
 
@@ -196,6 +205,32 @@ export default function OnboardingPage() {
                     </div>
                     <span className="text-sm text-gray-500">Configuración Inicial</span>
                 </div>
+                <div className="max-w-7xl mx-auto mt-2 flex justify-end">
+                    <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium border ${
+                        saveError
+                            ? 'text-red-700 border-red-200 bg-red-50'
+                            : isSaving
+                                ? 'text-amber-700 border-amber-200 bg-amber-50'
+                                : 'text-green-700 border-green-200 bg-green-50'
+                    }`}>
+                        {saveError ? (
+                            <AlertCircle className="h-3.5 w-3.5" />
+                        ) : isSaving ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                        )}
+                        <span>
+                            {saveError
+                                ? 'Error al guardar borrador'
+                                : isSaving
+                                    ? 'Guardando borrador...'
+                                    : lastSavedAt
+                                        ? `Guardado ${lastSavedAt.toLocaleTimeString()}`
+                                        : 'Borrador listo'}
+                        </span>
+                    </div>
+                </div>
             </div>
 
             <div className="max-w-5xl mx-auto px-4">
@@ -206,6 +241,7 @@ export default function OnboardingPage() {
                         <StepIdentity
                             onNext={(data) => {
                                 updateIdentity(data);
+                                updateProgress(2);
                                 handleNext();
                             }}
                             initialData={onboardingData.identity}
@@ -216,6 +252,7 @@ export default function OnboardingPage() {
                         <StepFixedCosts
                             onNext={(data) => {
                                 updateFixedCosts(data);
+                                updateProgress(3);
                                 handleNext();
                             }}
                             onBack={handleBackStep}
@@ -228,6 +265,7 @@ export default function OnboardingPage() {
                         <StepMyTeam
                             onNext={(data) => {
                                 updateTeam(data);
+                                updateProgress(4);
                                 handleNext();
                             }}
                             onBack={handleBackStep}

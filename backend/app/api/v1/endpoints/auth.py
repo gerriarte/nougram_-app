@@ -1,7 +1,7 @@
 """
 Authentication endpoints
 """
-from datetime import timedelta
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -28,6 +28,8 @@ from app.schemas.auth import (
     ForgotPasswordResponse,
     ResetPasswordRequest,
     ResetPasswordResponse,
+    VerifyEmailRequest,
+    VerifyEmailResponse,
 )
 
 router = APIRouter()
@@ -82,6 +84,12 @@ async def email_password_login(
             detail="Credenciales inválidas",
         )
 
+    if not bool(getattr(user, "email_verified", True)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Debes verificar tu correo antes de iniciar sesión",
+        )
+
     from app.core.permissions import get_user_role, get_user_role_type
 
     # Validate organization_id based on role_type
@@ -130,6 +138,7 @@ async def email_password_login(
             "full_name": user.full_name,
             "role": user_role,
             "organization_id": user.organization_id,  # Multi-tenant: include in response
+            "email_verified": bool(getattr(user, "email_verified", True)),
         },
     )
 
@@ -256,6 +265,76 @@ async def reset_password(
     return ResetPasswordResponse(message="Contrasena actualizada correctamente")
 
 
+@router.post("/verify-email", response_model=VerifyEmailResponse)
+@limiter.limit("10/minute")
+async def verify_email(
+    request: Request,
+    payload: VerifyEmailRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Verify account email with a valid verification token."""
+    try:
+        token_payload = jwt.decode(
+            payload.token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token invalido o expirado",
+        )
+
+    if token_payload.get("purpose") != "email_verification":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token invalido para verificacion de correo",
+        )
+
+    user_id_str = token_payload.get("sub")
+    if not user_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token invalido",
+        )
+
+    try:
+        user_id = int(user_id_str)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token invalido",
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+
+    if token_payload.get("email") != user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token invalido",
+        )
+
+    if bool(getattr(user, "email_verified", False)):
+        return VerifyEmailResponse(message="Tu correo ya esta verificado")
+
+    user.email_verified = True
+    user.email_verified_at = datetime.utcnow()
+    await db.commit()
+
+    logger.info(
+        "Email verified successfully",
+        user_id=user.id,
+        email=user.email,
+    )
+    return VerifyEmailResponse(message="Correo verificado correctamente")
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
     current_user: User = Depends(get_current_user)
@@ -273,7 +352,8 @@ async def get_current_user_info(
         full_name=current_user.full_name,
         has_calendar_connected=current_user.google_refresh_token is not None,
         role=user_role,  # Explicit string
-        organization_id=current_user.organization_id  # Multi-tenant: include organization_id
+        organization_id=current_user.organization_id,  # Multi-tenant: include organization_id
+        email_verified=bool(getattr(current_user, "email_verified", True)),
     )
 
 @router.put("/me", response_model=UserResponse)
@@ -298,6 +378,7 @@ async def update_current_user_info(
         full_name=current_user.full_name,
         has_calendar_connected=current_user.google_refresh_token is not None,
         role=user_role,
+        email_verified=bool(getattr(current_user, "email_verified", True)),
     )
 
 

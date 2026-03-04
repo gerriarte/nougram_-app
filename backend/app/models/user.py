@@ -1,7 +1,7 @@
 """
 User model for authentication
 """
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, DateTime, text
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -17,6 +17,8 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     full_name = Column(String, nullable=False)
     hashed_password = Column(String(255), nullable=False)
+    email_verified = Column(Boolean, nullable=False, server_default=text("true"))
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
     google_refresh_token = Column(String, nullable=True)  # Encrypted
     # Roles: non-disruptive string-based role (nullable, defaults handled at DB/migration)
     role = Column(String(32), nullable=True, index=True)

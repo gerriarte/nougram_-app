@@ -1,3 +1,4 @@
+
 # Nougram Backend Rules (Python MVC + Repository/Service)
 
 ## Architecture Overview

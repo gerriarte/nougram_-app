@@ -56,25 +56,7 @@ const INITIAL_STATE: QuoteCreationState = {
 const QuoteCreationContext = createContext<QuoteCreationContextType | undefined>(undefined);
 
 export function QuoteCreationProvider({ children }: { children: ReactNode }) {
-    // Lazy load from localStorage
-    const [state, setState] = useState<QuoteCreationState>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('quote_creation_draft');
-            if (saved) {
-                try {
-                    return JSON.parse(saved);
-                } catch (e) {
-                    console.error('Failed to parse draft', e);
-                }
-            }
-        }
-        return INITIAL_STATE;
-    });
-
-    // Auto-save
-    useEffect(() => {
-        localStorage.setItem('quote_creation_draft', JSON.stringify(state));
-    }, [state]);
+    const [state, setState] = useState<QuoteCreationState>(INITIAL_STATE);
 
     // Recalculate totals whenever services change
     useEffect(() => {
@@ -136,7 +118,6 @@ export function QuoteCreationProvider({ children }: { children: ReactNode }) {
 
     const reset = () => {
         setState(INITIAL_STATE);
-        localStorage.removeItem('quote_creation_draft');
     };
 
     return (

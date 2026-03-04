@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { AdminProvider } from '@/context/AdminContext';
 import { AdminSidebar } from './AdminSidebar';
 import { BCRSummaryCard } from './BCRSummaryCard';
@@ -12,14 +12,16 @@ import { useAuth } from '@/hooks/useAuth';
 
 export function AdminLayout({ children, hideRightPanel = false }: { children: React.ReactNode, hideRightPanel?: boolean }) {
     const router = useRouter();
+    const pathname = usePathname();
     const { isAuthenticated, loading } = useAuth();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     useEffect(() => {
         if (!loading && !isAuthenticated) {
-            router.replace('/login');
+            const redirect = encodeURIComponent(pathname || '/dashboard');
+            router.replace(`/login?redirect=${redirect}`);
         }
-    }, [loading, isAuthenticated, router]);
+    }, [loading, isAuthenticated, router, pathname]);
 
     if (loading || !isAuthenticated) {
         return (

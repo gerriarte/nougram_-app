@@ -9,11 +9,10 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Alert } from '@/components/ui/Alert';
 import { apiRequest } from '@/lib/api-client';
-import { setAuthToken } from '@/lib/auth';
 
 type RegisterResponse = {
-  access_token: string;
-  token_type: string;
+  requires_email_verification?: boolean;
+  message?: string;
 };
 
 export default function RegisterPage() {
@@ -25,10 +24,12 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    setSuccess(null);
 
     if (!organizationName.trim() || !adminEmail.trim() || !adminFullName.trim()) {
       setError('Completa todos los campos obligatorios.');
@@ -43,12 +44,19 @@ export default function RegisterPage() {
       return;
     }
 
+    const safeEmail = adminEmail.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(safeEmail)) {
+      setError('Ingresa un correo electrónico válido.');
+      return;
+    }
+
     setSubmitting(true);
     const response = await apiRequest<RegisterResponse>('/organizations/register', {
       method: 'POST',
       body: JSON.stringify({
         organization_name: organizationName.trim(),
-        admin_email: adminEmail.trim(),
+        admin_email: safeEmail,
         admin_full_name: adminFullName.trim(),
         admin_password: adminPassword,
         subscription_plan: 'free',
@@ -56,40 +64,16 @@ export default function RegisterPage() {
     });
     setSubmitting(false);
 
-    if (response.error || !response.data?.access_token) {
+    if (response.error) {
       setError(response.error || 'No fue posible crear la organización.');
       return;
     }
 
-    setAuthToken(response.data.access_token);
-    localStorage.setItem(
-      'nougram_onboarding_data',
-      JSON.stringify({
-        identity: {
-          organizationName: organizationName.trim(),
-          primaryCurrency: 'COP',
-          country: 'COL',
-        },
-        fixedCosts: { selectedTemplates: [], totalMonthly: 0 },
-        team: {
-          payrollHeadcount: 1,
-          name: '',
-          role: '',
-          level: '',
-          salary: 0,
-          totalHours: 40,
-          billableHours: 28,
-          vacationDays: 20,
-          applySocialCharges: true,
-          yearlyBillableHours: 0,
-          hourlyCost: 0,
-          teamMembers: [],
-        },
-        status: 'in_progress',
-        lastStep: 1,
-      })
+    setSuccess(
+      response.data?.message ||
+      'Cuenta creada. Revisa tu correo y verifica tu cuenta antes de iniciar sesión.'
     );
-    router.replace('/onboarding');
+    setTimeout(() => router.replace('/login'), 1800);
   };
 
   return (
@@ -108,6 +92,14 @@ export default function RegisterPage() {
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 mt-0.5" />
                 <span>{error}</span>
+              </div>
+            </Alert>
+          )}
+          {success && (
+            <Alert variant="success">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 mt-0.5" />
+                <span>{success}</span>
               </div>
             </Alert>
           )}
@@ -182,7 +174,7 @@ export default function RegisterPage() {
             )}
           </div>
 
-          <Button type="submit" className="w-full h-12 rounded-xl" disabled={submitting}>
+          <Button type="submit" className="w-full h-12 rounded-xl" disabled={submitting || !!success}>
             {submitting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

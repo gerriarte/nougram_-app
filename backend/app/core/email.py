@@ -448,6 +448,82 @@ Si no solicitaste este cambio, puedes ignorar este correo.
     """.strip()
 
 
+def generate_email_verification_email_html(
+    full_name: str,
+    verification_url: str,
+    expiration_minutes: int,
+) -> str:
+    """Generate HTML email verification template."""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            .container {{
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                padding: 24px;
+                background-color: #ffffff;
+            }}
+            .button {{
+                display: inline-block;
+                margin: 16px 0;
+                padding: 10px 16px;
+                background-color: #2563eb;
+                color: #ffffff !important;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: 600;
+            }}
+            .small {{
+                color: #6b7280;
+                font-size: 12px;
+                word-break: break-word;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <p>Hola <strong>{full_name}</strong>,</p>
+            <p>Gracias por registrarte en Nougram. Para activar tu cuenta, confirma tu correo:</p>
+            <p>
+                <a class="button" href="{verification_url}">Verificar correo</a>
+            </p>
+            <p>Este enlace expira en <strong>{expiration_minutes} minutos</strong>.</p>
+            <p class="small">Si el botón no funciona, copia este enlace en tu navegador:</p>
+            <p class="small">{verification_url}</p>
+        </div>
+    </body>
+    </html>
+    """
+
+
+def generate_email_verification_email_text(
+    full_name: str,
+    verification_url: str,
+    expiration_minutes: int,
+) -> str:
+    """Generate plain-text email verification template."""
+    return f"""
+Hola {full_name},
+
+Gracias por registrarte en Nougram.
+Para activar tu cuenta, verifica tu correo con este enlace:
+{verification_url}
+
+El enlace expira en {expiration_minutes} minutos.
+    """.strip()
+
+
 
 
 

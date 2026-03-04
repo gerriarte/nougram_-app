@@ -43,8 +43,6 @@ const PROJECT_TYPES = [
     'Otro',
 ];
 
-const QUOTE_EDITOR_META_KEY = 'nougram_quote_editor_meta_v1';
-
 type QuoteEditorMeta = {
     projectType?: string;
     projectDescription?: string;
@@ -59,30 +57,14 @@ function normalizeOptionalText(value: unknown): string {
 }
 
 function saveQuoteEditorMeta(projectId: string, meta: QuoteEditorMeta) {
-    if (typeof window === 'undefined' || !projectId) return;
-    try {
-        const raw = localStorage.getItem(QUOTE_EDITOR_META_KEY);
-        const parsed: Record<string, QuoteEditorMeta> = raw ? JSON.parse(raw) : {};
-        parsed[projectId] = {
-            projectType: meta.projectType || '',
-            projectDescription: meta.projectDescription || '',
-        };
-        localStorage.setItem(QUOTE_EDITOR_META_KEY, JSON.stringify(parsed));
-    } catch {
-        // Non-blocking persistence
-    }
+    // Metadata is no longer persisted in browser storage.
+    void projectId;
+    void meta;
 }
 
 function getQuoteEditorMeta(projectId: string): QuoteEditorMeta {
-    if (typeof window === 'undefined' || !projectId) return {};
-    try {
-        const raw = localStorage.getItem(QUOTE_EDITOR_META_KEY);
-        if (!raw) return {};
-        const parsed = JSON.parse(raw) as Record<string, QuoteEditorMeta>;
-        return parsed[projectId] || {};
-    } catch {
-        return {};
-    }
+    void projectId;
+    return {};
 }
 
 interface QuoteBuilderContextType {

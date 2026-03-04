@@ -35,31 +35,50 @@ const INITIAL_DATA: OnboardingData = {
 export function useOnboarding() {
     const [data, setData] = useState<OnboardingData>(INITIAL_DATA);
     const [availableTemplates, setAvailableTemplates] = useState<FixedCostTemplate[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isHydrated, setIsHydrated] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
-    // Load data from localStorage on mount
     useEffect(() => {
-        const saved = localStorage.getItem('nougram_onboarding_data');
-        if (saved) {
-            try {
-                setData(JSON.parse(saved));
-            } catch (e) {
-                console.error("Failed to parse onboarding data", e);
-            }
-        }
-
-        // Load Templates
-        const loadTemplates = async () => {
+        const loadInitialState = async () => {
+            setIsLoading(true);
             const temps = await onboardingService.getTemplates();
             setAvailableTemplates(temps);
+            const draft = await onboardingService.getDraft<OnboardingData>();
+            if (draft) {
+                setData({
+                    ...INITIAL_DATA,
+                    ...draft,
+                    identity: { ...INITIAL_DATA.identity, ...(draft.identity || {}) },
+                    fixedCosts: { ...INITIAL_DATA.fixedCosts, ...(draft.fixedCosts || {}) },
+                    team: { ...INITIAL_DATA.team, ...(draft.team || {}) },
+                });
+            }
+            setIsHydrated(true);
+            setIsLoading(false);
         };
-        loadTemplates();
+        void loadInitialState();
     }, []);
 
-    // Save to localStorage on change
     useEffect(() => {
-        localStorage.setItem('nougram_onboarding_data', JSON.stringify(data));
-    }, [data]);
+        if (!isHydrated) return;
+        const timer = setTimeout(() => {
+            void (async () => {
+                setIsSaving(true);
+                setSaveError(null);
+                const ok = await onboardingService.saveDraft(data as unknown as Record<string, unknown>);
+                setIsSaving(false);
+                if (!ok) {
+                    setSaveError('No se pudo guardar el borrador');
+                    return;
+                }
+                setLastSavedAt(new Date());
+            })();
+        }, 700);
+        return () => clearTimeout(timer);
+    }, [data, isHydrated]);
 
     const updateIdentity = (identity: Partial<OnboardingData['identity']>) => {
         setData((prev: OnboardingData) => ({
@@ -95,6 +114,14 @@ export function useOnboarding() {
         }));
     };
 
+    const updateProgress = (lastStep: number, status?: OnboardingData['status']) => {
+        setData((prev: OnboardingData) => ({
+            ...prev,
+            lastStep: Math.max(1, lastStep),
+            status: status || prev.status
+        }));
+    };
+
     const convertCurrency = (amount: number, from: string, to: string) => {
         return onboardingService.convertCurrency(amount, from, to);
     };
@@ -105,7 +132,11 @@ export function useOnboarding() {
         updateIdentity,
         updateFixedCosts,
         updateTeam,
+        updateProgress,
         convertCurrency,
-        isLoading
+        isLoading,
+        isSaving,
+        saveError,
+        lastSavedAt
     };
 }

@@ -139,6 +139,33 @@ class OnboardingService:
             "items": self.INVENTORY_TEMPLATE_CATALOG,
             "source": "backend_catalog",
         }
+
+    async def get_onboarding_draft(self) -> Dict[str, Any]:
+        """Return onboarding draft from organization settings."""
+        org = await self.org_repo.get_by_id(self.organization_id)
+        if not org:
+            raise ValueError(f"Organization {self.organization_id} not found")
+
+        settings = org.settings or {}
+        draft = settings.get("onboarding_draft") or {}
+        if not isinstance(draft, dict):
+            draft = {}
+        return draft
+
+    async def save_onboarding_draft(self, draft_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Persist onboarding draft in organization settings."""
+        org = await self.org_repo.get_by_id(self.organization_id)
+        if not org:
+            raise ValueError(f"Organization {self.organization_id} not found")
+
+        if org.settings is None:
+            org.settings = {}
+
+        org.settings["onboarding_draft"] = draft_data or {}
+        flag_modified(org, "settings")
+        await self.db.commit()
+        await self.db.refresh(org)
+        return org.settings.get("onboarding_draft") or {}
     
     async def get_benchmarks(
         self,
@@ -237,6 +264,7 @@ class OnboardingService:
             org.settings["country"] = request.country
             org.settings["profile_type"] = request.profile_type
             org.settings["onboarding_completed"] = True
+            org.settings["onboarding_draft"] = {}
             
             if request.tax_structure:
                 org.settings["tax_structure"] = request.tax_structure

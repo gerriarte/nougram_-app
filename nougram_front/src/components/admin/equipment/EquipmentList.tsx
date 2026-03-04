@@ -12,7 +12,7 @@ import { EquipmentForm } from './EquipmentForm';
 import { EquipmentDetailModal } from './EquipmentDetailModal';
 
 export function EquipmentList() {
-    const { equipment, removeEquipment, getStats } = useEquipment();
+    const { equipment, removeEquipment, updateEquipment, addEquipment, getStats, loading } = useEquipment();
     const [editingId, setEditingId] = useState<string | null>(null);
     const [detailId, setDetailId] = useState<string | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -30,6 +30,14 @@ export function EquipmentList() {
         setIsFormOpen(true);
     };
 
+    const handleSave = async (payload: Omit<Equipment, 'id' | 'createdAt'>, id?: string) => {
+        if (id) {
+            await updateEquipment(id, payload);
+            return;
+        }
+        await addEquipment(payload);
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -37,7 +45,11 @@ export function EquipmentList() {
                 <Button onClick={handleCreate}>+ Registrar Equipo</Button>
             </div>
 
-            {equipment.length === 0 ? (
+            {loading ? (
+                <div className="text-center py-12 bg-gray-50 border border-dashed rounded-lg">
+                    <p className="text-gray-500">Cargando equipos...</p>
+                </div>
+            ) : equipment.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 border border-dashed rounded-lg">
                     <p className="text-gray-500">No hay equipos registrados.</p>
                     <p className="text-sm text-gray-400">Registra tus activos para calcular la depreciación real.</p>
@@ -99,6 +111,7 @@ export function EquipmentList() {
                 <EquipmentForm
                     onClose={() => setIsFormOpen(false)}
                     initialData={editingId ? equipment.find(e => e.id === editingId) : undefined}
+                    onSave={handleSave}
                 />
             )}
 

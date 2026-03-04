@@ -12,6 +12,8 @@ from app.schemas.onboarding import (
     BenchmarksResponse,
     CompleteOnboardingRequest,
     CompleteOnboardingResponse,
+    OnboardingDraftRequest,
+    OnboardingDraftResponse,
     TemporaryBCRRequest,
     TemporaryBCRResponse
 )
@@ -163,6 +165,42 @@ class OnboardingController(BaseController):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error completing onboarding"
+            )
+
+    async def get_onboarding_draft(self) -> OnboardingDraftResponse:
+        """Get persisted onboarding draft."""
+        try:
+            draft = await self.onboarding_service.get_onboarding_draft()
+            return OnboardingDraftResponse(
+                success=True,
+                organization_id=self.organization_id,
+                data=draft,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except Exception as e:
+            self.logger.error(f"Error getting onboarding draft: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error retrieving onboarding draft",
+            )
+
+    async def save_onboarding_draft(self, request: OnboardingDraftRequest) -> OnboardingDraftResponse:
+        """Save onboarding draft."""
+        try:
+            saved = await self.onboarding_service.save_onboarding_draft(request.data)
+            return OnboardingDraftResponse(
+                success=True,
+                organization_id=self.organization_id,
+                data=saved,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except Exception as e:
+            self.logger.error(f"Error saving onboarding draft: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error saving onboarding draft",
             )
     
     async def calculate_temporary_bcr(

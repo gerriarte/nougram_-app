@@ -6,7 +6,7 @@ import { useNougram } from '@/context/NougramCoreContext';
 import { TeamMember, FixedCost, SocialChargesConfig, GlobalConfig, BCRCalculation } from '@/types/admin';
 import { teamService } from '@/services/teamService';
 import { socialChargesService } from '@/services/socialChargesService';
-import { FixedCostTemplate } from '@/types/onboarding';
+import { fixedCostService } from '@/services/fixedCostService';
 
 // Initial Mock Data (to avoid starting empty)
 const DEFAULT_SOCIAL_CHARGES: SocialChargesConfig = {
@@ -65,38 +65,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const { state: nougramState, updateFinancialBasics } = useNougram(); // Connect to Core
 
     useEffect(() => {
-        const raw = localStorage.getItem('nougram_onboarding_data');
-        if (!raw) return;
-        try {
-            const parsed = JSON.parse(raw);
-            const selectedTemplates: FixedCostTemplate[] = Array.isArray(parsed?.fixedCosts?.selectedTemplates)
-                ? parsed.fixedCosts.selectedTemplates
-                : [];
-            const onboardingFixedCosts: FixedCost[] = selectedTemplates
-                .filter((template) => !(template.amortizable || template.category === 'Tools'))
-                .map((template) => ({
-                    id: `onboarding-${template.id}`,
-                    name: template.name,
-                    description: 'Importado desde onboarding',
-                    category: template.category === 'Software' ? 'Software' : template.category === 'Overhead' ? 'Overhead' : 'Other',
-                    amountMonthly: Number(template.amount) || 0,
-                    currency: (template.currency as FixedCost['currency']) || 'COP',
-                    isActive: true,
-                }));
-            if (onboardingFixedCosts.length > 0) {
-                setFixedCosts(onboardingFixedCosts);
-            }
-        } catch (error) {
-            console.error('No se pudo hidratar gastos fijos desde onboarding', error);
-        }
-    }, []);
-
-    useEffect(() => {
         const loadTeamMembers = async () => {
             const members = await teamService.getAll();
             setTeamMembers(members);
         };
         void loadTeamMembers();
+    }, []);
+
+    useEffect(() => {
+        const loadFixedCosts = async () => {
+            const costs = await fixedCostService.getAll();
+            setFixedCosts(costs);
+        };
+        void loadFixedCosts();
     }, []);
 
     useEffect(() => {
@@ -188,9 +169,36 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         })();
     };
 
-    const addFixedCost = (cost: FixedCost) => setFixedCosts(prev => [...prev, cost]);
-    const updateFixedCost = (id: string, updates: Partial<FixedCost>) => setFixedCosts(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-    const deleteFixedCost = (id: string) => setFixedCosts(prev => prev.filter(c => c.id !== id));
+    const addFixedCost = (cost: FixedCost) => {
+        const payload = {
+            name: cost.name,
+            description: cost.description,
+            category: cost.category,
+            amountMonthly: cost.amountMonthly,
+            currency: cost.currency,
+        };
+        void (async () => {
+            const created = await fixedCostService.create(payload);
+            if (!created) return;
+            setFixedCosts(prev => [created, ...prev]);
+        })();
+    };
+    const updateFixedCost = (id: string, updates: Partial<FixedCost>) => {
+        const current = fixedCosts.find((cost) => cost.id === id);
+        if (!current) return;
+        void (async () => {
+            const updated = await fixedCostService.update(id, { ...current, ...updates });
+            if (!updated) return;
+            setFixedCosts(prev => prev.map(cost => (cost.id === id ? updated : cost)));
+        })();
+    };
+    const deleteFixedCost = (id: string) => {
+        void (async () => {
+            const ok = await fixedCostService.remove(id);
+            if (!ok) return;
+            setFixedCosts(prev => prev.filter(cost => cost.id !== id));
+        })();
+    };
 
     const updateSocialCharges = (cfg: SocialChargesConfig) => {
         setSocialCharges(cfg);
