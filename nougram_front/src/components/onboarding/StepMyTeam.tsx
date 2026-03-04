@@ -8,6 +8,7 @@ import { Badge } from '../ui/Badge';
 import { Alert } from '../ui/Alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
 import { Step3MyTeamData } from '@/types/onboarding';
+import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
 
 interface StepMyTeamProps {
     onNext: (data: Step3MyTeamData) => void;
@@ -374,17 +375,17 @@ export function StepMyTeam({
                             <div className="space-y-3 text-sm">
                                 <div className="flex justify-between">
                                     <span className="text-gray-600">Salario Base:</span>
-                                    <span>${salaryNum.toLocaleString()}</span>
+                                    <span>{formatCurrency(salaryNum, currency)}</span>
                                 </div>
                                 <div className="border-t border-dashed my-2"></div>
                                 <div className="space-y-1 text-gray-500 text-xs">
-                                    <div className="flex justify-between"><span>Salud (8.5%)</span><span>+${(salaryNum * 0.085).toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>Pensión (12%)</span><span>+${(salaryNum * 0.12).toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>Prestaciones (~21%)</span><span>+${(salaryNum * 0.2185).toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>Salud (8.5%)</span><span>+{formatCurrency((salaryNum * 0.085), currency)}</span></div>
+                                    <div className="flex justify-between"><span>Pensión (12%)</span><span>+{formatCurrency((salaryNum * 0.12), currency)}</span></div>
+                                    <div className="flex justify-between"><span>Prestaciones (~21%)</span><span>+{formatCurrency((salaryNum * 0.2185), currency)}</span></div>
                                 </div>
                                 <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-gray-900">
                                     <span>Total con Cargas:</span>
-                                    <span>${salaryWithCharges.toLocaleString()}</span>
+                                    <span>{formatCurrency(salaryWithCharges, currency)}</span>
                                 </div>
                                 <Badge variant="info" className="w-full justify-center">Multiplicador: ~1.53x</Badge>
                             </div>
@@ -407,8 +408,8 @@ export function StepMyTeam({
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
                             <div className="space-y-1">
                                 <p className="text-slate-400">Costo Total Anual</p>
-                                <p className="text-xl font-bold">${trueCostAnalysis.annualCost.toLocaleString()}</p>
-                                <p className="text-xs text-slate-500">12 meses x ${salaryWithCharges.toLocaleString()}</p>
+                                <p className="text-xl font-bold">{formatCurrency(trueCostAnalysis.annualCost, currency)}</p>
+                                <p className="text-xs text-slate-500">12 meses x {formatCurrency(salaryWithCharges, currency)}</p>
                             </div>
 
                             <div className="space-y-1">
@@ -419,7 +420,7 @@ export function StepMyTeam({
 
                             <div className="space-y-1 bg-white/10 p-3 rounded-lg border border-white/20">
                                 <p className="text-blue-200 font-medium">Costo por Hora (BCR)</p>
-                                <p className="text-2xl font-bold text-white">${Math.round(displayedBcr).toLocaleString()}</p>
+                                <p className="text-2xl font-bold text-white">{formatCurrency(Math.round(displayedBcr), currency)}</p>
                                 <p className="text-xs text-slate-300">
                                     {backendBcrLoading ? 'Sincronizando con motor central...' : 'Base mínima para no perder dinero'}
                                 </p>
@@ -427,8 +428,8 @@ export function StepMyTeam({
                         </div>
 
                         <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs text-yellow-200">
-                            ⚠️ Si solo calculáramos mensual ({salaryWithCharges.toLocaleString()} / {billableHours * 4.33}h),
-                            tu BCR sería incorrecto (~${Math.round(salaryWithCharges / (billableHours * 4.33)).toLocaleString()}).
+                            ⚠️ Si solo calculáramos mensual ({formatMoneyAmount(salaryWithCharges)} / {formatMoneyAmount((billableHours * 4.33))}h),
+                            tu BCR sería incorrecto (~{formatCurrency(Math.round(salaryWithCharges / (billableHours * 4.33)), currency)}).
                             El cálculo anual es más preciso.
                         </div>
                     </CardContent>

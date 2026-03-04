@@ -66,8 +66,11 @@ function mapUiToApi(item: Omit<Equipment, 'id' | 'createdAt'>) {
 
 export const equipmentService = {
   async getAll(): Promise<Equipment[]> {
-    const response = await apiRequest<EquipmentListResponse>('/settings/equipment?page=1&page_size=200');
-    if (response.error || !response.data?.items) return [];
+    const response = await apiRequest<EquipmentListResponse>('/settings/equipment?page=1&page_size=100');
+    if (response.error || !response.data?.items) {
+      console.warn('Failed to load equipment from backend:', response.error);
+      return [];
+    }
     return response.data.items.map(mapApiToUi);
   },
 

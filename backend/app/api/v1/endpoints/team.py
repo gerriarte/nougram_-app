@@ -152,6 +152,7 @@ async def create_team_member(
         from app.core.cache import get_cache
         cache = get_cache()
         cache.invalidate_pattern("blended_cost_rate:")
+        cache.invalidate_pattern("financial_summary:")
         
         logger.info("Team member created successfully", member_id=new_member.id, user_id=current_user.id)
         return TeamMemberResponse.model_validate(new_member)
@@ -217,6 +218,7 @@ async def update_team_member(
         from app.core.cache import get_cache
         cache = get_cache()
         cache.invalidate_pattern("blended_cost_rate:")
+        cache.invalidate_pattern("financial_summary:")
         
         logger.info("Team member updated successfully", member_id=member_id, user_id=current_user.id)
         return TeamMemberResponse.model_validate(member)
@@ -283,6 +285,7 @@ async def delete_team_member(
     from app.core.cache import get_cache
     cache = get_cache()
     cache.invalidate_pattern("blended_cost_rate:")
+    cache.invalidate_pattern("financial_summary:")
     
     return None
 

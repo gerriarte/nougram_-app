@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/Input';
 import { Card, CardContent } from '@/components/ui/Card';
 import { ArrowLeft, Send, Paperclip, Eye, Sparkles, Save } from 'lucide-react';
 import { Quote } from '@/components/dashboard/QuoteCard';
+import { formatCurrency } from '@/lib/utils';
 
 export interface QuoteSendPayload {
     to: string;
@@ -30,6 +31,7 @@ interface QuoteSendViewProps {
     onSend: (data: QuoteSendPayload) => Promise<ActionResult>;
     onSaveProposal: (payload: { title: string; text: string }) => Promise<{ proposalId?: number; message: string }>;
     onGenerateProposalAI: () => Promise<{ title: string; text: string; version?: number; message: string } | null>;
+    onOpenStructuredBuilder?: () => void;
     onCancel: () => void;
 }
 
@@ -43,6 +45,7 @@ export function QuoteSendView({
     onSend,
     onSaveProposal,
     onGenerateProposalAI,
+    onOpenStructuredBuilder,
     onCancel
 }: QuoteSendViewProps) {
     const [to, setTo] = useState(initialToEmail || '');
@@ -162,6 +165,11 @@ export function QuoteSendView({
                                         Propuesta comercial independiente {currentProposalVersion ? `(V${currentProposalVersion})` : ''}
                                     </h3>
                                     <div className="flex gap-2">
+                                        {onOpenStructuredBuilder && (
+                                            <Button variant="outline" size="sm" onClick={onOpenStructuredBuilder}>
+                                                Editar propuesta estructurada
+                                            </Button>
+                                        )}
                                         <Button variant="outline" size="sm" onClick={handleGenerateProposal} disabled={isGeneratingProposal}>
                                             <Sparkles size={14} className="mr-1" />
                                             {isGeneratingProposal ? 'Generando...' : 'Generar IA'}
@@ -280,7 +288,7 @@ export function QuoteSendView({
                                     <p className="font-semibold text-gray-900">{quote.project}</p>
                                     <p className="text-gray-500">Versión: {quote.version}</p>
                                     <p className="text-lg font-bold text-gray-900 mt-1">
-                                        ${quote.totalWithTaxes.toLocaleString()} {quote.currency}
+                                        {formatCurrency(quote.totalWithTaxes, quote.currency)}
                                     </p>
                                     <div className="mt-3">
                                         <Button size="sm" className="w-full bg-[#1D1D1F] text-white">

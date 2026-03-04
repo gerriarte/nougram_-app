@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Check, Star, Zap, Shield, HelpCircle, ArrowRight } from 'lucide-react';
 import { Plan, PlanTier, BillingInterval } from '@/types/billing';
 import { Button } from '@/components/ui/Button';
+import { formatMoneyAmount } from '@/lib/utils';
 
 // Mock Plans Data based on requirements
 const PLANS: Plan[] = [
@@ -157,7 +158,7 @@ export function PricingTable({ currentPlanId = 'free', onSelectPlan }: PricingTa
 
                                 {!isEnterprise && (
                                     <p className="mt-1 text-[11px] font-medium text-[#86868B]">
-                                        ≈ ${(price * 4000).toLocaleString()} COP
+                                        ≈ {formatMoneyAmount(price * 4000)} COP
                                     </p>
                                 )}
 

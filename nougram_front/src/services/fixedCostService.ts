@@ -8,7 +8,7 @@ type FixedCostApi = {
   category: string;
   amount_monthly: string | number;
   currency: FixedCost['currency'];
-  is_active: boolean;
+  is_active?: boolean;
 };
 
 type FixedCostListResponse = {
@@ -32,7 +32,8 @@ function mapApiToUi(item: FixedCostApi): FixedCost {
     category: item.category as FixedCost['category'],
     amountMonthly: toNumber(item.amount_monthly),
     currency: item.currency || 'COP',
-    isActive: item.is_active,
+    // Backend costs_fixed model does not include is_active flag.
+    isActive: item.is_active ?? true,
   };
 }
 
@@ -48,8 +49,11 @@ function mapUiToApi(item: Omit<FixedCost, 'id' | 'isActive'>) {
 
 export const fixedCostService = {
   async getAll(): Promise<FixedCost[]> {
-    const response = await apiRequest<FixedCostListResponse>('/settings/costs/fixed?page=1&page_size=200');
-    if (response.error || !response.data?.items) return [];
+    const response = await apiRequest<FixedCostListResponse>('/settings/costs/fixed?page=1&page_size=100');
+    if (response.error || !response.data?.items) {
+      console.warn('Failed to load fixed costs from backend:', response.error);
+      return [];
+    }
     return response.data.items.map(mapApiToUi);
   },
 
@@ -72,7 +76,6 @@ export const fixedCostService = {
     if (updates.category !== undefined) payload.category = updates.category;
     if (updates.amountMonthly !== undefined) payload.amount_monthly = updates.amountMonthly;
     if (updates.currency !== undefined) payload.currency = updates.currency;
-    if (updates.isActive !== undefined) payload.is_active = updates.isActive;
 
     const response = await apiRequest<FixedCostApi>(`/settings/costs/fixed/${numericId}`, {
       method: 'PUT',

@@ -3,6 +3,7 @@
 
 import React, { useMemo } from 'react';
 import { Equipment } from '@/types/equipment';
+import { formatCurrency } from '@/lib/utils';
 
 interface AssetValueChartProps {
     equipment: Equipment;
@@ -62,7 +63,7 @@ export function AssetValueChart({ equipment }: AssetValueChartProps) {
                         strokeDasharray="4 4"
                     />
                     <text x={width - padding + 5} y={getY(dataPoints.salvage)} className="text-[8px] fill-red-500" dominantBaseline="middle">
-                        Salvamento (${dataPoints.salvage.toLocaleString()})
+                        Salvamento ({formatCurrency(dataPoints.salvage, 'COP')})
                     </text>
 
                     {/* Value Line */}
@@ -91,7 +92,7 @@ export function AssetValueChart({ equipment }: AssetValueChartProps) {
                     {/* Start Point */}
                     <circle cx={getX(0)} cy={getY(dataPoints.cost)} r="4" fill="#3b82f6" />
                     <text x={getX(0)} y={getY(dataPoints.cost) - 10} className="text-[10px] font-bold fill-gray-500" textAnchor="start">
-                        ${dataPoints.cost.toLocaleString()}
+                        {formatCurrency(dataPoints.cost, 'COP')}
                     </text>
 
                     {/* End Point */}

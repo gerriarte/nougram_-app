@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Input } from '@/components/ui/Input';
 import { Shield } from 'lucide-react';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
+import { formatCurrency } from '@/lib/utils';
 
 export function ContingencySection() {
     const { state, setContingency, summary } = useQuoteBuilder();
@@ -108,13 +109,13 @@ export function ContingencySection() {
                             <div className="text-right">
                                 <span className="block text-xs text-orange-600/70">Costo Adicional</span>
                                 <span className="font-bold text-orange-900">
-                                    + {summary.contingencyAmount?.toLocaleString('es-CO', { style: 'currency', currency: state.currency, maximumFractionDigits: 0 })}
+                                    + {formatCurrency((summary.contingencyAmount || 0), state.currency)}
                                 </span>
                             </div>
                             <div className="text-right pl-4 border-l border-orange-200/50">
                                 <span className="block text-xs text-orange-600/70">Total con Imprevistos</span>
                                 <span className="font-bold text-orange-900">
-                                    {summary.contingencyTotal?.toLocaleString('es-CO', { style: 'currency', currency: state.currency, maximumFractionDigits: 0 })}
+                                    {formatCurrency((summary.contingencyTotal || 0), state.currency)}
                                 </span>
                             </div>
                         </div>

@@ -3,7 +3,7 @@ Admin endpoints for financial summary and administrative functions
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select
 from decimal import Decimal
 
 from app.core.database import get_db
@@ -72,7 +72,7 @@ async def get_financial_summary(
     # Calculate monthly fixed costs
     fixed_costs_query = select(CostFixed).where(
         CostFixed.organization_id == tenant.organization_id,
-        CostFixed.is_active == True
+        CostFixed.deleted_at.is_(None)
     )
     fixed_costs_result = await db.execute(fixed_costs_query)
     fixed_costs = fixed_costs_result.scalars().all()
@@ -106,9 +106,9 @@ async def get_financial_summary(
         active_team_members += 1
         
         # Calculate monthly salary (normalize to primary currency)
-        if member.salary_monthly:
+        if member.salary_monthly_brute:
             normalized_salary = normalize_to_primary_currency(
-                member.salary_monthly,
+                member.salary_monthly_brute,
                 member.currency or "USD",
                 primary_currency
             )
@@ -119,7 +119,12 @@ async def get_financial_summary(
         
         # Calculate billable hours (monthly capacity)
         if member.billable_hours_per_week:
-            monthly_hours = Decimal(str(member.billable_hours_per_week)) * Decimal('4.33')  # Average weeks per month
+            non_billable = Decimal(str(member.non_billable_hours_percentage or 0))
+            monthly_hours = (
+                Decimal(str(member.billable_hours_per_week))
+                * Decimal('4.33')
+                * (Decimal('1') - non_billable)
+            )  # Average weeks per month adjusted by non billable ratio
             total_billable_hours += monthly_hours
     
     # Calculate blended cost rate

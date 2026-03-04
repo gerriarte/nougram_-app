@@ -123,6 +123,7 @@ async def create_fixed_cost(
         from app.core.cache import get_cache
         cache = get_cache()
         cache.invalidate_pattern("blended_cost_rate:")
+        cache.invalidate_pattern("financial_summary:")
         
         logger.info("Fixed cost created successfully", cost_id=new_cost.id, user_id=current_user.id)
         return CostFixedResponse.model_validate(new_cost)
@@ -186,6 +187,7 @@ async def update_fixed_cost(
         from app.core.cache import get_cache
         cache = get_cache()
         cache.invalidate_pattern("blended_cost_rate:")
+        cache.invalidate_pattern("financial_summary:")
         
         logger.info("Fixed cost updated successfully", cost_id=cost_id, user_id=current_user.id)
         return CostFixedResponse.model_validate(cost)
@@ -276,6 +278,7 @@ async def delete_fixed_cost(
     from app.core.cache import get_cache
     cache = get_cache()
     cache.invalidate_pattern("blended_cost_rate:")
+    cache.invalidate_pattern("financial_summary:")
     
     return None
 
@@ -305,6 +308,7 @@ async def restore_fixed_cost(
     from app.core.cache import get_cache
     cache = get_cache()
     cache.invalidate_pattern("blended_cost_rate:")
+    cache.invalidate_pattern("financial_summary:")
     
     return CostFixedResponse.model_validate(cost)
 

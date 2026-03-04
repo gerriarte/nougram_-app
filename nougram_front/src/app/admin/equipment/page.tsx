@@ -5,12 +5,14 @@ import React, { useMemo } from 'react';
 import { useNougram } from '@/context/NougramCoreContext';
 import { useEquipment } from '@/hooks/useEquipment';
 import { calculateDepreciation } from '@/lib/depreciation';
+import { formatCurrency } from '@/lib/utils';
 
 import EquipmentList from '@/components/admin/equipment/EquipmentList';
 
 export default function EquipmentPage() {
     const { state } = useNougram();
     const { equipment } = useEquipment();
+    const currency = state.identity.primaryCurrency || 'COP';
 
     const stats = useMemo(() => {
         const totalAmortization = equipment.reduce((sum, eq) => {
@@ -35,7 +37,7 @@ export default function EquipmentPage() {
                     <p className="text-xs font-bold text-gray-400 uppercase">Impacto Total BCR</p>
                     <div className="flex items-baseline gap-2">
                         <p className="text-2xl font-bold text-gray-900">
-                            +${(stats.totalAmortization / (state.financials.billableHours || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            +{formatCurrency((stats.totalAmortization / (state.financials.billableHours || 1)), currency)}
                         </p>
                         <span className="text-xs text-gray-500">/ hora</span>
                     </div>
@@ -43,7 +45,7 @@ export default function EquipmentPage() {
                 <div className="bg-white p-4 rounded-lg border shadow-sm">
                     <p className="text-xs font-bold text-gray-400 uppercase">Amortización Mensual</p>
                     <p className="text-2xl font-bold text-gray-900">
-                        ${stats.totalAmortization.toLocaleString()}
+                        {formatCurrency(stats.totalAmortization, currency)}
                     </p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border shadow-sm">

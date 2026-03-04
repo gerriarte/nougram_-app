@@ -6,6 +6,7 @@ import { Loader2, Sparkles } from 'lucide-react';
 import { AnimatedCounter } from '../AnimatedCounter';
 import { MarginIndicator } from '../MarginIndicator';
 import { aiService } from '@/services/aiService';
+import { formatCurrency } from '@/lib/utils';
 // We import aiService directly as it's a stateless helper, 
 // ensuring we can still generate summaries even if context doesn't natively support it yet.
 
@@ -69,7 +70,7 @@ export function Step4Summary() {
                             <div className="pt-4 border-t border-gray-100">
                                 <p className="text-sm text-gray-500 mb-1">Costo Interno (BCR)</p>
                                 <span className="text-lg font-medium text-gray-700">
-                                    {state.currency} {summary.totalInternalCost.toLocaleString()}
+                                    {formatCurrency(summary.totalInternalCost, state.currency)}
                                 </span>
                             </div>
 

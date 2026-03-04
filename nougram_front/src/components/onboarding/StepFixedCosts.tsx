@@ -6,6 +6,7 @@ import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
 import { onboardingService } from '@/services/onboardingService';
 import { FixedCostTemplate } from '@/types/onboarding';
+import { formatCurrency } from '@/lib/utils';
 
 interface StepFixedCostsProps {
     onNext: (data: { selectedTemplates: FixedCostTemplate[]; totalMonthly: number }) => void;
@@ -193,7 +194,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                 </button>
                             </div>
                             <p className="font-medium text-gray-900">
-                                ${cost.amount.toLocaleString()} {primaryCurrency} <span className="text-xs text-gray-500">/mes</span>
+                                {formatCurrency(cost.amount, primaryCurrency)} <span className="text-xs text-gray-500">/mes</span>
                             </p>
                             <div className="grid grid-cols-2 gap-2 mt-3">
                                 <div>
@@ -253,7 +254,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
 
                                 <div className="space-y-1">
                                     <p className="font-medium text-gray-900">
-                                        ${displayedAmount.toLocaleString()} {primaryCurrency} <span className="text-xs text-gray-500">/mes</span>
+                                        {formatCurrency(displayedAmount, primaryCurrency)} <span className="text-xs text-gray-500">/mes</span>
                                     </p>
                                     {(template.amortizable || template.category === 'Tools') && (
                                         <span className="inline-block text-[10px] font-semibold uppercase tracking-wide text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-0.5">
@@ -343,7 +344,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                     <div>
                         <p className="text-sm text-gray-500">Total Mensual Estimado</p>
                         <p className="text-2xl font-bold text-gray-900">
-                            ${calculateTotal().toLocaleString()} {primaryCurrency}
+                            {formatCurrency(calculateTotal(), primaryCurrency)}
                         </p>
                         <p className="text-xs text-gray-400">{selectedCosts.length} items seleccionados</p>
                     </div>

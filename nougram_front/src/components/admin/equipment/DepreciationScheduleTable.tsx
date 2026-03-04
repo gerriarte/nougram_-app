@@ -5,6 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { Equipment } from '@/types/equipment';
 import { Button } from '@/components/ui/Button';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface DepreciationScheduleTableProps {
     equipment: Equipment;
@@ -106,9 +107,9 @@ export function DepreciationScheduleTable({ equipment }: DepreciationScheduleTab
                                 <tr key={row.month} className="hover:bg-gray-50/50">
                                     <td className="px-4 py-2 text-gray-900">{row.month}</td>
                                     <td className="px-4 py-2 text-gray-500">{row.date}</td>
-                                    <td className="px-4 py-2 text-right font-medium">${row.depreciation.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                                    <td className="px-4 py-2 text-right text-gray-500">${row.accumulated.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                                    <td className="px-4 py-2 text-right font-bold text-gray-900">${row.bookValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                    <td className="px-4 py-2 text-right font-medium">{formatCurrency(row.depreciation, 'COP')}</td>
+                                    <td className="px-4 py-2 text-right text-gray-500">{formatCurrency(row.accumulated, 'COP')}</td>
+                                    <td className="px-4 py-2 text-right font-bold text-gray-900">{formatCurrency(row.bookValue, 'COP')}</td>
                                     <td className="px-4 py-2">
                                         <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                                             <div
@@ -150,11 +151,11 @@ export function DepreciationScheduleTable({ equipment }: DepreciationScheduleTab
             <div className="flex gap-4 p-4 bg-blue-50 rounded-lg text-xs text-blue-800">
                 <div>
                     <span className="font-bold block">Base Depreciable</span>
-                    ${(equipment.purchasePrice - equipment.salvageValue).toLocaleString()}
+                    {formatCurrency((equipment.purchasePrice - equipment.salvageValue), 'COP')}
                 </div>
                 <div>
                     <span className="font-bold block">Depreciación Mensual Promedio</span>
-                    ${(schedule.length > 0 ? schedule[0].depreciation : 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} / mes
+                    {formatCurrency((schedule.length > 0 ? schedule[0].depreciation : 0), 'COP')} / mes
                 </div>
             </div>
         </div>

@@ -3,6 +3,7 @@ import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { ResourceSlider } from '../ResourceSlider';
 import { Card } from '@/components/ui/Card';
 import { motion } from 'framer-motion';
+import { formatCurrency } from '@/lib/utils';
 
 export function Step3ResourceConfiguration() {
     const { state, updateItem } = useQuoteBuilder();
@@ -71,7 +72,7 @@ export function Step3ResourceConfiguration() {
                                     */}
                                 </span>
                                 <span className="font-medium text-blue-600">
-                                    Precio Cliente: ${(item.clientPrice || 0).toLocaleString()}
+                                    Precio Cliente: {formatCurrency((item.clientPrice || 0), state.currency)}
                                 </span>
                             </div>
 

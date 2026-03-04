@@ -144,6 +144,7 @@ export default function SendQuotePage() {
             onSend={handleSend}
             onSaveProposal={handleSaveProposal}
             onGenerateProposalAI={handleGenerateProposalAI}
+            onOpenStructuredBuilder={() => router.push(`/dashboard/quotes/${id}/proposal`)}
             onCancel={() => router.back()}
         />
     );

@@ -8,6 +8,7 @@ import { DepreciationScheduleTable } from './DepreciationScheduleTable';
 import { AssetValueChart } from './AssetValueChart';
 import { LifeProgressBar } from './LifeProgressBar';
 import { calculateDepreciation } from '@/lib/depreciation';
+import { formatCurrency } from '@/lib/utils';
 
 interface EquipmentDetailModalProps {
     equipment: Equipment | null;
@@ -36,11 +37,11 @@ export function EquipmentDetailModal({ equipment, onClose }: EquipmentDetailModa
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
                             <p className="text-xs text-blue-600 uppercase font-black">Depreciación Mensual</p>
-                            <p className="text-2xl font-bold text-blue-900">${stats.monthlyDepreciation.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                            <p className="text-2xl font-bold text-blue-900">{formatCurrency(stats.monthlyDepreciation, equipment.currency)}</p>
                         </div>
                         <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                             <p className="text-xs text-gray-500 uppercase font-black">Valor en Libros</p>
-                            <p className="text-xl font-bold text-gray-900">${stats.currentBookValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                            <p className="text-xl font-bold text-gray-900">{formatCurrency(stats.currentBookValue, equipment.currency)}</p>
                         </div>
                         <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                             <p className="text-xs text-gray-500 uppercase font-black">Vida Útil Restante</p>

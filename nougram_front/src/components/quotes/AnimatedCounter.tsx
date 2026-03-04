@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, useSpring, useTransform } from 'framer-motion';
+import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
 
 interface AnimatedCounterProps {
     value: number;
@@ -24,8 +25,7 @@ export function AnimatedCounter({ value, currency, className }: AnimatedCounterP
 
     return (
         <span className={className}>
-            {currency && <span className="mr-1">{currency}</span>}
-            {displayValue.toLocaleString()}
+            {currency ? formatCurrency(displayValue, currency) : formatMoneyAmount(displayValue)}
         </span>
     );
 }

@@ -15,7 +15,7 @@ export const formatCurrency = (value: number | string, currency: string = "COP")
         style: "currency",
         currency: normalizedCurrency,
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        maximumFractionDigits: 2,
     }).format(numberValue);
 };
 
@@ -26,6 +26,6 @@ export const formatMoneyAmount = (value: number | string) => {
 
     return new Intl.NumberFormat("es-CO", {
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        maximumFractionDigits: 2,
     }).format(numberValue);
 };

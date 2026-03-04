@@ -10,6 +10,7 @@ import { Equipment } from '@/types/equipment';
 import { LifeProgressBar } from './LifeProgressBar';
 import { EquipmentForm } from './EquipmentForm';
 import { EquipmentDetailModal } from './EquipmentDetailModal';
+import { formatCurrency } from '@/lib/utils';
 
 export function EquipmentList() {
     const { equipment, removeEquipment, updateEquipment, addEquipment, getStats, loading } = useEquipment();
@@ -71,7 +72,7 @@ export function EquipmentList() {
                                             <h4 className="font-bold text-gray-900">{eq.name}</h4>
                                         </div>
                                         <p className="text-xs text-gray-500 mb-3">
-                                            Comprado: {eq.purchaseDate} • Precio: ${eq.purchasePrice.toLocaleString()} {eq.currency}
+                                            Comprado: {eq.purchaseDate} • Precio: {formatCurrency(eq.purchasePrice, eq.currency)}
                                         </p>
 
                                         {/* Progress Bar */}
@@ -88,10 +89,10 @@ export function EquipmentList() {
                                     <div className="text-right flex flex-col justify-center min-w-[150px]">
                                         <p className="text-xs text-gray-400 uppercase">Depreciación Mensual</p>
                                         <p className="text-xl font-bold text-gray-900">
-                                            ${stats.monthlyDepreciation.toLocaleString()}
+                                            {formatCurrency(stats.monthlyDepreciation, eq.currency)}
                                         </p>
                                         <p className="text-xs text-gray-500 mt-1">
-                                            Valor en Libros: ${stats.currentBookValue.toLocaleString()}
+                                            Valor en Libros: {formatCurrency(stats.currentBookValue, eq.currency)}
                                         </p>
 
                                         <div className="mt-2 flex justify-end gap-2 text-xs">

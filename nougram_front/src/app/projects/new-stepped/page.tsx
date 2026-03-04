@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { formatCurrency } from '@/lib/utils';
 
 const STEPS = [
     { id: 1, title: "Proyecto", component: Step1ProjectInfo },
@@ -87,7 +88,7 @@ function QuoteWizardContent() {
                     </div>
 
                     <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                        Total: {state.currency} {summary.totalClientPrice.toLocaleString()}
+                        Total: {formatCurrency(summary.totalClientPrice, state.currency)}
                     </div>
                 </div>
 

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { TeamMemberForm } from './TeamMemberForm';
 import { TeamMember } from '@/types/admin';
+import { formatCurrency } from '@/lib/utils';
 
 export function TeamMemberList() {
     const { teamMembers, deleteTeamMember, updateTeamMember, addTeamMember, globalSettings } = useAdmin();
@@ -73,11 +74,11 @@ export function TeamMemberList() {
                                         <div className="text-xs text-gray-500">{member.role}</div>
                                     </td>
                                     <td className="px-4 py-3">
-                                        ${member.salaryMonthlyBrute.toLocaleString()} {member.currency}
+                                        {formatCurrency(member.salaryMonthlyBrute, member.currency)}
                                     </td>
                                     <td className="px-4 py-3 font-medium text-blue-600">
                                         {/* Simple display logic, precise calculation is in context */}
-                                        ${(member.salaryWithCharges || member.salaryMonthlyBrute).toLocaleString()}
+                                        {formatCurrency((member.salaryWithCharges || member.salaryMonthlyBrute), member.currency)}
                                     </td>
                                     <td className="px-4 py-3">
                                         {member.billableHoursPerWeek} hrs

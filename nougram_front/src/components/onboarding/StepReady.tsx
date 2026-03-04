@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
 
 interface StepReadyProps {
     data: any;
@@ -85,7 +86,7 @@ export function StepReady({
                 <CardContent className="py-10">
                     <p className="text-sm font-semibold text-blue-800 uppercase tracking-widest mb-2">Tu Costo por Hora Real (BCR)</p>
                     <h2 className={`text-6xl font-extrabold ${bcrColor} mb-2`}>
-                        ${Math.round(bcr).toLocaleString()} <span className="text-2xl font-normal text-gray-500">{currency}</span>
+                        {formatCurrency(Math.round(bcr), currency)} <span className="text-2xl font-normal text-gray-500">{currency}</span>
                     </h2>
                     <p className="text-xs text-blue-600/80 font-medium">
                         {backendBcrLoading ? 'Actualizando con motor financiero central...' : 'Calculado por motor financiero central'}
@@ -131,15 +132,15 @@ export function StepReady({
                         <h4 className="font-semibold text-gray-900 border-b pb-2">📊 Desglose de Costos Anuales</h4>
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Nómina (+cargas):</span>
-                            <span>${(annualPayroll).toLocaleString()}</span>
+                            <span>{formatCurrency(annualPayroll, currency)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Costos Fijos:</span>
-                            <span>${(annualFixedCosts).toLocaleString()}</span>
+                            <span>{formatCurrency(annualFixedCosts, currency)}</span>
                         </div>
                         <div className="flex justify-between text-sm font-bold pt-2 border-t text-gray-900">
                             <span>Total Anual:</span>
-                            <span>${(totalAnnualCosts).toLocaleString()}</span>
+                            <span>{formatCurrency(totalAnnualCosts, currency)}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -151,9 +152,9 @@ export function StepReady({
                             Si solo calculáramos mensualmente (4.33 semanas), ignoraríamos tus {vacationDays} días de descanso.
                         </p>
                         <div className="bg-amber-50 p-2 rounded text-xs text-amber-800 border border-amber-100 mt-2">
-                            ⚠️ Cálculo mensual simple daría: <strong>${Math.round(bcrMonthlyWrong).toLocaleString()}</strong>.
+                            ⚠️ Cálculo mensual simple daría: <strong>{formatCurrency(Math.round(bcrMonthlyWrong), currency)}</strong>.
                             <br />
-                            ¡Estarías subestimando tu costo en un <strong>{Math.round(((bcr - bcrMonthlyWrong) / bcr) * 100)}%</strong>!
+                            ¡Estarías subestimando tu costo en un <strong>{formatMoneyAmount(Math.round(((bcr - bcrMonthlyWrong) / bcr) * 100))}%</strong>!
                         </div>
                     </CardContent>
                 </Card>

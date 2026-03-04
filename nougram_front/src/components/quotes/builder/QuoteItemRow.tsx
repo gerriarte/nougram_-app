@@ -9,6 +9,7 @@ import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { useNougram } from '@/context/NougramCoreContext';
 import { QuoteItem, Service, ResourceAllocation } from '@/types/quote-builder';
 import { Trash2, Plus, Users, Clock, Calendar, Check, X, Edit2 } from 'lucide-react';
+import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
 
 interface QuoteItemRowProps {
     item: QuoteItem;
@@ -163,7 +164,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                                     <span>h{item.pricingType === 'recurring' ? '/mes' : ''}</span>
                                                 </div>
                                                 <span className="text-gray-700 bg-gray-50 px-2 py-0.5 rounded text-xs font-semibold">
-                                                    ${allocCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                    {formatCurrency(allocCost, coreState.identity.primaryCurrency || 'COP')}
                                                 </span>
                                                 <button onClick={() => removeResource(alloc.id)} className="text-gray-300 hover:text-red-500">
                                                     <Trash2 size={12} />
@@ -192,8 +193,8 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                     </div>
                                 )}
                                 <div className="mb-3 flex items-center justify-between text-[11px] font-semibold text-gray-500">
-                                    <span>Horas estimadas proyecto: {estimatedProjectHours.toLocaleString()}h</span>
-                                    <span>Costo recursos: ${totalResourceCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span>Horas estimadas proyecto: {formatMoneyAmount(estimatedProjectHours)}h</span>
+                                    <span>Costo recursos: {formatCurrency(totalResourceCost, coreState.identity.primaryCurrency || 'COP')}</span>
                                 </div>
                                 {!isAddingResource ? (
                                     <Button
@@ -260,7 +261,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-semibold text-gray-500">Costo Base (Recursos)</label>
                                     <div className="text-sm text-gray-500 px-3 py-2 bg-gray-100 rounded border border-transparent font-mono">
-                                        ${item.internalCost.toLocaleString()}
+                                        {formatCurrency(item.internalCost, coreState.identity.primaryCurrency || 'COP')}
                                     </div>
                                 </div>
                                 <div className="space-y-1.5">
@@ -301,7 +302,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                 <div className="text-xs text-purple-600">
                                     <div className="font-medium opacity-70">Mensual</div>
                                     <div className="font-bold text-sm">
-                                        ${((item.clientPrice || 0) / (item.durationMonths || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        {formatCurrency(((item.clientPrice || 0) / (item.durationMonths || 1)), coreState.identity.primaryCurrency || 'COP')}
                                     </div>
                                 </div>
                             </div>
@@ -326,7 +327,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                 <div className="space-y-1">
                                     <label className="text-xs font-medium text-gray-400">Costo Recursos</label>
                                     <div className="text-sm font-mono text-gray-600">
-                                        ${totalResourceCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        {formatCurrency(totalResourceCost, coreState.identity.primaryCurrency || 'COP')}
                                     </div>
                                 </div>
                                 <div className="space-y-1">
@@ -342,7 +343,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                         />
                                     ) : (
                                         <div className="text-sm font-bold font-mono text-blue-900">
-                                            ${item.clientPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                            {formatCurrency(item.clientPrice, coreState.identity.primaryCurrency || 'COP')}
                                         </div>
                                     )}
                                 </div>

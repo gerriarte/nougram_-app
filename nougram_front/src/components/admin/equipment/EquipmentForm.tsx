@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Equipment, EquipmentCategory, DepreciationMethod, Currency } from '@/types/equipment';
 import { calculateDepreciation } from '@/lib/depreciation';
+import { formatCurrency } from '@/lib/utils';
 
 interface EquipmentFormProps {
     onClose: () => void;
@@ -178,11 +179,11 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
                         <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex justify-between items-center">
                             <div>
                                 <p className="text-xs font-bold text-blue-800 uppercase">Impacto en Costos</p>
-                                <p className="text-sm text-blue-600">Base Depreciable: ${(preview.currentBookValue + preview.totalDepreciated).toLocaleString()}</p>
+                                <p className="text-sm text-blue-600">Base Depreciable: {formatCurrency((preview.currentBookValue + preview.totalDepreciated), formData.currency || 'COP')}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-2xl font-bold text-blue-900">
-                                    ${preview.monthlyDepreciation.toLocaleString()}
+                                    {formatCurrency(preview.monthlyDepreciation, formData.currency || 'COP')}
                                     <span className="text-xs font-normal text-blue-600"> / mes</span>
                                 </p>
                             </div>
