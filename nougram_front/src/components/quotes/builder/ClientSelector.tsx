@@ -16,6 +16,15 @@ interface ClientSelectorProps {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
+function normalizeSearchText(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const lowered = trimmed.toLowerCase();
+  if (lowered === 'undefined' || lowered === 'null') return '';
+  return value;
+}
+
 export function ClientSelector({ value, clientId, onChange }: ClientSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,6 +52,13 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
     const t = setTimeout(() => fetchClients(searchTerm), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [searchTerm, fetchClients]);
+
+  useEffect(() => {
+    const normalized = normalizeSearchText(searchTerm);
+    if (normalized !== searchTerm) {
+      setSearchTerm(normalized);
+    }
+  }, [searchTerm]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -86,7 +102,7 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
   const [newClientEmail, setNewClientEmail] = useState('');
 
   const safeDisplayValue = typeof value === 'string' ? value : '';
-  const safeSearchTerm = typeof searchTerm === 'string' ? searchTerm : '';
+  const safeSearchTerm = normalizeSearchText(searchTerm);
   const displayValue = safeDisplayValue || 'Seleccionar o crear cliente...';
   const listboxId = 'quote-client-selector-listbox';
 
@@ -143,7 +159,10 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
                 autoFocus
                 placeholder="Buscar empresa o contacto..."
                 value={safeSearchTerm}
-                onChange={(e) => setSearchTerm(String(e.target.value ?? ''))}
+                onFocus={() => {
+                  if (!safeSearchTerm) setSearchTerm('');
+                }}
+                onChange={(e) => setSearchTerm(normalizeSearchText(e.target.value))}
                 className="h-9 text-sm bg-gray-50/50 border-transparent focus:bg-white transition-colors"
               />
             </div>
