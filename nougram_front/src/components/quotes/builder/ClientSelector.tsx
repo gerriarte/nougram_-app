@@ -44,8 +44,21 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
     return () => clearTimeout(t);
   }, [searchTerm, fetchClients]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchTerm('');
+    }
+  }, [isOpen]);
+
   const handleSelect = (client: Client) => {
-    onChange(client.id, client.name, client.email, client.company, client.requester);
+    onChange(
+      client.id,
+      String(client.name || ''),
+      client.email || undefined,
+      client.company || undefined,
+      client.requester || undefined
+    );
+    setSearchTerm('');
     setIsOpen(false);
   };
 
@@ -72,7 +85,9 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
   const [newClientRequester, setNewClientRequester] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
 
-  const displayValue = value || 'Seleccionar o crear cliente...';
+  const safeDisplayValue = typeof value === 'string' ? value : '';
+  const safeSearchTerm = typeof searchTerm === 'string' ? searchTerm : '';
+  const displayValue = safeDisplayValue || 'Seleccionar o crear cliente...';
   const listboxId = 'quote-client-selector-listbox';
 
   const handleTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -104,10 +119,10 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
             transition-all duration-200
             hover:bg-white hover:border-gray-300 hover:shadow-sm
             focus:outline-none focus:ring-2 focus:ring-blue-500/20
-            ${value ? 'bg-white' : ''}
+            ${safeDisplayValue ? 'bg-white' : ''}
           `}
         >
-          <span className={`block truncate ${!value ? 'text-gray-400' : ''}`}>
+          <span className={`block truncate ${!safeDisplayValue ? 'text-gray-400' : ''}`}>
             {displayValue}
           </span>
           <Search className="w-4 h-4 text-gray-400" />
@@ -127,8 +142,8 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
               <Input
                 autoFocus
                 placeholder="Buscar empresa o contacto..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={safeSearchTerm}
+                onChange={(e) => setSearchTerm(String(e.target.value ?? ''))}
                 className="h-9 text-sm bg-gray-50/50 border-transparent focus:bg-white transition-colors"
               />
             </div>
@@ -136,7 +151,7 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
               {loading && (
                 <div className="p-4 text-center text-sm text-gray-500">Buscando...</div>
               )}
-              {!loading && clients.length === 0 && searchTerm.trim().length >= 2 && (
+              {!loading && clients.length === 0 && safeSearchTerm.trim().length >= 2 && (
                 <div className="p-8 text-center">
                   <p className="text-sm text-gray-500">No se encontraron clientes.</p>
                   <Button
@@ -149,7 +164,7 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
                   </Button>
                 </div>
               )}
-              {!loading && searchTerm.trim().length < 2 && (
+              {!loading && safeSearchTerm.trim().length < 2 && (
                 <div className="p-6 text-center text-sm text-gray-500">
                   Escribe al menos 2 caracteres para buscar.
                 </div>

@@ -37,8 +37,8 @@ export const clientService = {
     if (response.error || !response.data?.items) return [];
     return response.data.items.map((c) => ({
       id: c.id,
-      name: c.display_name,
-      company: c.display_name,
+      name: String(c.display_name || ''),
+      company: String(c.display_name || ''),
       requester: c.requester_name ?? undefined,
       email: c.email ?? undefined,
     }));
@@ -62,8 +62,8 @@ export const clientService = {
     if (response.error || !response.data) return null;
     return {
       id: response.data.id,
-      name: response.data.display_name,
-      company: response.data.display_name,
+      name: String(response.data.display_name || ''),
+      company: String(response.data.display_name || ''),
       requester: response.data.requester_name ?? undefined,
       email: response.data.email ?? undefined,
     };
