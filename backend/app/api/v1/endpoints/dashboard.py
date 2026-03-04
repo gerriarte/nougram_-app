@@ -13,15 +13,35 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.tenant import get_tenant_context, TenantContext
 from app.core.permission_middleware import require_view_analytics
+from app.core.permissions import get_user_role
 from app.models.user import User
+from app.models.organization import Organization
 from app.models.project import Project, Quote
 from app.models.team import TeamMember
 from app.models.cost import CostFixed
 from app.core.calculations import calculate_blended_cost_rate
 from app.core.currency import normalize_to_primary_currency
 from app.core.money import Money
+from app.services.operational_cost_service import get_current_month_operational_costs
+from app.schemas.operational_cost import OperationalCostPayloadSchema
 
 router = APIRouter()
+
+# Operational dashboard: owner, admin_financiero, or super_admin only (plan: strict permissions)
+ALLOWED_OPERATIONAL_ROLES = {"owner", "admin_financiero", "super_admin"}
+
+
+async def require_operational_dashboard(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Require owner, admin_financiero, or super_admin for operational cost dashboard."""
+    role = get_user_role(current_user)
+    if role not in ALLOWED_OPERATIONAL_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This endpoint requires owner, admin_financiero, or super_admin role.",
+        )
+    return current_user
 
 
 @router.get("/kpis")
@@ -200,3 +220,78 @@ async def get_dashboard_kpis(
     cache.set(cache_key, response, ttl_seconds=120)
     
     return response
+
+
+@router.get("/operational-costs", response_model=OperationalCostPayloadSchema)
+async def get_operational_costs(
+    period: Optional[str] = Query(
+        "current_month",
+        description="Period: 'current_month' (only supported value for now)",
+    ),
+    organization_id: Optional[int] = Query(
+        None,
+        description="Optional organization id for super_admin scope",
+    ),
+    current_user: User = Depends(require_operational_dashboard),
+    db: AsyncSession = Depends(get_db),
+) -> OperationalCostPayloadSchema:
+    """
+    Get aggregated operational cost dashboard for the current month.
+
+    Single source of truth: all metrics come from backend; no client-side financial logic.
+    Returns resource costs (payroll + social charges), fixed costs, amortization,
+    tax costs, total operational cost, target margin, effective margin, and calculation metadata.
+
+    **Permissions:** owner, admin_financiero, or super_admin.
+    **Multitenancy:** Data is scoped to the tenant organization.
+    """
+    if period != "current_month":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only period=current_month is supported.",
+        )
+    role = get_user_role(current_user)
+    user_org_id = getattr(current_user, "organization_id", None)
+
+    # Strict multitenancy:
+    # - owner/admin_financiero can only read their own organization
+    # - super_admin can choose organization_id explicitly
+    if role == "super_admin":
+        resolved_org_id = organization_id or user_org_id
+        if resolved_org_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="super_admin must provide organization_id when no organization is assigned.",
+            )
+    else:
+        if user_org_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Tenant users must belong to an organization.",
+            )
+        if organization_id is not None and organization_id != user_org_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access your own organization data.",
+            )
+        resolved_org_id = user_org_id
+
+    org_result = await db.execute(
+        select(Organization).where(Organization.id == resolved_org_id)
+    )
+    org = org_result.scalar_one_or_none()
+    if org is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found.",
+        )
+
+    primary_currency = "USD"
+    if org and org.settings and org.settings.get("primary_currency"):
+        primary_currency = org.settings.get("primary_currency")
+    payload = await get_current_month_operational_costs(
+        db=db,
+        organization_id=resolved_org_id,
+        primary_currency=primary_currency,
+    )
+    return payload

@@ -15,7 +15,8 @@ import {
     PanelLeftClose,
     PanelLeftOpen,
     ShieldCheck,
-    Receipt
+    Receipt,
+    Calculator
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -33,12 +34,18 @@ export function AdminSidebar({ isCollapsed, onToggleCollapse }: AdminSidebarProp
         { label: 'Nueva Cotización', href: '/projects/new', icon: PlusCircle },
     ];
 
+    const allowedOperationalRoles = ['owner', 'admin_financiero', 'super_admin'];
+    const showOperationalCosts = user?.role && allowedOperationalRoles.includes(user.role);
+
     const BUSINESS_ITEMS = [
         { label: 'Dashboard & Pipeline', href: '/dashboard', icon: LayoutDashboard },
         { label: 'Gestión de Clientes', href: '/dashboard/clients', icon: UserCircle2 },
         { label: 'Nómina (Equipo)', href: '/admin/payroll', icon: UsersRound },
         { label: 'Overhead (Gastos)', href: '/admin/overhead', icon: Building2 },
         { label: 'Impuestos', href: '/admin/taxes', icon: Receipt },
+        ...(showOperationalCosts
+            ? [{ label: 'Costo operacional', href: '/dashboard/operational-costs', icon: Calculator }]
+            : []),
     ];
 
     return (

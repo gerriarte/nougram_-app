@@ -3,7 +3,7 @@ Main API router for v1
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, costs, team, services, quotes, projects, clients, insights, integrations, settings, taxes, maintenance, delete_requests, users, ai, organizations, templates, billing, stripe_webhooks, credits, support, invitations, expenses, sales_projection, annual_projection, onboarding
+from app.api.v1.endpoints import auth, costs, team, services, quotes, projects, clients, insights, integrations, settings, taxes, maintenance, delete_requests, users, ai, organizations, templates, billing, stripe_webhooks, credits, support, invitations, expenses, sales_projection, annual_projection, onboarding, dashboard
 
 api_router = APIRouter()
 
@@ -18,6 +18,7 @@ api_router.include_router(projects.router, prefix="/projects", tags=["projects"]
 api_router.include_router(clients.router, prefix="/clients", tags=["clients"])
 api_router.include_router(expenses.router, prefix="/projects", tags=["expenses"])
 api_router.include_router(insights.router, prefix="/insights", tags=["insights"])
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 api_router.include_router(taxes.router, prefix="/taxes", tags=["taxes"])
 api_router.include_router(maintenance.router, prefix="", tags=["maintenance"])
