@@ -7,11 +7,30 @@ export type CurrencySettingsResponse = {
 };
 
 export const settingsService = {
-  async getPrimaryCurrency(): Promise<string | null> {
+  async getCurrencySettings(): Promise<CurrencySettingsResponse | null> {
     const response = await apiRequest<CurrencySettingsResponse>('/settings/currency');
-    if (response.error || !response.data?.primary_currency) {
+    if (response.error || !response.data) {
       return null;
     }
-    return response.data.primary_currency;
+    return response.data;
+  },
+
+  async getPrimaryCurrency(): Promise<string | null> {
+    const settings = await this.getCurrencySettings();
+    if (!settings?.primary_currency) {
+      return null;
+    }
+    return settings.primary_currency;
+  },
+
+  async updatePrimaryCurrency(primaryCurrency: string): Promise<CurrencySettingsResponse | null> {
+    const response = await apiRequest<CurrencySettingsResponse>('/settings/currency', {
+      method: 'PUT',
+      body: JSON.stringify({ primary_currency: primaryCurrency }),
+    });
+    if (response.error || !response.data) {
+      return null;
+    }
+    return response.data;
   },
 };

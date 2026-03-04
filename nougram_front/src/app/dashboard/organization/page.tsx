@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Building2, ArrowLeft, Users, CreditCard, Hash, Save, RefreshCw } from 'lucide-react';
+import { Building2, ArrowLeft, Users, CreditCard, Hash, Save, RefreshCw, Coins } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { apiRequest } from '@/lib/api-client';
 import { useAuth } from '@/hooks/useAuth';
+import { settingsService } from '@/services/settingsService';
+import { useNougram } from '@/context/NougramCoreContext';
 
 type OrganizationResponse = {
   id: number;
@@ -19,17 +21,23 @@ type OrganizationResponse = {
 
 export default function OrganizationPage() {
   const { user } = useAuth();
+  const { updateIdentity } = useNougram();
   const [organization, setOrganization] = useState<OrganizationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   const [planDraft, setPlanDraft] = useState('free');
+  const [currencyDraft, setCurrencyDraft] = useState('COP');
+  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>(['COP', 'USD', 'EUR', 'ARS']);
   const [savingName, setSavingName] = useState(false);
   const [savingPlan, setSavingPlan] = useState(false);
+  const [savingCurrency, setSavingCurrency] = useState(false);
   const [nameMessage, setNameMessage] = useState<string | null>(null);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
+  const [currencyMessage, setCurrencyMessage] = useState<string | null>(null);
 
   const canManageSubscription = user?.role === 'owner' || user?.role === 'super_admin';
+  const canManageCurrency = user?.role === 'owner' || user?.role === 'super_admin';
 
   const PLAN_OPTIONS = [
     { value: 'free', label: 'Free' },
@@ -43,16 +51,26 @@ export default function OrganizationPage() {
       setLoading(true);
       setError(null);
 
-      const response = await apiRequest<OrganizationResponse>('/organizations/me');
-      if (response.error || !response.data) {
-        setError(response.error || 'No se pudo cargar la información de la empresa.');
+      const [organizationResponse, currencyResponse] = await Promise.all([
+        apiRequest<OrganizationResponse>('/organizations/me'),
+        settingsService.getCurrencySettings(),
+      ]);
+
+      if (organizationResponse.error || !organizationResponse.data) {
+        setError(organizationResponse.error || 'No se pudo cargar la información de la empresa.');
         setLoading(false);
         return;
       }
 
-      setOrganization(response.data);
-      setNameDraft(response.data.name || '');
-      setPlanDraft(response.data.subscription_plan || 'free');
+      setOrganization(organizationResponse.data);
+      setNameDraft(organizationResponse.data.name || '');
+      setPlanDraft(organizationResponse.data.subscription_plan || 'free');
+      if (currencyResponse?.primary_currency) {
+        setCurrencyDraft(currencyResponse.primary_currency);
+      }
+      if (currencyResponse?.available_currencies?.length) {
+        setAvailableCurrencies(currencyResponse.available_currencies);
+      }
       setLoading(false);
     };
 
@@ -82,6 +100,7 @@ export default function OrganizationPage() {
 
     setOrganization(response.data);
     setNameDraft(response.data.name);
+    updateIdentity({ name: response.data.name });
     setNameMessage('Nombre actualizado correctamente.');
   };
 
@@ -104,6 +123,25 @@ export default function OrganizationPage() {
     setOrganization(response.data);
     setPlanDraft(response.data.subscription_plan || 'free');
     setPlanMessage('Tipo de suscripción actualizado.');
+  };
+
+  const handleSaveCurrency = async () => {
+    setCurrencyMessage(null);
+    setSavingCurrency(true);
+    const updated = await settingsService.updatePrimaryCurrency(currencyDraft);
+    setSavingCurrency(false);
+
+    if (!updated) {
+      setCurrencyMessage('No se pudo actualizar la moneda principal.');
+      return;
+    }
+
+    updateIdentity({ primaryCurrency: updated.primary_currency as 'COP' | 'USD' | 'EUR' | 'ARS' | 'PEN' | 'MXN' });
+    setCurrencyDraft(updated.primary_currency);
+    if (updated.available_currencies?.length) {
+      setAvailableCurrencies(updated.available_currencies);
+    }
+    setCurrencyMessage('Moneda principal actualizada correctamente.');
   };
 
   return (
@@ -225,6 +263,46 @@ export default function OrganizationPage() {
                 Usuarios
               </p>
               <p className="text-lg font-bold text-gray-900">{organization.user_count ?? 0}</p>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-system-gray mb-1 flex items-center gap-1">
+                <Coins size={13} />
+                Moneda principal de operación
+              </p>
+              <div className="space-y-3">
+                <select
+                  value={currencyDraft}
+                  onChange={(event) => setCurrencyDraft(event.target.value)}
+                  disabled={!canManageCurrency}
+                  className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                >
+                  {availableCurrencies.map((currencyCode) => (
+                    <option key={currencyCode} value={currencyCode}>
+                      {currencyCode}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleSaveCurrency}
+                  disabled={savingCurrency || !canManageCurrency}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {savingCurrency ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                  Guardar moneda
+                </button>
+                {!canManageCurrency && (
+                  <p className="text-xs font-semibold text-amber-600">
+                    Solo Owner o Super Admin pueden cambiar la moneda principal.
+                  </p>
+                )}
+                {currencyMessage && (
+                  <p className={`text-xs font-semibold ${currencyMessage.includes('correctamente') ? 'text-green-600' : 'text-red-600'}`}>
+                    {currencyMessage}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}

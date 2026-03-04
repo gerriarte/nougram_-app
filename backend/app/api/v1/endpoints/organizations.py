@@ -1,7 +1,7 @@
 """
 Organization management endpoints
 """
-from datetime import timedelta
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -9,7 +9,7 @@ from typing import Optional
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import get_current_user, get_password_hash, create_access_token
+from app.core.security import get_current_user, get_password_hash
 from app.core.rate_limiting import limiter
 from app.core.tenant import get_tenant_context, TenantContext
 from app.core.exceptions import ResourceNotFoundError
@@ -434,60 +434,14 @@ async def register_organization(
         organization_id=org.id,
         role="owner",  # Always create as owner
         role_type="tenant",  # Tenant role type
-        email_verified=False,
-        email_verified_at=None,
+        email_verified=True,
+        email_verified_at=datetime.utcnow(),
     )
     
     db.add(admin_user)
     await db.commit()
     await db.refresh(admin_user)
 
-    # Send verification email (best effort, do not fail registration on email issues)
-    try:
-        from app.core.email import (
-            send_email,
-            generate_email_verification_email_html,
-            generate_email_verification_email_text,
-        )
-        expiration_minutes = int(getattr(settings, "EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES", 1440))
-        verification_token = create_access_token(
-            {
-                "sub": str(admin_user.id),
-                "email": admin_user.email,
-                "purpose": "email_verification",
-            },
-            expires_delta=timedelta(minutes=expiration_minutes),
-        )
-        verification_url = f"{settings.FRONTEND_URL.rstrip('/')}/verify-email?token={verification_token}"
-        verification_sent = await send_email(
-            to_email=admin_user.email,
-            subject="Verifica tu correo - Nougram",
-            body_html=generate_email_verification_email_html(
-                full_name=admin_user.full_name,
-                verification_url=verification_url,
-                expiration_minutes=expiration_minutes,
-            ),
-            body_text=generate_email_verification_email_text(
-                full_name=admin_user.full_name,
-                verification_url=verification_url,
-                expiration_minutes=expiration_minutes,
-            ),
-        )
-        if not verification_sent:
-            logger.warning(
-                "Email verification message could not be sent",
-                organization_id=org.id,
-                user_id=admin_user.id,
-                email=admin_user.email,
-            )
-    except Exception as exc:
-        logger.warning(
-            "Email verification failed with exception",
-            organization_id=org.id,
-            user_id=admin_user.id,
-            error=str(exc),
-        )
-    
     logger.info(f"Organization registered: {org.id} ({org.name}) with admin user {admin_user.id}")
     
     # Grant initial subscription credits
@@ -517,8 +471,8 @@ async def register_organization(
             "full_name": admin_user.full_name,
             "role": admin_user.role
         },
-        "requires_email_verification": True,
-        "message": "Revisa tu correo para verificar tu cuenta antes de iniciar sesion."
+        "requires_email_verification": False,
+        "message": "Cuenta creada correctamente. Ya puedes iniciar sesion."
     }
 
 

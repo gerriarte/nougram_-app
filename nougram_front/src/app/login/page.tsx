@@ -9,6 +9,22 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Alert } from '@/components/ui/Alert';
 import { useAuth } from '@/hooks/useAuth';
+import { apiRequest } from '@/lib/api-client';
+
+type OrganizationResponse = {
+  settings?: Record<string, unknown> | null;
+};
+
+async function resolveDefaultPostLoginRoute(): Promise<string> {
+  const orgResponse = await apiRequest<OrganizationResponse>('/organizations/me');
+  if (orgResponse.error || !orgResponse.data) {
+    return '/dashboard';
+  }
+  const onboardingCompleted = Boolean(
+    (orgResponse.data.settings as Record<string, unknown> | null | undefined)?.onboarding_completed
+  );
+  return onboardingCompleted ? '/dashboard' : '/onboarding';
+}
 
 function LoginPageContent() {
   const router = useRouter();
@@ -20,11 +36,17 @@ function LoginPageContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && isAuthenticated) {
-      const redirectParam = searchParams.get('redirect') || '/dashboard';
-      const safeRedirect = redirectParam.startsWith('/') ? redirectParam : '/dashboard';
-      router.replace(safeRedirect);
+    if (loading || !isAuthenticated) return;
+    const redirectParam = searchParams.get('redirect');
+    const redirectToParam = redirectParam && redirectParam.startsWith('/') ? redirectParam : null;
+    if (redirectToParam) {
+      router.replace(redirectToParam);
+      return;
     }
+    void (async () => {
+      const defaultRoute = await resolveDefaultPostLoginRoute();
+      router.replace(defaultRoute);
+    })();
   }, [loading, isAuthenticated, router, searchParams]);
 
   const onSubmit = async (event: React.FormEvent) => {
@@ -46,9 +68,14 @@ function LoginPageContent() {
       setError(result.error || 'Error al iniciar sesión');
       return;
     }
-    const redirectParam = searchParams.get('redirect') || '/dashboard';
-    const safeRedirect = redirectParam.startsWith('/') ? redirectParam : '/dashboard';
-    router.replace(safeRedirect);
+    const redirectParam = searchParams.get('redirect');
+    const redirectToParam = redirectParam && redirectParam.startsWith('/') ? redirectParam : null;
+    if (redirectToParam) {
+      router.replace(redirectToParam);
+      return;
+    }
+    const defaultRoute = await resolveDefaultPostLoginRoute();
+    router.replace(defaultRoute);
   };
 
   return (

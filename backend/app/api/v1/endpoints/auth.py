@@ -84,12 +84,6 @@ async def email_password_login(
             detail="Credenciales inválidas",
         )
 
-    if not bool(getattr(user, "email_verified", True)):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Debes verificar tu correo antes de iniciar sesión",
-        )
-
     from app.core.permissions import get_user_role, get_user_role_type
 
     # Validate organization_id based on role_type

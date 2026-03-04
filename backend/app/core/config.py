@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60
+    EMAIL_VERIFICATION_REQUIRED: bool = False
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
     
     # Google OAuth (opcional - vacío si no se usa)
     GOOGLE_CLIENT_ID: str = ""
