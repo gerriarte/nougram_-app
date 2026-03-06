@@ -44,6 +44,7 @@ from app.schemas.project import (
     ClientSearchResponse,
 )
 from app.schemas.quote import QuoteEmailRequest, QuoteEmailResponse, QuoteExpenseCreate, QuoteExpenseResponse
+from app.services.settings_service import SettingsService
 
 router = APIRouter()
 
@@ -350,9 +351,20 @@ async def update_project(
         raise ResourceNotFoundError("Project", project_id)
     
     update_data = project_data.model_dump(exclude_unset=True)
+    settings_service = SettingsService(db)
+    primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
     
     # Handle tax_ids separately
     tax_ids = update_data.pop("tax_ids", None)
+    if "currency" in update_data:
+        incoming_currency = update_data.get("currency")
+        if incoming_currency and incoming_currency != primary_currency:
+            logger.warning(
+                "Overriding project currency update with organization primary currency "
+                f"(project_id={project_id}, organization_id={tenant.organization_id}, "
+                f"incoming_currency={incoming_currency}, primary_currency={primary_currency})"
+            )
+        update_data["currency"] = primary_currency
     
     for field, value in update_data.items():
         setattr(project, field, value)
@@ -755,12 +767,17 @@ async def update_quote(
                 detail=f"Services with ids {list(missing)} not found or inactive"
             )
         
+        settings_service = SettingsService(db)
+        primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
+        if project.currency != primary_currency:
+            project.currency = primary_currency
+
         # Calculate blended cost rate
         org_settings = tenant.organization.settings if tenant.organization.settings else {}
         social_config = org_settings.get('social_charges_config') if org_settings else None
         blended_rate = await calculate_blended_cost_rate(
             db, 
-            project.currency, 
+            primary_currency,
             tenant_id=tenant.organization_id,
             social_charges_config=social_config
         )
@@ -797,7 +814,7 @@ async def update_quote(
             revisions_included=revisions_included,
             revision_cost_per_additional=revision_cost_per_additional,
             revisions_count=None,
-            currency=project.currency  # ESTÁNDAR NOUGRAM: Pasar moneda del proyecto para precisión
+            currency=primary_currency
         )
         
         # Delete old items

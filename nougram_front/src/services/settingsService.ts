@@ -1,9 +1,15 @@
 import { apiRequest } from '@/lib/api-client';
 
+export type CurrencyOption = {
+  code: string;
+  symbol: string;
+  name: string;
+};
+
 export type CurrencySettingsResponse = {
   primary_currency: string;
   currency_symbol: string;
-  available_currencies: string[];
+  available_currencies: CurrencyOption[];
 };
 
 export const settingsService = {

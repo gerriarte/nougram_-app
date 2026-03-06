@@ -40,10 +40,13 @@ class SettingsService:
         """
         if organization_id:
             org = await self.org_repo.get_by_id(organization_id)
-            if org and getattr(org, "settings", None) and isinstance(org.settings, dict):
-                primary = org.settings.get("primary_currency")
-                if primary:
+            if org and isinstance(getattr(org, "settings", None), dict):
+                # Backward-compat fallback: older tenants may still have only `currency`.
+                primary = org.settings.get("primary_currency") or org.settings.get("currency")
+                if primary and is_valid_currency(primary):
                     return primary
+            # Tenant-safe default: do not inherit another tenant's global override.
+            return "USD"
         default_settings = await self.settings_repo.get_or_create_default()
         return default_settings.primary_currency or "USD"
 
@@ -99,7 +102,9 @@ class SettingsService:
                     module="settings_service",
                     function="update_primary_currency",
                 )
-        default_settings = await self.settings_repo.get_or_create_default()
-        default_settings.primary_currency = currency
-        default_settings.currency_symbol = get_currency_symbol(currency)
-        await self.settings_repo.update(default_settings)
+        # Only update global defaults when this is a global operation.
+        if not organization_id:
+            default_settings = await self.settings_repo.get_or_create_default()
+            default_settings.primary_currency = currency
+            default_settings.currency_symbol = get_currency_symbol(currency)
+            await self.settings_repo.update(default_settings)

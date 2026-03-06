@@ -1454,6 +1454,8 @@ async def save_onboarding_config(
     
     if config_data.currency is not None:
         org.settings['currency'] = config_data.currency
+        # Keep canonical setting in sync for single-source currency enforcement.
+        org.settings['primary_currency'] = config_data.currency
     
     if config_data.profile_type is not None:
         org.settings['profile_type'] = config_data.profile_type

@@ -28,7 +28,7 @@ export default function OrganizationPage() {
   const [nameDraft, setNameDraft] = useState('');
   const [planDraft, setPlanDraft] = useState('free');
   const [currencyDraft, setCurrencyDraft] = useState('COP');
-  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>(['COP', 'USD', 'EUR', 'ARS']);
+  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>(['USD', 'COP', 'ARS', 'EUR', 'PEN', 'MXN']);
   const [savingName, setSavingName] = useState(false);
   const [savingPlan, setSavingPlan] = useState(false);
   const [savingCurrency, setSavingCurrency] = useState(false);
@@ -69,7 +69,12 @@ export default function OrganizationPage() {
         setCurrencyDraft(currencyResponse.primary_currency);
       }
       if (currencyResponse?.available_currencies?.length) {
-        setAvailableCurrencies(currencyResponse.available_currencies);
+        const codes = currencyResponse.available_currencies
+          .map((option) => option?.code)
+          .filter((code): code is string => Boolean(code));
+        if (codes.length) {
+          setAvailableCurrencies(codes);
+        }
       }
       setLoading(false);
     };
@@ -139,7 +144,12 @@ export default function OrganizationPage() {
     updateIdentity({ primaryCurrency: updated.primary_currency as 'COP' | 'USD' | 'EUR' | 'ARS' | 'PEN' | 'MXN' });
     setCurrencyDraft(updated.primary_currency);
     if (updated.available_currencies?.length) {
-      setAvailableCurrencies(updated.available_currencies);
+      const codes = updated.available_currencies
+        .map((option) => option?.code)
+        .filter((code): code is string => Boolean(code));
+      if (codes.length) {
+        setAvailableCurrencies(codes);
+      }
     }
     setCurrencyMessage('Moneda principal actualizada correctamente.');
   };

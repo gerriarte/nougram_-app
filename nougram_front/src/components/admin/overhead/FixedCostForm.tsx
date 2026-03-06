@@ -47,7 +47,7 @@ export function FixedCostForm({ open, onOpenChange, initialData, onSave }: Fixed
             alert('Por favor completa los campos requeridos.');
             return;
         }
-        onSave(formData);
+        onSave({ ...formData, currency: primaryCurrency as FixedCostInput['currency'] });
         onOpenChange(false);
     };
 

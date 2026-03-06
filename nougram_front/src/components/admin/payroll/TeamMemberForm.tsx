@@ -51,7 +51,7 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
             alert('Las horas facturables deben estar entre 0 y 80.');
             return;
         }
-        onSave(formData);
+        onSave({ ...formData, currency: primaryCurrency as TeamMemberInput['currency'] });
         onOpenChange(false);
     };
 

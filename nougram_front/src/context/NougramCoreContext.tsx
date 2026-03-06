@@ -86,6 +86,9 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
             country?: string;
         } | null;
     };
+    type CurrencySettingsResponse = {
+        primary_currency?: Currency;
+    };
 
     // Initial hydration from backend-only sources.
     useEffect(() => {
@@ -100,15 +103,21 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
 
     useEffect(() => {
         const hydrateOrganizationName = async () => {
-            const response = await apiRequest<OrganizationMeResponse>('/organizations/me');
-            if (response.error || !response.data) return;
-            const backendCurrency = response.data.settings?.primary_currency;
-            const backendCountry = response.data.settings?.country;
+            const [organizationResponse, currencyResponse] = await Promise.all([
+                apiRequest<OrganizationMeResponse>('/organizations/me'),
+                apiRequest<CurrencySettingsResponse>('/settings/currency'),
+            ]);
+            if (organizationResponse.error || !organizationResponse.data) return;
+            const backendCountry = organizationResponse.data.settings?.country;
+            const backendCurrency =
+                currencyResponse.data?.primary_currency ||
+                organizationResponse.data.settings?.primary_currency ||
+                organizationResponse.data.settings?.currency;
             setState((prev) => ({
                 ...prev,
                 identity: {
                     ...prev.identity,
-                    name: response.data?.name || prev.identity.name,
+                    name: organizationResponse.data?.name || prev.identity.name,
                     primaryCurrency: backendCurrency || prev.identity.primaryCurrency,
                     country: backendCountry || prev.identity.country,
                 },
