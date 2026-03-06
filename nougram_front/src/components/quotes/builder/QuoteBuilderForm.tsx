@@ -23,6 +23,7 @@ export function QuoteBuilderForm() {
     const { state, services, updateProjectInfo, addItem, summary, isValid, errors, saveQuote, paywall, clearPaywall } = useQuoteBuilder();
     const router = useRouter();
     const [selectedServiceId, setSelectedServiceId] = React.useState<string>('');
+    const [selectedBillingType, setSelectedBillingType] = React.useState<'' | 'hourly' | 'fixed' | 'recurring'>('');
 
     const handleSave = async (status: 'Draft' | 'Sent', continueToNextStep: boolean = false) => {
         if (!isValid && status === 'Sent') return;
@@ -39,21 +40,6 @@ export function QuoteBuilderForm() {
             alert(message);
         }
     };
-
-    const projectTypeOptions = Array.from(
-        services
-            .filter((service) => service.isActive)
-            .reduce((acc, service) => {
-                if (!acc.has(service.name)) {
-                    acc.set(service.name, {
-                        value: service.name,
-                        label: service.name,
-                    });
-                }
-                return acc;
-            }, new Map<string, { value: string; label: string }>())
-            .values()
-    );
 
     const activeServices = React.useMemo(
         () => services.filter((service) => service.isActive),
@@ -90,6 +76,16 @@ export function QuoteBuilderForm() {
 
     const selectedBillingModes = Array.from(
         new Set(state.items.map((item) => getBillingLabel(item.pricingType)))
+    );
+    const servicesByBilling = React.useMemo(
+        () => activeServices.filter((service) => {
+            if (!selectedBillingType) return true;
+            if (selectedBillingType === 'fixed') {
+                return service.pricingType === 'fixed' || service.pricingType === 'project_value';
+            }
+            return service.pricingType === selectedBillingType;
+        }),
+        [activeServices, selectedBillingType]
     );
 
     return (
@@ -144,7 +140,7 @@ export function QuoteBuilderForm() {
 
                     {/* Middle Row: Project Type */}
                     <div className="space-y-3">
-                        <label className="text-sm font-semibold text-gray-700">Tipo de Proyecto</label>
+                        <label className="text-sm font-semibold text-gray-700">Tipo de Proyecto (informativo)</label>
                         <Input
                             placeholder="Define el tipo de propuesta (editable)"
                             value={state.projectType || ''}
@@ -152,27 +148,8 @@ export function QuoteBuilderForm() {
                             className="bg-white"
                         />
                         <p className="text-xs text-gray-500">
-                            Referencias sugeridas (opcionales): puedes usarlas como ejemplo o escribir un tipo completamente personalizado.
+                            Este campo es para identificación interna y para contexto de IA en la propuesta comercial; no define la forma de cobro.
                         </p>
-                        <div className="flex flex-wrap gap-2">
-                            {projectTypeOptions.map((type) => {
-                                return (
-                                    <button
-                                        key={type.value}
-                                        type="button"
-                                        onClick={() => updateProjectInfo({ projectType: type.value })}
-                                        className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-200 hover:text-blue-700"
-                                    >
-                                        {type.label}
-                                    </button>
-                                )
-                            })}
-                            {projectTypeOptions.length === 0 && (
-                                <div className="col-span-full rounded-xl border border-dashed border-gray-200 p-4 text-xs text-gray-500">
-                                    No hay servicios activos para sugerir tipos. Puedes escribir un tipo personalizado.
-                                </div>
-                            )}
-                        </div>
                     </div>
 
                     {/* Bottom Row: Description */}
@@ -214,12 +191,26 @@ export function QuoteBuilderForm() {
                     {/* Quick Add Selector */}
                     <div className="flex w-full md:w-auto gap-2">
                         <select
+                            className="h-9 min-w-[190px] rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700"
+                            value={selectedBillingType}
+                            onChange={(e) => {
+                                const nextType = e.target.value as '' | 'hourly' | 'fixed' | 'recurring';
+                                setSelectedBillingType(nextType);
+                                setSelectedServiceId('');
+                            }}
+                        >
+                            <option value="">Tipo de cotización</option>
+                            <option value="hourly">Por hora</option>
+                            <option value="fixed">Precio fijo</option>
+                            <option value="recurring">Fee mensual</option>
+                        </select>
+                        <select
                             className="h-9 min-w-[220px] rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700"
                             value={selectedServiceId}
                             onChange={(e) => setSelectedServiceId(e.target.value)}
                         >
-                            <option value="">Selecciona un servicio</option>
-                            {activeServices.map((service) => (
+                            <option value="">{selectedBillingType ? 'Selecciona un servicio' : 'Primero elige tipo de cotización'}</option>
+                            {servicesByBilling.map((service) => (
                                 <option key={service.id} value={service.id}>
                                     {service.name} - {getBillingLabel(service.pricingType)}
                                 </option>
@@ -229,7 +220,7 @@ export function QuoteBuilderForm() {
                             size="sm"
                             variant="secondary"
                             onClick={addSelectedService}
-                            disabled={!selectedServiceId}
+                            disabled={!selectedServiceId || !selectedBillingType}
                             className="bg-white shadow-sm border-gray-200 hover:bg-gray-50"
                         >
                             + Agregar
