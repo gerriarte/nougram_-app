@@ -2,12 +2,15 @@
 Settings Service - Single point of access for organization and agency settings.
 Unifies currency/country resolution and validation (core/currency remains the validator).
 """
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.core.currency import get_currency_symbol, is_valid_currency
+from app.core.currency import EXCHANGE_RATES_TO_USD, get_currency_symbol, is_valid_currency
 from app.core.logging import get_logger
 from app.repositories.organization_repository import OrganizationRepository
 from app.repositories.settings_repository import SettingsRepository
@@ -25,6 +28,213 @@ class SettingsService:
         self.db = db
         self.org_repo = OrganizationRepository(db)
         self.settings_repo = SettingsRepository(db)
+
+    @staticmethod
+    def _quantize(value: Decimal, scale: int) -> Decimal:
+        return value.quantize(Decimal("1").scaleb(-scale), rounding=ROUND_HALF_UP)
+
+    def _convert_decimal(self, amount: Decimal, from_currency: str, to_currency: str, scale: int) -> Decimal:
+        from_code = (from_currency or "USD").upper()
+        to_code = (to_currency or "USD").upper()
+        if from_code == to_code:
+            return self._quantize(amount, scale)
+        from_rate = EXCHANGE_RATES_TO_USD.get(from_code)
+        to_rate = EXCHANGE_RATES_TO_USD.get(to_code)
+        if from_rate is None or to_rate is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported currency conversion: {from_code} -> {to_code}",
+            )
+        converted = (amount / Decimal(str(from_rate))) * Decimal(str(to_rate))
+        return self._quantize(converted, scale)
+
+    async def _normalize_team_members_currency(
+        self,
+        organization_id: int,
+        to_currency: str,
+    ) -> int:
+        from app.models.team import TeamMember
+
+        result = await self.db.execute(
+            select(TeamMember).where(TeamMember.organization_id == organization_id)
+        )
+        records = result.scalars().all()
+        updated = 0
+        for record in records:
+            record_currency = (record.currency or "").upper()
+            if record_currency == to_currency:
+                continue
+            if not is_valid_currency(record_currency):
+                continue
+            record.salary_monthly_brute = self._convert_decimal(
+                Decimal(str(record.salary_monthly_brute)),
+                record_currency,
+                to_currency,
+                scale=4,
+            )
+            record.currency = to_currency
+            updated += 1
+        return updated
+
+    async def _normalize_fixed_costs_currency(
+        self,
+        organization_id: int,
+        to_currency: str,
+    ) -> int:
+        from app.models.cost import CostFixed
+
+        result = await self.db.execute(
+            select(CostFixed).where(CostFixed.organization_id == organization_id)
+        )
+        records = result.scalars().all()
+        updated = 0
+        for record in records:
+            record_currency = (record.currency or "").upper()
+            if record_currency == to_currency:
+                continue
+            if not is_valid_currency(record_currency):
+                continue
+            record.amount_monthly = self._convert_decimal(
+                Decimal(str(record.amount_monthly)),
+                record_currency,
+                to_currency,
+                scale=4,
+            )
+            record.currency = to_currency
+            updated += 1
+        return updated
+
+    async def _normalize_equipment_currency(
+        self,
+        organization_id: int,
+        to_currency: str,
+    ) -> int:
+        from app.models.equipment import EquipmentAmortization
+
+        result = await self.db.execute(
+            select(EquipmentAmortization).where(EquipmentAmortization.organization_id == organization_id)
+        )
+        records = result.scalars().all()
+        updated = 0
+        for record in records:
+            record_currency = (record.currency or "").upper()
+            if record_currency == to_currency:
+                continue
+            if not is_valid_currency(record_currency):
+                continue
+            record.purchase_price = self._convert_decimal(
+                Decimal(str(record.purchase_price)),
+                record_currency,
+                to_currency,
+                scale=2,
+            )
+            record.salvage_value = self._convert_decimal(
+                Decimal(str(record.salvage_value)),
+                record_currency,
+                to_currency,
+                scale=2,
+            )
+            record.currency = to_currency
+            record.exchange_rate_at_purchase = None
+            updated += 1
+        return updated
+
+    async def _normalize_projects_quotes_currency(
+        self,
+        organization_id: int,
+        to_currency: str,
+    ) -> int:
+        from app.models.project import Project, Quote
+
+        result = await self.db.execute(
+            select(Project)
+            .options(
+                selectinload(Project.quotes).selectinload(Quote.items),
+                selectinload(Project.quotes).selectinload(Quote.expenses),
+            )
+            .where(Project.organization_id == organization_id)
+        )
+        projects = result.scalars().all()
+        updated = 0
+
+        for project in projects:
+            project_currency = (project.currency or "").upper()
+            if project_currency == to_currency:
+                continue
+            if not is_valid_currency(project_currency):
+                continue
+
+            project.currency = to_currency
+            updated += 1
+
+            for quote in project.quotes:
+                if quote.total_internal_cost is not None:
+                    quote.total_internal_cost = self._convert_decimal(
+                        Decimal(str(quote.total_internal_cost)),
+                        project_currency,
+                        to_currency,
+                        scale=4,
+                    )
+                if quote.total_client_price is not None:
+                    quote.total_client_price = self._convert_decimal(
+                        Decimal(str(quote.total_client_price)),
+                        project_currency,
+                        to_currency,
+                        scale=4,
+                    )
+                if quote.revision_cost_per_additional is not None:
+                    quote.revision_cost_per_additional = self._convert_decimal(
+                        Decimal(str(quote.revision_cost_per_additional)),
+                        project_currency,
+                        to_currency,
+                        scale=4,
+                    )
+
+                for item in quote.items:
+                    for attr in ("internal_cost", "client_price", "fixed_price", "recurring_price", "project_value"):
+                        value = getattr(item, attr, None)
+                        if value is None:
+                            continue
+                        setattr(
+                            item,
+                            attr,
+                            self._convert_decimal(
+                                Decimal(str(value)),
+                                project_currency,
+                                to_currency,
+                                scale=4,
+                            ),
+                        )
+
+                for expense in quote.expenses:
+                    if expense.cost is not None:
+                        expense.cost = self._convert_decimal(
+                            Decimal(str(expense.cost)),
+                            project_currency,
+                            to_currency,
+                            scale=4,
+                        )
+                    if expense.client_price is not None:
+                        expense.client_price = self._convert_decimal(
+                            Decimal(str(expense.client_price)),
+                            project_currency,
+                            to_currency,
+                            scale=4,
+                        )
+
+        return updated
+
+    async def _normalize_operational_currency_for_organization(
+        self,
+        organization_id: int,
+        to_currency: str,
+    ) -> dict[str, int]:
+        return {
+            "team_members": await self._normalize_team_members_currency(organization_id, to_currency),
+            "fixed_costs": await self._normalize_fixed_costs_currency(organization_id, to_currency),
+            "equipment": await self._normalize_equipment_currency(organization_id, to_currency),
+            "projects": await self._normalize_projects_quotes_currency(organization_id, to_currency),
+        }
 
     async def get_primary_currency(self, organization_id: Optional[int] = None) -> str:
         """
@@ -87,17 +297,30 @@ class SettingsService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid currency: {currency}. Supported: USD, COP, ARS, EUR, PEN, MXN"
             )
+        target_currency = currency.upper()
         if organization_id:
             org = await self.org_repo.get_by_id(organization_id)
             if org:
                 settings = org.settings if isinstance(getattr(org, "settings", None), dict) else {}
                 settings = dict(settings)
-                settings["primary_currency"] = currency
+                previous_currency = (settings.get("primary_currency") or settings.get("currency") or "USD").upper()
+                settings["primary_currency"] = target_currency
+                settings["currency"] = target_currency
                 org.settings = settings
+
+                if not is_valid_currency(previous_currency):
+                    previous_currency = "USD"
+                migration_summary = await self._normalize_operational_currency_for_organization(
+                    organization_id=organization_id,
+                    to_currency=target_currency,
+                )
+
                 await self.db.commit()
                 logger.info(
-                    "Organization currency settings updated",
-                    currency=currency,
+                    "Organization currency settings updated with automatic normalization",
+                    from_currency=previous_currency,
+                    to_currency=target_currency,
+                    migration_summary=migration_summary,
                     org_id=organization_id,
                     module="settings_service",
                     function="update_primary_currency",
@@ -105,6 +328,6 @@ class SettingsService:
         # Only update global defaults when this is a global operation.
         if not organization_id:
             default_settings = await self.settings_repo.get_or_create_default()
-            default_settings.primary_currency = currency
-            default_settings.currency_symbol = get_currency_symbol(currency)
+            default_settings.primary_currency = target_currency
+            default_settings.currency_symbol = get_currency_symbol(target_currency)
             await self.settings_repo.update(default_settings)
