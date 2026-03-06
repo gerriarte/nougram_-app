@@ -168,12 +168,12 @@ export function QuoteBuilderForm() {
                 </CardContent>
             </Card>
 
-            {/* 2. Items Manager */}
+            {/* 2. Billing Type Manager */}
             <div className="space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Servicios Incluidos</h2>
-                        <p className="text-gray-500 text-sm">Aquí también se conserva la forma de cobro del proyecto por servicio.</p>
+                        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Tipo de cotización</h2>
+                        <p className="text-gray-500 text-sm">Selecciona la modalidad de cobro y agrega los servicios correspondientes.</p>
                         {selectedBillingModes.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-2">
                                 {selectedBillingModes.map((mode) => (
@@ -234,7 +234,7 @@ export function QuoteBuilderForm() {
                         <div className="mx-auto w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
                             <PlusIcon className="text-gray-400" />
                         </div>
-                        <h3 className="text-lg font-medium text-gray-900">No has agregado servicios</h3>
+                        <h3 className="text-lg font-medium text-gray-900">No has agregado ítems de cotización</h3>
                         <p className="text-sm text-gray-500 mt-1">Selecciona el tipo de cotización y agrega servicios para comenzar la estimación.</p>
                     </div>
                 ) : (
