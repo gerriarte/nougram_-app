@@ -8,15 +8,16 @@ import { Step3ResourceConfiguration } from '@/components/quotes/steps/Step3Resou
 import { Step4Summary } from '@/components/quotes/steps/Step4Summary';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Save } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/utils';
+import { QuoteFlowStepper } from '@/components/quotes/QuoteFlowStepper';
 
 const STEPS = [
-    { id: 1, title: "Proyecto", component: Step1ProjectInfo },
-    { id: 2, title: "Servicios", component: Step2ServiceSelection },
-    { id: 3, title: "Recursos", component: Step3ResourceConfiguration },
-    { id: 4, title: "Resumen", component: Step4Summary },
+    { id: 1, title: 'Información del proyecto', component: Step1ProjectInfo },
+    { id: 2, title: 'Servicios y alcance', component: Step2ServiceSelection },
+    { id: 3, title: 'Estimación operativa', component: Step3ResourceConfiguration },
+    { id: 4, title: 'Validación final', component: Step4Summary },
 ];
 
 function QuoteWizardContent() {
@@ -46,8 +47,12 @@ function QuoteWizardContent() {
     const handleComplete = async () => {
         setIsSaving(true);
         try {
-            await saveQuote('Sent');
-            router.push('/dashboard');
+            const projectId = await saveQuote('Draft');
+            if (projectId) {
+                router.push(`/dashboard/quotes/${projectId}/next-step`);
+            } else {
+                router.push('/dashboard');
+            }
         } catch (error) {
             console.error("Error saving quote", error);
             alert("Error al guardar la cotización");
@@ -73,35 +78,33 @@ function QuoteWizardContent() {
                     </div>
 
                     {/* Progress Steps (Desktop) */}
-                    <div className="hidden md:flex items-center gap-1">
-                        {STEPS.map((s) => (
-                            <div key={s.id} className="flex items-center">
-                                <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors ${currentStepId === s.id ? 'bg-black text-white' : currentStepId > s.id ? 'text-black font-medium' : 'text-gray-400'}`}>
-                                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-xs ${currentStepId === s.id ? 'bg-white text-black' : currentStepId > s.id ? 'bg-black text-white' : 'border border-gray-300'}`}>
-                                        {currentStepId > s.id ? '✓' : s.id}
-                                    </span>
-                                    <span>{s.title}</span>
-                                </div>
-                                {s.id < STEPS.length && <div className="w-4 h-[1px] bg-gray-300 mx-1" />}
-                            </div>
-                        ))}
-                    </div>
+                    <QuoteFlowStepper
+                        className="hidden lg:block min-w-[520px]"
+                        gridClassName="grid grid-cols-4 gap-2"
+                        steps={STEPS.map((s) => ({ id: s.id, title: s.title }))}
+                        currentStepId={currentStepId}
+                    />
 
-                    <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                    <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full whitespace-nowrap">
                         Total: {formatCurrency(summary.totalClientPrice, state.currency)}
                     </div>
                 </div>
 
                 {/* Progress Bar (Mobile) */}
-                <div className="h-1 bg-gray-200 w-full md:hidden">
-                    <div
-                        className="h-full bg-blue-600 transition-all duration-300"
-                        style={{ width: `${progress}%` }}
-                    />
-                </div>
+                <QuoteFlowStepper
+                    className="px-4 md:hidden"
+                    gridClassName="hidden"
+                    steps={STEPS.map((s) => ({ id: s.id, title: s.title }))}
+                    currentStepId={currentStepId}
+                    showMobileProgress
+                    mobileProgressPercent={progress}
+                />
             </header>
 
             <main className={`mx-auto px-4 py-8 transition-all duration-300 ${currentStepId === 4 ? 'max-w-[95vw]' : 'max-w-5xl'}`}>
+                <div className="mb-4 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs text-gray-600">
+                    Paso {currentStepId} de {STEPS.length}: {STEPS[currentStepId - 1]?.title}
+                </div>
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={currentStepId}
@@ -115,30 +118,37 @@ function QuoteWizardContent() {
                 </AnimatePresence>
             </main>
 
-            {/* Footer Actions - Hide on Step 4 as Editor has its own controls, or keep as global Override */}
-            {currentStepId < 4 && (
-                <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-200 p-4 z-40">
-                    <div className="max-w-5xl mx-auto flex justify-between items-center">
-                        <Button
-                            variant="secondary"
-                            onClick={handleBack}
-                            className="glass-card hover:bg-white"
-                            disabled={isSaving}
-                        >
-                            {currentStepId === 1 ? 'Cancelar' : 'Atrás'}
-                        </Button>
+            <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-200 p-4 z-40">
+                <div className="max-w-5xl mx-auto flex justify-between items-center gap-3">
+                    <Button
+                        variant="secondary"
+                        onClick={handleBack}
+                        className="glass-card hover:bg-white"
+                        disabled={isSaving}
+                    >
+                        {currentStepId === 1 ? 'Cancelar' : 'Anterior'}
+                    </Button>
 
+                    {currentStepId < STEPS.length ? (
                         <Button
                             onClick={handleNext}
                             disabled={isSaving}
                             className={`text-white rounded-xl px-8 shadow-lg transition-colors bg-black hover:bg-gray-800 shadow-black/20`}
                         >
-                            Siguiente
+                            Continuar
                             <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
-                    </div>
+                    ) : (
+                        <Button
+                            onClick={handleComplete}
+                            disabled={isSaving || !isValid}
+                            className="text-white rounded-xl px-8 shadow-lg transition-colors bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                        >
+                            {isSaving ? 'Guardando...' : 'Guardar y pasar a propuesta'}
+                        </Button>
+                    )}
                 </div>
-            )}
+            </div>
         </div>
     );
 }

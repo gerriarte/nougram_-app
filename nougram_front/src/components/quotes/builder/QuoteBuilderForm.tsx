@@ -9,16 +9,20 @@ import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { QuoteItemRow } from './QuoteItemRow';
 import { ContingencySection } from './ContingencySection';
 import { ClientSelector } from './ClientSelector';
-import { Briefcase, FileText, Globe, Lightbulb, Megaphone, Monitor, Palette, Repeat, Calculator } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { PaywallModal } from '@/components/billing/PaywallModal';
+import { QuoteFlowStepper } from '@/components/quotes/QuoteFlowStepper';
+
+const QUOTE_FLOW_STEPS = [
+    { id: 1, title: 'Información del proyecto' },
+    { id: 2, title: 'Estimación unificada' },
+    { id: 3, title: 'Propuesta comercial' },
+];
 
 export function QuoteBuilderForm() {
     const { state, services, updateProjectInfo, addItem, summary, isValid, errors, saveQuote, paywall, clearPaywall } = useQuoteBuilder();
     const router = useRouter();
-    const hourlyService = services.find((s) => s.pricingType === 'hourly');
-    const fixedService = services.find((s) => s.pricingType === 'fixed');
-    const recurringService = services.find((s) => s.pricingType === 'recurring');
+    const [selectedServiceId, setSelectedServiceId] = React.useState<string>('');
 
     const handleSave = async (status: 'Draft' | 'Sent', continueToNextStep: boolean = false) => {
         if (!isValid && status === 'Sent') return;
@@ -36,20 +40,6 @@ export function QuoteBuilderForm() {
         }
     };
 
-    const inferProjectTypeIcon = (serviceName: string, pricingType?: string) => {
-        const name = serviceName.toLowerCase();
-
-        if (name.includes('marketing') || name.includes('ads') || name.includes('campa')) return Megaphone;
-        if (name.includes('ux') || name.includes('ui') || name.includes('dise')) return Palette;
-        if (name.includes('web')) return Globe;
-        if (name.includes('software') || name.includes('app') || name.includes('sistema')) return Monitor;
-        if (name.includes('brand') || name.includes('marca')) return Lightbulb;
-        if (name.includes('consult')) return Briefcase;
-        if (pricingType === 'recurring') return Repeat;
-        if (pricingType === 'project_value' || pricingType === 'fixed') return Calculator;
-        return FileText;
-    };
-
     const projectTypeOptions = Array.from(
         services
             .filter((service) => service.isActive)
@@ -58,12 +48,16 @@ export function QuoteBuilderForm() {
                     acc.set(service.name, {
                         value: service.name,
                         label: service.name,
-                        icon: inferProjectTypeIcon(service.name, service.pricingType),
                     });
                 }
                 return acc;
-            }, new Map<string, { value: string; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }>())
+            }, new Map<string, { value: string; label: string }>())
             .values()
+    );
+
+    const activeServices = React.useMemo(
+        () => services.filter((service) => service.isActive),
+        [services]
     );
 
     const normalizeOptionalText = (value: unknown): string => {
@@ -74,29 +68,22 @@ export function QuoteBuilderForm() {
         return trimmed;
     };
 
-    const jumpToSection = (id: string) => {
-        if (typeof window === 'undefined') return;
-        const target = document.getElementById(id);
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const addSelectedService = () => {
+        const parsedId = Number(selectedServiceId);
+        if (!Number.isFinite(parsedId) || parsedId <= 0) return;
+        addItem(parsedId);
+        setSelectedServiceId('');
     };
 
     return (
         <>
         <div className="space-y-8 pb-12 max-w-5xl mx-auto">
-            <div className="sticky top-2 z-20 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur p-3 shadow-sm">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Flujo de cotización</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <Button type="button" variant="secondary" className="justify-start" onClick={() => jumpToSection('quote-client-section')}>
-                        1. Cliente
-                    </Button>
-                    <Button type="button" variant="secondary" className="justify-start" onClick={() => jumpToSection('quote-proposal-type-section')}>
-                        2. Tipo de propuesta
-                    </Button>
-                    <Button type="button" variant="secondary" className="justify-start" onClick={() => jumpToSection('quote-final-proposal-summary')}>
-                        3. Propuesta final
-                    </Button>
-                </div>
-            </div>
+            <QuoteFlowStepper
+                className="sticky top-2 z-20 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur p-3 shadow-sm"
+                label="Flujo de cotización"
+                steps={QUOTE_FLOW_STEPS}
+                currentStepId={1}
+            />
             {/* 1. Project Info */}
             <Card className="overflow-hidden border-none shadow-xl bg-white/80 backdrop-blur-2xl">
                 <CardHeader className="bg-gray-50/50 border-b border-gray-100 flex flex-row justify-between items-start">
@@ -122,7 +109,7 @@ export function QuoteBuilderForm() {
                                 className="bg-white"
                             />
                         </div>
-                        <div className="space-y-3" id="quote-client-section">
+                        <div className="space-y-3">
                             <label className="text-sm font-semibold text-gray-700">Cliente</label>
                             <ClientSelector
                                 value={normalizeOptionalText(state.clientCompany) || normalizeOptionalText(state.clientName)}
@@ -139,32 +126,27 @@ export function QuoteBuilderForm() {
                     </div>
 
                     {/* Middle Row: Project Type */}
-                    <div className="space-y-3" id="quote-proposal-type-section">
+                    <div className="space-y-3">
                         <label className="text-sm font-semibold text-gray-700">Tipo de Proyecto</label>
                         <Input
-                            placeholder="Escribe o ajusta el nombre del tipo de proyecto"
+                            placeholder="Define el tipo de propuesta (editable)"
                             value={state.projectType || ''}
                             onChange={(e) => updateProjectInfo({ projectType: e.target.value })}
                             className="bg-white"
                         />
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                        <p className="text-xs text-gray-500">
+                            Referencias sugeridas (opcionales): puedes usarlas como ejemplo o escribir un tipo completamente personalizado.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
                             {projectTypeOptions.map((type) => {
-                                const Icon = type.icon;
-                                const isSelected = state.projectType === type.value;
                                 return (
                                     <button
                                         key={type.value}
+                                        type="button"
                                         onClick={() => updateProjectInfo({ projectType: type.value })}
-                                        className={`
-                                            flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-200
-                                            ${isSelected
-                                                ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm ring-1 ring-blue-200'
-                                                : 'bg-white border-gray-100 text-gray-500 hover:border-gray-200 hover:bg-gray-50'
-                                            }
-                                        `}
+                                        className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-200 hover:text-blue-700"
                                     >
-                                        <Icon size={20} className={`mb-2 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
-                                        <span className="text-xs font-medium text-center leading-tight">{type.label}</span>
+                                        {type.label}
                                     </button>
                                 )
                             })}
@@ -188,6 +170,9 @@ export function QuoteBuilderForm() {
                             value={state.projectDescription}
                             onChange={e => updateProjectInfo({ projectDescription: e.target.value })}
                         />
+                        <p className="text-xs text-gray-500">
+                            Este brief alimenta la generación de la propuesta comercial en el siguiente paso luego de cotizar.
+                        </p>
                     </div>
                 </CardContent>
             </Card>
@@ -197,14 +182,32 @@ export function QuoteBuilderForm() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Servicios Incluidos</h2>
-                        <p className="text-gray-500 text-sm">Define el alcance y costos del proyecto.</p>
+                        <p className="text-gray-500 text-sm">Construye una sola estimación de proyecto sin separar el flujo por tipo.</p>
                     </div>
 
                     {/* Quick Add Selector */}
-                    <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="secondary" onClick={() => hourlyService && addItem(hourlyService.id)} disabled={!hourlyService} className="bg-white shadow-sm border-gray-200 hover:bg-gray-50">+ Horas</Button>
-                        <Button size="sm" variant="secondary" onClick={() => fixedService && addItem(fixedService.id)} disabled={!fixedService} className="bg-white shadow-sm border-gray-200 hover:bg-gray-50">+ Fijo</Button>
-                        <Button size="sm" variant="secondary" onClick={() => recurringService && addItem(recurringService.id)} disabled={!recurringService} className="bg-white shadow-sm border-gray-200 hover:bg-gray-50">+ Recurrente</Button>
+                    <div className="flex w-full md:w-auto gap-2">
+                        <select
+                            className="h-9 min-w-[220px] rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700"
+                            value={selectedServiceId}
+                            onChange={(e) => setSelectedServiceId(e.target.value)}
+                        >
+                            <option value="">Selecciona un servicio</option>
+                            {activeServices.map((service) => (
+                                <option key={service.id} value={service.id}>
+                                    {service.name}
+                                </option>
+                            ))}
+                        </select>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={addSelectedService}
+                            disabled={!selectedServiceId}
+                            className="bg-white shadow-sm border-gray-200 hover:bg-gray-50"
+                        >
+                            + Agregar
+                        </Button>
                     </div>
                 </div>
 
@@ -214,7 +217,7 @@ export function QuoteBuilderForm() {
                             <PlusIcon className="text-gray-400" />
                         </div>
                         <h3 className="text-lg font-medium text-gray-900">No has agregado servicios</h3>
-                        <p className="text-sm text-gray-500 mt-1">Selecciona una opción arriba para comenzar a construir la cotización.</p>
+                        <p className="text-sm text-gray-500 mt-1">Selecciona un servicio para comenzar a construir la estimación.</p>
                     </div>
                 ) : (
                     <div className="space-y-4">

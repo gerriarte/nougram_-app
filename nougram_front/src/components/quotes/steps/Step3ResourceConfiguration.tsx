@@ -18,16 +18,17 @@ export function Step3ResourceConfiguration() {
         return (
             <div className="text-center py-12">
                 <p className="text-gray-500">No has seleccionado servicios configurables aún.</p>
-                <p className="text-sm text-gray-400 mt-2">Prueba seleccionar un servicio por horas en el paso anterior.</p>
+                <p className="text-sm text-gray-400 mt-2">Selecciona al menos un servicio en el paso anterior para continuar con la estimación.</p>
             </div>
         );
     }
 
     return (
         <div className="space-y-6">
-            <div className="text-center space-y-2 mb-8">
-                <h2 className="text-2xl font-bold tracking-tight">Configuración de Recursos</h2>
-                <p className="text-gray-500">Ajusta las horas o cantidades para cada servicio.</p>
+            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">Paso 3</p>
+                <h2 className="text-xl font-bold tracking-tight text-gray-900">Estimación operativa</h2>
+                <p className="text-sm text-gray-600">Ajusta esfuerzo, cantidades y recursos para consolidar el costo del proyecto.</p>
             </div>
 
             <motion.div

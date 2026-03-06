@@ -110,7 +110,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                             </div>
                         )}
                         <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
-                            {item.pricingType.replace('_', ' ')}
+                            Unidad de estimación del proyecto
                         </span>
                     </div>
                 </div>
@@ -123,7 +123,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                         <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                             <div className="flex justify-between items-center mb-3">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                    Recursos {item.pricingType === 'recurring' ? '(Mensual)' : ''}
+                                    Recursos estimados {item.pricingType === 'recurring' ? '(mensual)' : ''}
                                 </label>
                                 {item.pricingType === 'hourly' && (
                                     <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
@@ -180,7 +180,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                 {item.pricingType === 'hourly' && (
                                     <div className="mb-3 flex items-center justify-between gap-2">
                                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                            Horas estimadas (si no asignas recursos)
+                                            Esfuerzo base (si no asignas recursos)
                                         </label>
                                         <Input
                                             type="number"

@@ -10,7 +10,7 @@ export function Step2ServiceSelection() {
     const availableServices: ServiceItem[] = services.map(s => ({
         id: s.id,
         name: s.name,
-        description: s.pricingType === 'hourly' ? 'Facturación por horas.' : 'Precio fijo o recurrente.',
+        description: s.description || 'Componente de la estimación de tu proyecto.',
         defaultPrice: 0 // Not relevant for selection per se, logic handled in context
     }));
 
@@ -29,9 +29,10 @@ export function Step2ServiceSelection() {
 
     return (
         <div className="space-y-6">
-            <div className="text-center space-y-2 mb-8">
-                <h2 className="text-2xl font-bold tracking-tight">Selecciona los Servicios</h2>
-                <p className="text-gray-500">¿Qué incluye esta propuesta?</p>
+            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">Paso 2</p>
+                <h2 className="text-xl font-bold tracking-tight text-gray-900">Servicios y alcance</h2>
+                <p className="text-sm text-gray-600">Selecciona los componentes de una única estimación del proyecto.</p>
             </div>
 
             <ServiceBentoGrid

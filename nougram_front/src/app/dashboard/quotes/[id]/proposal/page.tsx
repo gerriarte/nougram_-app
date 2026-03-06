@@ -6,6 +6,7 @@ import { ProposalBuilderHybrid } from '@/components/quotes/ProposalBuilderHybrid
 import { quoteService } from '@/services/quoteService';
 import { proposalService, ProposalBody, ProposalDocument } from '@/services/proposalService';
 import { Quote } from '@/components/dashboard/QuoteCard';
+import { getQuoteEditorMeta } from '@/lib/quote-editor-meta';
 
 export default function ProposalBuilderPage() {
     const router = useRouter();
@@ -74,12 +75,19 @@ export default function ProposalBuilderPage() {
         );
     }
 
+    const editorMeta = getQuoteEditorMeta(id);
+    const initialProposalBody: ProposalBody | undefined = proposal?.body_json ?? (
+        editorMeta.projectDescription
+            ? { description: editorMeta.projectDescription }
+            : undefined
+    );
+
     return (
         <ProposalBuilderHybrid
             projectId={id}
             projectName={quote.project}
             initialTitle={proposal?.title ?? `Propuesta comercial - ${quote.project}`}
-            initialBody={proposal?.body_json}
+            initialBody={initialProposalBody}
             initialProposalId={proposal?.id}
             onSave={handleSave}
             onContinueToSend={() => router.push(`/dashboard/quotes/${id}/send`)}

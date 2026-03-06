@@ -69,6 +69,9 @@ export default function QuoteNextStepPage() {
                         <p className="text-gray-700">
                             Opcionalmente puedes construir una <strong>propuesta comercial</strong> (descripción, objetivos, entregables, alcance) para que el cliente reciba un documento claro junto con la cotización.
                         </p>
+                        <p className="text-sm text-gray-500">
+                            La descripción de la solicitud que cargaste durante la cotización se usa como base inicial para este paso con IA.
+                        </p>
                         <div className="flex flex-col sm:flex-row gap-4 pt-4">
                             <Button
                                 className="flex-1 bg-[#1D1D1F] text-white hover:bg-gray-800 flex items-center justify-center gap-2"

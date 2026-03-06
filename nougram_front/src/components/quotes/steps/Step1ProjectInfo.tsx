@@ -12,9 +12,10 @@ export function Step1ProjectInfo() {
 
     return (
         <div className="space-y-6">
-            <div className="text-center space-y-2 mb-8">
-                <h2 className="text-2xl font-bold tracking-tight">Información del Proyecto</h2>
-                <p className="text-gray-500">Comencemos por definir los detalles básicos.</p>
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">Paso 1</p>
+                <h2 className="text-xl font-bold tracking-tight text-blue-900">Información del proyecto</h2>
+                <p className="text-sm text-blue-800/80">Define el contexto inicial de la estimación y del cliente.</p>
             </div>
 
             <motion.div
@@ -60,6 +61,9 @@ export function Step1ProjectInfo() {
                             <Label>Moneda de operación</Label>
                             <Input value={state.currency} disabled className="glass-input" />
                         </div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-white/70 px-3 py-2 text-xs text-gray-600">
+                        El tipo de proyecto y la descripción se usarán en el paso siguiente para construir la propuesta comercial con IA.
                     </div>
                 </Card>
             </motion.div>

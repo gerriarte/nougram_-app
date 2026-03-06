@@ -46,9 +46,10 @@ export function Step4Summary() {
 
     return (
         <div className="space-y-6">
-            <div className="text-center space-y-2 mb-8">
-                <h2 className="text-2xl font-bold tracking-tight">Resumen y Cierre</h2>
-                <p className="text-gray-500">Revisa los detalles finales antes de confirmar.</p>
+            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">Paso 4</p>
+                <h2 className="text-xl font-bold tracking-tight text-gray-900">Validación final</h2>
+                <p className="text-sm text-gray-600">Verifica el cierre financiero antes de pasar a la propuesta comercial asistida por IA.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -132,7 +133,7 @@ export function Step4Summary() {
                         </div>
 
                         <div className="mt-4 flex justify-end">
-                            <span className="text-xs text-gray-400">Basado en BCR y datos de Nougram</span>
+                            <span className="text-xs text-gray-400">El siguiente paso usa este contexto para redactar la propuesta comercial.</span>
                         </div>
                     </Card>
                 </div>

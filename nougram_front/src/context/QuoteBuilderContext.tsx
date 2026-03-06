@@ -13,6 +13,7 @@ import { resourceService } from '@/services/resourceService';
 import { pricingService } from '@/services/pricingService';
 import { CreditsRequiredError } from '@/lib/errors';
 import type { PaywallReason } from '@/components/billing/PaywallModal';
+import { getQuoteEditorMeta, saveQuoteEditorMeta } from '@/lib/quote-editor-meta';
 
 // --- INITIAL STATE ---
 const INITIAL_STATE: QuoteBuilderState = {
@@ -43,28 +44,12 @@ const PROJECT_TYPES = [
     'Otro',
 ];
 
-type QuoteEditorMeta = {
-    projectType?: string;
-    projectDescription?: string;
-};
-
 function normalizeOptionalText(value: unknown): string {
     if (typeof value !== 'string') return '';
     const trimmed = value.trim();
     if (!trimmed) return '';
     if (trimmed.toLowerCase() === 'undefined' || trimmed.toLowerCase() === 'null') return '';
     return trimmed;
-}
-
-function saveQuoteEditorMeta(projectId: string, meta: QuoteEditorMeta) {
-    // Metadata is no longer persisted in browser storage.
-    void projectId;
-    void meta;
-}
-
-function getQuoteEditorMeta(projectId: string): QuoteEditorMeta {
-    void projectId;
-    return {};
 }
 
 interface QuoteBuilderContextType {
@@ -212,16 +197,10 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         const service = services.find(s => s.id === serviceId);
         if (!service) return;
 
-        // Dynamic Name based on Project Type + Service Name
-        // E.g. "Desarrollo Web - Desarrollo Frontend"
-        const initialName = state.projectType
-            ? `${state.projectType} - ${service.name}`
-            : service.name;
-
         const newItem: QuoteItem = {
             id: crypto.randomUUID(),
             serviceId: service.id,
-            serviceName: initialName, // Start with dynamic name
+            serviceName: service.name,
             pricingType: service.pricingType,
             quantity: 1,
             estimatedHours: service.pricingType === 'hourly' ? 10 : undefined,
