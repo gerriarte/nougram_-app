@@ -1418,9 +1418,8 @@ async def save_onboarding_config(
             detail="You don't have permission to update this organization's configuration"
         )
     
-    # Initialize settings if None
-    if org.settings is None:
-        org.settings = {}
+    # Work on a copied dict to ensure JSON persistence is tracked by SQLAlchemy.
+    updated_settings = dict(org.settings) if isinstance(org.settings, dict) else {}
     
     # Calculate total percentage for social charges if provided
     if config_data.social_charges_config:
@@ -1443,22 +1442,24 @@ async def save_onboarding_config(
             )
             social_config['total_percentage'] = total
         
-        org.settings['social_charges_config'] = social_config
+        updated_settings['social_charges_config'] = social_config
     
     # Store other onboarding data
     if config_data.tax_structure is not None:
-        org.settings['tax_structure'] = config_data.tax_structure
+        updated_settings['tax_structure'] = config_data.tax_structure
     
     if config_data.country is not None:
-        org.settings['country'] = config_data.country
+        updated_settings['country'] = config_data.country
     
     if config_data.currency is not None:
-        org.settings['currency'] = config_data.currency
+        updated_settings['currency'] = config_data.currency
         # Keep canonical setting in sync for single-source currency enforcement.
-        org.settings['primary_currency'] = config_data.currency
+        updated_settings['primary_currency'] = config_data.currency
     
     if config_data.profile_type is not None:
-        org.settings['profile_type'] = config_data.profile_type
+        updated_settings['profile_type'] = config_data.profile_type
+
+    org.settings = updated_settings
     
     await db.commit()
     await db.refresh(org)
