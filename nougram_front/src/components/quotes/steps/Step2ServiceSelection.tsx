@@ -5,13 +5,26 @@ import { ServiceBentoGrid, ServiceItem } from '../ServiceBentoGrid';
 
 export function Step2ServiceSelection() {
     const { state, services, addItem, removeItem } = useQuoteBuilder();
+    const getBillingLabel = (pricingType: string) => {
+        switch (pricingType) {
+            case 'hourly':
+                return 'Por hora';
+            case 'recurring':
+                return 'Fee mensual';
+            case 'fixed':
+            case 'project_value':
+            default:
+                return 'Precio fijo';
+        }
+    };
 
     // Map QuoteBuilder services to BentoGrid items
     const availableServices: ServiceItem[] = services.map(s => ({
         id: s.id,
         name: s.name,
         description: s.description || 'Componente de la estimación de tu proyecto.',
-        defaultPrice: 0 // Not relevant for selection per se, logic handled in context
+        defaultPrice: 0, // Not relevant for selection per se, logic handled in context
+        billingLabel: getBillingLabel(s.pricingType),
     }));
 
     const selectedServiceIds = state.items.map(i => i.serviceId);

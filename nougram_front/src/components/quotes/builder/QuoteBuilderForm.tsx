@@ -75,6 +75,23 @@ export function QuoteBuilderForm() {
         setSelectedServiceId('');
     };
 
+    const getBillingLabel = (pricingType: string) => {
+        switch (pricingType) {
+            case 'hourly':
+                return 'Por hora';
+            case 'recurring':
+                return 'Fee mensual';
+            case 'fixed':
+            case 'project_value':
+            default:
+                return 'Precio fijo';
+        }
+    };
+
+    const selectedBillingModes = Array.from(
+        new Set(state.items.map((item) => getBillingLabel(item.pricingType)))
+    );
+
     return (
         <>
         <div className="space-y-8 pb-12 max-w-5xl mx-auto">
@@ -182,7 +199,16 @@ export function QuoteBuilderForm() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Servicios Incluidos</h2>
-                        <p className="text-gray-500 text-sm">Construye una sola estimación de proyecto sin separar el flujo por tipo.</p>
+                        <p className="text-gray-500 text-sm">Aquí también se conserva la forma de cobro del proyecto por servicio.</p>
+                        {selectedBillingModes.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {selectedBillingModes.map((mode) => (
+                                    <span key={mode} className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600">
+                                        {mode}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Quick Add Selector */}
@@ -195,7 +221,7 @@ export function QuoteBuilderForm() {
                             <option value="">Selecciona un servicio</option>
                             {activeServices.map((service) => (
                                 <option key={service.id} value={service.id}>
-                                    {service.name}
+                                    {service.name} - {getBillingLabel(service.pricingType)}
                                 </option>
                             ))}
                         </select>

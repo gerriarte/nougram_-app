@@ -67,6 +67,18 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
     const estimatedProjectHours = effectiveHours * durationMultiplier;
     const blendedRate = Number(coreState.financials.bcr || 0);
     const totalResourceCost = effectiveHours * blendedRate * durationMultiplier;
+    const billingLabel = (() => {
+        switch (item.pricingType) {
+            case 'hourly':
+                return 'Por hora';
+            case 'recurring':
+                return 'Fee mensual';
+            case 'fixed':
+            case 'project_value':
+            default:
+                return 'Precio fijo';
+        }
+    })();
 
     return (
         <Card className="p-5 bg-white border border-gray-100 shadow-sm relative group transition-all hover:shadow-md hover:border-gray-200">
@@ -110,7 +122,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                             </div>
                         )}
                         <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
-                            Unidad de estimación del proyecto
+                            Forma de cobro: {billingLabel}
                         </span>
                     </div>
                 </div>

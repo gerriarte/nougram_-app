@@ -8,6 +8,7 @@ export interface ServiceItem {
     name: string;
     description?: string;
     defaultPrice: number;
+    billingLabel?: string;
 }
 
 interface ServiceBentoGridProps {
@@ -50,9 +51,16 @@ export function ServiceBentoGrid({ services, selectedIds, onToggle, className }:
                         )}
                     >
                         <div className="flex justify-between items-start z-10">
-                            <h3 className={cn("font-bold text-lg", isSelected ? "text-blue-600" : "text-gray-900")}>
-                                {service.name}
-                            </h3>
+                            <div className="space-y-1">
+                                <h3 className={cn("font-bold text-lg", isSelected ? "text-blue-600" : "text-gray-900")}>
+                                    {service.name}
+                                </h3>
+                                {service.billingLabel && (
+                                    <span className="inline-flex rounded-full border border-gray-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                                        {service.billingLabel}
+                                    </span>
+                                )}
+                            </div>
                             <div className={cn(
                                 "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
                                 isSelected ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-500"
