@@ -22,7 +22,6 @@ const QUOTE_FLOW_STEPS = [
 export function QuoteBuilderForm() {
     const { state, services, updateProjectInfo, addItem, summary, isValid, errors, saveQuote, paywall, clearPaywall } = useQuoteBuilder();
     const router = useRouter();
-    const [selectedServiceId, setSelectedServiceId] = React.useState<string>('');
     const [selectedBillingType, setSelectedBillingType] = React.useState<'' | 'hourly' | 'fixed' | 'recurring'>('');
 
     const handleSave = async (status: 'Draft' | 'Sent', continueToNextStep: boolean = false) => {
@@ -54,12 +53,10 @@ export function QuoteBuilderForm() {
         return trimmed;
     };
 
-    const addSelectedService = () => {
-        const parsedId = Number(selectedServiceId);
-        if (!Number.isFinite(parsedId) || parsedId <= 0) return;
-        addItem(parsedId);
-        setSelectedServiceId('');
-    };
+    const selectedServiceIds = React.useMemo(
+        () => new Set(state.items.map((item) => item.serviceId)),
+        [state.items]
+    );
 
     const getBillingLabel = (pricingType: string) => {
         switch (pricingType) {
@@ -196,7 +193,6 @@ export function QuoteBuilderForm() {
                             onChange={(e) => {
                                 const nextType = e.target.value as '' | 'hourly' | 'fixed' | 'recurring';
                                 setSelectedBillingType(nextType);
-                                setSelectedServiceId('');
                             }}
                         >
                             <option value="">Tipo de cotización</option>
@@ -204,29 +200,33 @@ export function QuoteBuilderForm() {
                             <option value="fixed">Precio fijo</option>
                             <option value="recurring">Fee mensual</option>
                         </select>
-                        <select
-                            className="h-9 min-w-[220px] rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700"
-                            value={selectedServiceId}
-                            onChange={(e) => setSelectedServiceId(e.target.value)}
-                            disabled={!selectedBillingType}
-                        >
-                            <option value="">{selectedBillingType ? 'Selecciona un servicio' : 'Primero elige tipo de cotización'}</option>
-                            {servicesByBilling.map((service) => (
-                                <option key={service.id} value={service.id}>
-                                    {service.name} - {getBillingLabel(service.pricingType)}
-                                </option>
-                            ))}
-                        </select>
-                        <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={addSelectedService}
-                            disabled={!selectedServiceId || !selectedBillingType}
-                            className="bg-white shadow-sm border-gray-200 hover:bg-gray-50"
-                        >
-                            + Agregar
-                        </Button>
                     </div>
+                </div>
+                <div className="rounded-xl border border-dashed border-gray-200 bg-white/70 p-3">
+                    {!selectedBillingType ? (
+                        <p className="text-xs text-gray-500">Primero elige el tipo de cotización para ver los servicios disponibles.</p>
+                    ) : servicesByBilling.length === 0 ? (
+                        <p className="text-xs text-gray-500">No hay servicios configurados para este tipo de cotización.</p>
+                    ) : (
+                        <div className="flex flex-wrap gap-2">
+                            {servicesByBilling.map((service) => {
+                                const alreadyAdded = selectedServiceIds.has(service.id);
+                                return (
+                                    <Button
+                                        key={service.id}
+                                        size="sm"
+                                        type="button"
+                                        variant={alreadyAdded ? 'outline' : 'secondary'}
+                                        disabled={alreadyAdded}
+                                        onClick={() => addItem(service.id)}
+                                        className="bg-white shadow-sm border-gray-200 hover:bg-gray-50"
+                                    >
+                                        {alreadyAdded ? 'Agregado' : '+ Agregar'} {service.name}
+                                    </Button>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 {state.items.length === 0 ? (
@@ -235,7 +235,7 @@ export function QuoteBuilderForm() {
                             <PlusIcon className="text-gray-400" />
                         </div>
                         <h3 className="text-lg font-medium text-gray-900">No has agregado servicios</h3>
-                        <p className="text-sm text-gray-500 mt-1">Selecciona un servicio para comenzar a construir la estimación.</p>
+                        <p className="text-sm text-gray-500 mt-1">Selecciona el tipo de cotización y agrega servicios para comenzar la estimación.</p>
                     </div>
                 ) : (
                     <div className="space-y-4">
