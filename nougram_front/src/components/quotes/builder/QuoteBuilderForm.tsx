@@ -79,7 +79,7 @@ export function QuoteBuilderForm() {
     );
     const servicesByBilling = React.useMemo(
         () => activeServices.filter((service) => {
-            if (!selectedBillingType) return true;
+            if (!selectedBillingType) return false;
             if (selectedBillingType === 'fixed') {
                 return service.pricingType === 'fixed' || service.pricingType === 'project_value';
             }
@@ -148,7 +148,7 @@ export function QuoteBuilderForm() {
                             className="bg-white"
                         />
                         <p className="text-xs text-gray-500">
-                            Este campo es para identificación interna y para contexto de IA en la propuesta comercial; no define la forma de cobro.
+                            Este campo es solo para identificación interna y contexto de IA en el paso siguiente; no condiciona la forma de cobro.
                         </p>
                     </div>
 
@@ -208,6 +208,7 @@ export function QuoteBuilderForm() {
                             className="h-9 min-w-[220px] rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700"
                             value={selectedServiceId}
                             onChange={(e) => setSelectedServiceId(e.target.value)}
+                            disabled={!selectedBillingType}
                         >
                             <option value="">{selectedBillingType ? 'Selecciona un servicio' : 'Primero elige tipo de cotización'}</option>
                             {servicesByBilling.map((service) => (
