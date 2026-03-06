@@ -676,7 +676,12 @@ class ProjectService:
             # Get calculated values from enhanced breakdown
             internal_cost = breakdown.get("internal_cost", 0.0)
             client_price = breakdown.get("client_price", 0.0)
-            margin_pct = breakdown.get("margin", 0.0) / 100.0 if breakdown.get("margin") else 0.0
+            margin_percentage_value = breakdown.get("margin_percentage")
+            if margin_percentage_value is None:
+                # Backward compatibility with older breakdowns that only return margin (0-100).
+                margin_value = breakdown.get("margin")
+                margin_percentage_value = (margin_value / 100.0) if margin_value is not None else 0.0
+            margin_pct = margin_percentage_value
             
             # Determine effective pricing type
             effective_pricing_type = (

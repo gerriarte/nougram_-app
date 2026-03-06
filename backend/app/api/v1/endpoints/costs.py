@@ -102,6 +102,7 @@ async def create_fixed_cost(
     - Denied roles: product_manager, collaborator
     """
     try:
+        user_id = getattr(current_user, "id", None)
         # Ensure all required fields have values
         cost_dict = cost_data.model_dump()
         
@@ -111,16 +112,13 @@ async def create_fixed_cost(
         if incoming_currency and incoming_currency != primary_currency:
             logger.warning(
                 "Overriding fixed cost currency with organization primary currency",
-                user_id=current_user.id,
+                user_id=user_id,
                 organization_id=tenant.organization_id,
                 incoming_currency=incoming_currency,
                 primary_currency=primary_currency,
             )
         cost_dict['currency'] = primary_currency
-        
-        from app.core.logging import get_logger
-        logger = get_logger(__name__)
-        logger.info("Creating fixed cost", cost_data=cost_dict, user_id=current_user.id)
+        logger.info("Creating fixed cost", cost_data=cost_dict, user_id=user_id)
         
         cost_dict['organization_id'] = tenant.organization_id
         
@@ -134,16 +132,14 @@ async def create_fixed_cost(
         cache.invalidate_pattern("blended_cost_rate:")
         cache.invalidate_pattern("financial_summary:")
         
-        logger.info("Fixed cost created successfully", cost_id=new_cost.id, user_id=current_user.id)
+        logger.info("Fixed cost created successfully", cost_id=new_cost.id, user_id=user_id)
         return CostFixedResponse.model_validate(new_cost)
     except Exception as e:
         await db.rollback()
-        from app.core.logging import get_logger
-        logger = get_logger(__name__)
         logger.error(
             "Error creating fixed cost",
             error=str(e),
-            user_id=current_user.id,
+            user_id=getattr(current_user, "id", None),
             cost_data=cost_data.model_dump() if hasattr(cost_data, 'model_dump') else str(cost_data),
             exc_info=True
         )
@@ -171,6 +167,7 @@ async def update_fixed_cost(
     - Denied roles: product_manager, collaborator
     """
     try:
+        user_id = getattr(current_user, "id", None)
         cost_repo = RepositoryFactory.create_cost_repository(db, tenant.organization_id)
         cost = await cost_repo.get_by_id(cost_id, include_deleted=False)
         
@@ -187,17 +184,14 @@ async def update_fixed_cost(
             if incoming_currency and incoming_currency != primary_currency:
                 logger.warning(
                     "Overriding fixed cost currency update with organization primary currency",
-                    user_id=current_user.id,
+                    user_id=user_id,
                     organization_id=tenant.organization_id,
                     cost_id=cost_id,
                     incoming_currency=incoming_currency,
                     primary_currency=primary_currency,
                 )
             update_data['currency'] = primary_currency
-        
-        from app.core.logging import get_logger
-        logger = get_logger(__name__)
-        logger.info("Updating fixed cost", cost_id=cost_id, update_data=update_data, user_id=current_user.id)
+        logger.info("Updating fixed cost", cost_id=cost_id, update_data=update_data, user_id=user_id)
         
         for field, value in update_data.items():
             setattr(cost, field, value)
@@ -210,19 +204,17 @@ async def update_fixed_cost(
         cache.invalidate_pattern("blended_cost_rate:")
         cache.invalidate_pattern("financial_summary:")
         
-        logger.info("Fixed cost updated successfully", cost_id=cost_id, user_id=current_user.id)
+        logger.info("Fixed cost updated successfully", cost_id=cost_id, user_id=user_id)
         return CostFixedResponse.model_validate(cost)
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
-        from app.core.logging import get_logger
-        logger = get_logger(__name__)
         logger.error(
             "Error updating fixed cost",
             cost_id=cost_id,
             error=str(e),
-            user_id=current_user.id,
+            user_id=getattr(current_user, "id", None),
             update_data=cost_data.model_dump(exclude_unset=True) if hasattr(cost_data, 'model_dump') else str(cost_data),
             exc_info=True
         )
