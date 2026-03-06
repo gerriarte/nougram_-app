@@ -1,5 +1,6 @@
 import { apiRequest } from '@/lib/api-client';
-import { SocialChargesConfig } from '@/types/admin';
+import { Currency, SocialChargesConfig } from '@/types/admin';
+import { buildSocialChargesConfigFromCurrency } from '@/lib/social-charges-presets';
 
 type CurrentUserResponse = {
     organization_id?: number | null;
@@ -9,6 +10,8 @@ type OrganizationResponse = {
     id: number;
     settings?: {
         social_charges_config?: Partial<SocialChargesConfig>;
+        primary_currency?: Currency;
+        currency?: Currency;
         [key: string]: unknown;
     };
 };
@@ -21,17 +24,21 @@ type SaveOnboardingConfigResponse = {
     };
 };
 
-function normalizeSocialConfig(input: Partial<SocialChargesConfig>): SocialChargesConfig {
+function normalizeSocialConfig(
+    input: Partial<SocialChargesConfig>,
+    baseCurrency: Currency
+): SocialChargesConfig {
+    const preset = buildSocialChargesConfigFromCurrency(baseCurrency, false);
     const config: SocialChargesConfig = {
-        enable_social_charges: Boolean(input.enable_social_charges),
-        health_percentage: Number(input.health_percentage ?? 8.5),
-        pension_percentage: Number(input.pension_percentage ?? 12),
-        arl_percentage: Number(input.arl_percentage ?? 0.522),
-        parafiscales_percentage: Number(input.parafiscales_percentage ?? 4),
-        prima_services_percentage: Number(input.prima_services_percentage ?? 8.33),
-        cesantias_percentage: Number(input.cesantias_percentage ?? 8.33),
-        int_cesantias_percentage: Number(input.int_cesantias_percentage ?? 1),
-        vacations_percentage: Number(input.vacations_percentage ?? 4.17),
+        enable_social_charges: Boolean(input.enable_social_charges ?? preset.enable_social_charges),
+        health_percentage: Number(input.health_percentage ?? preset.health_percentage),
+        pension_percentage: Number(input.pension_percentage ?? preset.pension_percentage),
+        arl_percentage: Number(input.arl_percentage ?? preset.arl_percentage),
+        parafiscales_percentage: Number(input.parafiscales_percentage ?? preset.parafiscales_percentage),
+        prima_services_percentage: Number(input.prima_services_percentage ?? preset.prima_services_percentage),
+        cesantias_percentage: Number(input.cesantias_percentage ?? preset.cesantias_percentage),
+        int_cesantias_percentage: Number(input.int_cesantias_percentage ?? preset.int_cesantias_percentage),
+        vacations_percentage: Number(input.vacations_percentage ?? preset.vacations_percentage),
         total_percentage: 0
     };
 
@@ -61,8 +68,13 @@ export const socialChargesService = {
 
         const orgResponse = await apiRequest<OrganizationResponse>(`/organizations/${organizationId}`);
         const config = orgResponse.data?.settings?.social_charges_config;
+        const orgCurrency =
+            orgResponse.data?.settings?.primary_currency ||
+            orgResponse.data?.settings?.currency ||
+            'COP';
+        const baseCurrency = orgCurrency as Currency;
         if (orgResponse.error || !config) return null;
-        return normalizeSocialConfig(config);
+        return normalizeSocialConfig(config, baseCurrency);
     },
 
     async save(config: SocialChargesConfig): Promise<boolean> {

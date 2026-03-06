@@ -7,19 +7,11 @@ import { TeamMember, FixedCost, SocialChargesConfig, GlobalConfig, BCRCalculatio
 import { teamService } from '@/services/teamService';
 import { socialChargesService } from '@/services/socialChargesService';
 import { fixedCostService } from '@/services/fixedCostService';
+import { buildSocialChargesConfigFromCurrency } from '@/lib/social-charges-presets';
 
 // Initial Mock Data (to avoid starting empty)
 const DEFAULT_SOCIAL_CHARGES: SocialChargesConfig = {
-    enable_social_charges: true,
-    health_percentage: 8.5,
-    pension_percentage: 12.0,
-    arl_percentage: 0.522,
-    parafiscales_percentage: 4.0,
-    prima_services_percentage: 8.33,
-    cesantias_percentage: 8.33,
-    int_cesantias_percentage: 1.0,
-    vacations_percentage: 4.17,
-    total_percentage: 52.852
+    ...buildSocialChargesConfigFromCurrency('COP', false)
 };
 
 const DEFAULT_GLOBAL: GlobalConfig = {
@@ -59,6 +51,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
 
     const [socialCharges, setSocialCharges] = useState<SocialChargesConfig>(DEFAULT_SOCIAL_CHARGES);
+    const [socialChargesSource, setSocialChargesSource] = useState<'preset' | 'persisted'>('preset');
     const [globalSettings, setGlobalSettings] = useState<GlobalConfig>(DEFAULT_GLOBAL);
 
     // 2. Calculation Logic
@@ -83,19 +76,29 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const loadSocialCharges = async () => {
             const config = await socialChargesService.get();
-            if (config) setSocialCharges(config);
+            if (config) {
+                setSocialCharges(config);
+                setSocialChargesSource('persisted');
+                return;
+            }
+            const primaryCurrency = (nougramState.identity.primaryCurrency || 'COP') as GlobalConfig['primary_currency'];
+            setSocialCharges(buildSocialChargesConfigFromCurrency(primaryCurrency, false));
+            setSocialChargesSource('preset');
         };
         void loadSocialCharges();
-    }, []);
+    }, [nougramState.identity.primaryCurrency]);
 
     useEffect(() => {
         const primaryCurrency = (nougramState.identity.primaryCurrency || 'COP') as GlobalConfig['primary_currency'];
+        if (socialChargesSource === 'preset') {
+            setSocialCharges(buildSocialChargesConfigFromCurrency(primaryCurrency, false));
+        }
         setGlobalSettings((prev) => (
             prev.primary_currency === primaryCurrency
                 ? prev
                 : { ...prev, primary_currency: primaryCurrency }
         ));
-    }, [nougramState.identity.primaryCurrency]);
+    }, [nougramState.identity.primaryCurrency, socialChargesSource]);
 
     const bcr: BCRCalculation = useMemo(() => {
         // A. Payroll Costs
@@ -202,6 +205,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
     const updateSocialCharges = (cfg: SocialChargesConfig) => {
         setSocialCharges(cfg);
+        setSocialChargesSource('persisted');
         void socialChargesService.save(cfg);
     };
     const updateGlobalSettings = (settings: Partial<GlobalConfig>) => setGlobalSettings(prev => ({ ...prev, ...settings }));

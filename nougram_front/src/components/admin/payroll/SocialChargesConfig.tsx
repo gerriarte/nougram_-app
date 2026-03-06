@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
+import { useNougram } from '@/context/NougramCoreContext';
+import { getSocialChargesPresetMeta } from '@/lib/social-charges-presets';
 
 // Mock Switch if not available
 function SimpleSwitch({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (c: boolean) => void }) {
@@ -23,8 +25,11 @@ function SimpleSwitch({ checked, onCheckedChange }: { checked: boolean; onChecke
 
 export function SocialChargesConfig() {
     const { socialCharges, updateSocialCharges } = useAdmin();
+    const { state } = useNougram();
     const [isEditing, setIsEditing] = React.useState(false);
     const [formData, setFormData] = React.useState(socialCharges);
+    const currentCurrency = state.identity.primaryCurrency || 'COP';
+    const presetMeta = getSocialChargesPresetMeta(currentCurrency);
 
     const handleSave = () => {
         // Calculate total
@@ -56,7 +61,9 @@ export function SocialChargesConfig() {
             <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <div>
                     <CardTitle>Cargas Sociales & Prestaciones</CardTitle>
-                    <p className="text-sm text-gray-500">Configuración para Colombia (Ley 100).</p>
+                    <p className="text-sm text-gray-500">
+                        Configuracion para {presetMeta.countryLabel} ({currentCurrency}). Desactivado por defecto para cuentas nuevas.
+                    </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-700">Estado:</span>
