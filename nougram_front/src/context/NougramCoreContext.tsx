@@ -102,9 +102,7 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         const hydrateOrganizationName = async () => {
             const response = await apiRequest<OrganizationMeResponse>('/organizations/me');
             if (response.error || !response.data) return;
-            const backendCurrency =
-                response.data.settings?.currency ||
-                response.data.settings?.primary_currency;
+            const backendCurrency = response.data.settings?.primary_currency;
             const backendCountry = response.data.settings?.country;
             setState((prev) => ({
                 ...prev,

@@ -26,10 +26,10 @@ from app.schemas.cost import (
 )
 from app.schemas.quote import BlendedCostRateResponse
 from app.models.team import TeamMember
-from app.models.settings import AgencySettings
 from app.core.currency import normalize_to_primary_currency, EXCHANGE_RATES_TO_USD, CURRENCY_INFO
 from collections import defaultdict
 from app.core.logging import get_logger
+from app.services.settings_service import SettingsService
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -105,9 +105,18 @@ async def create_fixed_cost(
         # Ensure all required fields have values
         cost_dict = cost_data.model_dump()
         
-        # Set defaults for optional fields
-        if not cost_dict.get('currency'):
-            cost_dict['currency'] = 'USD'
+        settings_service = SettingsService(db)
+        primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
+        incoming_currency = cost_dict.get('currency')
+        if incoming_currency and incoming_currency != primary_currency:
+            logger.warning(
+                "Overriding fixed cost currency with organization primary currency",
+                user_id=current_user.id,
+                organization_id=tenant.organization_id,
+                incoming_currency=incoming_currency,
+                primary_currency=primary_currency,
+            )
+        cost_dict['currency'] = primary_currency
         
         from app.core.logging import get_logger
         logger = get_logger(__name__)
@@ -169,10 +178,22 @@ async def update_fixed_cost(
             raise ResourceNotFoundError("Fixed cost", cost_id)
         
         update_data = cost_data.model_dump(exclude_unset=True)
+        settings_service = SettingsService(db)
+        primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
         
-        # Ensure currency has a value if provided
-        if 'currency' in update_data and not update_data['currency']:
-            update_data['currency'] = 'USD'
+        # Enforce organization primary currency for financial consistency
+        if 'currency' in update_data:
+            incoming_currency = update_data.get('currency')
+            if incoming_currency and incoming_currency != primary_currency:
+                logger.warning(
+                    "Overriding fixed cost currency update with organization primary currency",
+                    user_id=current_user.id,
+                    organization_id=tenant.organization_id,
+                    cost_id=cost_id,
+                    incoming_currency=incoming_currency,
+                    primary_currency=primary_currency,
+                )
+            update_data['currency'] = primary_currency
         
         from app.core.logging import get_logger
         logger = get_logger(__name__)
@@ -402,20 +423,9 @@ async def calculate_agency_cost_hour(
     """
     
     try:
-        # Get primary currency from organization settings
-        primary_currency = "USD"
+        settings_service = SettingsService(db)
+        primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
         org_settings = tenant.organization.settings if tenant.organization.settings else {}
-        if org_settings.get('primary_currency'):
-            primary_currency = org_settings.get('primary_currency')
-        else:
-            # Fallback to AgencySettings
-            try:
-                result = await db.execute(select(AgencySettings).where(AgencySettings.id == 1))
-                settings = result.scalar_one_or_none()
-                if settings:
-                    primary_currency = settings.primary_currency
-            except Exception:
-                pass
         
         # Calculate blended cost rate (normalized to primary currency)
         social_config = org_settings.get('social_charges_config') if org_settings else None

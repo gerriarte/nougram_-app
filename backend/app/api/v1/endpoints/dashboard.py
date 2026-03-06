@@ -23,6 +23,7 @@ from app.core.calculations import calculate_blended_cost_rate
 from app.core.currency import normalize_to_primary_currency
 from app.core.money import Money
 from app.services.operational_cost_service import get_current_month_operational_costs
+from app.services.settings_service import SettingsService
 from app.schemas.operational_cost import OperationalCostPayloadSchema
 
 router = APIRouter()
@@ -286,9 +287,8 @@ async def get_operational_costs(
             detail="Organization not found.",
         )
 
-    primary_currency = "USD"
-    if org and org.settings and org.settings.get("primary_currency"):
-        primary_currency = org.settings.get("primary_currency")
+    settings_service = SettingsService(db)
+    primary_currency = await settings_service.get_primary_currency(resolved_org_id)
     payload = await get_current_month_operational_costs(
         db=db,
         organization_id=resolved_org_id,

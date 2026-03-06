@@ -16,6 +16,7 @@ from app.models.user import User
 from app.repositories.team_repository import TeamRepository
 from app.core.tenant import get_tenant_context, TenantContext
 from app.repositories.factory import RepositoryFactory
+from app.services.settings_service import SettingsService
 from app.schemas.team import (
     TeamMemberCreate,
     TeamMemberUpdate,
@@ -123,10 +124,20 @@ async def create_team_member(
     try:
         # Ensure all required fields have values
         member_dict = member_data.model_dump()
+        settings_service = SettingsService(db)
+        primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
         
         # Set defaults for optional fields
-        if not member_dict.get('currency'):
-            member_dict['currency'] = 'USD'
+        incoming_currency = member_dict.get('currency')
+        if incoming_currency and incoming_currency != primary_currency:
+            logger.warning(
+                "Overriding team member currency with organization primary currency",
+                user_id=current_user.id,
+                organization_id=tenant.organization_id,
+                incoming_currency=incoming_currency,
+                primary_currency=primary_currency,
+            )
+        member_dict['currency'] = primary_currency
         if 'is_active' not in member_dict:
             member_dict['is_active'] = True
         if 'billable_hours_per_week' not in member_dict or member_dict['billable_hours_per_week'] is None:
@@ -198,14 +209,26 @@ async def update_team_member(
             )
         
         update_data = member_data.model_dump(exclude_unset=True)
+        settings_service = SettingsService(db)
+        primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
         
         # Convert billable_hours_per_week to int if it's a float
         if 'billable_hours_per_week' in update_data and isinstance(update_data['billable_hours_per_week'], float):
             update_data['billable_hours_per_week'] = int(update_data['billable_hours_per_week'])
         
-        # Ensure currency has a value if provided
-        if 'currency' in update_data and not update_data['currency']:
-            update_data['currency'] = 'USD'
+        # Enforce organization primary currency for financial consistency
+        if 'currency' in update_data:
+            incoming_currency = update_data.get('currency')
+            if incoming_currency and incoming_currency != primary_currency:
+                logger.warning(
+                    "Overriding team member currency update with organization primary currency",
+                    user_id=current_user.id,
+                    organization_id=tenant.organization_id,
+                    member_id=member_id,
+                    incoming_currency=incoming_currency,
+                    primary_currency=primary_currency,
+                )
+            update_data['currency'] = primary_currency
         
         logger.info("Updating team member", member_id=member_id, update_data=update_data, user_id=current_user.id)
         

@@ -57,15 +57,8 @@ export function Step1ProjectInfo() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Moneda</Label>
-                            <select
-                                value={state.currency}
-                                onChange={(e) => updateProjectInfo({ currency: e.target.value as 'USD' | 'COP' })}
-                                className="w-full glass-input h-10 rounded-md px-3"
-                            >
-                                <option value="USD">USD ($)</option>
-                                <option value="COP">COP ($)</option>
-                            </select>
+                            <Label>Moneda de operación</Label>
+                            <Input value={state.currency} disabled className="glass-input" />
                         </div>
                     </div>
                 </Card>

@@ -18,6 +18,7 @@ from app.schemas.equipment import (
     EquipmentResponse,
     EquipmentUpdate,
 )
+from app.services.settings_service import SettingsService
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -65,12 +66,30 @@ async def create_equipment(
     db: AsyncSession = Depends(get_db),
 ):
     _validate_salvage(payload.purchase_price, payload.salvage_value)
+    settings_service = SettingsService(db)
+    primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
+    payload_data = payload.model_dump()
+    incoming_currency = payload_data.get("currency")
+    if incoming_currency and incoming_currency != primary_currency:
+        logger.warning(
+            "Overriding equipment currency with organization primary currency",
+            user_id=current_user.id,
+            organization_id=tenant.organization_id,
+            incoming_currency=incoming_currency,
+            primary_currency=primary_currency,
+        )
+    payload_data["currency"] = primary_currency
+
     repo = RepositoryFactory.create_equipment_repository(db, tenant.organization_id)
     entity = EquipmentAmortization(
         organization_id=tenant.organization_id,
-        **payload.model_dump(),
+        **payload_data,
     )
     created = await repo.create(entity)
+    from app.core.cache import get_cache
+    cache = get_cache()
+    cache.invalidate_pattern("blended_cost_rate:")
+    cache.invalidate_pattern("financial_summary:")
     logger.info("Equipment created", user_id=current_user.id, equipment_id=created.id)
     return EquipmentResponse.model_validate(created)
 
@@ -89,6 +108,20 @@ async def update_equipment(
         raise ResourceNotFoundError("Equipment", equipment_id)
 
     updates = payload.model_dump(exclude_unset=True)
+    settings_service = SettingsService(db)
+    primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
+    if "currency" in updates:
+        incoming_currency = updates.get("currency")
+        if incoming_currency and incoming_currency != primary_currency:
+            logger.warning(
+                "Overriding equipment currency update with organization primary currency",
+                user_id=current_user.id,
+                organization_id=tenant.organization_id,
+                equipment_id=equipment_id,
+                incoming_currency=incoming_currency,
+                primary_currency=primary_currency,
+            )
+        updates["currency"] = primary_currency
     next_purchase_price = updates.get("purchase_price", entity.purchase_price)
     next_salvage_value = updates.get("salvage_value", entity.salvage_value)
     _validate_salvage(next_purchase_price, next_salvage_value)
@@ -97,6 +130,10 @@ async def update_equipment(
         setattr(entity, field, value)
 
     updated = await repo.update(entity)
+    from app.core.cache import get_cache
+    cache = get_cache()
+    cache.invalidate_pattern("blended_cost_rate:")
+    cache.invalidate_pattern("financial_summary:")
     logger.info("Equipment updated", user_id=current_user.id, equipment_id=equipment_id)
     return EquipmentResponse.model_validate(updated)
 
@@ -114,4 +151,8 @@ async def delete_equipment(
         raise ResourceNotFoundError("Equipment", equipment_id)
 
     await repo.delete(entity, soft=True, deleted_by_id=current_user.id)
+    from app.core.cache import get_cache
+    cache = get_cache()
+    cache.invalidate_pattern("blended_cost_rate:")
+    cache.invalidate_pattern("financial_summary:")
     logger.info("Equipment deleted", user_id=current_user.id, equipment_id=equipment_id)

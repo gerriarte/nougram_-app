@@ -17,6 +17,7 @@ from app.models.user import User
 from app.models.team import TeamMember
 from app.models.cost import CostFixed
 from app.models.organization import Organization
+from app.services.settings_service import SettingsService
 
 router = APIRouter()
 
@@ -62,11 +63,11 @@ async def get_financial_summary(
             detail="Organization not found"
         )
     
-    # Get primary currency
-    primary_currency = "USD"
+    settings_service = SettingsService(db)
+    # Canonical currency source of truth for tenant financials
+    primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
     social_config = None
     if org.settings:
-        primary_currency = org.settings.get('primary_currency', 'USD')
         social_config = org.settings.get('social_charges_config')
     
     # Calculate monthly fixed costs

@@ -139,7 +139,8 @@ class ProjectService:
             target_margin_percentage=target_margin_percentage,
             revisions_included=revisions_included,
             revision_cost_per_additional=revision_cost_per_additional,
-            revisions_count=None  # Only used when calculating additional revision costs
+            revisions_count=None,  # Only used when calculating additional revision costs
+            currency=primary_currency,
         )
         logger.info(f"Quote totals calculated: {totals}")
         
@@ -163,7 +164,7 @@ class ProjectService:
             client_id=client_id,
             client_name=client_name,
             client_email=client_email,
-            currency=project_data.currency,
+            currency=primary_currency,
             status="Draft",
             organization_id=self.organization_id
         )
@@ -342,7 +343,8 @@ class ProjectService:
             target_margin_percentage=target_margin_percentage,  # Pass target margin
             revisions_included=revisions_included,
             revision_cost_per_additional=revision_cost_per_additional,
-            revisions_count=None
+            revisions_count=None,
+            currency=project.currency,
         )
         
         # Validate profitability before creating new quote version
@@ -856,6 +858,20 @@ class ProjectService:
         
         # Handle tax_ids separately
         tax_ids = update_data.pop("tax_ids", None)
+        if "currency" in update_data:
+            from app.services.settings_service import SettingsService
+            settings_service = SettingsService(self.db)
+            primary_currency = await settings_service.get_primary_currency(self.organization_id)
+            incoming_currency = update_data.get("currency")
+            if incoming_currency and incoming_currency != primary_currency:
+                logger.warning(
+                    "Overriding project currency update with organization primary currency",
+                    project_id=project_id,
+                    organization_id=self.organization_id,
+                    incoming_currency=incoming_currency,
+                    primary_currency=primary_currency,
+                )
+            update_data["currency"] = primary_currency
         # When client_id is set, fill snapshot from client master
         client_id_new = update_data.get("client_id")
         if client_id_new is not None and client_id_new:

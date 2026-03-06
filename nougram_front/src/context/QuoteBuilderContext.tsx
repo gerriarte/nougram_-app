@@ -201,7 +201,12 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     };
 
     // --- ACTIONS ---
-    const updateProjectInfo = (info: Partial<QuoteBuilderState>) => setState(prev => ({ ...prev, ...info }));
+    const updateProjectInfo = (info: Partial<QuoteBuilderState>) =>
+        setState((prev) => ({
+            ...prev,
+            ...info,
+            currency: (coreState.identity.primaryCurrency || prev.currency) as QuoteBuilderState['currency'],
+        }));
 
     const addItem = (serviceId: number) => {
         const service = services.find(s => s.id === serviceId);
@@ -345,7 +350,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             clientEmail: state.clientEmail,
             selectedTaxIds: sanitizedTaxIds,
             amount: summary.totalClientPrice,
-            currency: state.currency,
+            currency: (coreState.identity.primaryCurrency || state.currency),
             marginPercentage: summary.netMarginPercent,
             targetMargin: state.targetMargin,
             contingency: state.contingency,
@@ -429,7 +434,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 clientRequester: normalizeOptionalText(q.clientRequester),
                 projectType: persistedMeta.projectType || inferredProjectType,
                 projectDescription: persistedMeta.projectDescription || '',
-                currency: (q.currency as any) || 'COP',
+                currency: (coreState.identity.primaryCurrency || q.currency || 'COP') as QuoteBuilderState['currency'],
                 targetMargin: typeof q.targetMargin === 'number' && Number.isFinite(q.targetMargin)
                     ? q.targetMargin
                     : INITIAL_STATE.targetMargin,

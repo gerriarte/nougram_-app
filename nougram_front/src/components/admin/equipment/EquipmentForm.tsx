@@ -1,13 +1,14 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Equipment, EquipmentCategory, DepreciationMethod, Currency } from '@/types/equipment';
+import { DepreciationResult, Equipment } from '@/types/equipment';
 import { calculateDepreciation } from '@/lib/depreciation';
 import { formatCurrency } from '@/lib/utils';
+import { useNougram } from '@/context/NougramCoreContext';
 
 interface EquipmentFormProps {
     onClose: () => void;
@@ -16,9 +17,11 @@ interface EquipmentFormProps {
 }
 
 export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormProps) {
+    const { state } = useNougram();
+    const primaryCurrency = state.identity.primaryCurrency || 'COP';
     const [formData, setFormData] = useState<Partial<Equipment>>({
         category: 'Hardware',
-        currency: 'COP',
+        currency: primaryCurrency,
         depreciationMethod: 'straight_line',
         usefulLifeMonths: 36,
         salvageValue: 0,
@@ -28,20 +31,18 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
         ...initialData
     });
 
-    const [preview, setPreview] = useState<any>(null);
-
-    // Calculate Preview on changes
-    useEffect(() => {
-        if (formData.purchasePrice && formData.usefulLifeMonths) {
-            const mock = {
-                ...formData,
-                id: 'preview',
-                name: 'preview'
-            } as Equipment;
-
-            setPreview(calculateDepreciation(mock));
+    const preview = useMemo(() => {
+        if (!(formData.purchasePrice && formData.usefulLifeMonths)) {
+            return null;
         }
-    }, [formData.purchasePrice, formData.salvageValue, formData.usefulLifeMonths, formData.currency]);
+        const mock = {
+            ...formData,
+            id: 'preview',
+            name: 'preview',
+            currency: primaryCurrency,
+        } as Equipment;
+        return calculateDepreciation(mock);
+    }, [formData, primaryCurrency]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -53,7 +54,11 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
         }
 
         try {
-            await onSave(formData as Omit<Equipment, 'id' | 'createdAt'>, initialData?.id);
+            const payload = {
+                ...formData,
+                currency: primaryCurrency as Equipment['currency'],
+            } as Omit<Equipment, 'id' | 'createdAt'>;
+            await onSave(payload, initialData?.id);
             onClose();
         } catch (error) {
             console.error(error);
@@ -61,7 +66,7 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
         }
     };
 
-    const handleChange = (field: keyof Equipment, value: any) => {
+    const handleChange = (field: keyof Equipment, value: string | number) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
@@ -113,15 +118,8 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
                                 />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-sm font-medium">Moneda</label>
-                                <select
-                                    className="w-full p-2 border rounded-md"
-                                    value={formData.currency}
-                                    onChange={e => handleChange('currency', e.target.value)}
-                                >
-                                    <option value="COP">COP</option>
-                                    <option value="USD">USD</option>
-                                </select>
+                                <label className="text-sm font-medium">Moneda de operación</label>
+                                <Input value={primaryCurrency} disabled />
                             </div>
                             <div className="space-y-1">
                                 <label className="text-sm font-medium">Fecha Compra</label>
@@ -133,20 +131,9 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
                             </div>
                         </div>
 
-                        {formData.currency !== 'COP' && (
-                            <div className="space-y-1 animate-in fade-in">
-                                <label className="text-sm font-medium text-blue-700">TRM del Día de Compra (USD → COP)</label>
-                                <Input
-                                    type="number" required placeholder="Ej: 4200"
-                                    className="border-blue-300 bg-blue-50"
-                                    value={formData.exchangeRateAtPurchase || ''}
-                                    onChange={e => handleChange('exchangeRateAtPurchase', parseFloat(e.target.value))}
-                                />
-                                <p className="text-xs text-blue-600">
-                                    💡 Usamos la TRM histórica para fijar el costo y evitar fluctuaciones mensuales.
-                                </p>
-                            </div>
-                        )}
+                        <p className="text-xs text-gray-500">
+                            Todos los activos se registran en la moneda principal de la cuenta.
+                        </p>
                     </div>
 
                     {/* Depreciation Params */}
@@ -179,11 +166,11 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
                         <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex justify-between items-center">
                             <div>
                                 <p className="text-xs font-bold text-blue-800 uppercase">Impacto en Costos</p>
-                                <p className="text-sm text-blue-600">Base Depreciable: {formatCurrency((preview.currentBookValue + preview.totalDepreciated), formData.currency || 'COP')}</p>
+                                <p className="text-sm text-blue-600">Base Depreciable: {formatCurrency((preview.currentBookValue + preview.totalDepreciated), primaryCurrency)}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-2xl font-bold text-blue-900">
-                                    {formatCurrency(preview.monthlyDepreciation, formData.currency || 'COP')}
+                                    {formatCurrency(preview.monthlyDepreciation, primaryCurrency)}
                                     <span className="text-xs font-normal text-blue-600"> / mes</span>
                                 </p>
                             </div>

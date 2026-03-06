@@ -53,7 +53,7 @@ export function BCRSummaryCard({ summary, isLoading }: BCRSummaryCardProps) {
                 </h3>
                 <div className="text-3xl font-bold text-blue-600">
                     {formatCurrency(summary.blended_cost_rate, summaryCurrency)}
-                    <span className="text-sm font-medium text-gray-500 ml-1">/{summary.primary_currency.toLowerCase()}</span>
+                    <span className="text-sm font-medium text-gray-500 ml-1">/hora</span>
                 </div>
             </div>
 

@@ -93,15 +93,8 @@ export function FixedCostForm({ open, onOpenChange, initialData, onSave }: Fixed
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Moneda</Label>
-                            <select
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                value={formData.currency}
-                                onChange={e => setFormData({ ...formData, currency: e.target.value as any })}
-                            >
-                                <option value="COP">COP</option>
-                                <option value="USD">USD</option>
-                            </select>
+                            <Label>Moneda de operación</Label>
+                            <Input value={primaryCurrency} disabled />
                         </div>
                     </div>
 

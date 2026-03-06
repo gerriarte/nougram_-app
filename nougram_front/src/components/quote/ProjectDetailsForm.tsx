@@ -53,16 +53,12 @@ export function ProjectDetailsForm({ data, onChange }: ProjectDetailsFormProps) 
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="currency">Moneda</Label>
-                    <select
+                    <Label htmlFor="currency">Moneda de operación</Label>
+                    <Input
                         id="currency"
-                        className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={data.currency}
-                        onChange={(e) => handleChange("currency", e.target.value as "COP" | "USD")}
-                    >
-                        <option value="COP">Peso Colombiano (COP)</option>
-                        <option value="USD">Dólar Estadounidense (USD)</option>
-                    </select>
+                        disabled
+                    />
                 </div>
             </CardContent>
         </Card>

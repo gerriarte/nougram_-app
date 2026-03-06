@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { TeamMember } from '@/types/admin';
+import { useNougram } from '@/context/NougramCoreContext';
 
 type TeamMemberInput = Omit<TeamMember, 'id' | 'salaryWithCharges' | 'isActive'>;
 
@@ -27,17 +28,19 @@ const DEFAULT_FORM: TeamMemberInput = {
 };
 
 export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: TeamMemberFormProps) {
+    const { state } = useNougram();
+    const primaryCurrency = state.identity.primaryCurrency || 'COP';
     const [formData, setFormData] = useState<TeamMemberInput>(DEFAULT_FORM);
 
     useEffect(() => {
         if (initialData) {
             // Destructure to remove extra fields if passed
             const { id, salaryWithCharges, isActive, ...rest } = initialData;
-            setFormData(rest);
+            setFormData({ ...rest, currency: primaryCurrency as TeamMemberInput['currency'] });
         } else {
-            setFormData(DEFAULT_FORM);
+            setFormData({ ...DEFAULT_FORM, currency: primaryCurrency as TeamMemberInput['currency'] });
         }
-    }, [initialData, open]);
+    }, [initialData, open, primaryCurrency]);
 
     const handleSave = () => {
         if (!formData.name || !formData.role || formData.salaryMonthlyBrute <= 0) {
@@ -93,15 +96,8 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Moneda</Label>
-                                <select
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                    value={formData.currency}
-                                    onChange={e => setFormData({ ...formData, currency: e.target.value as any })}
-                                >
-                                    <option value="COP">COP</option>
-                                    <option value="USD">USD</option>
-                                </select>
+                                <Label>Moneda de operación</Label>
+                                <Input value={primaryCurrency} disabled />
                             </div>
                         </div>
                         <div className="flex items-center gap-2 mt-3">
