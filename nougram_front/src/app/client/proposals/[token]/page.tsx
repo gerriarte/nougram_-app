@@ -32,12 +32,77 @@ type PortalDataResponse = {
 };
 
 type DecisionType = 'accepted' | 'rejected' | 'revision_requested';
+type ProposalBody = Record<string, unknown>;
+type ProposalDeliverable = { name: string; status?: string };
 
 const SESSION_STORAGE_PREFIX = 'nougram:proposal-portal:session:';
 
 function getApiBase(): string {
   const base = process.env.NEXT_PUBLIC_API_URL || '';
   return base.replace(/\/+$/, '');
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function asDeliverables(value: unknown): ProposalDeliverable[] {
+  if (!Array.isArray(value)) return [];
+  const normalized: ProposalDeliverable[] = [];
+  for (const item of value) {
+    if (typeof item === 'string' && item.trim()) {
+      normalized.push({ name: item.trim() });
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const raw = item as Record<string, unknown>;
+      const name = asString(raw.name);
+      const status = asString(raw.status);
+      if (name) normalized.push({ name, status: status || undefined });
+    }
+  }
+  return normalized;
+}
+
+function formatMoney(value: string | null | undefined, currency: string | null | undefined): string {
+  if (!value) return '-';
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  try {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: currency || 'COP',
+      maximumFractionDigits: 0,
+    }).format(parsed);
+  } catch {
+    return value;
+  }
+}
+
+function decisionLabel(status: string): string {
+  const normalized = (status || '').toLowerCase();
+  if (normalized === 'accepted') return 'Aceptada';
+  if (normalized === 'rejected') return 'Rechazada';
+  if (normalized === 'revision_requested') return 'Revision solicitada';
+  if (normalized === 'viewed') return 'Vista';
+  if (normalized === 'sent') return 'Enviada';
+  return 'Pendiente';
+}
+
+function decisionBadgeClass(status: string): string {
+  const normalized = (status || '').toLowerCase();
+  if (normalized === 'accepted') return 'bg-emerald-100 text-emerald-800';
+  if (normalized === 'rejected') return 'bg-rose-100 text-rose-800';
+  if (normalized === 'revision_requested') return 'bg-amber-100 text-amber-800';
+  return 'bg-slate-100 text-slate-700';
 }
 
 export default function ClientProposalPortalPage() {
@@ -194,31 +259,33 @@ export default function ClientProposalPortalPage() {
     }
   };
 
-  const prettyBody = useMemo(() => {
-    if (!portalData?.proposal_body_json) return '';
-    try {
-      return JSON.stringify(portalData.proposal_body_json, null, 2);
-    } catch {
-      return '';
-    }
-  }, [portalData?.proposal_body_json]);
+  const proposalBody = (portalData?.proposal_body_json ?? {}) as ProposalBody;
+  const executiveSummary = asString(proposalBody.executive_summary);
+  const description = asString(proposalBody.description);
+  const scope = asString(proposalBody.scope);
+  const timeline = asString(proposalBody.timeline);
+  const conditions = asString(proposalBody.conditions);
+  const freeText = asString(proposalBody.free_text);
+  const objectives = asStringArray(proposalBody.objectives);
+  const deliverables = asDeliverables(proposalBody.deliverables);
+  const totalFormatted = formatMoney(portalData?.quote_total_client_price, portalData?.quote_currency);
 
   return (
-    <div className="min-h-screen bg-background py-10 px-4">
-      <div className="mx-auto w-full max-w-4xl space-y-6">
-        <header className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="min-h-screen bg-gradient-to-b from-orange-50 via-background to-background py-10 px-4">
+      <div className="mx-auto w-full max-w-5xl space-y-6">
+        <header className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm md:p-8">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
             Nougram
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Portal de propuesta</h1>
-          <p className="mt-2 text-sm text-system-gray">
-            Revisa la propuesta, la cotizacion y responde si deseas aceptar, rechazar o solicitar
-            revision.
+          <h1 className="text-2xl font-semibold text-gray-900 md:text-3xl">Tu propuesta comercial</h1>
+          <p className="mt-2 max-w-2xl text-sm text-system-gray">
+            Disenada para ayudarte a tomar una decision con claridad: valor del proyecto, alcance y
+            siguientes pasos.
           </p>
         </header>
 
         {!sessionToken && (
-          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
             <h2 className="text-lg font-semibold text-gray-900">Ingresa con clave temporal</h2>
             <p className="mt-1 text-sm text-system-gray">
               Usa la clave enviada por correo para abrir esta propuesta.
@@ -261,17 +328,23 @@ export default function ClientProposalPortalPage() {
 
         {portalData && !loadingPortal && (
           <>
-            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900">{portalData.proposal_title}</h2>
-              <div className="mt-3 grid gap-2 text-sm text-system-gray md:grid-cols-2">
+            <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-xl font-semibold text-gray-900 md:text-2xl">{portalData.proposal_title}</h2>
+                <span
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${decisionBadgeClass(
+                    portalData.decision_status,
+                  )}`}
+                >
+                  {decisionLabel(portalData.decision_status)}
+                </span>
+              </div>
+              <div className="mt-4 grid gap-2 text-sm text-system-gray md:grid-cols-2">
                 <p>
                   <strong>Proyecto:</strong> {portalData.project_name}
                 </p>
                 <p>
                   <strong>Cliente:</strong> {portalData.client_name}
-                </p>
-                <p>
-                  <strong>Estado actual:</strong> {portalData.decision_status}
                 </p>
                 <p>
                   <strong>Disponible hasta:</strong>{' '}
@@ -280,38 +353,142 @@ export default function ClientProposalPortalPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="text-base font-semibold text-gray-900">Cotizacion</h3>
-              <div className="mt-2 grid gap-2 text-sm text-system-gray md:grid-cols-3">
-                <p>
-                  <strong>Version:</strong> {portalData.quote_version ?? '-'}
-                </p>
-                <p>
-                  <strong>Total:</strong> {portalData.quote_total_client_price ?? '-'}
-                </p>
-                <p>
-                  <strong>Moneda:</strong> {portalData.quote_currency ?? '-'}
-                </p>
+            <section className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm md:p-8">
+              <h3 className="text-base font-semibold text-gray-900">Inversion estimada</h3>
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl bg-orange-50 p-4">
+                  <p className="text-xs uppercase tracking-wide text-system-gray">Total</p>
+                  <p className="mt-1 text-xl font-semibold text-gray-900">{totalFormatted}</p>
+                </div>
+                <div className="rounded-2xl bg-gray-50 p-4">
+                  <p className="text-xs uppercase tracking-wide text-system-gray">Version</p>
+                  <p className="mt-1 text-xl font-semibold text-gray-900">{portalData.quote_version ?? '-'}</p>
+                </div>
+                <div className="rounded-2xl bg-gray-50 p-4">
+                  <p className="text-xs uppercase tracking-wide text-system-gray">Moneda</p>
+                  <p className="mt-1 text-xl font-semibold text-gray-900">{portalData.quote_currency ?? '-'}</p>
+                </div>
               </div>
             </section>
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="text-base font-semibold text-gray-900">Detalle de propuesta</h3>
-              <pre className="mt-3 max-h-[420px] overflow-auto rounded-xl bg-gray-50 p-4 text-xs text-gray-700">
-                {prettyBody || 'No hay contenido disponible.'}
-              </pre>
+            <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
+              <h3 className="text-base font-semibold text-gray-900">Detalle de la propuesta</h3>
+
+              {executiveSummary && (
+                <article className="mt-4 rounded-2xl border border-orange-100 bg-orange-50 p-5">
+                  <h4 className="text-sm font-semibold uppercase tracking-wide text-orange-700">
+                    Resumen ejecutivo
+                  </h4>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-7 text-gray-800">{executiveSummary}</p>
+                </article>
+              )}
+
+              {description && (
+                <article className="mt-4 rounded-2xl border border-gray-200 p-5">
+                  <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
+                    Contexto del proyecto
+                  </h4>
+                  <p className="mt-2 text-sm leading-7 text-gray-800">{description}</p>
+                </article>
+              )}
+
+              {objectives.length > 0 && (
+                <article className="mt-4 rounded-2xl border border-gray-200 p-5">
+                  <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Objetivos</h4>
+                  <ul className="mt-2 space-y-2 text-sm leading-7 text-gray-800">
+                    {objectives.map((objective) => (
+                      <li key={objective} className="flex gap-2">
+                        <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
+                        <span>{objective}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              )}
+
+              {deliverables.length > 0 && (
+                <article className="mt-4 rounded-2xl border border-gray-200 p-5">
+                  <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Entregables</h4>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {deliverables.map((deliverable, index) => (
+                      <div
+                        key={`${deliverable.name}-${index}`}
+                        className="rounded-xl border border-gray-100 bg-gray-50 p-4"
+                      >
+                        <p className="text-sm font-medium text-gray-900">{deliverable.name}</p>
+                        {deliverable.status && (
+                          <p className="mt-1 text-xs uppercase tracking-wide text-system-gray">
+                            Estado: {deliverable.status}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              )}
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {scope && (
+                  <article className="rounded-2xl border border-gray-200 p-5">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Alcance</h4>
+                    <p className="mt-2 text-sm leading-7 text-gray-800">{scope}</p>
+                  </article>
+                )}
+                {timeline && (
+                  <article className="rounded-2xl border border-gray-200 p-5">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
+                      Cronograma
+                    </h4>
+                    <p className="mt-2 text-sm leading-7 text-gray-800">{timeline}</p>
+                  </article>
+                )}
+                {conditions && (
+                  <article className="rounded-2xl border border-gray-200 p-5">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
+                      Condiciones comerciales
+                    </h4>
+                    <p className="mt-2 text-sm leading-7 text-gray-800">{conditions}</p>
+                  </article>
+                )}
+                {freeText && (
+                  <article className="rounded-2xl border border-gray-200 p-5">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
+                      Informacion adicional
+                    </h4>
+                    <p className="mt-2 text-sm leading-7 text-gray-800">{freeText}</p>
+                  </article>
+                )}
+              </div>
+
+              {!executiveSummary &&
+                !description &&
+                objectives.length === 0 &&
+                deliverables.length === 0 &&
+                !scope &&
+                !timeline &&
+                !conditions &&
+                !freeText && (
+                  <p className="mt-4 rounded-xl bg-gray-50 p-4 text-sm text-system-gray">
+                    No hay contenido detallado disponible para esta propuesta.
+                  </p>
+                )}
             </section>
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-              <h3 className="text-base font-semibold text-gray-900">Tu respuesta</h3>
+            <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm space-y-4 md:p-8">
+              <h3 className="text-base font-semibold text-gray-900">Tu decision</h3>
+              <p className="text-sm text-system-gray">
+                Elige una accion para continuar. Tu respuesta sera notificada al equipo comercial.
+              </p>
               <div className="space-y-2">
                 <Label htmlFor="decisionComment">Comentario (opcional)</Label>
-                <Input
+                <textarea
                   id="decisionComment"
                   value={decisionComment}
                   onChange={(event) => setDecisionComment(event.target.value)}
-                  placeholder="Ej: Solicito ajustar el alcance en fase 2"
+                  placeholder="Ej: Me gusta la propuesta, pero quiero ajustar la fase 2."
                   disabled={submittingDecision}
+                  rows={4}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
               <div className="flex flex-wrap gap-2">
@@ -333,7 +510,7 @@ export default function ClientProposalPortalPage() {
                   onClick={() => void onSubmitDecision('rejected')}
                   disabled={submittingDecision}
                 >
-                  Rechazar
+                  No continuar
                 </Button>
               </div>
             </section>

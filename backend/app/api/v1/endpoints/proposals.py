@@ -8,6 +8,7 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.email import send_email
 from app.core.exceptions import ResourceNotFoundError
@@ -285,9 +286,9 @@ async def share_proposal_with_client(
     sender_company_name = (tenant.organization.name or "").strip() or "tu empresa"
     public_url = f"{tenant.organization.settings.get('frontend_url', '')}" if isinstance(tenant.organization.settings, dict) else ""
     if not public_url:
-        from app.core.config import settings
         public_url = settings.FRONTEND_URL.rstrip("/")
     public_url = f"{public_url}/client/proposals/{link.public_token}"
+    access_expires_at_label = access_expires_at.strftime('%Y-%m-%d %H:%M UTC')
 
     email_html = f"""
     <div style="font-family: Arial, sans-serif; line-height: 1.6;">
@@ -295,7 +296,7 @@ async def share_proposal_with_client(
       <p>Hola, tienes una propuesta comercial disponible para revisar.</p>
       <p><strong>Proyecto:</strong> {project.name}</p>
       <p><strong>Cliente:</strong> {project.client_name}</p>
-      <p><strong>Vigencia del acceso:</strong> hasta {access_expires_at.strftime('%Y-%m-%d %H:%M UTC')}</p>
+      <p><strong>Vigencia del acceso:</strong> hasta {access_expires_at_label}</p>
       <p><strong>Clave temporal:</strong> <span style="font-size: 18px;">{access_code}</span> (expira en {OTP_EXPIRATION_MINUTES} minutos)</p>
       <p><a href="{public_url}" style="display:inline-block;padding:10px 14px;background:#111827;color:#fff;text-decoration:none;border-radius:6px;">Ver propuesta</a></p>
       <p>También podrás aceptar, rechazar o solicitar revisión.</p>
@@ -309,14 +310,30 @@ async def share_proposal_with_client(
         f"Link: {public_url}\n"
         f"Clave temporal: {access_code}\n"
         f"Clave válida por {OTP_EXPIRATION_MINUTES} minutos\n"
-        f"Acceso disponible hasta: {access_expires_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
+        f"Acceso disponible hasta: {access_expires_at_label}\n"
     )
+    proposal_share_template_id = (
+        (settings.MAILERSEND_TEMPLATE_PROPOSAL_SHARE_ID or "").strip()
+        or (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip()
+        or None
+    )
+    proposal_share_template_data = {
+        "sender_company_name": sender_company_name,
+        "project_name": project.name,
+        "client_name": project.client_name,
+        "access_code": access_code,
+        "public_url": public_url,
+        "access_expires_at": access_expires_at_label,
+        "message": payload.message or "",
+    }
 
     success = await send_email(
         to_email=payload.to_email,
         subject=f'Tienes una Propuesta de "{sender_company_name}"',
         body_html=email_html,
         body_text=email_text,
+        template_id=proposal_share_template_id,
+        template_data=proposal_share_template_data,
     )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to send proposal access email")
