@@ -9,6 +9,7 @@ from typing import Optional
 from datetime import datetime, timedelta
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import get_current_user
 from app.core.tenant import get_tenant_context, TenantContext
 from app.core.logging import get_logger
@@ -113,8 +114,12 @@ async def analyze_financial_data(
 @router.get("/status")
 async def get_ai_status():
     """Check if AI service is available"""
+    provider = (settings.AI_PROVIDER or "openai").strip().lower()
+    model = (settings.AI_MODEL or "gpt-4o-mini").strip()
     return {
         "available": ai_service.is_available(),
+        "provider": provider,
+        "model": model,
         "message": "AI service is ready" if ai_service.is_available() else "OPENAI_API_KEY not configured"
     }
 
@@ -633,7 +638,7 @@ async def generate_executive_summary(
         # Construir respuesta
         response = ExecutiveSummaryResponse(
             summary=result.get('summary', ''),
-            provider="openai",
+            provider=result.get('provider', 'openai'),
             usage=result.get('usage')
         )
         

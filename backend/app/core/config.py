@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     GOOGLE_SHEETS_ID: str = ""
     
     # AI Configuration
+    AI_PROVIDER: str = "openai"  # Supported: "openai"
+    AI_MODEL: str = "gpt-4o-mini"
+    AI_TIMEOUT_SECONDS: int = 30
+    AI_MAX_RETRIES: int = 2
     OPENAI_API_KEY: str = ""
     GOOGLE_AI_API_KEY: str = ""
     

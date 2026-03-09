@@ -16,13 +16,27 @@ class AIService:
     """Service for AI-powered financial analysis"""
     
     def __init__(self):
-        """Initialize OpenAI client"""
+        """Initialize OpenAI client from environment configuration."""
+        self.provider = (getattr(settings, "AI_PROVIDER", "openai") or "openai").strip().lower()
+        self.model = (getattr(settings, "AI_MODEL", "gpt-4o-mini") or "gpt-4o-mini").strip()
+        self.timeout_seconds = max(5, int(getattr(settings, "AI_TIMEOUT_SECONDS", 30) or 30))
+        self.max_retries = max(0, int(getattr(settings, "AI_MAX_RETRIES", 2) or 2))
         api_key = getattr(settings, 'OPENAI_API_KEY', None)
-        if not api_key:
+        if self.provider != "openai":
+            logger.warning(
+                "Unsupported AI_PROVIDER configured. Only 'openai' is currently supported.",
+                extra={"provider": self.provider},
+            )
+            self.client = None
+        elif not api_key:
             logger.warning("OPENAI_API_KEY not configured. AI features will be disabled.")
             self.client = None
         else:
-            self.client = AsyncOpenAI(api_key=api_key)
+            self.client = AsyncOpenAI(
+                api_key=api_key,
+                timeout=self.timeout_seconds,
+                max_retries=self.max_retries,
+            )
     
     def is_available(self) -> bool:
         """Check if AI service is available"""
@@ -55,7 +69,7 @@ class AIService:
             
             # Call GPT-4
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
@@ -307,7 +321,7 @@ Por favor proporciona:
             
             # Call GPT-4 with structured output
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
@@ -449,7 +463,7 @@ IMPORTANTE:
             
             # Call GPT-4 with structured output
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
@@ -568,7 +582,7 @@ IMPORTANTE:
             
             # Call GPT-4 with structured output
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
@@ -804,7 +818,7 @@ FORMATO DE RESPUESTA (JSON):
             
             # Llamar a OpenAI
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
@@ -835,6 +849,7 @@ Enfócate en beneficios y resultados esperados."""
             return {
                 "success": True,
                 "summary": summary.strip(),
+                "provider": self.provider,
                 "usage": {
                     "prompt_tokens": response.usage.prompt_tokens,
                     "completion_tokens": response.usage.completion_tokens,
