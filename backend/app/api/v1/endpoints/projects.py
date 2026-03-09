@@ -18,6 +18,7 @@ from app.core.security import get_current_user
 from app.core.tenant import get_tenant_context, TenantContext
 from app.core.calculations import calculate_blended_cost_rate, calculate_quote_totals, calculate_quote_totals_enhanced
 from app.core.pdf_generator import generate_quote_pdf
+from app.core.config import settings
 from app.core.exceptions import ResourceNotFoundError
 from app.core.permissions import can_create, can_edit, can_delete, PermissionError, get_user_role
 from app.core.permission_middleware import require_create_projects
@@ -1170,7 +1171,8 @@ async def send_quote_email(
     - Allowed roles: owner, admin_financiero, product_manager, super_admin
     - Denied roles: collaborator (cannot send quotes)
     
-    Requires SMTP configuration in environment variables.
+    Requires email provider configuration in environment variables
+    (SMTP or MailerSend API).
     """
     # Permission check
     from app.core.permissions import check_permission, PERM_SEND_QUOTES, PermissionError
@@ -1266,6 +1268,15 @@ async def send_quote_email(
             currency=project.currency,
             notes=email_notes
         )
+        quote_template_id = (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip() or None
+        quote_template_data = {
+            "project_name": project.name,
+            "client_name": project.client_name,
+            "quote_version": quote.version,
+            "total_with_taxes": str(total_with_taxes),
+            "currency": project.currency,
+            "notes": str(email_notes or ""),
+        }
         
         # Prepare attachments
         attachments = []
@@ -1297,7 +1308,9 @@ async def send_quote_email(
             body_text=text_body,
             attachments=attachments if attachments else None,
             cc=email_data.cc if email_data.cc else None,
-            bcc=email_data.bcc if email_data.bcc else None
+            bcc=email_data.bcc if email_data.bcc else None,
+            template_id=quote_template_id,
+            template_data=quote_template_data,
         )
         
         if success:
@@ -1322,7 +1335,7 @@ async def send_quote_email(
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to send email. Please check SMTP configuration."
+                detail="Failed to send email. Please check email provider configuration."
             )
             
     except HTTPException:
@@ -1562,7 +1575,8 @@ async def send_quote_email(
     - Allowed roles: owner, admin_financiero, product_manager, super_admin
     - Denied roles: collaborator (cannot send quotes)
     
-    Requires SMTP configuration in environment variables.
+    Requires email provider configuration in environment variables
+    (SMTP or MailerSend API).
     """
     # Permission check
     from app.core.permissions import check_permission, PERM_SEND_QUOTES, PermissionError
@@ -1689,7 +1703,9 @@ async def send_quote_email(
             body_text=text_body,
             attachments=attachments if attachments else None,
             cc=email_data.cc if email_data.cc else None,
-            bcc=email_data.bcc if email_data.bcc else None
+            bcc=email_data.bcc if email_data.bcc else None,
+            template_id=quote_template_id,
+            template_data=quote_template_data,
         )
         
         if success:
@@ -1714,7 +1730,7 @@ async def send_quote_email(
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to send email. Please check SMTP configuration."
+                detail="Failed to send email. Please check email provider configuration."
             )
             
     except HTTPException:

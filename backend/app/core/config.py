@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     MAILERSEND_BASE_URL: str = "https://api.mailersend.com/v1"
     MAILERSEND_FROM_EMAIL: str = ""
     MAILERSEND_FROM_NAME: str = "Nougram"
+    MAILERSEND_TEMPLATE_QUOTE_ID: str = ""
     
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5000"

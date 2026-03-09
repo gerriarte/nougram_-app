@@ -11,6 +11,7 @@ import logging
 from app.core.calculations import calculate_blended_cost_rate, calculate_quote_totals_enhanced
 from app.core.plan_limits import validate_project_limit
 from app.core.exceptions import BusinessLogicError
+from app.core.config import settings
 from app.repositories.factory import RepositoryFactory
 from app.models.client import Client
 from app.models.project import Project, Quote, QuoteItem, QuoteItemAllocation, QuoteExpense, project_taxes
@@ -489,6 +490,15 @@ class ProjectService:
             currency=project.currency,
             notes=quote.notes or email_data.message
         )
+        quote_template_id = (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip() or None
+        quote_template_data = {
+            "project_name": project.name,
+            "client_name": project.client_name,
+            "quote_version": quote.version,
+            "total_with_taxes": str(total_with_taxes),
+            "currency": project.currency,
+            "notes": str(quote.notes or email_data.message or ""),
+        }
         
         # Prepare attachments
         attachments = []
@@ -521,7 +531,9 @@ class ProjectService:
             body_text=text_body,
             attachments=attachments if attachments else None,
             cc=email_data.cc if email_data.cc else None,
-            bcc=email_data.bcc if email_data.bcc else None
+            bcc=email_data.bcc if email_data.bcc else None,
+            template_id=quote_template_id,
+            template_data=quote_template_data,
         )
         
         if success:
@@ -543,7 +555,7 @@ class ProjectService:
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to send email. Please check SMTP configuration."
+                detail="Failed to send email. Please check email provider configuration."
             )
     
     # Helper methods

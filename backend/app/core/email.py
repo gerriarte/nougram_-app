@@ -8,7 +8,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -52,6 +52,8 @@ async def _send_email_via_mailersend(
     attachments: Optional[List[dict]] = None,
     cc: Optional[List[str]] = None,
     bcc: Optional[List[str]] = None,
+    template_id: Optional[str] = None,
+    template_data: Optional[Dict[str, Any]] = None,
 ) -> bool:
     api_key = (settings.MAILERSEND_API_KEY or "").strip()
     from_email, from_name = _get_from_identity()
@@ -68,10 +70,17 @@ async def _send_email_via_mailersend(
         "from": {"email": from_email, "name": from_name},
         "to": [{"email": to_email}],
         "subject": subject,
-        "html": body_html,
     }
-    if body_text:
-        payload["text"] = body_text
+    if template_id:
+        payload["template_id"] = template_id
+        payload["personalization"] = [{
+            "email": to_email,
+            "data": template_data or {},
+        }]
+    else:
+        payload["html"] = body_html
+        if body_text:
+            payload["text"] = body_text
     if cc:
         payload["cc"] = [{"email": email} for email in cc if email]
     if bcc:
@@ -233,17 +242,19 @@ async def send_email(
     body_text: Optional[str] = None,
     attachments: Optional[List[dict]] = None,
     cc: Optional[List[str]] = None,
-    bcc: Optional[List[str]] = None
+    bcc: Optional[List[str]] = None,
+    template_id: Optional[str] = None,
+    template_data: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """
-    Send an email using SMTP
+    Send an email using the configured provider (SMTP or MailerSend API).
     
     Args:
         to_email: Recipient email address
         subject: Email subject
         body_html: HTML email body
         body_text: Plain text email body (optional, will be generated from HTML if not provided)
-        attachments: List of attachments with 'filename' and 'content' (BytesIO) keys
+        attachments: List of attachments with 'filename' and 'content' keys
         cc: List of CC email addresses
         bcc: List of BCC email addresses
     
@@ -260,6 +271,8 @@ async def send_email(
             attachments=attachments,
             cc=cc,
             bcc=bcc,
+            template_id=template_id,
+            template_data=template_data,
         )
 
     return await _send_email_via_smtp(
