@@ -14,6 +14,8 @@ export interface QuoteSendPayload {
     includePdf: boolean;
     trackingOpen: boolean;
     proposalId?: number;
+    useCustomAccessCode?: boolean;
+    accessCode?: string;
 }
 
 type ActionResult = {
@@ -60,6 +62,8 @@ export function QuoteSendView({
     const [isSending, setIsSending] = useState(false);
     const [isSavingProposal, setIsSavingProposal] = useState(false);
     const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
+    const [useCustomAccessCode, setUseCustomAccessCode] = useState(false);
+    const [accessCode, setAccessCode] = useState('');
     const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     const handleSend = async () => {
@@ -67,9 +71,28 @@ export function QuoteSendView({
             setActionFeedback({ type: 'error', text: 'Ingresa el correo del destinatario antes de enviar.' });
             return;
         }
+        if (useCustomAccessCode) {
+            const normalizedCode = accessCode.trim();
+            if (normalizedCode.length < 4 || normalizedCode.length > 16) {
+                setActionFeedback({
+                    type: 'error',
+                    text: 'La clave temporal personalizada debe tener entre 4 y 16 caracteres.',
+                });
+                return;
+            }
+        }
         setIsSending(true);
         try {
-            const result = await onSend({ to, subject, message, includePdf, trackingOpen, proposalId });
+            const result = await onSend({
+                to,
+                subject,
+                message,
+                includePdf,
+                trackingOpen,
+                proposalId,
+                useCustomAccessCode,
+                accessCode: useCustomAccessCode ? accessCode.trim() : undefined,
+            });
             setActionFeedback({ type: result.ok ? 'success' : 'error', text: result.message });
         } catch (error) {
             const message = error instanceof Error ? error.message : 'No se pudo enviar la cotización';
@@ -194,6 +217,34 @@ export function QuoteSendView({
                                     value={proposalText}
                                     onChange={e => setProposalText(e.target.value)}
                                 />
+                            </div>
+
+                            <div className="border-t border-gray-100 pt-4 space-y-4">
+                                <h3 className="text-sm font-semibold text-gray-900">Acceso del cliente a propuesta</h3>
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={useCustomAccessCode}
+                                        onChange={e => setUseCustomAccessCode(e.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900">Definir clave temporal manualmente</p>
+                                        <p className="text-xs text-gray-500">Si no activas esto, el sistema genera la clave automáticamente.</p>
+                                    </div>
+                                </div>
+                                {useCustomAccessCode && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-700">Clave temporal personalizada</label>
+                                        <Input
+                                            value={accessCode}
+                                            onChange={e => setAccessCode(e.target.value)}
+                                            placeholder="Ej: ABRA2026"
+                                            maxLength={16}
+                                        />
+                                        <p className="text-xs text-gray-500">Debe tener entre 4 y 16 caracteres.</p>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="border-t border-gray-100 pt-4 space-y-4">

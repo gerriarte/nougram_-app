@@ -76,6 +76,21 @@ export default function SendQuotePage() {
         if (!id) return { ok: false, message: 'Proyecto inválido' };
         try {
             const result = await quoteService.sendEmail(id, data, quote?.quoteId);
+            if (data.proposalId) {
+                const shareResult = await proposalService.shareWithClient(id, data.proposalId, {
+                    to_email: data.to,
+                    quote_id: quote?.quoteId,
+                    access_code: data.useCustomAccessCode ? data.accessCode : undefined,
+                    message: data.message,
+                });
+                if (!shareResult?.success) {
+                    return {
+                        ok: false,
+                        message:
+                            'La cotización se envió, pero no se pudo compartir el acceso web de la propuesta.',
+                    };
+                }
+            }
             return { ok: true, message: result.message || 'Cotización enviada correctamente' };
         } catch (error) {
             console.error("Failed to send quote", error);

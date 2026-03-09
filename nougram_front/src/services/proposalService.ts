@@ -35,6 +35,22 @@ type ProposalListResponse = {
   total: number;
 };
 
+export type ProposalSharePayload = {
+  to_email: string;
+  quote_id?: number;
+  access_expires_at?: string;
+  access_code?: string;
+  message?: string;
+};
+
+export type ProposalShareResponse = {
+  success: boolean;
+  message: string;
+  public_url: string;
+  access_expires_at: string;
+  last_sent_at?: string;
+};
+
 export const proposalService = {
   async list(projectId: string): Promise<ProposalDocument[]> {
     const response = await apiRequest<ProposalListResponse>(`/projects/${projectId}/proposals`);
@@ -71,6 +87,22 @@ export const proposalService = {
       method: 'POST',
       body: JSON.stringify(payload || {}),
     });
+    if (response.error || !response.data) return null;
+    return response.data;
+  },
+
+  async shareWithClient(
+    projectId: string,
+    proposalId: number,
+    payload: ProposalSharePayload,
+  ): Promise<ProposalShareResponse | null> {
+    const response = await apiRequest<ProposalShareResponse>(
+      `/projects/${projectId}/proposals/${proposalId}/share`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    );
     if (response.error || !response.data) return null;
     return response.data;
   },

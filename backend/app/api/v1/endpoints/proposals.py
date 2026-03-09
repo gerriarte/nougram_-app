@@ -2,20 +2,26 @@
 Proposal document endpoints (independent from quote pricing).
 """
 from decimal import Decimal
+from datetime import datetime, timedelta, timezone
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.email import send_email
 from app.core.exceptions import ResourceNotFoundError
 from app.core.logging import get_logger
 from app.core.permission_middleware import require_modify_costs, require_send_quotes, require_view_sensitive_data
+from app.core.security import get_password_hash
 from app.core.tenant import TenantContext, get_tenant_context
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.ai import ExecutiveSummaryRequest, ExecutiveSummaryService
 from app.schemas.proposal import (
     ProposalCreate,
+    ProposalClientShareRequest,
+    ProposalClientShareResponse,
     ProposalGenerateAIRequest,
     ProposalListResponse,
     ProposalResponse,
@@ -25,6 +31,8 @@ from app.services.ai_service import ai_service
 
 router = APIRouter()
 logger = get_logger(__name__)
+DEFAULT_PROPOSAL_ACCESS_DAYS = 30
+OTP_EXPIRATION_MINUTES = 30
 
 
 @router.get("/{project_id}/proposals", response_model=ProposalListResponse)
@@ -192,3 +200,134 @@ async def generate_proposal_with_ai(
     )
     created = await proposal_repo.create(entity)
     return ProposalResponse.model_validate(created)
+
+
+@router.post(
+    "/{project_id}/proposals/{proposal_id}/share",
+    response_model=ProposalClientShareResponse,
+    summary="Share proposal with secure client portal link",
+)
+async def share_proposal_with_client(
+    project_id: int,
+    proposal_id: int,
+    payload: ProposalClientShareRequest,
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(require_send_quotes),
+    db: AsyncSession = Depends(get_db),
+):
+    project_repo = RepositoryFactory.create_project_repository(db, tenant.organization_id)
+    project = await project_repo.get_by_id_with_quotes(project_id, include_deleted=False)
+    if not project:
+        raise ResourceNotFoundError("Project", project_id)
+
+    proposal_repo = RepositoryFactory.create_proposal_repository(db, tenant.organization_id)
+    proposal = await proposal_repo.get_by_id(proposal_id)
+    if not proposal or proposal.project_id != project_id:
+        raise ResourceNotFoundError("Proposal", proposal_id)
+
+    quote_id = payload.quote_id
+    selected_quote = None
+    if quote_id is not None:
+        selected_quote = next((q for q in (project.quotes or []) if q.id == quote_id), None)
+        if not selected_quote:
+            raise HTTPException(status_code=404, detail=f"Quote with id {quote_id} not found for project {project_id}")
+    elif project.quotes:
+        selected_quote = sorted(project.quotes, key=lambda q: q.version, reverse=True)[0]
+        quote_id = selected_quote.id
+
+    now = datetime.now(timezone.utc)
+    max_expiration = now + timedelta(days=DEFAULT_PROPOSAL_ACCESS_DAYS)
+    requested_expiration = payload.access_expires_at
+    if requested_expiration is not None:
+        if requested_expiration.tzinfo is None:
+            requested_expiration = requested_expiration.replace(tzinfo=timezone.utc)
+        if requested_expiration <= now:
+            raise HTTPException(status_code=400, detail="access_expires_at must be in the future")
+        if requested_expiration > max_expiration:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Client access cannot exceed {DEFAULT_PROPOSAL_ACCESS_DAYS} days",
+            )
+        access_expires_at = requested_expiration
+    else:
+        access_expires_at = max_expiration
+
+    link_repo = RepositoryFactory.create_proposal_client_link_repository(db, tenant.organization_id)
+    existing_link = await link_repo.get_latest_by_proposal(proposal_id)
+    if existing_link and existing_link.is_active == 1:
+        link = existing_link
+        link.access_expires_at = access_expires_at
+        link.quote_id = quote_id
+        link.updated_by_id = current_user.id
+    else:
+        from app.models.proposal import ProposalClientLink
+
+        link = ProposalClientLink(
+            proposal_id=proposal_id,
+            project_id=project_id,
+            organization_id=tenant.organization_id,
+            quote_id=quote_id,
+            public_token=secrets.token_urlsafe(24),
+            access_expires_at=access_expires_at,
+            status="sent",
+            is_active=1,
+            created_by_id=current_user.id,
+            updated_by_id=current_user.id,
+        )
+        link = await link_repo.create(link)
+
+    custom_access_code = (payload.access_code or "").strip()
+    access_code = custom_access_code or f"{secrets.randbelow(900000) + 100000}"
+    link.access_code_hash = get_password_hash(access_code)
+    link.access_code_expires_at = now + timedelta(minutes=OTP_EXPIRATION_MINUTES)
+    link.last_sent_at = now
+
+    sender_company_name = (tenant.organization.name or "").strip() or "tu empresa"
+    public_url = f"{tenant.organization.settings.get('frontend_url', '')}" if isinstance(tenant.organization.settings, dict) else ""
+    if not public_url:
+        from app.core.config import settings
+        public_url = settings.FRONTEND_URL.rstrip("/")
+    public_url = f"{public_url}/client/proposals/{link.public_token}"
+
+    email_html = f"""
+    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+      <h2>Tienes una Propuesta de "{sender_company_name}"</h2>
+      <p>Hola, tienes una propuesta comercial disponible para revisar.</p>
+      <p><strong>Proyecto:</strong> {project.name}</p>
+      <p><strong>Cliente:</strong> {project.client_name}</p>
+      <p><strong>Vigencia del acceso:</strong> hasta {access_expires_at.strftime('%Y-%m-%d %H:%M UTC')}</p>
+      <p><strong>Clave temporal:</strong> <span style="font-size: 18px;">{access_code}</span> (expira en {OTP_EXPIRATION_MINUTES} minutos)</p>
+      <p><a href="{public_url}" style="display:inline-block;padding:10px 14px;background:#111827;color:#fff;text-decoration:none;border-radius:6px;">Ver propuesta</a></p>
+      <p>También podrás aceptar, rechazar o solicitar revisión.</p>
+      <p>{payload.message or ''}</p>
+    </div>
+    """
+    email_text = (
+        f'Tienes una Propuesta de "{sender_company_name}"\n'
+        f"Proyecto: {project.name}\n"
+        f"Cliente: {project.client_name}\n"
+        f"Link: {public_url}\n"
+        f"Clave temporal: {access_code}\n"
+        f"Clave válida por {OTP_EXPIRATION_MINUTES} minutos\n"
+        f"Acceso disponible hasta: {access_expires_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
+    )
+
+    success = await send_email(
+        to_email=payload.to_email,
+        subject=f'Tienes una Propuesta de "{sender_company_name}"',
+        body_html=email_html,
+        body_text=email_text,
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send proposal access email")
+
+    await db.commit()
+    await db.refresh(link)
+
+    return ProposalClientShareResponse(
+        success=True,
+        message=f"Proposal access sent successfully to {payload.to_email}",
+        public_url=public_url,
+        access_expires_at=link.access_expires_at,
+        last_sent_at=link.last_sent_at,
+    )

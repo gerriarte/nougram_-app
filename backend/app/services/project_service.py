@@ -14,6 +14,7 @@ from app.core.exceptions import BusinessLogicError
 from app.core.config import settings
 from app.repositories.factory import RepositoryFactory
 from app.models.client import Client
+from app.models.organization import Organization
 from app.models.project import Project, Quote, QuoteItem, QuoteItemAllocation, QuoteExpense, project_taxes
 from app.models.service import Service
 from app.models.tax import Tax
@@ -472,8 +473,13 @@ class ProjectService:
         
         total_with_taxes = total_client_price + total_taxes
         
+        org_result = await self.db.execute(
+            select(Organization.name).where(Organization.id == self.organization_id)
+        )
+        sender_company_name = (org_result.scalar_one_or_none() or "").strip() or "tu empresa"
+
         # Generate email
-        subject = email_data.subject or f"Quote for {project.name} - Version {quote.version}"
+        subject = email_data.subject or f'Tienes una Propuesta de "{sender_company_name}"'
         html_body = generate_quote_email_html(
             project_name=project.name,
             client_name=project.client_name,
@@ -498,6 +504,7 @@ class ProjectService:
             "total_with_taxes": str(total_with_taxes),
             "currency": project.currency,
             "notes": str(quote.notes or email_data.message or ""),
+            "sender_company_name": sender_company_name,
         }
         
         # Prepare attachments

@@ -1237,8 +1237,9 @@ async def send_quote_email(
         
         total_with_taxes = total_client_price + total_taxes
         
+        sender_company_name = (tenant.organization.name or "").strip() or "tu empresa"
         # Generate email subject
-        subject = email_data.subject or f"Quote for {project.name} - Version {quote.version}"
+        subject = email_data.subject or f'Tienes una Propuesta de "{sender_company_name}"'
         
         proposal_text = ""
         if email_data.proposal_id is not None:
@@ -1276,6 +1277,7 @@ async def send_quote_email(
             "total_with_taxes": str(total_with_taxes),
             "currency": project.currency,
             "notes": str(email_notes or ""),
+            "sender_company_name": sender_company_name,
         }
         
         # Prepare attachments
@@ -1641,8 +1643,9 @@ async def send_quote_email(
         
         total_with_taxes = total_client_price + total_taxes
         
+        sender_company_name = (tenant.organization.name or "").strip() or "tu empresa"
         # Generate email subject
-        subject = email_data.subject or f"Quote for {project.name} - Version {quote.version}"
+        subject = email_data.subject or f'Tienes una Propuesta de "{sender_company_name}"'
         
         proposal_text = ""
         if email_data.proposal_id is not None:
@@ -1672,6 +1675,16 @@ async def send_quote_email(
             currency=project.currency,
             notes=email_notes
         )
+        quote_template_id = (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip() or None
+        quote_template_data = {
+            "project_name": project.name,
+            "client_name": project.client_name,
+            "quote_version": quote.version,
+            "total_with_taxes": str(total_with_taxes),
+            "currency": project.currency,
+            "notes": str(email_notes or ""),
+            "sender_company_name": sender_company_name,
+        }
         
         # Prepare attachments
         attachments = []
