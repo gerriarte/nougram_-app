@@ -95,7 +95,7 @@ export function QuoteSendView({
             });
             setActionFeedback({ type: result.ok ? 'success' : 'error', text: result.message });
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'No se pudo enviar la cotización';
+            const message = error instanceof Error ? error.message : 'No se pudo enviar la propuesta';
             setActionFeedback({ type: 'error', text: message });
         } finally {
             setIsSending(false);
@@ -148,7 +148,7 @@ export function QuoteSendView({
                         </Button>
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Nougram</p>
-                            <h1 className="text-2xl font-bold text-[#1D1D1F]">Enviar Cotización</h1>
+                            <h1 className="text-2xl font-bold text-[#1D1D1F]">Enviar Propuesta</h1>
                         </div>
                     </div>
                     {actionFeedback && (
@@ -296,7 +296,7 @@ export function QuoteSendView({
                         >
                             {isSending ? 'Enviando...' : (
                                 <span className="flex items-center gap-2">
-                                    <Send size={16} /> Enviar Cotización
+                                    <Send size={16} /> Enviar Propuesta
                                 </span>
                             )}
                         </Button>

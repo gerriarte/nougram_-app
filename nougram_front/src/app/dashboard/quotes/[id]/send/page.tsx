@@ -75,26 +75,32 @@ export default function SendQuotePage() {
     const handleSend = async (data: QuoteSendPayload) => {
         if (!id) return { ok: false, message: 'Proyecto inválido' };
         try {
-            const result = await quoteService.sendEmail(id, data, quote?.quoteId);
-            if (data.proposalId) {
-                const shareResult = await proposalService.shareWithClient(id, data.proposalId, {
-                    to_email: data.to,
-                    quote_id: quote?.quoteId,
-                    access_code: data.useCustomAccessCode ? data.accessCode : undefined,
-                    message: data.message,
-                });
-                if (!shareResult?.success) {
-                    return {
-                        ok: false,
-                        message:
-                            'La cotización se envió, pero no se pudo compartir el acceso web de la propuesta.',
-                    };
-                }
+            if (!data.proposalId) {
+                return {
+                    ok: false,
+                    message: 'Debes guardar la propuesta antes de enviarla al portal del cliente.',
+                };
             }
-            return { ok: true, message: result.message || 'Cotización enviada correctamente' };
+
+            const shareResult = await proposalService.shareWithClient(id, data.proposalId, {
+                to_email: data.to,
+                quote_id: quote?.quoteId,
+                access_code: data.useCustomAccessCode ? data.accessCode : undefined,
+                message: data.message,
+            });
+            if (!shareResult?.success) {
+                return {
+                    ok: false,
+                    message: 'No se pudo compartir el acceso web de la propuesta.',
+                };
+            }
+            return {
+                ok: true,
+                message: 'Propuesta enviada correctamente al portal del cliente.',
+            };
         } catch (error) {
-            console.error("Failed to send quote", error);
-            const message = error instanceof Error ? error.message : "Error al enviar la cotización";
+            console.error("Failed to send proposal", error);
+            const message = error instanceof Error ? error.message : "Error al enviar la propuesta";
             return { ok: false, message };
         }
     };
