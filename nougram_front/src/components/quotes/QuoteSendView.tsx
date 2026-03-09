@@ -146,7 +146,10 @@ export function QuoteSendView({
                         <Button variant="ghost" onClick={onCancel} className="h-10 w-10 p-0 rounded-full hover:bg-white/50">
                             <ArrowLeft size={20} />
                         </Button>
-                        <h1 className="text-2xl font-bold text-[#1D1D1F]">Enviar Cotización</h1>
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Nougram</p>
+                            <h1 className="text-2xl font-bold text-[#1D1D1F]">Enviar Cotización</h1>
+                        </div>
                     </div>
                     {actionFeedback && (
                         <div
@@ -314,7 +317,7 @@ export function QuoteSendView({
 
                         <div className="p-8 space-y-6">
                             <div className="border-b border-gray-100 pb-6 space-y-1">
-                                <p className="text-sm text-gray-500">De: <span className="text-gray-900 font-medium">Juan Pérez &lt;juan@nougram.co&gt;</span></p>
+                                <p className="text-sm text-gray-500">De: <span className="text-gray-900 font-medium">Nougram &lt;hola@nougram.co&gt;</span></p>
                                 <p className="text-sm text-gray-500">Para: <span className="text-gray-900 font-medium">{to || 'Destinatario'}</span></p>
                                 <p className="text-sm text-gray-500">Asunto: <span className="text-gray-900 font-medium">{subject}</span></p>
                             </div>

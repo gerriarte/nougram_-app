@@ -207,6 +207,9 @@ export default function ClientProposalPortalPage() {
     <div className="min-h-screen bg-background py-10 px-4">
       <div className="mx-auto w-full max-w-4xl space-y-6">
         <header className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
+            Nougram
+          </div>
           <h1 className="text-2xl font-semibold text-gray-900">Portal de propuesta</h1>
           <p className="mt-2 text-sm text-system-gray">
             Revisa la propuesta, la cotizacion y responde si deseas aceptar, rechazar o solicitar
@@ -354,6 +357,10 @@ export default function ClientProposalPortalPage() {
             </div>
           </Alert>
         )}
+
+        <footer className="pb-4 text-center text-xs text-system-gray">
+          Enviado y gestionado con <span className="font-semibold text-gray-900">Nougram</span>
+        </footer>
       </div>
     </div>
   );
