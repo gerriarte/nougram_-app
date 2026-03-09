@@ -6,6 +6,14 @@ import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 
@@ -122,6 +130,7 @@ export default function ClientProposalPortalPage() {
   const [decisionComment, setDecisionComment] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [decisionModalMessage, setDecisionModalMessage] = useState<string | null>(null);
 
   const canUseApi = Boolean(apiBase);
 
@@ -248,6 +257,13 @@ export default function ClientProposalPortalPage() {
       const updated = (await response.json()) as PortalDataResponse;
       setPortalData(updated);
       setSuccess('Tu respuesta fue registrada correctamente.');
+      if (decision === 'accepted') {
+        setDecisionModalMessage('Genial, muy pronto nos pondremos en contacto para iniciar');
+      } else if (decision === 'revision_requested') {
+        setDecisionModalMessage('Ya se informó para una revisión');
+      } else {
+        setDecisionModalMessage('Lamentamos saberlo, gracias');
+      }
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -539,6 +555,18 @@ export default function ClientProposalPortalPage() {
           Enviado y gestionado con <span className="font-semibold text-gray-900">Nougram</span>
         </footer>
       </div>
+
+      <Dialog open={Boolean(decisionModalMessage)} onOpenChange={(open) => !open && setDecisionModalMessage(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Respuesta registrada</DialogTitle>
+            <DialogDescription>{decisionModalMessage}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setDecisionModalMessage(null)}>Entendido</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

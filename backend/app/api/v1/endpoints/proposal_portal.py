@@ -11,9 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.email import send_email
 from app.core.security import create_access_token, decode_access_token, verify_password
 from app.models.project import Quote
 from app.models.proposal import ProposalClientLink, ProposalDocument
+from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.proposal import (
     ProposalClientDecisionRequest,
@@ -25,6 +27,17 @@ from app.schemas.proposal import (
 router = APIRouter(prefix="/public/proposals", tags=["proposal-portal"])
 portal_security = HTTPBearer(auto_error=False)
 PORTAL_SESSION_MINUTES = 180
+
+
+def _decision_label(decision: str) -> str:
+    normalized = (decision or "").strip().lower()
+    if normalized == "accepted":
+        return "Aceptada"
+    if normalized == "revision_requested":
+        return "Solicita revisión"
+    if normalized == "rejected":
+        return "No continuar"
+    return decision
 
 
 async def _get_active_link(token: str, db: AsyncSession) -> ProposalClientLink:
@@ -159,6 +172,43 @@ async def submit_proposal_decision(
     if link.quote_id:
         q_res = await db.execute(select(Quote).where(Quote.id == link.quote_id, Quote.project_id == link.project_id))
         quote = q_res.scalar_one_or_none()
+
+    creator = None
+    if proposal.created_by_id:
+        creator_result = await db.execute(select(User).where(User.id == proposal.created_by_id))
+        creator = creator_result.scalar_one_or_none()
+
+    creator_email = (creator.email if creator and creator.email else "").strip() if creator else ""
+    if creator_email:
+        decision_label = _decision_label(link.status)
+        comment_text = (link.decision_comment or "").strip()
+        decision_date = now.strftime("%Y-%m-%d %H:%M UTC")
+        creator_subject = f'Respuesta de cliente: {decision_label} - "{proposal.title}"'
+        creator_html = f"""
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h2>Actualización de propuesta</h2>
+          <p>El cliente respondió la propuesta enviada desde el portal.</p>
+          <p><strong>Proyecto:</strong> {proposal.project.name if proposal.project else ''}</p>
+          <p><strong>Cliente:</strong> {proposal.project.client_name if proposal.project else ''}</p>
+          <p><strong>Respuesta:</strong> {decision_label}</p>
+          <p><strong>Fecha:</strong> {decision_date}</p>
+          <p><strong>Comentario:</strong> {comment_text or 'Sin comentario'}</p>
+        </div>
+        """
+        creator_text = (
+            "Actualización de propuesta\n"
+            f"Proyecto: {proposal.project.name if proposal.project else ''}\n"
+            f"Cliente: {proposal.project.client_name if proposal.project else ''}\n"
+            f"Respuesta: {decision_label}\n"
+            f"Fecha: {decision_date}\n"
+            f"Comentario: {comment_text or 'Sin comentario'}\n"
+        )
+        await send_email(
+            to_email=creator_email,
+            subject=creator_subject,
+            body_html=creator_html,
+            body_text=creator_text,
+        )
 
     return ProposalClientPortalResponse(
         proposal_id=proposal.id,
