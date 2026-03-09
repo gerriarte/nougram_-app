@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 import { Alert } from '@/components/ui/Alert';
@@ -39,12 +40,9 @@ function getApiBase(): string {
   return base.replace(/\/+$/, '');
 }
 
-export default function ClientProposalPortalPage({
-  params,
-}: {
-  params: { token: string };
-}) {
-  const { token } = params;
+export default function ClientProposalPortalPage() {
+  const params = useParams<{ token: string }>();
+  const token = params?.token || '';
   const apiBase = useMemo(() => getApiBase(), []);
   const sessionStorageKey = `${SESSION_STORAGE_PREFIX}${token}`;
 
@@ -98,13 +96,14 @@ export default function ClientProposalPortalPage({
   };
 
   useEffect(() => {
+    if (!token) return;
     const storedToken = sessionStorage.getItem(sessionStorageKey);
     if (storedToken) {
       setSessionToken(storedToken);
       void fetchPortalData(storedToken);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionStorageKey]);
+  }, [sessionStorageKey, token]);
 
   const onVerifyAccessCode = async (event: React.FormEvent) => {
     event.preventDefault();
