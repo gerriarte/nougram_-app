@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -22,6 +22,8 @@ export default function RegisterPage() {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -143,29 +145,53 @@ export default function RegisterPage() {
 
           <div className="space-y-2">
             <Label htmlFor="adminPassword">Contraseña</Label>
-            <Input
-              id="adminPassword"
-              type="password"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              required
-              minLength={8}
-              disabled={submitting}
-              placeholder="Mínimo 8 caracteres"
-            />
+            <div className="relative">
+              <Input
+                id="adminPassword"
+                type={showAdminPassword ? 'text' : 'password'}
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                required
+                minLength={8}
+                disabled={submitting}
+                placeholder="Mínimo 8 caracteres"
+                className="pr-11"
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700"
+                onClick={() => setShowAdminPassword((prev) => !prev)}
+                aria-label={showAdminPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                disabled={submitting}
+              >
+                {showAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              disabled={submitting}
-              placeholder="Repite la contraseña"
-            />
+            <div className="relative">
+              <Input
+                id="confirmPassword"
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                disabled={submitting}
+                placeholder="Repite la contraseña"
+                className="pr-11"
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                aria-label={showConfirmPassword ? 'Ocultar confirmación de contraseña' : 'Mostrar confirmación de contraseña'}
+                disabled={submitting}
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {confirmPassword && adminPassword === confirmPassword && (
               <p className="text-xs text-green-700 flex items-center gap-1">
                 <CheckCircle2 className="h-3 w-3" />
