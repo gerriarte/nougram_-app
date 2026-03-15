@@ -163,8 +163,9 @@ export default function OnboardingPage() {
         };
         updateTeam(teamData);
 
-        if (importPreview.temporary_bcr?.blended_cost_rate) {
-            const parsed = Number(importPreview.temporary_bcr.blended_cost_rate);
+        const previewBcr = importPreview?.temporary_bcr?.blended_cost_rate;
+        if (previewBcr) {
+            const parsed = Number(previewBcr);
             if (Number.isFinite(parsed)) setBackendBcr(parsed);
         }
 
