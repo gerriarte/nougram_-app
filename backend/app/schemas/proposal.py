@@ -24,6 +24,12 @@ class ProposalGenerateAIRequest(BaseModel):
     title: Optional[str] = None
     language: str = Field(default="es", pattern="^(es|en)$")
     extra_instructions: Optional[str] = None
+    services_context: Optional[str] = None
+    proposal_objective: Optional[str] = None
+    estimated_timeline: Optional[str] = None
+    payment_conditions: Optional[str] = None
+    execution_conditions: Optional[str] = None
+    persist_context: bool = Field(default=True)
 
 
 class ProposalResponse(BaseModel):
