@@ -404,11 +404,20 @@ async def share_proposal_with_client(
         )
         link = await link_repo.create(link)
 
+    if payload.send_email and not (payload.to_email or "").strip():
+        raise HTTPException(status_code=400, detail="to_email is required when send_email is true")
+
     custom_access_code = (payload.access_code or "").strip()
     access_code = custom_access_code or f"{secrets.randbelow(900000) + 100000}"
     link.access_code_hash = get_password_hash(access_code)
-    link.access_code_expires_at = now + timedelta(minutes=OTP_EXPIRATION_MINUTES)
-    link.last_sent_at = now
+    # For manual share mode (without sending email), keep the code valid for the full access window.
+    link.access_code_expires_at = (
+        now + timedelta(minutes=OTP_EXPIRATION_MINUTES)
+        if payload.send_email
+        else access_expires_at
+    )
+    if payload.send_email:
+        link.last_sent_at = now
 
     sender_company_name = (tenant.organization.name or "").strip() or "tu empresa"
     public_url = f"{tenant.organization.settings.get('frontend_url', '')}" if isinstance(tenant.organization.settings, dict) else ""
@@ -417,61 +426,69 @@ async def share_proposal_with_client(
     public_url = f"{public_url}/client/proposals/{link.public_token}"
     access_expires_at_label = access_expires_at.strftime('%Y-%m-%d %H:%M UTC')
 
-    email_html = f"""
-    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-      <h2>Tienes una Propuesta de "{sender_company_name}"</h2>
-      <p>Hola, tienes una propuesta comercial disponible para revisar.</p>
-      <p><strong>Proyecto:</strong> {project.name}</p>
-      <p><strong>Cliente:</strong> {project.client_name}</p>
-      <p><strong>Vigencia del acceso:</strong> hasta {access_expires_at_label}</p>
-      <p><strong>Clave temporal:</strong> <span style="font-size: 18px;">{access_code}</span> (expira en {OTP_EXPIRATION_MINUTES} minutos)</p>
-      <p><a href="{public_url}" style="display:inline-block;padding:10px 14px;background:#111827;color:#fff;text-decoration:none;border-radius:6px;">Ver propuesta</a></p>
-      <p>También podrás aceptar, rechazar o solicitar revisión.</p>
-      <p>{payload.message or ''}</p>
-    </div>
-    """
-    email_text = (
-        f'Tienes una Propuesta de "{sender_company_name}"\n'
-        f"Proyecto: {project.name}\n"
-        f"Cliente: {project.client_name}\n"
-        f"Link: {public_url}\n"
-        f"Clave temporal: {access_code}\n"
-        f"Clave válida por {OTP_EXPIRATION_MINUTES} minutos\n"
-        f"Acceso disponible hasta: {access_expires_at_label}\n"
-    )
-    proposal_share_template_id = (
-        (settings.MAILERSEND_TEMPLATE_PROPOSAL_SHARE_ID or "").strip()
-        or (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip()
-        or None
-    )
-    proposal_share_template_data = {
-        "sender_company_name": sender_company_name,
-        "project_name": project.name,
-        "client_name": project.client_name,
-        "access_code": access_code,
-        "public_url": public_url,
-        "access_expires_at": access_expires_at_label,
-        "message": payload.message or "",
-    }
+    if payload.send_email:
+        email_html = f"""
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h2>Tienes una Propuesta de "{sender_company_name}"</h2>
+          <p>Hola, tienes una propuesta comercial disponible para revisar.</p>
+          <p><strong>Proyecto:</strong> {project.name}</p>
+          <p><strong>Cliente:</strong> {project.client_name}</p>
+          <p><strong>Vigencia del acceso:</strong> hasta {access_expires_at_label}</p>
+          <p><strong>Clave temporal:</strong> <span style="font-size: 18px;">{access_code}</span> (expira en {OTP_EXPIRATION_MINUTES} minutos)</p>
+          <p><a href="{public_url}" style="display:inline-block;padding:10px 14px;background:#111827;color:#fff;text-decoration:none;border-radius:6px;">Ver propuesta</a></p>
+          <p>También podrás aceptar, rechazar o solicitar revisión.</p>
+          <p>{payload.message or ''}</p>
+        </div>
+        """
+        email_text = (
+            f'Tienes una Propuesta de "{sender_company_name}"\n'
+            f"Proyecto: {project.name}\n"
+            f"Cliente: {project.client_name}\n"
+            f"Link: {public_url}\n"
+            f"Clave temporal: {access_code}\n"
+            f"Clave válida por {OTP_EXPIRATION_MINUTES} minutos\n"
+            f"Acceso disponible hasta: {access_expires_at_label}\n"
+        )
+        proposal_share_template_id = (
+            (settings.MAILERSEND_TEMPLATE_PROPOSAL_SHARE_ID or "").strip()
+            or (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip()
+            or None
+        )
+        proposal_share_template_data = {
+            "sender_company_name": sender_company_name,
+            "project_name": project.name,
+            "client_name": project.client_name,
+            "access_code": access_code,
+            "public_url": public_url,
+            "access_expires_at": access_expires_at_label,
+            "message": payload.message or "",
+        }
 
-    success = await send_email(
-        to_email=payload.to_email,
-        subject=f'Tienes una Propuesta de "{sender_company_name}"',
-        body_html=email_html,
-        body_text=email_text,
-        template_id=proposal_share_template_id,
-        template_data=proposal_share_template_data,
-    )
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to send proposal access email")
+        success = await send_email(
+            to_email=payload.to_email or "",
+            subject=f'Tienes una Propuesta de "{sender_company_name}"',
+            body_html=email_html,
+            body_text=email_text,
+            template_id=proposal_share_template_id,
+            template_data=proposal_share_template_data,
+        )
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to send proposal access email")
 
     await db.commit()
     await db.refresh(link)
 
+    if payload.send_email:
+        message = f"Proposal access sent successfully to {payload.to_email}"
+    else:
+        message = "Proposal access generated successfully without sending email"
+
     return ProposalClientShareResponse(
         success=True,
-        message=f"Proposal access sent successfully to {payload.to_email}",
+        message=message,
         public_url=public_url,
         access_expires_at=link.access_expires_at,
         last_sent_at=link.last_sent_at,
+        access_code=access_code,
+        sent_email=payload.send_email,
     )

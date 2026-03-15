@@ -36,11 +36,12 @@ type ProposalListResponse = {
 };
 
 export type ProposalSharePayload = {
-  to_email: string;
+  to_email?: string;
   quote_id?: number;
   access_expires_at?: string;
   access_code?: string;
   message?: string;
+  send_email?: boolean;
 };
 
 export type ProposalShareResponse = {
@@ -49,6 +50,8 @@ export type ProposalShareResponse = {
   public_url: string;
   access_expires_at: string;
   last_sent_at?: string;
+  access_code?: string;
+  sent_email?: boolean;
 };
 
 export type ProposalAIGeneratePayload = {

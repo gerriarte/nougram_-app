@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent } from '@/components/ui/Card';
-import { ArrowLeft, Send, Paperclip, Eye, Sparkles, Save } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Eye, Sparkles, Save, Link as LinkIcon, Copy } from 'lucide-react';
 import { Quote } from '@/components/dashboard/QuoteCard';
 import { formatCurrency } from '@/lib/utils';
 
@@ -23,6 +23,14 @@ type ActionResult = {
     message: string;
 };
 
+type AccessLinkResult = {
+    ok: boolean;
+    message: string;
+    publicUrl?: string;
+    accessCode?: string;
+    accessExpiresAt?: string;
+};
+
 interface QuoteSendViewProps {
     quote: Quote;
     initialToEmail?: string;
@@ -31,6 +39,12 @@ interface QuoteSendViewProps {
     proposalVersion?: number;
     initialProposalId?: number;
     onSend: (data: QuoteSendPayload) => Promise<ActionResult>;
+    onGenerateAccessLink: (data: {
+        proposalId?: number;
+        useCustomAccessCode?: boolean;
+        accessCode?: string;
+        message?: string;
+    }) => Promise<AccessLinkResult>;
     onSaveProposal: (payload: { title: string; text: string }) => Promise<{ proposalId?: number; message: string }>;
     onGenerateProposalAI: () => Promise<{ title: string; text: string; version?: number; message: string } | null>;
     onOpenStructuredBuilder?: () => void;
@@ -45,6 +59,7 @@ export function QuoteSendView({
     proposalVersion,
     initialProposalId,
     onSend,
+    onGenerateAccessLink,
     onSaveProposal,
     onGenerateProposalAI,
     onOpenStructuredBuilder,
@@ -62,8 +77,14 @@ export function QuoteSendView({
     const [isSending, setIsSending] = useState(false);
     const [isSavingProposal, setIsSavingProposal] = useState(false);
     const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
+    const [isGeneratingAccessLink, setIsGeneratingAccessLink] = useState(false);
     const [useCustomAccessCode, setUseCustomAccessCode] = useState(false);
     const [accessCode, setAccessCode] = useState('');
+    const [generatedAccess, setGeneratedAccess] = useState<{
+        publicUrl: string;
+        accessCode: string;
+        accessExpiresAt?: string;
+    } | null>(null);
     const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     const handleSend = async () => {
@@ -136,6 +157,50 @@ export function QuoteSendView({
         }
     };
 
+    const copyToClipboard = async (value: string, label: string) => {
+        try {
+            await navigator.clipboard.writeText(value);
+            setActionFeedback({ type: 'success', text: `${label} copiado al portapapeles.` });
+        } catch {
+            setActionFeedback({ type: 'error', text: `No se pudo copiar ${label.toLowerCase()}.` });
+        }
+    };
+
+    const handleGenerateAccessLink = async () => {
+        if (useCustomAccessCode) {
+            const normalizedCode = accessCode.trim();
+            if (normalizedCode.length < 4 || normalizedCode.length > 16) {
+                setActionFeedback({
+                    type: 'error',
+                    text: 'La clave temporal personalizada debe tener entre 4 y 16 caracteres.',
+                });
+                return;
+            }
+        }
+        setIsGeneratingAccessLink(true);
+        try {
+            const result = await onGenerateAccessLink({
+                proposalId,
+                useCustomAccessCode,
+                accessCode: useCustomAccessCode ? accessCode.trim() : undefined,
+                message,
+            });
+            setActionFeedback({ type: result.ok ? 'success' : 'error', text: result.message });
+            if (result.ok && result.publicUrl && result.accessCode) {
+                setGeneratedAccess({
+                    publicUrl: result.publicUrl,
+                    accessCode: result.accessCode,
+                    accessExpiresAt: result.accessExpiresAt,
+                });
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'No se pudo generar el acceso';
+            setActionFeedback({ type: 'error', text: message });
+        } finally {
+            setIsGeneratingAccessLink(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-[#F5F5F7] p-6 lg:p-12">
             <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -169,6 +234,47 @@ export function QuoteSendView({
                                 <label className="text-sm font-medium text-gray-700">Para</label>
                                 <Input value={to} onChange={e => setTo(e.target.value)} placeholder="cliente@empresa.com" />
                             </div>
+
+                            {generatedAccess && (
+                                <div className="border-t border-gray-100 pt-4 space-y-3">
+                                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                                        <LinkIcon size={16} /> Acceso generado (sin envío de correo)
+                                    </h3>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium text-gray-600">Link portal cliente</label>
+                                        <div className="flex gap-2">
+                                            <Input value={generatedAccess.publicUrl} readOnly />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => void copyToClipboard(generatedAccess.publicUrl, 'Link')}
+                                            >
+                                                <Copy size={14} className="mr-1" /> Copiar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium text-gray-600">Clave temporal</label>
+                                        <div className="flex gap-2">
+                                            <Input value={generatedAccess.accessCode} readOnly />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => void copyToClipboard(generatedAccess.accessCode, 'Clave')}
+                                            >
+                                                <Copy size={14} className="mr-1" /> Copiar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    {generatedAccess.accessExpiresAt && (
+                                        <p className="text-xs text-gray-500">
+                                            Vigencia de acceso: {new Date(generatedAccess.accessExpiresAt).toLocaleString()}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-gray-700">Asunto</label>
@@ -288,6 +394,14 @@ export function QuoteSendView({
                     <div className="flex gap-4 pt-4">
                         <Button variant="secondary" onClick={onCancel} className="flex-1">
                             Cancelar
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={handleGenerateAccessLink}
+                            disabled={isGeneratingAccessLink}
+                        >
+                            {isGeneratingAccessLink ? 'Generando acceso...' : 'Guardar acceso sin enviar'}
                         </Button>
                         <Button
                             className="flex-1 bg-black text-white hover:bg-gray-800"
