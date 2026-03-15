@@ -3,6 +3,7 @@ import {
     FixedCostTemplate,
 } from '@/types/onboarding';
 import { apiRequest } from '@/lib/api-client';
+import { getAuthToken } from '@/lib/auth';
 
 // Types
 export interface CurrencyRate {
@@ -28,6 +29,64 @@ type OnboardingDraftResponse = {
     data: Record<string, unknown>;
 };
 
+type OnboardingImportPreviewIssue = {
+    sheet: string;
+    row: number;
+    field: string;
+    message: string;
+};
+
+type OnboardingImportPreviewResponse = {
+    success: boolean;
+    source: 'excel' | 'google_sheets';
+    summary: Record<string, number>;
+    issues: OnboardingImportPreviewIssue[];
+    payload?: {
+        organization_name?: string;
+        organization_description?: string;
+        country: string;
+        currency: string;
+        profile_type: 'freelance' | 'company' | 'agency';
+        team_members: Array<{
+            name: string;
+            role: string;
+            salary_monthly_brute: string;
+            currency: string;
+            billable_hours_per_month: number;
+        }>;
+        expenses: Array<{
+            name: string;
+            category: 'rent' | 'software' | 'services';
+            amount_monthly: string;
+            currency: string;
+            quantity: number;
+        }>;
+        inventory_items: Array<{
+            name: string;
+            category: string;
+            amount_monthly?: string;
+            purchase_price?: string;
+            useful_life_months?: number;
+            salvage_value?: string;
+            purchase_date?: string;
+            depreciation_method?: 'straight_line' | 'declining_balance';
+            currency: string;
+            quantity: number;
+            amortizable: boolean;
+        }>;
+    };
+    temporary_bcr?: {
+        blended_cost_rate: string;
+        total_monthly_costs: string;
+        total_fixed_overhead: string;
+        total_salaries: string;
+        total_monthly_hours: number;
+        team_members_count: number;
+        currency: string;
+        note: string;
+    };
+};
+
 export const onboardingService = {
 
     getTemplates: async (): Promise<FixedCostTemplate[]> => {
@@ -50,6 +109,59 @@ export const onboardingService = {
         return !response.error;
     },
 
+    downloadImportTemplate: async (): Promise<{ ok: boolean; error?: string }> => {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '');
+        if (!baseUrl) return { ok: false, error: 'NEXT_PUBLIC_API_URL no configurada' };
+        const token = getAuthToken();
+
+        try {
+            const response = await fetch(`${baseUrl}/onboarding/import-template/excel`, {
+                method: 'GET',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}));
+                return { ok: false, error: errorBody?.detail || `Error ${response.status}` };
+            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'onboarding-import-template.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            return { ok: true };
+        } catch (error) {
+            return { ok: false, error: error instanceof Error ? error.message : 'Error descargando plantilla' };
+        }
+    },
+
+    previewImportExcel: async (file: File): Promise<{ data?: OnboardingImportPreviewResponse; error?: string }> => {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '');
+        if (!baseUrl) return { error: 'NEXT_PUBLIC_API_URL no configurada' };
+        const token = getAuthToken();
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(`${baseUrl}/onboarding/import-preview/excel`, {
+                method: 'POST',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                body: formData,
+            });
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}));
+                return { error: errorBody?.detail || `Error ${response.status}` };
+            }
+            const data = (await response.json()) as OnboardingImportPreviewResponse;
+            return { data };
+        } catch (error) {
+            return { error: error instanceof Error ? error.message : 'Error cargando archivo' };
+        }
+    },
+
     getExchangeRates: async (): Promise<Record<string, { rate: number; lastUpdated: string }>> => {
         const response = await apiRequest<ExchangeRatesResponse>('/settings/currency/exchange-rates');
         if (response.error || !response.data?.rates) return {};
@@ -65,16 +177,19 @@ export const onboardingService = {
     },
 
     convertCurrency: (
-        amount: number,
+        amount: number | string | null | undefined,
         from: string,
         to: string,
         rates: Record<string, { rate: number; lastUpdated: string }> = {}
     ): number => {
-        if (from === to) return amount;
-        const fromRate = rates[from]?.rate;
-        const toRate = rates[to]?.rate;
-        if (!fromRate || !toRate) return amount;
-        return (amount / fromRate) * toRate;
+        const normalizedAmount = Number(amount);
+        const safeAmount = Number.isFinite(normalizedAmount) ? normalizedAmount : 0;
+        if (from === to) return safeAmount;
+        const fromRate = Number(rates[from]?.rate);
+        const toRate = Number(rates[to]?.rate);
+        if (!Number.isFinite(fromRate) || fromRate <= 0 || !Number.isFinite(toRate) || toRate <= 0) return safeAmount;
+        const converted = (safeAmount / fromRate) * toRate;
+        return Number.isFinite(converted) ? converted : safeAmount;
     },
 
     /**

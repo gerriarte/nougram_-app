@@ -348,7 +348,7 @@ class TestCompleteOnboarding:
             "/api/v1/onboarding/complete",
             json={
                 "organization_name": "Updated Org Name",
-                "country": "US",
+                "country": "USA",
                 "currency": "USD",
                 "profile_type": "freelance",
                 "team_members": [],
@@ -372,7 +372,9 @@ class TestCompleteOnboarding:
         )
         updated_org = result.scalar_one()
         assert updated_org.name == "Updated Org Name"
-        assert updated_org.primary_currency == "USD"
+        assert updated_org.settings["primary_currency"] == "USD"
+        assert updated_org.settings["currency"] == "USD"
+        assert updated_org.settings["country"] == "USA"
         assert updated_org.settings["onboarding_completed"] is True
     
     async def test_complete_onboarding_with_team_members(
@@ -388,7 +390,7 @@ class TestCompleteOnboarding:
         response = await async_client.post(
             "/api/v1/onboarding/complete",
             json={
-                "country": "US",
+                "country": "USA",
                 "currency": "USD",
                 "profile_type": "company",
                 "team_members": [
@@ -430,7 +432,7 @@ class TestCompleteOnboarding:
         response = await async_client.post(
             "/api/v1/onboarding/complete",
             json={
-                "country": "US",
+                "country": "USA",
                 "currency": "USD",
                 "profile_type": "company",
                 "team_members": [],
@@ -470,7 +472,7 @@ class TestCompleteOnboarding:
         response = await async_client.post(
             "/api/v1/onboarding/complete",
             json={
-                "country": "US",
+                "country": "USA",
                 "currency": "USD",
                 "profile_type": "company",
                 "team_members": [],
@@ -508,7 +510,7 @@ class TestCompleteOnboarding:
         response = await async_client.post(
             "/api/v1/onboarding/complete",
             json={
-                "country": "US",
+                "country": "USA",
                 "currency": "USD",
                 "profile_type": "company",
                 "team_members": [],
@@ -534,7 +536,7 @@ class TestCompleteOnboarding:
         response = await async_client.post(
             "/api/v1/onboarding/complete",
             json={
-                "country": "US",
+                "country": "USA",
                 # Missing currency and profile_type
                 "team_members": [],
                 "expenses": []

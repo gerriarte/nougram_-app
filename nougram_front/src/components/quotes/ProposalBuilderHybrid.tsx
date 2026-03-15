@@ -4,7 +4,8 @@ import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent } from '@/components/ui/Card';
-import { ArrowLeft, Save, Send, Plus, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
+import { ArrowLeft, Save, Send, Plus, Trash2, Sparkles } from 'lucide-react';
 import type { ProposalBody } from '@/services/proposalService';
 
 const SECTION_LABELS: Record<string, string> = {
@@ -53,8 +54,20 @@ export interface ProposalBuilderHybridProps {
     initialBody: ProposalBody | undefined;
     initialProposalId?: number;
     onSave: (payload: { title: string; body_json: ProposalBody }) => Promise<{ proposalId?: number; message: string }>;
+    onGenerateAI: (payload: {
+        title?: string;
+        language?: 'es' | 'en';
+        extra_instructions?: string;
+        services_context?: string;
+        proposal_objective?: string;
+        estimated_timeline?: string;
+        payment_conditions?: string;
+        execution_conditions?: string;
+        persist_context?: boolean;
+    }) => Promise<{ title: string; body_json: ProposalBody; message: string }>;
     onContinueToSend: () => void;
     onCancel: () => void;
+    suggestedServicesText?: string;
 }
 
 export function ProposalBuilderHybrid({
@@ -64,13 +77,42 @@ export function ProposalBuilderHybrid({
     initialBody,
     initialProposalId,
     onSave,
+    onGenerateAI,
     onContinueToSend,
     onCancel,
+    suggestedServicesText,
 }: ProposalBuilderHybridProps) {
     const [title, setTitle] = useState(initialTitle || `Propuesta comercial - ${projectName}`);
     const [body, setBody] = useState<ProposalBody>(() => bodyFromDoc(initialBody));
     const [saving, setSaving] = useState(false);
+    const [generatingAI, setGeneratingAI] = useState(false);
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [aiServicesContext, setAiServicesContext] = useState<string>(
+        typeof body.ai_context === 'object' && body.ai_context && typeof (body.ai_context as { services_context?: unknown }).services_context === 'string'
+            ? String((body.ai_context as { services_context?: string }).services_context)
+            : (suggestedServicesText || '')
+    );
+    const [aiObjective, setAiObjective] = useState<string>(
+        typeof body.ai_context === 'object' && body.ai_context && typeof (body.ai_context as { proposal_objective?: unknown }).proposal_objective === 'string'
+            ? String((body.ai_context as { proposal_objective?: string }).proposal_objective)
+            : ''
+    );
+    const [aiTimeline, setAiTimeline] = useState<string>(
+        typeof body.ai_context === 'object' && body.ai_context && typeof (body.ai_context as { estimated_timeline?: unknown }).estimated_timeline === 'string'
+            ? String((body.ai_context as { estimated_timeline?: string }).estimated_timeline)
+            : ''
+    );
+    const [aiPaymentConditions, setAiPaymentConditions] = useState<string>(
+        typeof body.ai_context === 'object' && body.ai_context && typeof (body.ai_context as { payment_conditions?: unknown }).payment_conditions === 'string'
+            ? String((body.ai_context as { payment_conditions?: string }).payment_conditions)
+            : ''
+    );
+    const [aiExecutionConditions, setAiExecutionConditions] = useState<string>(
+        typeof body.ai_context === 'object' && body.ai_context && typeof (body.ai_context as { execution_conditions?: unknown }).execution_conditions === 'string'
+            ? String((body.ai_context as { execution_conditions?: string }).execution_conditions)
+            : ''
+    );
 
     const update = useCallback(<K extends keyof ProposalBody>(key: K, value: ProposalBody[K]) => {
         setBody((prev) => ({ ...prev, [key]: value }));
@@ -129,6 +171,31 @@ export function ProposalBuilderHybrid({
         }
     };
 
+    const handleGenerateWithAI = async () => {
+        setGeneratingAI(true);
+        setFeedback(null);
+        try {
+            const generated = await onGenerateAI({
+                title: title || undefined,
+                language: 'es',
+                services_context: aiServicesContext,
+                proposal_objective: aiObjective,
+                estimated_timeline: aiTimeline,
+                payment_conditions: aiPaymentConditions,
+                execution_conditions: aiExecutionConditions,
+                persist_context: true,
+            });
+            setTitle(generated.title || title);
+            setBody(bodyFromDoc(generated.body_json));
+            setFeedback({ type: 'success', text: generated.message });
+            setIsAIModalOpen(false);
+        } catch (error) {
+            setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'No se pudo generar contenido con IA' });
+        } finally {
+            setGeneratingAI(false);
+        }
+    };
+
     const objectives = body.objectives ?? [];
     const deliverables = body.deliverables ?? [];
     const nonEmptySections = [
@@ -154,6 +221,18 @@ export function ProposalBuilderHybrid({
                         <p className="text-sm text-gray-500">{projectName}</p>
                         <p className="text-xs text-gray-400">Proyecto #{projectId}</p>
                     </div>
+                </div>
+
+                <div className="flex justify-end">
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setIsAIModalOpen(true)}
+                        className="inline-flex items-center gap-2"
+                    >
+                        <Sparkles size={16} />
+                        Generar propuesta con IA
+                    </Button>
                 </div>
 
                 {feedback && (
@@ -311,6 +390,76 @@ export function ProposalBuilderHybrid({
                     </Button>
                 </div>
             </div>
+
+            <Dialog open={isAIModalOpen} onOpenChange={setIsAIModalOpen}>
+                <DialogContent className="max-w-2xl w-full max-h-[88vh] p-0">
+                    <div className="p-6 border-b border-gray-100">
+                        <DialogHeader>
+                            <DialogTitle>Contexto para generación con IA</DialogTitle>
+                            <DialogDescription>
+                                Completa el contexto clave y la IA redactará la propuesta comercial. Este contexto se guardará para mejorar futuras propuestas.
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+                    <div className="p-6 space-y-4 overflow-y-auto">
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-2">Servicios que estás cotizando</label>
+                            <textarea
+                                className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                                value={aiServicesContext}
+                                onChange={(e) => setAiServicesContext(e.target.value)}
+                                placeholder="Ej: Desarrollo Frontend, UX/UI, Integración de pagos..."
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-2">¿Cuál es el objetivo de la propuesta?</label>
+                            <textarea
+                                className="flex min-h-[90px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                                value={aiObjective}
+                                onChange={(e) => setAiObjective(e.target.value)}
+                                placeholder="Ej: Lanzar un MVP en 8 semanas para validar mercado y captar primeros clientes."
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-2">Tiempo estimado de desarrollo</label>
+                            <Input
+                                value={aiTimeline}
+                                onChange={(e) => setAiTimeline(e.target.value)}
+                                placeholder="Ej: 10 semanas, dividido en 4 fases."
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-2">Condiciones de pago</label>
+                            <textarea
+                                className="flex min-h-[90px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                                value={aiPaymentConditions}
+                                onChange={(e) => setAiPaymentConditions(e.target.value)}
+                                placeholder="Ej: 40% anticipo, 40% avance, 20% entrega final."
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-2">Condiciones de ejecución</label>
+                            <textarea
+                                className="flex min-h-[90px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                                value={aiExecutionConditions}
+                                onChange={(e) => setAiExecutionConditions(e.target.value)}
+                                placeholder="Ej: Reunión semanal, máximo 2 rondas de ajustes por entrega, aprobaciones en 48h."
+                            />
+                        </div>
+                        <div className="sticky bottom-0 -mx-6 mt-2 border-t border-gray-100 bg-white/95 backdrop-blur p-4 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+                            <p className="text-xs text-gray-500 sm:mr-auto">
+                                Estos insumos se usarán para completar automáticamente toda la propuesta con IA.
+                            </p>
+                            <Button variant="secondary" onClick={() => setIsAIModalOpen(false)} disabled={generatingAI}>
+                                Cancelar
+                            </Button>
+                            <Button onClick={handleGenerateWithAI} disabled={generatingAI}>
+                                {generatingAI ? 'Generando contenido...' : 'Generar contenido completo con IA'}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

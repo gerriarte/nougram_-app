@@ -1,7 +1,8 @@
 """
 Onboarding endpoints
 """
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
@@ -15,6 +16,8 @@ from app.schemas.onboarding import (
     BenchmarksResponse,
     CompleteOnboardingRequest,
     CompleteOnboardingResponse,
+    OnboardingImportPreviewResponse,
+    OnboardingImportSheetsRequest,
     OnboardingDraftRequest,
     OnboardingDraftResponse,
     TemporaryBCRRequest,
@@ -204,3 +207,74 @@ async def calculate_temporary_bcr(
     """
     controller = OnboardingController(db, tenant, current_user)
     return await controller.calculate_temporary_bcr(request)
+
+
+@router.post(
+    "/import-preview/excel",
+    response_model=OnboardingImportPreviewResponse,
+    summary="Preview onboarding import from Excel file"
+)
+async def import_preview_excel(
+    file: UploadFile = File(..., description="Excel file (.xlsx) with Organization, Team, Expenses, Inventory sheets"),
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Parse an Excel file and generate a validated onboarding payload preview.
+    Does not persist data.
+    """
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".xlsx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only .xlsx files are supported for onboarding import preview",
+        )
+    content = await file.read()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty",
+        )
+    controller = OnboardingController(db, tenant, current_user)
+    return await controller.preview_import_from_excel(content)
+
+
+@router.post(
+    "/import-preview/sheets",
+    response_model=OnboardingImportPreviewResponse,
+    summary="Preview onboarding import from Google Sheets"
+)
+async def import_preview_sheets(
+    request: OnboardingImportSheetsRequest,
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Read onboarding data from Google Sheets and generate a validated payload preview.
+    Does not persist data.
+    """
+    controller = OnboardingController(db, tenant, current_user)
+    return await controller.preview_import_from_google_sheets(request)
+
+
+@router.get(
+    "/import-template/excel",
+    summary="Download official onboarding Excel import template"
+)
+async def download_import_template_excel(
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download an official .xlsx template for onboarding imports.
+    """
+    controller = OnboardingController(db, tenant, current_user)
+    content = await controller.download_excel_import_template()
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="onboarding-import-template.xlsx"'},
+    )

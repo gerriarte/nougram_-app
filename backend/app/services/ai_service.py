@@ -911,6 +911,112 @@ El resumen debe:
         
         return prompt
 
+    async def generate_proposal_sections(
+        self,
+        *,
+        project_name: str,
+        client_name: str,
+        currency: str,
+        services: List[str],
+        objective: str,
+        timeline: str,
+        payment_conditions: str,
+        execution_conditions: str,
+        language: str = "es",
+        extra_instructions: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Generate structured proposal sections with AI.
+        """
+        if not self.is_available():
+            return {
+                "success": False,
+                "error": "AI service not configured. Please set OPENAI_API_KEY in environment variables."
+            }
+
+        try:
+            system_language = "español" if language == "es" else "english"
+            user_prompt = f"""Genera una propuesta comercial estructurada con la siguiente información.
+
+Proyecto: {project_name}
+Cliente: {client_name}
+Moneda: {currency}
+Servicios cotizados:
+{chr(10).join(f"- {service}" for service in services if service.strip()) or "- (no especificados)"}
+
+Objetivo de la propuesta:
+{objective or "(no especificado)"}
+
+Tiempo estimado de desarrollo:
+{timeline or "(no especificado)"}
+
+Condiciones de pago:
+{payment_conditions or "(no especificadas)"}
+
+Condiciones de ejecución:
+{execution_conditions or "(no especificadas)"}
+
+Instrucciones adicionales:
+{extra_instructions or "(sin instrucciones adicionales)"}
+
+Devuelve SOLO JSON válido con esta estructura:
+{{
+  "description": "texto",
+  "objectives": ["objetivo 1", "objetivo 2", "objetivo 3"],
+  "deliverables": [{{"name":"entregable 1","status":"propuesto"}}, {{"name":"entregable 2","status":"propuesto"}}],
+  "scope": "texto",
+  "timeline": "texto",
+  "conditions": "texto",
+  "free_text": "texto opcional",
+  "executive_summary": "texto"
+}}"""
+
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"""Eres experto en redacción de propuestas comerciales B2B.
+Responde SIEMPRE en {system_language}.
+Sé profesional, específico y accionable.
+No inventes datos numéricos que no estén en el contexto; si faltan, redacta supuestos razonables."""
+                    },
+                    {
+                        "role": "user",
+                        "content": user_prompt
+                    }
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.6,
+                max_tokens=1200,
+            )
+
+            content = response.choices[0].message.content
+            sections = json.loads(content)
+            return {
+                "success": True,
+                "sections": sections,
+                "provider": self.provider,
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
+                    "estimated_cost": self._estimate_cost(response.usage),
+                }
+            }
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing proposal JSON response: {e}")
+            return {
+                "success": False,
+                "error": "Error parsing AI response"
+            }
+        except Exception as e:
+            logger.error(f"Error generating proposal sections: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": f"Error generating proposal sections: {str(e)}"
+            }
+
 
 # Singleton instance
 ai_service = AIService()

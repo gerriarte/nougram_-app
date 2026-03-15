@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { QuoteCard, Quote } from '@/components/dashboard/QuoteCard';
-import { KPIWidgets, AlertsWidget } from '@/components/dashboard/KPIWidgets';
+import { KPIWidgets } from '@/components/dashboard/KPIWidgets';
 import { Search, Filter, Plus, Layout, List, ChevronRight, MoreHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
@@ -58,7 +58,6 @@ export function QuotePipeline() {
             {/* 1. KPIs Section */}
             <div className="space-y-6">
                 <KPIWidgets metrics={metrics} />
-                <AlertsWidget quotes={allQuotes} />
             </div>
 
             {/* 2. Pipeline Controls */}

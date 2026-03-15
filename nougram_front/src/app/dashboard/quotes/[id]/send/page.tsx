@@ -105,6 +105,46 @@ export default function SendQuotePage() {
         }
     };
 
+    const handleGenerateAccessLink = async (data: {
+        proposalId?: number;
+        useCustomAccessCode?: boolean;
+        accessCode?: string;
+        message?: string;
+    }) => {
+        if (!id) return { ok: false, message: 'Proyecto inválido' };
+        try {
+            if (!data.proposalId) {
+                return {
+                    ok: false,
+                    message: 'Debes guardar la propuesta antes de generar el acceso del cliente.',
+                };
+            }
+            const shareResult = await proposalService.shareWithClient(id, data.proposalId, {
+                quote_id: quote?.quoteId,
+                access_code: data.useCustomAccessCode ? data.accessCode : undefined,
+                message: data.message,
+                send_email: false,
+            });
+            if (!shareResult?.success || !shareResult.public_url || !shareResult.access_code) {
+                return {
+                    ok: false,
+                    message: 'No se pudo generar el acceso del portal cliente.',
+                };
+            }
+            return {
+                ok: true,
+                message: 'Acceso generado. Ya puedes compartir link y clave desde tu propio correo.',
+                publicUrl: shareResult.public_url,
+                accessCode: shareResult.access_code,
+                accessExpiresAt: shareResult.access_expires_at,
+            };
+        } catch (error) {
+            console.error('Failed to generate proposal access link', error);
+            const message = error instanceof Error ? error.message : 'Error generando acceso del portal cliente';
+            return { ok: false, message };
+        }
+    };
+
     if (loading) {
         return <div className="flex h-screen items-center justify-center">Cargando...</div>;
     }
@@ -163,9 +203,11 @@ export default function SendQuotePage() {
             proposalVersion={proposal?.version}
             initialProposalId={proposal?.id}
             onSend={handleSend}
+            onGenerateAccessLink={handleGenerateAccessLink}
             onSaveProposal={handleSaveProposal}
             onGenerateProposalAI={handleGenerateProposalAI}
             onOpenStructuredBuilder={() => router.push(`/dashboard/quotes/${id}/proposal`)}
+            onGoToDashboard={() => router.push('/dashboard')}
             onCancel={() => router.back()}
         />
     );

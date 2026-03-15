@@ -36,11 +36,12 @@ type ProposalListResponse = {
 };
 
 export type ProposalSharePayload = {
-  to_email: string;
+  to_email?: string;
   quote_id?: number;
   access_expires_at?: string;
   access_code?: string;
   message?: string;
+  send_email?: boolean;
 };
 
 export type ProposalShareResponse = {
@@ -49,6 +50,20 @@ export type ProposalShareResponse = {
   public_url: string;
   access_expires_at: string;
   last_sent_at?: string;
+  access_code?: string;
+  sent_email?: boolean;
+};
+
+export type ProposalAIGeneratePayload = {
+  title?: string;
+  language?: 'es' | 'en';
+  extra_instructions?: string;
+  services_context?: string;
+  proposal_objective?: string;
+  estimated_timeline?: string;
+  payment_conditions?: string;
+  execution_conditions?: string;
+  persist_context?: boolean;
 };
 
 export const proposalService = {
@@ -82,7 +97,7 @@ export const proposalService = {
     return response.data;
   },
 
-  async generateAI(projectId: string, payload?: { title?: string; language?: 'es' | 'en'; extra_instructions?: string }): Promise<ProposalDocument | null> {
+  async generateAI(projectId: string, payload?: ProposalAIGeneratePayload): Promise<ProposalDocument | null> {
     const response = await apiRequest<ProposalDocument>(`/projects/${projectId}/proposals/ai-generate`, {
       method: 'POST',
       body: JSON.stringify(payload || {}),

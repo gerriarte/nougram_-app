@@ -4,9 +4,11 @@ Proposal document endpoints (independent from quote pricing).
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 import secrets
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -34,6 +36,59 @@ router = APIRouter()
 logger = get_logger(__name__)
 DEFAULT_PROPOSAL_ACCESS_DAYS = 30
 OTP_EXPIRATION_MINUTES = 30
+PROPOSAL_AI_CONTEXT_HISTORY_KEY = "proposal_ai_context_history"
+MAX_PROPOSAL_AI_CONTEXT_ITEMS = 25
+
+
+def _normalize_context_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _build_ai_context_payload(payload: ProposalGenerateAIRequest) -> Dict[str, str]:
+    return {
+        "services_context": _normalize_context_text(payload.services_context),
+        "proposal_objective": _normalize_context_text(payload.proposal_objective),
+        "estimated_timeline": _normalize_context_text(payload.estimated_timeline),
+        "payment_conditions": _normalize_context_text(payload.payment_conditions),
+        "execution_conditions": _normalize_context_text(payload.execution_conditions),
+    }
+
+
+def _read_context_history_from_settings(settings_value: Any) -> List[Dict[str, Any]]:
+    if not isinstance(settings_value, dict):
+        return []
+    history = settings_value.get(PROPOSAL_AI_CONTEXT_HISTORY_KEY)
+    if not isinstance(history, list):
+        return []
+    normalized_history: List[Dict[str, Any]] = []
+    for item in history:
+        if isinstance(item, dict):
+            normalized_history.append(item)
+    return normalized_history
+
+
+def _history_to_prompt(history: List[Dict[str, Any]]) -> str:
+    if not history:
+        return ""
+    latest = history[-3:]
+    blocks: List[str] = []
+    for idx, item in enumerate(latest, start=1):
+        objective = _normalize_context_text(item.get("proposal_objective"))
+        timeline = _normalize_context_text(item.get("estimated_timeline"))
+        payments = _normalize_context_text(item.get("payment_conditions"))
+        execution = _normalize_context_text(item.get("execution_conditions"))
+        services = _normalize_context_text(item.get("services_context"))
+        blocks.append(
+            f"Contexto histórico {idx}:\n"
+            f"- Servicios: {services or 'N/A'}\n"
+            f"- Objetivo: {objective or 'N/A'}\n"
+            f"- Tiempo estimado: {timeline or 'N/A'}\n"
+            f"- Condiciones de pago: {payments or 'N/A'}\n"
+            f"- Condiciones de ejecución: {execution or 'N/A'}"
+        )
+    return "\n\n".join(blocks)
 
 
 @router.get("/{project_id}/proposals", response_model=ProposalListResponse)
@@ -152,6 +207,25 @@ async def generate_proposal_with_ai(
     if not services_payload:
         raise HTTPException(status_code=400, detail="Cannot generate proposal without quote items")
 
+    context_payload = _build_ai_context_payload(payload)
+    settings_obj = tenant.organization.settings if isinstance(tenant.organization.settings, dict) else {}
+    history = _read_context_history_from_settings(settings_obj)
+    history_prompt = _history_to_prompt(history)
+    current_prompt_context = (
+        f"Servicios cotizados: {context_payload['services_context'] or 'No especificado'}\n"
+        f"Objetivo de la propuesta: {context_payload['proposal_objective'] or 'No especificado'}\n"
+        f"Tiempo estimado de desarrollo: {context_payload['estimated_timeline'] or 'No especificado'}\n"
+        f"Condiciones de pago: {context_payload['payment_conditions'] or 'No especificado'}\n"
+        f"Condiciones de ejecución: {context_payload['execution_conditions'] or 'No especificado'}"
+    )
+    composed_extra_instructions = "\n\n".join(
+        block for block in [
+            _normalize_context_text(payload.extra_instructions),
+            "Contexto actual para redactar la propuesta:\n" + current_prompt_context,
+            ("Contexto útil de propuestas anteriores:\n" + history_prompt) if history_prompt else "",
+        ] if block
+    )
+
     summary_request = ExecutiveSummaryRequest(
         project_name=project.name,
         client_name=project.client_name,
@@ -161,27 +235,80 @@ async def generate_proposal_with_ai(
         currency=project.currency or "USD",
         language=payload.language,
     )
-    result = await ai_service.generate_executive_summary(summary_request)
-    if not result.get("success"):
-        raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate proposal"))
+    sections_result = await ai_service.generate_proposal_sections(
+        project_name=project.name,
+        client_name=project.client_name,
+        currency=project.currency or "USD",
+        services=[service.service_name for service in services_payload],
+        objective=context_payload["proposal_objective"],
+        timeline=context_payload["estimated_timeline"],
+        payment_conditions=context_payload["payment_conditions"],
+        execution_conditions=context_payload["execution_conditions"],
+        language=payload.language,
+        extra_instructions=composed_extra_instructions,
+    )
+    if not sections_result.get("success"):
+        raise HTTPException(status_code=500, detail=sections_result.get("error", "Failed to generate proposal"))
+
+    generated_sections = sections_result.get("sections") or {}
+    executive_summary = _normalize_context_text(generated_sections.get("executive_summary"))
+    if not executive_summary:
+        summary_result = await ai_service.generate_executive_summary(summary_request)
+        if summary_result.get("success"):
+            executive_summary = _normalize_context_text(summary_result.get("summary"))
+
+    raw_objectives = generated_sections.get("objectives")
+    objectives = []
+    if isinstance(raw_objectives, list):
+        objectives = [str(item).strip() for item in raw_objectives if str(item).strip()]
+
+    raw_deliverables = generated_sections.get("deliverables")
+    deliverables = []
+    if isinstance(raw_deliverables, list):
+        for item in raw_deliverables:
+            if isinstance(item, dict):
+                name = _normalize_context_text(item.get("name"))
+                if name:
+                    deliverables.append({"name": name, "status": _normalize_context_text(item.get("status")) or "propuesto"})
+            else:
+                name = _normalize_context_text(item)
+                if name:
+                    deliverables.append({"name": name, "status": "propuesto"})
+
+    if not deliverables:
+        deliverables = [{"name": service.service_name, "status": "propuesto"} for service in services_payload[:6]]
 
     proposal_body = {
-        "description": f"Proyecto {project.name} para {project.client_name}",
-        "objectives": [
+        "description": _normalize_context_text(generated_sections.get("description")) or f"Proyecto {project.name} para {project.client_name}",
+        "objectives": objectives or [
             "Resolver la necesidad principal del cliente con un plan ejecutable",
             "Entregar valor medible en tiempos y alcance acordados",
         ],
-        "deliverables": [
-            {"name": "Documento de alcance", "status": "propuesto"},
-            {"name": "Plan de trabajo", "status": "propuesto"},
-        ],
-        "executive_summary": result.get("summary", ""),
-        "scope": "",
-        "timeline": "",
-        "conditions": "",
-        "free_text": "",
+        "deliverables": deliverables,
+        "executive_summary": executive_summary,
+        "scope": _normalize_context_text(generated_sections.get("scope")),
+        "timeline": _normalize_context_text(generated_sections.get("timeline")) or context_payload["estimated_timeline"],
+        "conditions": _normalize_context_text(generated_sections.get("conditions")) or "\n\n".join([
+            f"Condiciones de pago: {context_payload['payment_conditions']}" if context_payload["payment_conditions"] else "",
+            f"Condiciones de ejecución: {context_payload['execution_conditions']}" if context_payload["execution_conditions"] else "",
+        ]).strip(),
+        "free_text": _normalize_context_text(generated_sections.get("free_text")),
         "extra_instructions": payload.extra_instructions or "",
+        "ai_context": context_payload,
     }
+
+    if payload.persist_context:
+        context_entry = {
+            **context_payload,
+            "project_id": project_id,
+            "saved_at": datetime.now(timezone.utc).isoformat(),
+            "saved_by_user_id": current_user.id,
+        }
+        history.append(context_entry)
+        settings_obj[PROPOSAL_AI_CONTEXT_HISTORY_KEY] = history[-MAX_PROPOSAL_AI_CONTEXT_ITEMS:]
+        tenant.organization.settings = settings_obj
+        flag_modified(tenant.organization, "settings")
+        await db.flush()
 
     proposal_repo = RepositoryFactory.create_proposal_repository(db, tenant.organization_id)
     latest = await proposal_repo.get_latest_by_project(project_id)
@@ -277,11 +404,20 @@ async def share_proposal_with_client(
         )
         link = await link_repo.create(link)
 
+    if payload.send_email and not (payload.to_email or "").strip():
+        raise HTTPException(status_code=400, detail="to_email is required when send_email is true")
+
     custom_access_code = (payload.access_code or "").strip()
     access_code = custom_access_code or f"{secrets.randbelow(900000) + 100000}"
     link.access_code_hash = get_password_hash(access_code)
-    link.access_code_expires_at = now + timedelta(minutes=OTP_EXPIRATION_MINUTES)
-    link.last_sent_at = now
+    # For manual share mode (without sending email), keep the code valid for the full access window.
+    link.access_code_expires_at = (
+        now + timedelta(minutes=OTP_EXPIRATION_MINUTES)
+        if payload.send_email
+        else access_expires_at
+    )
+    if payload.send_email:
+        link.last_sent_at = now
 
     sender_company_name = (tenant.organization.name or "").strip() or "tu empresa"
     public_url = f"{tenant.organization.settings.get('frontend_url', '')}" if isinstance(tenant.organization.settings, dict) else ""
@@ -290,61 +426,69 @@ async def share_proposal_with_client(
     public_url = f"{public_url}/client/proposals/{link.public_token}"
     access_expires_at_label = access_expires_at.strftime('%Y-%m-%d %H:%M UTC')
 
-    email_html = f"""
-    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-      <h2>Tienes una Propuesta de "{sender_company_name}"</h2>
-      <p>Hola, tienes una propuesta comercial disponible para revisar.</p>
-      <p><strong>Proyecto:</strong> {project.name}</p>
-      <p><strong>Cliente:</strong> {project.client_name}</p>
-      <p><strong>Vigencia del acceso:</strong> hasta {access_expires_at_label}</p>
-      <p><strong>Clave temporal:</strong> <span style="font-size: 18px;">{access_code}</span> (expira en {OTP_EXPIRATION_MINUTES} minutos)</p>
-      <p><a href="{public_url}" style="display:inline-block;padding:10px 14px;background:#111827;color:#fff;text-decoration:none;border-radius:6px;">Ver propuesta</a></p>
-      <p>También podrás aceptar, rechazar o solicitar revisión.</p>
-      <p>{payload.message or ''}</p>
-    </div>
-    """
-    email_text = (
-        f'Tienes una Propuesta de "{sender_company_name}"\n'
-        f"Proyecto: {project.name}\n"
-        f"Cliente: {project.client_name}\n"
-        f"Link: {public_url}\n"
-        f"Clave temporal: {access_code}\n"
-        f"Clave válida por {OTP_EXPIRATION_MINUTES} minutos\n"
-        f"Acceso disponible hasta: {access_expires_at_label}\n"
-    )
-    proposal_share_template_id = (
-        (settings.MAILERSEND_TEMPLATE_PROPOSAL_SHARE_ID or "").strip()
-        or (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip()
-        or None
-    )
-    proposal_share_template_data = {
-        "sender_company_name": sender_company_name,
-        "project_name": project.name,
-        "client_name": project.client_name,
-        "access_code": access_code,
-        "public_url": public_url,
-        "access_expires_at": access_expires_at_label,
-        "message": payload.message or "",
-    }
+    if payload.send_email:
+        email_html = f"""
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h2>Tienes una Propuesta de "{sender_company_name}"</h2>
+          <p>Hola, tienes una propuesta comercial disponible para revisar.</p>
+          <p><strong>Proyecto:</strong> {project.name}</p>
+          <p><strong>Cliente:</strong> {project.client_name}</p>
+          <p><strong>Vigencia del acceso:</strong> hasta {access_expires_at_label}</p>
+          <p><strong>Clave temporal:</strong> <span style="font-size: 18px;">{access_code}</span> (expira en {OTP_EXPIRATION_MINUTES} minutos)</p>
+          <p><a href="{public_url}" style="display:inline-block;padding:10px 14px;background:#111827;color:#fff;text-decoration:none;border-radius:6px;">Ver propuesta</a></p>
+          <p>También podrás aceptar, rechazar o solicitar revisión.</p>
+          <p>{payload.message or ''}</p>
+        </div>
+        """
+        email_text = (
+            f'Tienes una Propuesta de "{sender_company_name}"\n'
+            f"Proyecto: {project.name}\n"
+            f"Cliente: {project.client_name}\n"
+            f"Link: {public_url}\n"
+            f"Clave temporal: {access_code}\n"
+            f"Clave válida por {OTP_EXPIRATION_MINUTES} minutos\n"
+            f"Acceso disponible hasta: {access_expires_at_label}\n"
+        )
+        proposal_share_template_id = (
+            (settings.MAILERSEND_TEMPLATE_PROPOSAL_SHARE_ID or "").strip()
+            or (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip()
+            or None
+        )
+        proposal_share_template_data = {
+            "sender_company_name": sender_company_name,
+            "project_name": project.name,
+            "client_name": project.client_name,
+            "access_code": access_code,
+            "public_url": public_url,
+            "access_expires_at": access_expires_at_label,
+            "message": payload.message or "",
+        }
 
-    success = await send_email(
-        to_email=payload.to_email,
-        subject=f'Tienes una Propuesta de "{sender_company_name}"',
-        body_html=email_html,
-        body_text=email_text,
-        template_id=proposal_share_template_id,
-        template_data=proposal_share_template_data,
-    )
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to send proposal access email")
+        success = await send_email(
+            to_email=payload.to_email or "",
+            subject=f'Tienes una Propuesta de "{sender_company_name}"',
+            body_html=email_html,
+            body_text=email_text,
+            template_id=proposal_share_template_id,
+            template_data=proposal_share_template_data,
+        )
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to send proposal access email")
 
     await db.commit()
     await db.refresh(link)
 
+    if payload.send_email:
+        message = f"Proposal access sent successfully to {payload.to_email}"
+    else:
+        message = "Proposal access generated successfully without sending email"
+
     return ProposalClientShareResponse(
         success=True,
-        message=f"Proposal access sent successfully to {payload.to_email}",
+        message=message,
         public_url=public_url,
         access_expires_at=link.access_expires_at,
         last_sent_at=link.last_sent_at,
+        access_code=access_code,
+        sent_email=payload.send_email,
     )

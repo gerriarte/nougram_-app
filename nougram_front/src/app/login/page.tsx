@@ -2,8 +2,9 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -32,6 +33,7 @@ function LoginPageContent() {
   const { login, isAuthenticated, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +84,15 @@ function LoginPageContent() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md rounded-2xl bg-white shadow-sm border border-gray-200 p-8 space-y-6">
         <div className="space-y-2 text-center">
+          <div className="flex justify-center mb-3">
+            <Image
+              src="/brand/Logo-orange.svg"
+              alt="Nougram"
+              width={150}
+              height={35}
+              priority
+            />
+          </div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Iniciar sesión</h1>
           <p className="text-sm text-system-gray">
             Accede a Nougram con tu cuenta de organización.
@@ -114,16 +125,28 @@ function LoginPageContent() {
 
           <div className="space-y-2">
             <Label htmlFor="password">Contraseña</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password ?? ''}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={submitting}
-              placeholder="Tu contraseña"
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password ?? ''}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={submitting}
+                placeholder="Tu contraseña"
+                className="pr-11"
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                disabled={submitting}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             <div className="text-right">
               <Link href="/forgot-password" className="text-xs font-semibold text-primary hover:underline">
                 ¿Olvidaste tu contraseña?

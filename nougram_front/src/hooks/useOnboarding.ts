@@ -2,13 +2,14 @@
 import { useState, useEffect } from 'react';
 import { onboardingService } from '@/services/onboardingService';
 import { OnboardingData, FixedCostTemplate } from '@/types/onboarding';
+import { normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
 
 // Initial onboarding state
 const INITIAL_DATA: OnboardingData = {
     identity: {
         organizationName: '',
         primaryCurrency: 'COP',
-        country: 'Colombia'
+        country: 'COL'
     },
     fixedCosts: {
         selectedTemplates: [],
@@ -32,6 +33,14 @@ const INITIAL_DATA: OnboardingData = {
     lastStep: 1
 };
 
+const asRecord = (value: unknown): Record<string, unknown> => (
+    value && typeof value === 'object' ? value as Record<string, unknown> : {}
+);
+
+const asArray = <T>(value: unknown): T[] => (
+    Array.isArray(value) ? value as T[] : []
+);
+
 export function useOnboarding() {
     const [data, setData] = useState<OnboardingData>(INITIAL_DATA);
     const [availableTemplates, setAvailableTemplates] = useState<FixedCostTemplate[]>([]);
@@ -48,12 +57,31 @@ export function useOnboarding() {
             setAvailableTemplates(temps);
             const draft = await onboardingService.getDraft<OnboardingData>();
             if (draft) {
+                const draftIdentity = asRecord(draft.identity);
+                const draftFixedCosts = asRecord(draft.fixedCosts);
+                const draftTeam = asRecord(draft.team);
+
+                const normalizedCurrency = normalizeCurrencyCode(String(draftIdentity.primaryCurrency || '')) || INITIAL_DATA.identity.primaryCurrency;
+                const normalizedCountry = normalizeCountryCode(String(draftIdentity.country || '')) || INITIAL_DATA.identity.country;
                 setData({
                     ...INITIAL_DATA,
                     ...draft,
-                    identity: { ...INITIAL_DATA.identity, ...(draft.identity || {}) },
-                    fixedCosts: { ...INITIAL_DATA.fixedCosts, ...(draft.fixedCosts || {}) },
-                    team: { ...INITIAL_DATA.team, ...(draft.team || {}) },
+                    identity: {
+                        ...INITIAL_DATA.identity,
+                        ...draftIdentity,
+                        primaryCurrency: normalizedCurrency,
+                        country: normalizedCountry,
+                    },
+                    fixedCosts: {
+                        ...INITIAL_DATA.fixedCosts,
+                        ...draftFixedCosts,
+                        selectedTemplates: asArray<FixedCostTemplate>(draftFixedCosts.selectedTemplates),
+                    },
+                    team: {
+                        ...INITIAL_DATA.team,
+                        ...draftTeam,
+                        teamMembers: asArray<NonNullable<OnboardingData['team']['teamMembers']>[number]>(draftTeam.teamMembers),
+                    },
                 });
             }
             setIsHydrated(true);

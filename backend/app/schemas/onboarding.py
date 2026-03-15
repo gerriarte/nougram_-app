@@ -4,9 +4,21 @@ ESTÁNDAR NOUGRAM: Campos monetarios usan Decimal serializado como string
 """
 from typing import Optional, List, Dict, Any, Literal
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_serializer
+from enum import Enum
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from app.core.pydantic_config import DECIMAL_CONFIG
+from app.core.currency import Currency
+
+
+class CountryCode(str, Enum):
+    """Supported country codes for onboarding"""
+    COL = "COL"
+    USA = "USA"
+    ARG = "ARG"
+    MEX = "MEX"
+    PER = "PER"
+    ESP = "ESP"
 
 
 # Benchmarks
@@ -43,7 +55,7 @@ class OnboardingTeamMember(BaseModel):
     name: str = Field(..., min_length=1)
     role: str = Field(..., min_length=1)
     salary_monthly_brute: Decimal = Field(..., gt=0)
-    currency: str = Field("USD")
+    currency: Currency = Field(Currency.USD)
     billable_hours_per_month: int = Field(40, ge=1, le=200)  # Monthly hours
     
     @field_serializer('salary_monthly_brute')
@@ -58,7 +70,7 @@ class OnboardingExpense(BaseModel):
     name: str = Field(..., min_length=1)
     category: Literal["rent", "software", "services"] = Field(...)
     amount_monthly: Decimal = Field(..., gt=0)
-    currency: str = Field("USD")
+    currency: Currency = Field(Currency.USD)
     quantity: int = Field(1, ge=1, description="Quantity of equal items included in total amount")
     
     @field_serializer('amount_monthly')
@@ -73,8 +85,8 @@ class CompleteOnboardingRequest(BaseModel):
     # Organization data
     organization_name: Optional[str] = Field(None, min_length=1)
     organization_description: Optional[str] = None
-    country: str = Field(..., min_length=2, max_length=3)
-    currency: str = Field(..., min_length=3, max_length=3)
+    country: CountryCode = Field(...)
+    currency: Currency = Field(...)
     profile_type: Literal["freelance", "company", "agency"] = Field(...)
     
     # Team members (optional, can be empty for freelance)
@@ -91,6 +103,19 @@ class CompleteOnboardingRequest(BaseModel):
     
     # Social charges config (optional, mainly for Colombia)
     social_charges_config: Optional[Dict[str, Any]] = None
+
+    @field_validator("inventory_items")
+    @classmethod
+    def validate_inventory_items(cls, value: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
+        if value is None:
+            return value
+        for item in value:
+            currency = (item.get("currency") or "").upper()
+            if not currency:
+                raise ValueError("Each inventory item must include currency")
+            if currency not in {c.value for c in Currency}:
+                raise ValueError(f"Invalid inventory item currency: {currency}")
+        return value
 
 
 class CompleteOnboardingResponse(BaseModel):
@@ -111,7 +136,20 @@ class TemporaryBCRRequest(BaseModel):
     expenses: List[OnboardingExpense] = Field(default_factory=list)
     inventory_items: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     social_charges_config: Optional[Dict[str, Any]] = None
-    currency: str = Field("USD")
+    currency: Currency = Field(Currency.USD)
+
+    @field_validator("inventory_items")
+    @classmethod
+    def validate_inventory_items(cls, value: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
+        if value is None:
+            return value
+        for item in value:
+            currency = (item.get("currency") or "").upper()
+            if not currency:
+                raise ValueError("Each inventory item must include currency")
+            if currency not in {c.value for c in Currency}:
+                raise ValueError(f"Invalid inventory item currency: {currency}")
+        return value
 
 
 class TemporaryBCRResponse(BaseModel):
@@ -127,6 +165,33 @@ class TemporaryBCRResponse(BaseModel):
         "Values are calculated with temporary data and may differ after saving",
         description="Disclaimer about temporary calculation"
     )
+
+
+class OnboardingImportPreviewIssue(BaseModel):
+    """Validation issue found while parsing import source."""
+    sheet: str
+    row: int
+    field: str
+    message: str
+
+
+class OnboardingImportSheetsRequest(BaseModel):
+    """Request for Google Sheets onboarding preview import."""
+    spreadsheet_id: str = Field(..., min_length=10, description="Google Spreadsheet ID")
+    organization_sheet_name: str = Field(default="Organization")
+    team_sheet_name: str = Field(default="Team")
+    expenses_sheet_name: str = Field(default="Expenses")
+    inventory_sheet_name: str = Field(default="Inventory")
+
+
+class OnboardingImportPreviewResponse(BaseModel):
+    """Preview payload generated from import source without persistence."""
+    success: bool
+    source: Literal["excel", "google_sheets"]
+    summary: Dict[str, int] = Field(default_factory=dict)
+    issues: List[OnboardingImportPreviewIssue] = Field(default_factory=list)
+    payload: Optional[Dict[str, Any]] = None
+    temporary_bcr: Optional[TemporaryBCRResponse] = None
 
 
 class OnboardingDraftRequest(BaseModel):

@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     MAILERSEND_FROM_NAME: str = "Nougram"
     MAILERSEND_TEMPLATE_QUOTE_ID: str = ""
     MAILERSEND_TEMPLATE_PROPOSAL_SHARE_ID: str = ""
+    MAILERSEND_TEMPLATE_PROPOSAL_DECISION_ID: str = ""
     
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5000"

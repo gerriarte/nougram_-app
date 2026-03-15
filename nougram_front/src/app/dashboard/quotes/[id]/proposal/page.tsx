@@ -14,6 +14,7 @@ export default function ProposalBuilderPage() {
     const id = params.id as string;
     const [quote, setQuote] = useState<Quote | null>(null);
     const [proposal, setProposal] = useState<ProposalDocument | null>(null);
+    const [suggestedServicesText, setSuggestedServicesText] = useState<string>('');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -24,9 +25,16 @@ export default function ProposalBuilderPage() {
         Promise.all([
             quoteService.getByProjectId(id),
             proposalService.getLatest(id),
-        ]).then(([q, p]) => {
+            quoteService.getBuilderData(id),
+        ]).then(([q, p, builderData]) => {
             setQuote(q ?? null);
             setProposal(p ?? null);
+            const services = (builderData?.items || [])
+                .map((item) => item.serviceName?.trim())
+                .filter((name): name is string => Boolean(name));
+            if (services.length) {
+                setSuggestedServicesText(Array.from(new Set(services)).join('\n'));
+            }
         }).finally(() => setLoading(false));
     }, [id]);
 
@@ -54,6 +62,29 @@ export default function ProposalBuilderPage() {
             };
         }
         throw new Error('No se pudo guardar la propuesta');
+    };
+
+    const handleGenerateAI = async (payload: {
+        title?: string;
+        language?: 'es' | 'en';
+        extra_instructions?: string;
+        services_context?: string;
+        proposal_objective?: string;
+        estimated_timeline?: string;
+        payment_conditions?: string;
+        execution_conditions?: string;
+        persist_context?: boolean;
+    }) => {
+        const generated = await proposalService.generateAI(id, payload);
+        if (!generated) {
+            throw new Error('No se pudo generar la propuesta con IA');
+        }
+        setProposal(generated);
+        return {
+            title: generated.title,
+            body_json: generated.body_json,
+            message: `Propuesta generada con IA (V${generated.version}).`,
+        };
     };
 
     if (loading) {
@@ -90,8 +121,10 @@ export default function ProposalBuilderPage() {
             initialBody={initialProposalBody}
             initialProposalId={proposal?.id}
             onSave={handleSave}
+            onGenerateAI={handleGenerateAI}
             onContinueToSend={() => router.push(`/dashboard/quotes/${id}/send`)}
             onCancel={() => router.push(`/dashboard/quotes/${id}/next-step`)}
+            suggestedServicesText={suggestedServicesText}
         />
     );
 }

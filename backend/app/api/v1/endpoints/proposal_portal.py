@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.email import send_email
 from app.core.security import create_access_token, decode_access_token, verify_password
@@ -183,6 +184,7 @@ async def submit_proposal_decision(
         decision_label = _decision_label(link.status)
         comment_text = (link.decision_comment or "").strip()
         decision_date = now.strftime("%Y-%m-%d %H:%M UTC")
+        sender_company_name = (settings.MAILERSEND_FROM_NAME or "Nougram").strip() or "Nougram"
         creator_subject = f'Respuesta de cliente: {decision_label} - "{proposal.title}"'
         creator_html = f"""
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
@@ -203,11 +205,29 @@ async def submit_proposal_decision(
             f"Fecha: {decision_date}\n"
             f"Comentario: {comment_text or 'Sin comentario'}\n"
         )
+        decision_template_id = (
+            (settings.MAILERSEND_TEMPLATE_PROPOSAL_DECISION_ID or "").strip()
+            or (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip()
+            or None
+        )
+        decision_template_data = {
+            "proposal_id": str(proposal.id),
+            "proposal_title": proposal.title or "",
+            "project_name": proposal.project.name if proposal.project else "",
+            "client_name": proposal.project.client_name if proposal.project else "",
+            "decision_label": decision_label,
+            "decision_status": link.status or "",
+            "decision_date": decision_date,
+            "decision_comment": comment_text or "Sin comentario",
+            "sender_company_name": sender_company_name,
+        }
         await send_email(
             to_email=creator_email,
             subject=creator_subject,
             body_html=creator_html,
             body_text=creator_text,
+            template_id=decision_template_id,
+            template_data=decision_template_data,
         )
 
     return ProposalClientPortalResponse(
