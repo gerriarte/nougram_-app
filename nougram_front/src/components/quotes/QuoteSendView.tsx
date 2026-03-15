@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent } from '@/components/ui/Card';
-import { ArrowLeft, Send, Paperclip, Eye, Sparkles, Save, Link as LinkIcon, Copy } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Eye, Sparkles, Save, Link as LinkIcon, Copy, LayoutDashboard } from 'lucide-react';
 import { Quote } from '@/components/dashboard/QuoteCard';
 import { formatCurrency } from '@/lib/utils';
 
@@ -48,6 +48,7 @@ interface QuoteSendViewProps {
     onSaveProposal: (payload: { title: string; text: string }) => Promise<{ proposalId?: number; message: string }>;
     onGenerateProposalAI: () => Promise<{ title: string; text: string; version?: number; message: string } | null>;
     onOpenStructuredBuilder?: () => void;
+    onGoToDashboard?: () => void;
     onCancel: () => void;
 }
 
@@ -63,6 +64,7 @@ export function QuoteSendView({
     onSaveProposal,
     onGenerateProposalAI,
     onOpenStructuredBuilder,
+    onGoToDashboard,
     onCancel
 }: QuoteSendViewProps) {
     const [to, setTo] = useState(initialToEmail || '');
@@ -215,6 +217,16 @@ export function QuoteSendView({
                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Nougram</p>
                             <h1 className="text-2xl font-bold text-[#1D1D1F]">Enviar Propuesta</h1>
                         </div>
+                        {onGoToDashboard && (
+                            <Button
+                                variant="outline"
+                                className="ml-auto"
+                                onClick={onGoToDashboard}
+                            >
+                                <LayoutDashboard size={16} className="mr-2" />
+                                Ir al dashboard
+                            </Button>
+                        )}
                     </div>
                     {actionFeedback && (
                         <div
@@ -236,17 +248,17 @@ export function QuoteSendView({
                             </div>
 
                             {generatedAccess && (
-                                <div className="border-t border-gray-100 pt-4 space-y-3">
-                                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                                <div className="border-t border-blue-200 pt-4 space-y-3 rounded-xl bg-blue-50/70 p-4">
+                                    <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
                                         <LinkIcon size={16} /> Acceso generado (sin envío de correo)
                                     </h3>
                                     <div className="space-y-2">
-                                        <label className="text-xs font-medium text-gray-600">Link portal cliente</label>
+                                        <label className="text-xs font-medium text-blue-700">Link portal cliente</label>
                                         <div className="flex gap-2">
-                                            <Input value={generatedAccess.publicUrl} readOnly />
+                                            <Input value={generatedAccess.publicUrl} readOnly className="bg-white border-blue-200 text-blue-900" />
                                             <Button
                                                 type="button"
-                                                variant="outline"
+                                                variant="secondary"
                                                 size="sm"
                                                 onClick={() => void copyToClipboard(generatedAccess.publicUrl, 'Link')}
                                             >
@@ -255,12 +267,12 @@ export function QuoteSendView({
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-xs font-medium text-gray-600">Clave temporal</label>
+                                        <label className="text-xs font-medium text-amber-700">Clave temporal</label>
                                         <div className="flex gap-2">
-                                            <Input value={generatedAccess.accessCode} readOnly />
+                                            <Input value={generatedAccess.accessCode} readOnly className="bg-amber-50 border-amber-300 text-amber-900 font-semibold" />
                                             <Button
                                                 type="button"
-                                                variant="outline"
+                                                variant="secondary"
                                                 size="sm"
                                                 onClick={() => void copyToClipboard(generatedAccess.accessCode, 'Clave')}
                                             >
@@ -269,7 +281,7 @@ export function QuoteSendView({
                                         </div>
                                     </div>
                                     {generatedAccess.accessExpiresAt && (
-                                        <p className="text-xs text-gray-500">
+                                        <p className="text-xs text-blue-700">
                                             Vigencia de acceso: {new Date(generatedAccess.accessExpiresAt).toLocaleString()}
                                         </p>
                                     )}
