@@ -214,6 +214,27 @@ class TestOnboardingServiceCalculateTemporaryBCR:
         assert result["blended_cost_rate"] == "5000"
         assert result["total_monthly_hours"] == 1.0
 
+    async def test_calculate_temporary_bcr_rejects_mixed_currency(self, db_session: AsyncSession, test_organization):
+        """Temporary BCR should fail when team currency differs from payload currency."""
+        service = OnboardingService(db_session, test_organization.id)
+
+        request = TemporaryBCRRequest(
+            team_members=[
+                OnboardingTeamMember(
+                    name="Developer",
+                    role="Developer",
+                    salary_monthly_brute=Decimal("5000"),
+                    currency="USD",
+                    billable_hours_per_month=160
+                )
+            ],
+            expenses=[],
+            currency="COP"
+        )
+
+        with pytest.raises(ValueError, match="Mixed currencies are not allowed"):
+            await service.calculate_temporary_bcr(request)
+
 
 @pytest.mark.unit
 class TestOnboardingServiceCompleteOnboarding:
@@ -229,7 +250,7 @@ class TestOnboardingServiceCompleteOnboarding:
         
         request = CompleteOnboardingRequest(
             organization_name="Updated Org Name",
-            country="US",
+            country="USA",
             currency="USD",
             profile_type="freelance",
             team_members=[],
@@ -251,8 +272,8 @@ class TestOnboardingServiceCompleteOnboarding:
         org_repo = OrganizationRepository(db_session)
         updated_org = await org_repo.get_by_id(test_organization.id)
         assert updated_org.name == "Updated Org Name"
-        assert updated_org.primary_currency == "USD"
-        assert updated_org.settings["country"] == "US"
+        assert updated_org.settings["primary_currency"] == "USD"
+        assert updated_org.settings["country"] == "USA"
         assert updated_org.settings["profile_type"] == "freelance"
         assert updated_org.settings["onboarding_completed"] is True
     
@@ -265,7 +286,7 @@ class TestOnboardingServiceCompleteOnboarding:
         service = OnboardingService(db_session, test_organization.id)
         
         request = CompleteOnboardingRequest(
-            country="US",
+            country="USA",
             currency="USD",
             profile_type="company",
             team_members=[
@@ -293,6 +314,33 @@ class TestOnboardingServiceCompleteOnboarding:
         assert len(members) == 1
         assert members[0].name == "John Doe"
         assert members[0].role == "Developer"
+
+    async def test_complete_onboarding_rejects_mixed_currency(
+        self,
+        db_session: AsyncSession,
+        test_organization
+    ):
+        """Complete onboarding should reject mixed currencies and avoid persistence."""
+        service = OnboardingService(db_session, test_organization.id)
+
+        request = CompleteOnboardingRequest(
+            country="USA",
+            currency="USD",
+            profile_type="company",
+            team_members=[
+                OnboardingTeamMember(
+                    name="John Doe",
+                    role="Developer",
+                    salary_monthly_brute=Decimal("5000"),
+                    currency="COP",
+                    billable_hours_per_month=160
+                )
+            ],
+            expenses=[]
+        )
+
+        with pytest.raises(ValueError, match="Mixed currencies are not allowed"):
+            await service.complete_onboarding(request)
     
     async def test_complete_onboarding_with_expenses(
         self,
@@ -303,7 +351,7 @@ class TestOnboardingServiceCompleteOnboarding:
         service = OnboardingService(db_session, test_organization.id)
         
         request = CompleteOnboardingRequest(
-            country="US",
+            country="USA",
             currency="USD",
             profile_type="company",
             team_members=[],
@@ -433,7 +481,7 @@ class TestOnboardingServiceCompleteOnboarding:
         service = OnboardingService(db_session, 99999)
         
         request = CompleteOnboardingRequest(
-            country="US",
+            country="USA",
             currency="USD",
             profile_type="freelance",
             team_members=[],
@@ -458,7 +506,7 @@ class TestOnboardingServiceCompleteOnboarding:
         invalid_service = OnboardingService(db_session, 99999)
         
         request = CompleteOnboardingRequest(
-            country="US",
+            country="USA",
             currency="USD",
             profile_type="company",
             team_members=[
@@ -495,3 +543,130 @@ class TestOnboardingServiceCompleteOnboarding:
         else:
             # If settings is None, it should match initial state
             assert initial_settings == {}
+
+
+@pytest.mark.unit
+class TestOnboardingImportPreview:
+    """Tests for onboarding import preview mapping and validation."""
+
+    async def test_import_preview_builds_payload_successfully(
+        self,
+        db_session: AsyncSession,
+        test_organization
+    ):
+        service = OnboardingService(db_session, test_organization.id)
+
+        result = await service._build_payload_from_import_rows(
+            organization_rows=[{
+                "organization_name": "Agency X",
+                "organization_description": "Design agency",
+                "country": "USA",
+                "currency": "USD",
+                "profile_type": "agency",
+            }],
+            team_rows=[{
+                "name": "Alice",
+                "role": "Developer",
+                "salary_monthly_brute": "5000",
+                "currency": "USD",
+                "billable_hours_per_month": 160,
+            }],
+            expense_rows=[{
+                "name": "Office Rent",
+                "category": "rent",
+                "amount_monthly": "1000",
+                "currency": "USD",
+                "quantity": 1,
+            }],
+            inventory_rows=[{
+                "name": "Laptop",
+                "category": "Tools",
+                "amount_monthly": "2400",
+                "currency": "USD",
+                "quantity": 1,
+                "amortizable": "true",
+            }],
+            source="excel",
+        )
+
+        assert result["success"] is True
+        assert result["issues"] == []
+        assert result["payload"] is not None
+        assert result["payload"]["country"] == "USA"
+        assert result["payload"]["currency"] == "USD"
+        assert len(result["payload"]["team_members"]) == 1
+        assert result["temporary_bcr"] is not None
+
+    async def test_import_preview_rejects_mixed_currency(
+        self,
+        db_session: AsyncSession,
+        test_organization
+    ):
+        service = OnboardingService(db_session, test_organization.id)
+
+        result = await service._build_payload_from_import_rows(
+            organization_rows=[{
+                "organization_name": "Agency Y",
+                "country": "COL",
+                "currency": "COP",
+                "profile_type": "agency",
+            }],
+            team_rows=[{
+                "name": "Bob",
+                "role": "Designer",
+                "salary_monthly_brute": "4000",
+                "currency": "USD",
+                "billable_hours_per_month": 160,
+            }],
+            expense_rows=[],
+            inventory_rows=[],
+            source="google_sheets",
+        )
+
+        assert result["success"] is False
+        assert result["payload"] is None
+        assert any(issue["field"] == "currency" for issue in result["issues"])
+
+
+@pytest.mark.unit
+class TestOnboardingImportTemplate:
+    """Tests for official onboarding import template generation."""
+
+    async def test_generate_excel_import_template_has_required_sheets(
+        self,
+        db_session: AsyncSession,
+        test_organization
+    ):
+        service = OnboardingService(db_session, test_organization.id)
+        content = service.generate_excel_import_template()
+        assert content is not None
+        assert len(content) > 0
+
+        from io import BytesIO
+        from openpyxl import load_workbook
+
+        wb = load_workbook(BytesIO(content))
+        sheet_names = set(wb.sheetnames)
+        assert {"Organization", "Team", "Expenses", "Inventory", "README"}.issubset(sheet_names)
+
+    async def test_generate_excel_import_template_contains_expected_headers(
+        self,
+        db_session: AsyncSession,
+        test_organization
+    ):
+        service = OnboardingService(db_session, test_organization.id)
+        content = service.generate_excel_import_template()
+
+        from io import BytesIO
+        from openpyxl import load_workbook
+
+        wb = load_workbook(BytesIO(content))
+        org_headers = [cell.value for cell in wb["Organization"][1]]
+        team_headers = [cell.value for cell in wb["Team"][1]]
+        expenses_headers = [cell.value for cell in wb["Expenses"][1]]
+        inventory_headers = [cell.value for cell in wb["Inventory"][1]]
+
+        assert org_headers == ["organization_name", "organization_description", "country", "currency", "profile_type"]
+        assert team_headers == ["name", "role", "salary_monthly_brute", "currency", "billable_hours_per_month"]
+        assert expenses_headers == ["name", "category", "amount_monthly", "currency", "quantity"]
+        assert inventory_headers == ["name", "category", "amount_monthly", "currency", "quantity", "amortizable"]

@@ -2,13 +2,14 @@
 import { useState, useEffect } from 'react';
 import { onboardingService } from '@/services/onboardingService';
 import { OnboardingData, FixedCostTemplate } from '@/types/onboarding';
+import { normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
 
 // Initial onboarding state
 const INITIAL_DATA: OnboardingData = {
     identity: {
         organizationName: '',
         primaryCurrency: 'COP',
-        country: 'Colombia'
+        country: 'COL'
     },
     fixedCosts: {
         selectedTemplates: [],
@@ -48,10 +49,17 @@ export function useOnboarding() {
             setAvailableTemplates(temps);
             const draft = await onboardingService.getDraft<OnboardingData>();
             if (draft) {
+                const normalizedCurrency = normalizeCurrencyCode(draft.identity?.primaryCurrency) || INITIAL_DATA.identity.primaryCurrency;
+                const normalizedCountry = normalizeCountryCode(draft.identity?.country) || INITIAL_DATA.identity.country;
                 setData({
                     ...INITIAL_DATA,
                     ...draft,
-                    identity: { ...INITIAL_DATA.identity, ...(draft.identity || {}) },
+                    identity: {
+                        ...INITIAL_DATA.identity,
+                        ...(draft.identity || {}),
+                        primaryCurrency: normalizedCurrency,
+                        country: normalizedCountry,
+                    },
                     fixedCosts: { ...INITIAL_DATA.fixedCosts, ...(draft.fixedCosts || {}) },
                     team: { ...INITIAL_DATA.team, ...(draft.team || {}) },
                 });

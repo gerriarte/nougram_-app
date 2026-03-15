@@ -12,6 +12,8 @@ from app.schemas.onboarding import (
     BenchmarksResponse,
     CompleteOnboardingRequest,
     CompleteOnboardingResponse,
+    OnboardingImportPreviewResponse,
+    OnboardingImportSheetsRequest,
     OnboardingDraftRequest,
     OnboardingDraftResponse,
     TemporaryBCRRequest,
@@ -243,4 +245,57 @@ class OnboardingController(BaseController):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error calculating temporary BCR"
+            )
+
+    async def preview_import_from_excel(self, file_content: bytes) -> OnboardingImportPreviewResponse:
+        """Generate onboarding preview payload from an Excel file."""
+        try:
+            result = await self.onboarding_service.preview_import_from_excel(file_content)
+            return OnboardingImportPreviewResponse(**result)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+        except Exception as e:
+            self.logger.error(f"Error importing onboarding preview from Excel: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error generating onboarding import preview from Excel",
+            )
+
+    async def preview_import_from_google_sheets(
+        self,
+        request: OnboardingImportSheetsRequest,
+    ) -> OnboardingImportPreviewResponse:
+        """Generate onboarding preview payload from Google Sheets."""
+        try:
+            result = await self.onboarding_service.preview_import_from_google_sheets(request)
+            return OnboardingImportPreviewResponse(**result)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+        except Exception as e:
+            self.logger.error(f"Error importing onboarding preview from Google Sheets: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error generating onboarding import preview from Google Sheets",
+            )
+
+    async def download_excel_import_template(self) -> bytes:
+        """Generate the official onboarding Excel import template."""
+        try:
+            return self.onboarding_service.generate_excel_import_template()
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+        except Exception as e:
+            self.logger.error(f"Error generating onboarding import template: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error generating onboarding import template",
             )

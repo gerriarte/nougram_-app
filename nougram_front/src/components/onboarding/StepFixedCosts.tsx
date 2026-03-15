@@ -22,6 +22,14 @@ const INDUSTRIES = [
     { id: 'consulting', label: 'Consultoría', icon: '🤝' },
 ];
 
+const CATEGORY_ORDER: Array<FixedCostTemplate['category']> = ['Tools', 'Software', 'Overhead', 'Other'];
+const CATEGORY_LABELS: Record<FixedCostTemplate['category'], string> = {
+    Tools: 'Herramientas y Equipos',
+    Software: 'Software y Licencias',
+    Overhead: 'Gastos Operativos',
+    Other: 'Otros',
+};
+
 export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }: StepFixedCostsProps) {
     const [availableTemplates, setAvailableTemplates] = useState<FixedCostTemplate[]>([]);
     const [exchangeRates, setExchangeRates] = useState<Record<string, { rate: number; lastUpdated: string }>>({});
@@ -48,8 +56,8 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
     const [searchTerm, setSearchTerm] = useState('');
     const [showCustomModal, setShowCustomModal] = useState(false);
 
-    // Custom Cost State
-    const [customCost, setCustomCost] = useState({ name: '', amount: '', currency: primaryCurrency });
+    // Custom Cost State (always in primary currency)
+    const [customCost, setCustomCost] = useState({ name: '', amount: '' });
 
     useEffect(() => {
         const loadOnboardingCatalog = async () => {
@@ -98,7 +106,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
             id: `custom-${Date.now()}`,
             name: customCost.name,
             amount: parseFloat(customCost.amount),
-            currency: customCost.currency,
+            currency: primaryCurrency,
             quantity: 1,
             category: 'Other',
             icon: '✨',
@@ -106,7 +114,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
         };
 
         setSelectedCosts([...selectedCosts, newCost]);
-        setCustomCost({ name: '', amount: '', currency: primaryCurrency });
+        setCustomCost({ name: '', amount: '' });
         setShowCustomModal(false);
     };
 
@@ -119,6 +127,11 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
     const filteredTemplates = availableTemplates.filter(t =>
         t.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const groupedTemplates = CATEGORY_ORDER.map((category) => ({
+        category,
+        templates: filteredTemplates.filter((template) => template.category === category),
+    })).filter((group) => group.templates.length > 0);
 
     const handleNext = () => {
         onNext({ selectedTemplates: selectedCosts, totalMonthly: calculateTotal() });
@@ -165,7 +178,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                 </Button>
             </div>
 
-            {/* Templates Grid */}
+            {/* Categorized Manual List */}
             <div className="space-y-4">
                 <Input
                     placeholder="Buscar herramienta..."
@@ -174,130 +187,139 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                     className="max-w-md"
                 />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Render Selected Custom Costs First */}
-                    {selectedCosts.filter(c => c.isCustom).map(cost => (
-                        <div
-                            key={cost.id}
-                            className="relative p-4 rounded-lg border border-blue-500 bg-blue-50/50 cursor-pointer"
-                        >
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-2xl">{cost.icon}</span>
-                                    <span className="font-semibold text-gray-900">{cost.name}</span>
-                                </div>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); toggleCost(cost); }}
-                                    className="text-red-500 hover:text-red-700 text-xs"
-                                >
-                                    Eliminar
-                                </button>
+                {groupedTemplates.map((group) => (
+                    <Card key={group.category} className="border-gray-200">
+                        <CardContent className="pt-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-sm font-semibold text-gray-800">{CATEGORY_LABELS[group.category]}</h3>
+                                <span className="text-xs text-gray-500">{group.templates.length} ítems</span>
                             </div>
-                            <p className="font-medium text-gray-900">
-                                {formatCurrency(cost.amount, primaryCurrency)} <span className="text-xs text-gray-500">/mes</span>
-                            </p>
-                            <div className="grid grid-cols-2 gap-2 mt-3">
-                                <div>
-                                    <p className="text-[11px] text-gray-500 mb-1">Cantidad</p>
-                                    <Input
-                                        type="number"
-                                        min={1}
-                                        value={cost.quantity ?? 1}
-                                        onChange={(e) =>
-                                            updateSelectedCost(cost.id, {
-                                                quantity: Math.max(1, Number(e.target.value) || 1),
-                                            })
-                                        }
-                                    />
-                                </div>
-                                <div>
-                                    <p className="text-[11px] text-gray-500 mb-1">Monto total</p>
-                                    <Input
-                                        type="number"
-                                        min={0}
-                                        value={cost.amount}
-                                        onChange={(e) =>
-                                            updateSelectedCost(cost.id, {
-                                                amount: Math.max(0, Number(e.target.value) || 0),
-                                            })
-                                        }
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+                            <div className="space-y-2">
+                                {group.templates.map((template) => {
+                                    const isSelected = selectedCosts.some((t) => t.id === template.id);
+                                    const selectedTemplate = selectedCosts.find((c) => c.id === template.id);
+                                    const displayedAmount = selectedTemplate
+                                        ? selectedTemplate.amount
+                                        : onboardingService.convertCurrency(template.amount, template.currency, primaryCurrency, exchangeRates);
 
-                    {filteredTemplates.map(template => {
-                        const isSelected = selectedCosts.some(t => t.id === template.id);
-                        const selectedTemplate = selectedCosts.find((c) => c.id === template.id);
-                        const displayedAmount = selectedTemplate
-                            ? selectedTemplate.amount
-                            : onboardingService.convertCurrency(template.amount, template.currency, primaryCurrency, exchangeRates);
-
-                        return (
-                            <div
-                                key={template.id}
-                                onClick={() => toggleCost(template)}
-                                className={`relative p-4 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${isSelected ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200 bg-white'
-                                    }`}
-                            >
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-2xl">{template.icon}</span>
-                                        <span className="font-semibold text-gray-900">{template.name}</span>
-                                    </div>
-                                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 bg-white'
-                                        }`}>
-                                        {isSelected && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1">
-                                    <p className="font-medium text-gray-900">
-                                        {formatCurrency(displayedAmount, primaryCurrency)} <span className="text-xs text-gray-500">/mes</span>
-                                    </p>
-                                    {(template.amortizable || template.category === 'Tools') && (
-                                        <span className="inline-block text-[10px] font-semibold uppercase tracking-wide text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-0.5">
-                                            Amortización
-                                        </span>
-                                    )}
-                                    {isSelected && (
-                                        <div className="grid grid-cols-2 gap-2 mt-3">
-                                            <div>
-                                                <p className="text-[11px] text-gray-500 mb-1">Cantidad</p>
-                                                <Input
-                                                    type="number"
-                                                    min={1}
-                                                    value={selectedCosts.find((c) => c.id === template.id)?.quantity ?? 1}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    onChange={(e) =>
-                                                        updateSelectedCost(template.id, {
-                                                            quantity: Math.max(1, Number(e.target.value) || 1),
-                                                        })
-                                                    }
-                                                />
+                                    return (
+                                        <div
+                                            key={template.id}
+                                            className={`rounded-lg border p-3 ${isSelected ? 'border-blue-400 bg-blue-50/50' : 'border-gray-200 bg-white'}`}
+                                        >
+                                            <div className="flex items-center justify-between gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleCost(template)}
+                                                    className="flex items-center gap-2 text-left"
+                                                >
+                                                    <span className="text-xl">{template.icon}</span>
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-900">{template.name}</p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {formatCurrency(displayedAmount, primaryCurrency)} /mes
+                                                        </p>
+                                                    </div>
+                                                </button>
+                                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 bg-white'}`}>
+                                                    {isSelected && (
+                                                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-[11px] text-gray-500 mb-1">Monto total</p>
-                                                <Input
-                                                    type="number"
-                                                    min={0}
-                                                    value={selectedCosts.find((c) => c.id === template.id)?.amount ?? template.amount}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    onChange={(e) =>
-                                                        updateSelectedCost(template.id, {
-                                                            amount: Math.max(0, Number(e.target.value) || 0),
-                                                        })
-                                                    }
-                                                />
-                                            </div>
+                                            {isSelected && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                                                    <div>
+                                                        <p className="text-[11px] text-gray-500 mb-1">Cantidad</p>
+                                                        <Input
+                                                            type="number"
+                                                            min={1}
+                                                            value={selectedTemplate?.quantity ?? 1}
+                                                            onChange={(e) =>
+                                                                updateSelectedCost(template.id, {
+                                                                    quantity: Math.max(1, Number(e.target.value) || 1),
+                                                                })
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[11px] text-gray-500 mb-1">Monto total ({primaryCurrency})</p>
+                                                        <Input
+                                                            type="number"
+                                                            min={0}
+                                                            value={selectedTemplate?.amount ?? displayedAmount}
+                                                            onChange={(e) =>
+                                                                updateSelectedCost(template.id, {
+                                                                    amount: Math.max(0, Number(e.target.value) || 0),
+                                                                    currency: primaryCurrency,
+                                                                })
+                                                            }
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
+                                    );
+                                })}
                             </div>
-                        );
-                    })}
-                </div>
+                        </CardContent>
+                    </Card>
+                ))}
+
+                {selectedCosts.filter((c) => c.isCustom).length > 0 && (
+                    <Card className="border-gray-200">
+                        <CardContent className="pt-4 space-y-2">
+                            <h3 className="text-sm font-semibold text-gray-800">Costos Personalizados</h3>
+                            {selectedCosts.filter((c) => c.isCustom).map((cost) => (
+                                <div key={cost.id} className="rounded-lg border border-blue-400 bg-blue-50/50 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <p className="text-sm font-medium text-gray-900">{cost.icon} {cost.name}</p>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleCost(cost);
+                                            }}
+                                            className="text-xs text-red-600 hover:text-red-700"
+                                        >
+                                            Eliminar
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                                        <div>
+                                            <p className="text-[11px] text-gray-500 mb-1">Cantidad</p>
+                                            <Input
+                                                type="number"
+                                                min={1}
+                                                value={cost.quantity ?? 1}
+                                                onChange={(e) =>
+                                                    updateSelectedCost(cost.id, {
+                                                        quantity: Math.max(1, Number(e.target.value) || 1),
+                                                    })
+                                                }
+                                            />
+                                        </div>
+                                        <div>
+                                            <p className="text-[11px] text-gray-500 mb-1">Monto total ({primaryCurrency})</p>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                value={cost.amount}
+                                                onChange={(e) =>
+                                                    updateSelectedCost(cost.id, {
+                                                        amount: Math.max(0, Number(e.target.value) || 0),
+                                                        currency: primaryCurrency,
+                                                    })
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                )}
             </div>
 
             {/* Custom Cost Modal */}

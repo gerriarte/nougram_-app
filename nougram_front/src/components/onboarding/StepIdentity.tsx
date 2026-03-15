@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Alert, AlertDescription } from '../ui/Alert';
+import { SUPPORTED_COUNTRIES, SUPPORTED_CURRENCIES, normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
 
 interface StepIdentityProps {
     onNext: (data: any) => void;
@@ -13,14 +14,19 @@ interface StepIdentityProps {
 
 export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
     const [organizationName, setOrganizationName] = useState(initialData?.organizationName || '');
-    const [currency, setCurrency] = useState(initialData?.primaryCurrency || initialData?.currency || '');
-    const [country, setCountry] = useState(initialData?.country || '');
+    const [currency, setCurrency] = useState(
+        normalizeCurrencyCode(initialData?.primaryCurrency || initialData?.currency) || ''
+    );
+    const [country, setCountry] = useState(
+        normalizeCountryCode(initialData?.country) || ''
+    );
     const [errors, setErrors] = useState<any>({});
 
     const validate = () => {
         const newErrors: any = {};
         if (!organizationName.trim()) newErrors.organizationName = 'El nombre de la organización es requerido';
         if (!currency) newErrors.currency = 'La moneda es requerida';
+        if (!country) newErrors.country = 'El país es requerido';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -69,10 +75,11 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
                             onChange={(e) => setCurrency(e.target.value)}
                         >
                             <option value="">Seleccionar moneda...</option>
-                            <option value="COP">COP - Peso Colombiano</option>
-                            <option value="USD">USD - Dólar Estadounidense</option>
-                            <option value="ARS">ARS - Peso Argentino</option>
-                            <option value="EUR">EUR - Euro</option>
+                            {SUPPORTED_CURRENCIES.map((item) => (
+                                <option key={item.code} value={item.code}>
+                                    {item.label}
+                                </option>
+                            ))}
                         </select>
                         {errors.currency && <p className="text-red-500 text-sm">{errors.currency}</p>}
                         <p className="text-xs text-gray-500">ℹ️ Todos los cálculos se harán en esta moneda.</p>
@@ -87,11 +94,13 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
                             onChange={(e) => setCountry(e.target.value)}
                         >
                             <option value="">Seleccionar país...</option>
-                            <option value="COL">Colombia</option>
-                            <option value="USA">Estados Unidos</option>
-                            <option value="ARG">Argentina</option>
-                            <option value="MEX">México</option>
+                            {SUPPORTED_COUNTRIES.map((item) => (
+                                <option key={item.code} value={item.code}>
+                                    {item.label}
+                                </option>
+                            ))}
                         </select>
+                        {errors.country && <p className="text-red-500 text-sm">{errors.country}</p>}
                         <p className="text-xs text-gray-500">ℹ️ Esto nos ayuda a sugerirte impuestos y cargas sociales correctas.</p>
                     </div>
                 </CardContent>
