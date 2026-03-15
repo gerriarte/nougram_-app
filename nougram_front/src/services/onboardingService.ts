@@ -177,16 +177,19 @@ export const onboardingService = {
     },
 
     convertCurrency: (
-        amount: number,
+        amount: number | string | null | undefined,
         from: string,
         to: string,
         rates: Record<string, { rate: number; lastUpdated: string }> = {}
     ): number => {
-        if (from === to) return amount;
-        const fromRate = rates[from]?.rate;
-        const toRate = rates[to]?.rate;
-        if (!fromRate || !toRate) return amount;
-        return (amount / fromRate) * toRate;
+        const normalizedAmount = Number(amount);
+        const safeAmount = Number.isFinite(normalizedAmount) ? normalizedAmount : 0;
+        if (from === to) return safeAmount;
+        const fromRate = Number(rates[from]?.rate);
+        const toRate = Number(rates[to]?.rate);
+        if (!Number.isFinite(fromRate) || fromRate <= 0 || !Number.isFinite(toRate) || toRate <= 0) return safeAmount;
+        const converted = (safeAmount / fromRate) * toRate;
+        return Number.isFinite(converted) ? converted : safeAmount;
     },
 
     /**
