@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent } from '@/components/ui/Card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { ArrowLeft, Save, Send, Plus, Trash2, Sparkles } from 'lucide-react';
 import type { ProposalBody } from '@/services/proposalService';
 
@@ -392,7 +392,7 @@ export function ProposalBuilderHybrid({
             </div>
 
             <Dialog open={isAIModalOpen} onOpenChange={setIsAIModalOpen}>
-                <DialogContent className="max-w-2xl w-full max-h-[88vh] overflow-hidden p-0">
+                <DialogContent className="max-w-2xl w-full max-h-[88vh] p-0">
                     <div className="p-6 border-b border-gray-100">
                         <DialogHeader>
                             <DialogTitle>Contexto para generación con IA</DialogTitle>
@@ -446,15 +446,18 @@ export function ProposalBuilderHybrid({
                                 placeholder="Ej: Reunión semanal, máximo 2 rondas de ajustes por entrega, aprobaciones en 48h."
                             />
                         </div>
+                        <div className="sticky bottom-0 -mx-6 mt-2 border-t border-gray-100 bg-white/95 backdrop-blur p-4 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+                            <p className="text-xs text-gray-500 sm:mr-auto">
+                                Estos insumos se usarán para completar automáticamente toda la propuesta con IA.
+                            </p>
+                            <Button variant="secondary" onClick={() => setIsAIModalOpen(false)} disabled={generatingAI}>
+                                Cancelar
+                            </Button>
+                            <Button onClick={handleGenerateWithAI} disabled={generatingAI}>
+                                {generatingAI ? 'Generando contenido...' : 'Generar contenido completo con IA'}
+                            </Button>
+                        </div>
                     </div>
-                    <DialogFooter className="p-4 border-t border-gray-100 bg-gray-50">
-                        <Button variant="secondary" onClick={() => setIsAIModalOpen(false)} disabled={generatingAI}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleGenerateWithAI} disabled={generatingAI}>
-                            {generatingAI ? 'Generando...' : 'Generar textos con IA'}
-                        </Button>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
