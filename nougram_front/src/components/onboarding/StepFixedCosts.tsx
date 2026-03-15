@@ -44,11 +44,18 @@ const monthlyImpact = (item: FixedCostTemplate): number => {
     return Math.max(0, (purchasePrice - salvage) / usefulLife) * quantity;
 };
 
+const asSafeTemplateArray = (value: unknown): FixedCostTemplate[] => {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is FixedCostTemplate => (
+        Boolean(item) && typeof item === 'object'
+    ));
+};
+
 export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }: StepFixedCostsProps) {
     const [availableTemplates, setAvailableTemplates] = useState<FixedCostTemplate[]>([]);
     const [exchangeRates, setExchangeRates] = useState<Record<string, { rate: number; lastUpdated: string }>>({});
     const [selectedCosts, setSelectedCosts] = useState<FixedCostTemplate[]>(() =>
-        (initialData?.selectedTemplates || []).map((item) => {
+        asSafeTemplateArray(initialData?.selectedTemplates).map((item) => {
             const isAmortizable = Boolean(item.amortizable || item.category === 'Tools');
             return {
                 ...item,
