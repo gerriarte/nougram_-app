@@ -395,11 +395,39 @@ class OnboardingService:
 
                     category_raw = str(inventory_item.get("category") or "")
                     category = "Software" if category_raw.lower() == "software" else "Hardware"
-                    useful_life_months = 24 if category == "Software" else 36
+                    default_useful_life = 24 if category == "Software" else 36
+                    useful_life_months = int(inventory_item.get("useful_life_months") or default_useful_life)
+                    useful_life_months = max(1, useful_life_months)
 
-                    purchase_price = Decimal(str(inventory_item.get("amount_monthly") or "0"))
+                    quantity = int(inventory_item.get("quantity") or 1)
+                    quantity = max(1, quantity)
+
+                    purchase_price_raw = (
+                        inventory_item.get("purchase_price")
+                        if inventory_item.get("purchase_price") is not None
+                        else inventory_item.get("amount_monthly")
+                    )
+                    purchase_price = Decimal(str(purchase_price_raw or "0")) * Decimal(str(quantity))
                     if purchase_price <= 0:
                         continue
+
+                    salvage_value = Decimal(str(inventory_item.get("salvage_value") or "0"))
+                    if salvage_value < 0:
+                        salvage_value = Decimal("0")
+                    if salvage_value > purchase_price:
+                        salvage_value = purchase_price
+
+                    purchase_date_value = date.today()
+                    purchase_date_raw = inventory_item.get("purchase_date")
+                    if purchase_date_raw:
+                        try:
+                            purchase_date_value = date.fromisoformat(str(purchase_date_raw))
+                        except Exception:
+                            purchase_date_value = date.today()
+
+                    depreciation_method = str(inventory_item.get("depreciation_method") or "straight_line").strip().lower()
+                    if depreciation_method not in {"straight_line", "declining_balance"}:
+                        depreciation_method = "straight_line"
 
                     item_currency = str(inventory_item.get("currency") or request_currency or "USD").upper()
                     exchange_rate_at_purchase = None
@@ -413,12 +441,12 @@ class OnboardingService:
                         description="Generated from onboarding inventory",
                         category=category,
                         purchase_price=purchase_price,
-                        purchase_date=date.today(),
+                        purchase_date=purchase_date_value,
                         currency=item_currency,
                         exchange_rate_at_purchase=exchange_rate_at_purchase,
                         useful_life_months=useful_life_months,
-                        salvage_value=Decimal("0"),
-                        depreciation_method="straight_line",
+                        salvage_value=salvage_value,
+                        depreciation_method=depreciation_method,
                         is_active=True,
                         organization_id=self.organization_id
                     )
@@ -532,12 +560,34 @@ class OnboardingService:
         for item in request.inventory_items or []:
             if not bool(item.get("amortizable")):
                 continue
-            amount = Decimal(str(item.get("amount_monthly") or "0"))
-            if amount <= 0:
+            purchase_price_raw = (
+                item.get("purchase_price")
+                if item.get("purchase_price") is not None
+                else item.get("amount_monthly")
+            )
+            purchase_price = Decimal(str(purchase_price_raw or "0"))
+            if purchase_price <= 0:
                 continue
+            salvage_value = Decimal(str(item.get("salvage_value") or "0"))
+            if salvage_value < 0:
+                salvage_value = Decimal("0")
+            if salvage_value > purchase_price:
+                salvage_value = purchase_price
+            quantity = Decimal(str(item.get("quantity") or "1"))
+            if quantity < 1:
+                quantity = Decimal("1")
             category = str(item.get("category") or "").lower()
-            useful_life_months = Decimal("24") if category == "software" else Decimal("36")
-            total_amortization += amount / useful_life_months
+            useful_life_value = item.get("useful_life_months")
+            if useful_life_value is None:
+                useful_life_months = Decimal("24") if category == "software" else Decimal("36")
+            else:
+                useful_life_months = Decimal(str(useful_life_value or "0"))
+            if useful_life_months <= 0:
+                useful_life_months = Decimal("1")
+            monthly = (purchase_price - salvage_value) / useful_life_months
+            if monthly < 0:
+                monthly = Decimal("0")
+            total_amortization += monthly * quantity
         
         # Calculate total monthly costs
         total_monthly_costs = total_salaries + total_expenses + total_amortization
@@ -702,30 +752,63 @@ class OnboardingService:
         for idx, row in enumerate(inventory_rows, start=2):
             name = self._normalize_text(row.get("name"))
             category = self._normalize_text(row.get("category"))
-            amount = self._parse_decimal(row.get("amount_monthly"))
+            purchase_price = self._parse_decimal(row.get("purchase_price"))
+            amount_monthly = self._parse_decimal(row.get("amount_monthly"))
+            amount = purchase_price if purchase_price is not None else amount_monthly
             item_currency = self._normalize_upper(row.get("currency")) or currency
             amortizable_raw = self._normalize_upper(row.get("amortizable"))
             amortizable = amortizable_raw in {"TRUE", "1", "YES", "SI", "SÍ"}
+            useful_life_raw = row.get("useful_life_months")
+            salvage_value = self._parse_decimal(row.get("salvage_value")) or Decimal("0")
+            purchase_date_raw = self._normalize_text(row.get("purchase_date")) or None
+            depreciation_method = self._normalize_text(row.get("depreciation_method")).lower() or "straight_line"
             quantity_raw = row.get("quantity") or 1
             try:
                 quantity = int(str(quantity_raw).strip())
             except Exception:
                 quantity = 0
+            try:
+                useful_life_months = int(str(useful_life_raw).strip()) if useful_life_raw not in (None, "") else (24 if category.lower() == "software" else 36)
+            except Exception:
+                useful_life_months = 0
 
             if not name:
                 issues.append(self._issue("Inventory", idx, "name", "name is required"))
             if amount is None or amount <= 0:
-                issues.append(self._issue("Inventory", idx, "amount_monthly", "amount_monthly must be > 0"))
+                issues.append(self._issue("Inventory", idx, "purchase_price", "purchase_price (or amount_monthly) must be > 0"))
             if quantity < 1:
                 issues.append(self._issue("Inventory", idx, "quantity", "quantity must be >= 1"))
             if item_currency != currency:
                 issues.append(self._issue("Inventory", idx, "currency", f"Mixed currencies are not allowed. Expected {currency}, got {item_currency}"))
+            if amortizable and useful_life_months < 1:
+                issues.append(self._issue("Inventory", idx, "useful_life_months", "useful_life_months must be >= 1 for amortizable items"))
+            if salvage_value < 0:
+                issues.append(self._issue("Inventory", idx, "salvage_value", "salvage_value must be >= 0"))
+            if amount is not None and salvage_value > amount:
+                issues.append(self._issue("Inventory", idx, "salvage_value", "salvage_value cannot be greater than purchase_price"))
+            if depreciation_method not in {"straight_line", "declining_balance"}:
+                issues.append(self._issue("Inventory", idx, "depreciation_method", "depreciation_method must be straight_line or declining_balance"))
 
-            if name and amount is not None and amount > 0 and quantity >= 1 and item_currency == currency:
+            if (
+                name
+                and amount is not None
+                and amount > 0
+                and quantity >= 1
+                and item_currency == currency
+                and (not amortizable or useful_life_months >= 1)
+                and salvage_value >= 0
+                and salvage_value <= amount
+                and depreciation_method in {"straight_line", "declining_balance"}
+            ):
                 inventory_items.append({
                     "name": name,
                     "category": category or "Other",
-                    "amount_monthly": str(amount),
+                    "amount_monthly": str(amount_monthly or amount),
+                    "purchase_price": str(amount),
+                    "useful_life_months": useful_life_months,
+                    "salvage_value": str(salvage_value),
+                    "purchase_date": purchase_date_raw,
+                    "depreciation_method": depreciation_method,
                     "currency": item_currency,
                     "quantity": quantity,
                     "amortizable": amortizable,
@@ -873,13 +956,19 @@ class OnboardingService:
         inventory_sheet.append([
             "name",
             "category",
+            "purchase_price",
+            "useful_life_months",
+            "salvage_value",
+            "purchase_date",
+            "depreciation_method",
             "amount_monthly",
             "currency",
             "quantity",
             "amortizable",
         ])
-        inventory_sheet.append(["Laptop", "Tools", "8000000", "COP", "1", "true"])
-        inventory_sheet.append(["Monitor", "Tools", "1200000", "COP", "2", "true"])
+        inventory_sheet.append(["Laptop", "Tools", "8000000", "36", "0", "2026-01-01", "straight_line", "", "COP", "1", "true"])
+        inventory_sheet.append(["Monitor", "Tools", "1200000", "36", "0", "2026-01-01", "straight_line", "", "COP", "2", "true"])
+        inventory_sheet.append(["Dominio web", "Other", "", "", "", "", "", "45000", "COP", "1", "false"])
 
         notes_sheet = workbook.create_sheet("README")
         notes_sheet.append(["Campo", "Regla"])
@@ -888,6 +977,10 @@ class OnboardingService:
         notes_sheet.append(["profile_type", "Obligatorio. Valores: freelance, company, agency"])
         notes_sheet.append(["expenses.category", "Obligatorio. Valores: rent, software, services"])
         notes_sheet.append(["amortizable", "Booleano: true/false, 1/0, yes/no"])
+        notes_sheet.append(["inventory.purchase_price", "Requerido para amortizables. No usar valor mensual para esos items"])
+        notes_sheet.append(["inventory.useful_life_months", "Requerido para amortizables. Debe ser >= 1"])
+        notes_sheet.append(["inventory.salvage_value", "Opcional, por defecto 0. No puede ser mayor al purchase_price"])
+        notes_sheet.append(["inventory.depreciation_method", "straight_line o declining_balance"])
         notes_sheet.append(["Importante", "No se permite mezcla de moneda entre hojas/filas"])
 
         output = BytesIO()

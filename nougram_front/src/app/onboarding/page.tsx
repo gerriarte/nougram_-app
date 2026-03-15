@@ -37,7 +37,18 @@ type ImportPayload = {
     currency: string;
     team_members: Array<{ name: string; role: string; salary_monthly_brute: string; billable_hours_per_month: number }>;
     expenses: Array<{ name: string; category: 'rent' | 'software' | 'services'; amount_monthly: string; quantity: number }>;
-    inventory_items: Array<{ name: string; category: string; amount_monthly: string; quantity: number; amortizable: boolean }>;
+    inventory_items: Array<{
+        name: string;
+        category: string;
+        amount_monthly?: string;
+        purchase_price?: string;
+        useful_life_months?: number;
+        salvage_value?: string;
+        purchase_date?: string;
+        depreciation_method?: 'straight_line' | 'declining_balance';
+        quantity: number;
+        amortizable: boolean;
+    }>;
 };
 
 export default function OnboardingPage() {
@@ -120,10 +131,16 @@ export default function OnboardingPage() {
                 id: `import-inventory-${index}`,
                 name: item.name,
                 amount: Number(item.amount_monthly) || 0,
+                purchasePrice: Number(item.purchase_price ?? item.amount_monthly) || 0,
+                usefulLifeMonths: item.useful_life_months || undefined,
+                salvageValue: Number(item.salvage_value) || 0,
+                purchaseDate: item.purchase_date || undefined,
+                depreciationMethod: item.depreciation_method || 'straight_line',
                 currency: payload.currency,
                 quantity: item.quantity || 1,
                 category: mapImportedCategoryToFixedCost(item.category),
                 amortizable: Boolean(item.amortizable),
+                costType: item.amortizable ? 'amortization' : 'operational',
                 icon: item.amortizable ? '💻' : '📦',
                 isCustom: true,
             })),
@@ -190,10 +207,16 @@ export default function OnboardingPage() {
         const nextFixedCount = payload.expenses.length + payload.inventory_items.length;
 
         const currentFixedTotal = Number(onboardingData.fixedCosts?.totalMonthly || 0);
-        const nextFixedTotal = [...payload.expenses, ...payload.inventory_items].reduce(
-            (sum, item) => sum + (Number(item.amount_monthly) || 0),
-            0
-        );
+        const nextFixedTotal = payload.expenses.reduce((sum, item) => sum + (Number(item.amount_monthly) || 0), 0)
+            + payload.inventory_items.reduce((sum, item) => {
+                if (!item.amortizable) {
+                    return sum + (Number(item.amount_monthly) || 0);
+                }
+                const purchase = Number(item.purchase_price ?? item.amount_monthly) || 0;
+                const salvage = Number(item.salvage_value) || 0;
+                const life = Math.max(1, Number(item.useful_life_months) || 36);
+                return sum + Math.max(0, (purchase - salvage) / life);
+            }, 0);
 
         return [
             { label: 'Nombre organización', current: currentOrgName, next: nextOrgName, critical: false },
@@ -260,6 +283,11 @@ export default function OnboardingPage() {
             name: item.name,
             category: item.category,
             amount_monthly: String(item.amount || 0),
+            purchase_price: String(item.purchasePrice ?? item.amount ?? 0),
+            useful_life_months: item.usefulLifeMonths || (item.category === 'Software' ? 24 : 36),
+            salvage_value: String(item.salvageValue || 0),
+            purchase_date: item.purchaseDate,
+            depreciation_method: item.depreciationMethod || 'straight_line',
             currency,
             quantity: item.quantity || 1,
             amortizable: Boolean(item.amortizable || item.category === 'Tools'),
@@ -560,7 +588,15 @@ export default function OnboardingPage() {
                                             {importPreview.payload.inventory_items.slice(0, 8).map((item, idx) => (
                                                 <p key={`${item.name}-${idx}`} className="flex flex-wrap items-center gap-1">
                                                     <span>{item.name}</span>
-                                                    <span>- {item.amount_monthly} {importPreview.payload?.currency}</span>
+                                                    {item.amortizable ? (
+                                                        <span>
+                                                            - compra {item.purchase_price ?? item.amount_monthly} {importPreview.payload?.currency}
+                                                            {' / '}
+                                                            vida util {item.useful_life_months ?? 36} meses
+                                                        </span>
+                                                    ) : (
+                                                        <span>- mensual {item.amount_monthly} {importPreview.payload?.currency}</span>
+                                                    )}
                                                     {item.amortizable && (
                                                         <span className="inline-flex text-[10px] font-semibold uppercase tracking-wide text-indigo-700 bg-indigo-100 border border-indigo-200 rounded px-2 py-0.5">
                                                             Amortizable

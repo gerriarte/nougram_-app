@@ -7,6 +7,12 @@ export interface FixedCostTemplate {
     quantity?: number;
     category: 'Tools' | 'Software' | 'Overhead' | 'Other';
     amortizable?: boolean;
+    costType?: 'operational' | 'amortization';
+    purchasePrice?: number;
+    usefulLifeMonths?: number;
+    salvageValue?: number;
+    purchaseDate?: string; // ISO YYYY-MM-DD
+    depreciationMethod?: 'straight_line' | 'declining_balance';
     icon: string;
     preSelectedFor?: string[];
     isCustom?: boolean;

@@ -95,6 +95,11 @@ class TestOnboardingServiceGetBenchmarks:
 @pytest.mark.unit
 class TestOnboardingServiceCalculateTemporaryBCR:
     """Tests for calculate_temporary_bcr method"""
+
+    @staticmethod
+    def _normalized_monthly_hours(raw_monthly_hours: int) -> Decimal:
+        weekly_hours = max(1, int(round(Decimal(str(raw_monthly_hours)) / Decimal("4.33"))))
+        return Decimal(str(weekly_hours)) * Decimal("4.33")
     
     async def test_calculate_temporary_bcr_basic(self, db_session: AsyncSession, test_organization):
         """Test basic BCR calculation"""
@@ -115,12 +120,13 @@ class TestOnboardingServiceCalculateTemporaryBCR:
         )
         
         result = await service.calculate_temporary_bcr(request)
-        
-        assert result["blended_cost_rate"] == str(Decimal("5000") / Decimal("160"))
+
+        expected_hours = self._normalized_monthly_hours(160)
+        assert result["blended_cost_rate"] == str(Decimal("5000") / expected_hours)
         assert result["total_monthly_costs"] == "5000"
         assert result["total_salaries"] == "5000"
         assert result["total_fixed_overhead"] == "0"
-        assert result["total_monthly_hours"] == 160.0
+        assert result["total_monthly_hours"] == float(expected_hours)
         assert result["team_members_count"] == 1
         assert result["currency"] == "USD"
     
@@ -150,11 +156,12 @@ class TestOnboardingServiceCalculateTemporaryBCR:
         )
         
         result = await service.calculate_temporary_bcr(request)
-        
+
+        expected_hours = self._normalized_monthly_hours(160)
         assert result["total_monthly_costs"] == "7000"
         assert result["total_salaries"] == "5000"
         assert result["total_fixed_overhead"] == "2000"
-        assert result["blended_cost_rate"] == str(Decimal("7000") / Decimal("160"))
+        assert result["blended_cost_rate"] == str(Decimal("7000") / expected_hours)
     
     async def test_calculate_temporary_bcr_multiple_members(self, db_session: AsyncSession, test_organization):
         """Test BCR calculation with multiple team members"""
@@ -182,14 +189,15 @@ class TestOnboardingServiceCalculateTemporaryBCR:
         )
         
         result = await service.calculate_temporary_bcr(request)
-        
+
+        expected_hours = self._normalized_monthly_hours(160) * Decimal("2")
         assert result["total_salaries"] == "11000"
-        assert result["total_monthly_hours"] == 320.0
+        assert result["total_monthly_hours"] == float(expected_hours)
         assert result["team_members_count"] == 2
-        assert result["blended_cost_rate"] == str(Decimal("11000") / Decimal("320"))
+        assert result["blended_cost_rate"] == str(Decimal("11000") / expected_hours)
     
-    async def test_calculate_temporary_bcr_zero_hours(self, db_session: AsyncSession, test_organization):
-        """Test BCR calculation with zero hours returns zero BCR"""
+    async def test_calculate_temporary_bcr_min_hours_normalization(self, db_session: AsyncSession, test_organization):
+        """Test BCR calculation with minimum allowed monthly hours."""
         service = OnboardingService(db_session, test_organization.id)
         
         # Note: OnboardingTeamMember requires billable_hours_per_month >= 1
@@ -210,9 +218,9 @@ class TestOnboardingServiceCalculateTemporaryBCR:
         
         result = await service.calculate_temporary_bcr(request)
         
-        # With 1 hour, BCR should be 5000 / 1 = 5000
-        assert result["blended_cost_rate"] == "5000"
-        assert result["total_monthly_hours"] == 1.0
+        expected_hours = self._normalized_monthly_hours(1)
+        assert result["blended_cost_rate"] == str(Decimal("5000") / expected_hours)
+        assert result["total_monthly_hours"] == float(expected_hours)
 
     async def test_calculate_temporary_bcr_rejects_mixed_currency(self, db_session: AsyncSession, test_organization):
         """Temporary BCR should fail when team currency differs from payload currency."""
@@ -669,4 +677,16 @@ class TestOnboardingImportTemplate:
         assert org_headers == ["organization_name", "organization_description", "country", "currency", "profile_type"]
         assert team_headers == ["name", "role", "salary_monthly_brute", "currency", "billable_hours_per_month"]
         assert expenses_headers == ["name", "category", "amount_monthly", "currency", "quantity"]
-        assert inventory_headers == ["name", "category", "amount_monthly", "currency", "quantity", "amortizable"]
+        assert inventory_headers == [
+            "name",
+            "category",
+            "purchase_price",
+            "useful_life_months",
+            "salvage_value",
+            "purchase_date",
+            "depreciation_method",
+            "amount_monthly",
+            "currency",
+            "quantity",
+            "amortizable",
+        ]

@@ -64,7 +64,12 @@ type OnboardingImportPreviewResponse = {
         inventory_items: Array<{
             name: string;
             category: string;
-            amount_monthly: string;
+            amount_monthly?: string;
+            purchase_price?: string;
+            useful_life_months?: number;
+            salvage_value?: string;
+            purchase_date?: string;
+            depreciation_method?: 'straight_line' | 'declining_balance';
             currency: string;
             quantity: number;
             amortizable: boolean;
