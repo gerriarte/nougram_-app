@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -82,6 +83,15 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-lg rounded-2xl bg-white shadow-sm border border-gray-200 p-8 space-y-6">
         <div className="space-y-2 text-center">
+          <div className="flex justify-center mb-3">
+            <Image
+              src="/brand/Logo-orange.svg"
+              alt="Nougram"
+              width={150}
+              height={35}
+              priority
+            />
+          </div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Crear organización</h1>
           <p className="text-sm text-system-gray">
             Configura tu cuenta principal para comenzar en Nougram.

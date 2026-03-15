@@ -32,6 +32,28 @@ const getDefaultUsefulLife = (item: FixedCostTemplate): number => (
     item.category === 'Software' ? 24 : 36
 );
 
+const priceFormatter = new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+});
+
+const formatPriceInput = (value: number | null | undefined): string => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return '0';
+    return priceFormatter.format(parsed);
+};
+
+const parsePriceInput = (raw: string): number => {
+    const normalized = (raw || '')
+        .trim()
+        .replace(/\./g, '')
+        .replace(',', '.')
+        .replace(/[^\d.]/g, '');
+    if (!normalized) return 0;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const monthlyImpact = (item: FixedCostTemplate): number => {
     const quantity = Math.max(1, item.quantity || 1);
     const isAmortizable = Boolean(item.amortizable || item.category === 'Tools');
@@ -237,13 +259,13 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                                 </td>
                                                 <td className="py-2 pr-2 align-top min-w-[140px]">
                                                     <Input
-                                                        type="number"
-                                                        min={0}
+                                                        type="text"
+                                                        inputMode="decimal"
                                                         disabled={!isSelected}
-                                                        value={currentPrice}
+                                                        value={formatPriceInput(currentPrice)}
                                                         onChange={(e) => updateSelectedCost(template.id, isAmortizable
-                                                            ? { purchasePrice: Math.max(0, Number(e.target.value) || 0), currency: primaryCurrency }
-                                                            : { amount: Math.max(0, Number(e.target.value) || 0), currency: primaryCurrency })}
+                                                            ? { purchasePrice: Math.max(0, parsePriceInput(e.target.value)), currency: primaryCurrency }
+                                                            : { amount: Math.max(0, parsePriceInput(e.target.value)), currency: primaryCurrency })}
                                                     />
                                                 </td>
                                                 <td className="py-2 pr-2 align-top min-w-[100px]">
