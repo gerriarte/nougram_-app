@@ -429,9 +429,6 @@ export default function OnboardingPage() {
                             height={30}
                             priority
                         />
-                        <p className="text-[10px] font-black text-system-gray uppercase tracking-[0.2em]">
-                            Business OS
-                        </p>
                     </div>
                     <span className="text-sm text-gray-500">Configuración Inicial</span>
                 </div>

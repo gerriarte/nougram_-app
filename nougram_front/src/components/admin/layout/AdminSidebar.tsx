@@ -63,9 +63,6 @@ export function AdminSidebar({ isCollapsed, onToggleCollapse }: AdminSidebarProp
                         priority
                     />
                 </div>
-                {!isCollapsed && (
-                    <p className="text-[10px] font-black text-system-gray uppercase tracking-[0.2em] ml-11">Business OS</p>
-                )}
                 <div className={cn("mt-4", isCollapsed ? "flex justify-center" : "flex justify-end")}>
                     <button
                         type="button"
