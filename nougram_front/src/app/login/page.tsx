@@ -33,7 +33,7 @@ async function resolveDefaultPostLoginRoute(): Promise<{ path: string; organizat
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isAuthenticated, loading } = useAuth();
+  const { login, isAuthenticated, loading, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -42,6 +42,10 @@ function LoginPageContent() {
 
   useEffect(() => {
     if (loading || !isAuthenticated) return;
+    if (user?.role === 'super_admin' && !user?.organization_id) {
+      router.replace('/dashboard/super-admin/accounts');
+      return;
+    }
     const redirectParam = searchParams.get('redirect');
     const redirectToParam = redirectParam && redirectParam.startsWith('/') ? redirectParam : null;
     if (redirectToParam) {
@@ -52,7 +56,7 @@ function LoginPageContent() {
       const { path } = await resolveDefaultPostLoginRoute();
       router.replace(path);
     })();
-  }, [loading, isAuthenticated, router, searchParams]);
+  }, [loading, isAuthenticated, router, searchParams, user]);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

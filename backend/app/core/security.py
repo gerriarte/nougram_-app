@@ -129,7 +129,11 @@ async def get_current_user(
     if token_org_id is not None:
         try:
             token_org_id_int = int(token_org_id)
+            # Backward compatibility: infer role_type from DB user when token lacks it.
             role_type = payload.get("role_type")
+            if not role_type:
+                from app.core.permissions import get_user_role_type
+                role_type = get_user_role_type(user)
             if role_type == "support":
                 # Support users can operate on multiple tenants; use token tenant as active context.
                 setattr(user, "organization_id", token_org_id_int)
