@@ -46,6 +46,7 @@ type ImportPayload = {
         salvage_value?: string;
         purchase_date?: string;
         depreciation_method?: 'straight_line' | 'declining_balance';
+        payment_type?: 'monthly' | 'annual';
         quantity: number;
         amortizable: boolean;
     }>;
@@ -126,6 +127,7 @@ export default function OnboardingPage() {
                 amortizable: false,
                 icon: '💼',
                 isCustom: true,
+                paymentType: 'monthly' as const,
             })),
             ...payload.inventory_items.map((item, index) => ({
                 id: `import-inventory-${index}`,
@@ -143,6 +145,7 @@ export default function OnboardingPage() {
                 costType: item.amortizable ? 'amortization' : 'operational',
                 icon: item.amortizable ? '💻' : '📦',
                 isCustom: true,
+                paymentType: item.amortizable ? undefined : (item.payment_type || 'monthly'),
             })),
         ];
 
@@ -274,7 +277,11 @@ export default function OnboardingPage() {
             .map((item) => ({
                 name: item.name,
                 category: item.category === 'Software' ? 'software' : 'services',
-                amount_monthly: String(item.amount || 0),
+                amount_monthly: String(
+                    item.paymentType === 'annual'
+                        ? (Number(item.amount || 0) / 12)
+                        : Number(item.amount || 0)
+                ),
                 currency,
                 quantity: item.quantity || 1,
             }));
@@ -282,12 +289,17 @@ export default function OnboardingPage() {
             id: item.id,
             name: item.name,
             category: item.category,
-            amount_monthly: String(item.amount || 0),
+            amount_monthly: String(
+                item.paymentType === 'annual' && !(item.amortizable || item.category === 'Tools')
+                    ? (Number(item.amount || 0) / 12)
+                    : Number(item.amount || 0)
+            ),
             purchase_price: String(item.purchasePrice ?? item.amount ?? 0),
             useful_life_months: item.usefulLifeMonths || (item.category === 'Software' ? 24 : 36),
             salvage_value: String(item.salvageValue || 0),
             purchase_date: item.purchaseDate,
             depreciation_method: item.depreciationMethod || 'straight_line',
+            payment_type: item.paymentType || 'monthly',
             currency,
             quantity: item.quantity || 1,
             amortizable: Boolean(item.amortizable || item.category === 'Tools'),
