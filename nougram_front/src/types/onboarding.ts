@@ -13,6 +13,7 @@ export interface FixedCostTemplate {
     salvageValue?: number;
     purchaseDate?: string; // ISO YYYY-MM-DD
     depreciationMethod?: 'straight_line' | 'declining_balance';
+    paymentType?: 'monthly' | 'annual';
     icon: string;
     preSelectedFor?: string[];
     isCustom?: boolean;
