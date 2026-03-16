@@ -2,6 +2,7 @@
 Project management endpoints
 """
 import logging
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +45,7 @@ from app.schemas.project import (
     QuoteCreateNewVersion,
     ClientSearchResponse,
 )
-from app.schemas.quote import QuoteEmailRequest, QuoteEmailResponse, QuoteExpenseCreate, QuoteExpenseResponse
+from app.schemas.quote import QuoteEmailRequest, QuoteEmailResponse, QuoteExpenseCreate, QuoteExpenseResponse, MarginSummary
 from app.services.settings_service import SettingsService
 
 router = APIRouter()
@@ -61,6 +62,33 @@ def _compute_quote_tax_totals(quote: Quote, project: Project) -> tuple[Decimal, 
 
     total_with_taxes = total_client_price + total_taxes
     return total_taxes, total_with_taxes
+
+
+def _safe_ratio(numerator: Decimal, denominator: Decimal) -> Decimal:
+    if denominator <= 0:
+        return Decimal("0")
+    return numerator / denominator
+
+
+def _build_margin_summary(
+    total_client_price: Optional[Decimal],
+    total_internal_cost: Optional[Decimal],
+    total_taxes: Optional[Decimal],
+    gross_margin_ratio: Optional[Decimal],
+    target_margin_ratio: Optional[Decimal],
+) -> MarginSummary:
+    client = total_client_price if total_client_price is not None else Decimal("0")
+    internal = total_internal_cost if total_internal_cost is not None else Decimal("0")
+    taxes = total_taxes if total_taxes is not None else Decimal("0")
+    gross = gross_margin_ratio if gross_margin_ratio is not None else Decimal("0")
+    net = _safe_ratio(client - internal - taxes, client)
+    tax_burden = _safe_ratio(taxes, client)
+    return MarginSummary(
+        gross_margin_ratio=gross,
+        net_margin_ratio=net,
+        target_margin_ratio=target_margin_ratio,
+        tax_burden_ratio=tax_burden,
+    )
 
 
 def _proposal_to_notes_text(proposal_body: dict | None) -> str:
@@ -664,6 +692,13 @@ async def get_quote(
         total_taxes=total_taxes,
         total_with_taxes=total_with_taxes,
         margin_percentage=quote.margin_percentage,
+        margin=_build_margin_summary(
+            total_client_price=quote.total_client_price,
+            total_internal_cost=quote.total_internal_cost,
+            total_taxes=total_taxes,
+            gross_margin_ratio=quote.margin_percentage,
+            target_margin_ratio=quote.target_margin_percentage,
+        ),
         notes=quote.notes,
         created_at=quote.created_at,
         updated_at=quote.updated_at,
@@ -708,6 +743,13 @@ async def list_project_quotes(
                 total_with_taxes=total_with_taxes,
                 margin_percentage=quote.margin_percentage,
                 target_margin_percentage=quote.target_margin_percentage,
+                margin=_build_margin_summary(
+                    total_client_price=quote.total_client_price,
+                    total_internal_cost=quote.total_internal_cost,
+                    total_taxes=total_taxes,
+                    gross_margin_ratio=quote.margin_percentage,
+                    target_margin_ratio=quote.target_margin_percentage,
+                ),
                 notes=quote.notes,
                 revisions_included=getattr(quote, "revisions_included", 2),
                 revision_cost_per_additional=getattr(quote, "revision_cost_per_additional", None),
@@ -953,6 +995,13 @@ async def update_quote(
             total_taxes=total_taxes,
             total_with_taxes=total_with_taxes,
             margin_percentage=updated_quote.margin_percentage,
+            margin=_build_margin_summary(
+                total_client_price=updated_quote.total_client_price,
+                total_internal_cost=updated_quote.total_internal_cost,
+                total_taxes=total_taxes,
+                gross_margin_ratio=updated_quote.margin_percentage,
+                target_margin_ratio=updated_quote.target_margin_percentage,
+            ),
             notes=updated_quote.notes,
             revisions_included=updated_quote.revisions_included if hasattr(updated_quote, 'revisions_included') else 2,
             revision_cost_per_additional=updated_quote.revision_cost_per_additional if hasattr(updated_quote, 'revision_cost_per_additional') else None,
@@ -1013,6 +1062,7 @@ async def create_new_quote_version(
 async def download_quote_pdf(
     project_id: int,
     quote_id: int,
+    tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1085,6 +1135,7 @@ async def download_quote_pdf(
 async def download_quote_docx(
     project_id: int,
     quote_id: int,
+    tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1354,412 +1405,3 @@ async def send_quote_email(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send email: {str(e)}"
         )
-
-
-
-
-        await db.commit()
-        await db.refresh(new_quote)
-        
-        # Build response
-        quote_result = await db.execute(
-            select(Quote)
-            .where(Quote.id == new_quote.id)
-            .options(
-                selectinload(Quote.items).selectinload(QuoteItem.service),
-                selectinload(Quote.project).selectinload(Project.taxes),
-            )
-        )
-        final_quote = quote_result.scalar_one()
-        total_taxes, total_with_taxes = _compute_quote_tax_totals(final_quote, final_quote.project)
-        
-        items_response = []
-        for item in final_quote.items:
-            items_response.append(QuoteItemResponse(
-                id=item.id,
-                service_id=item.service_id,
-                service_name=item.service.name if item.service else None,
-                estimated_hours=item.estimated_hours,
-                internal_cost=item.internal_cost,
-                client_price=item.client_price,
-                margin_percentage=item.margin_percentage
-            ))
-        
-        return QuoteResponseWithItems(
-            id=final_quote.id,
-            project_id=final_quote.project_id,
-            version=final_quote.version,
-            total_internal_cost=final_quote.total_internal_cost,
-            total_client_price=final_quote.total_client_price,
-            total_taxes=total_taxes,
-            total_with_taxes=total_with_taxes,
-            margin_percentage=final_quote.margin_percentage,
-            notes=final_quote.notes,
-            revisions_included=final_quote.revisions_included if hasattr(final_quote, 'revisions_included') else 2,
-            revision_cost_per_additional=final_quote.revision_cost_per_additional if hasattr(final_quote, 'revision_cost_per_additional') else None,
-            created_at=final_quote.created_at,
-            updated_at=final_quote.updated_at,
-            items=items_response
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        await db.rollback()
-        import logging
-        import traceback
-        logging.error(f"Error creating new quote version: {str(e)}")
-        logging.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create new quote version: {str(e)}"
-        )
-
-
-@router.get("/{project_id}/quotes/{quote_id}/pdf")
-async def download_quote_pdf(
-    project_id: int,
-    quote_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Generate and download a PDF version of a quote
-    """
-    # Verify project belongs to tenant first
-    project_check = await db.execute(
-        select(Project).where(
-            Project.id == project_id,
-            Project.organization_id == tenant.organization_id
-        )
-    )
-    if not project_check.scalar_one_or_none():
-        raise ResourceNotFoundError("Project", project_id)
-    
-    # Get quote with all relationships (including expenses - Sprint 15)
-    result = await db.execute(
-        select(Quote)
-        .where(Quote.id == quote_id, Quote.project_id == project_id)
-        .options(
-            selectinload(Quote.items).selectinload(QuoteItem.service),
-            selectinload(Quote.expenses),  # Sprint 15: Load expenses
-            selectinload(Quote.project).selectinload(Project.taxes)
-        )
-    )
-    quote = result.scalar_one_or_none()
-    
-    if not quote:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Quote with id {quote_id} for project {project_id} not found"
-        )
-    
-    # Get project
-    project = quote.project
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project with id {project_id} not found"
-        )
-    
-    # Generate PDF
-    try:
-        pdf_buffer = generate_quote_pdf(project, quote)
-        
-        # Generate filename
-        safe_project_name = "".join(c for c in project.name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        filename = f"cotizacion_{safe_project_name}_v{quote.version}.pdf"
-        
-        return StreamingResponse(
-            pdf_buffer,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            }
-        )
-    except Exception as e:
-        import logging
-        import traceback
-        logging.error(f"Error generating PDF for quote {quote_id}: {str(e)}")
-        logging.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate PDF: {str(e)}"
-        )
-
-
-@router.get("/{project_id}/quotes/{quote_id}/docx")
-async def download_quote_docx(
-    project_id: int,
-    quote_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Generate and download a DOCX version of a quote
-    """
-    from app.core.docx_generator import generate_quote_docx
-    
-    # Verify project belongs to tenant first
-    project_check = await db.execute(
-        select(Project).where(
-            Project.id == project_id,
-            Project.organization_id == tenant.organization_id
-        )
-    )
-    if not project_check.scalar_one_or_none():
-        raise ResourceNotFoundError("Project", project_id)
-    
-    # Get quote with all relationships (including expenses - Sprint 15)
-    result = await db.execute(
-        select(Quote)
-        .where(Quote.id == quote_id, Quote.project_id == project_id)
-        .options(
-            selectinload(Quote.items).selectinload(QuoteItem.service),
-            selectinload(Quote.expenses),  # Sprint 15: Load expenses
-            selectinload(Quote.project).selectinload(Project.taxes)
-        )
-    )
-    quote = result.scalar_one_or_none()
-    
-    if not quote:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Quote with id {quote_id} for project {project_id} not found"
-        )
-    
-    # Get project
-    project = quote.project
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project with id {project_id} not found"
-        )
-    
-    # Generate DOCX
-    try:
-        docx_buffer = generate_quote_docx(project, quote)
-        
-        # Generate filename
-        safe_project_name = "".join(c for c in project.name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        filename = f"cotizacion_{safe_project_name}_v{quote.version}.docx"
-        
-        return StreamingResponse(
-            docx_buffer,
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            }
-        )
-    except Exception as e:
-        from app.core.logging import get_logger
-        logger = get_logger(__name__)
-        logger.error(f"Error generating DOCX for quote {quote_id}", error=str(e), exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate DOCX: {str(e)}"
-        )
-
-
-@router.post("/{project_id}/quotes/{quote_id}/send-email", response_model=QuoteEmailResponse)
-async def send_quote_email(
-    project_id: int,
-    quote_id: int,
-    email_data: QuoteEmailRequest,
-    tenant: TenantContext = Depends(get_tenant_context),
-    current_user: User = Depends(get_current_user),  # Permission check inside due to credit consumption logic
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Send quote by email
-    
-    **Permissions:**
-    - Requires `can_send_quotes` permission
-    - Allowed roles: owner, admin_financiero, product_manager, super_admin
-    - Denied roles: collaborator (cannot send quotes)
-    
-    Requires email provider configuration in environment variables
-    (SMTP or MailerSend API).
-    """
-    # Permission check
-    from app.core.permissions import check_permission, PERM_SEND_QUOTES, PermissionError
-    try:
-        check_permission(current_user, PERM_SEND_QUOTES)
-    except PermissionError:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to send quotes"
-        )
-    from app.core.email import send_email, generate_quote_email_html, generate_quote_email_text
-    from app.core.logging import get_logger
-    
-    logger = get_logger(__name__)
-    
-    # Verify project belongs to tenant first
-    project_check = await db.execute(
-        select(Project).where(
-            Project.id == project_id,
-            Project.organization_id == tenant.organization_id
-        )
-    )
-    if not project_check.scalar_one_or_none():
-        raise ResourceNotFoundError("Project", project_id)
-    
-    # Get quote with all relationships (including expenses - Sprint 15)
-    result = await db.execute(
-        select(Quote)
-        .where(Quote.id == quote_id, Quote.project_id == project_id)
-        .options(
-            selectinload(Quote.items).selectinload(QuoteItem.service),
-            selectinload(Quote.expenses),  # Sprint 15: Load expenses
-            selectinload(Quote.project).selectinload(Project.taxes)
-        )
-    )
-    quote = result.scalar_one_or_none()
-    
-    if not quote:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Quote with id {quote_id} for project {project_id} not found"
-        )
-    
-    # Get project
-    project = quote.project
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project with id {project_id} not found"
-        )
-    
-    try:
-        # Calculate totals
-        total_client_price = quote.total_client_price or 0
-        taxes = []
-        total_taxes = 0
-        if hasattr(project, 'taxes') and project.taxes:
-            for tax in project.taxes:
-                tax_amount = (total_client_price * tax.percentage / 100) if tax.percentage else 0
-                taxes.append(tax_amount)
-                total_taxes += tax_amount
-        
-        total_with_taxes = total_client_price + total_taxes
-        
-        sender_company_name = (tenant.organization.name or "").strip() or "tu empresa"
-        # Generate email subject
-        subject = email_data.subject or f'Tienes una Propuesta de "{sender_company_name}"'
-        
-        proposal_text = ""
-        if email_data.proposal_id is not None:
-            proposal_repo = RepositoryFactory.create_proposal_repository(db, tenant.organization_id)
-            proposal = await proposal_repo.get_by_id(email_data.proposal_id)
-            if not proposal or proposal.project_id != project_id:
-                raise HTTPException(status_code=404, detail="Proposal not found for this project")
-            proposal_text = _proposal_to_notes_text(proposal.body_json if isinstance(proposal.body_json, dict) else {})
-
-        email_notes = proposal_text or email_data.proposal_message or quote.notes or email_data.message
-
-        # Generate email body
-        html_body = generate_quote_email_html(
-            project_name=project.name,
-            client_name=project.client_name,
-            quote_version=quote.version,
-            total_with_taxes=total_with_taxes,
-            currency=project.currency,
-            notes=email_notes
-        )
-        
-        text_body = generate_quote_email_text(
-            project_name=project.name,
-            client_name=project.client_name,
-            quote_version=quote.version,
-            total_with_taxes=total_with_taxes,
-            currency=project.currency,
-            notes=email_notes
-        )
-        quote_template_id = (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip() or None
-        quote_template_data = {
-            "project_name": project.name,
-            "client_name": project.client_name,
-            "quote_version": quote.version,
-            "total_with_taxes": str(total_with_taxes),
-            "currency": project.currency,
-            "notes": str(email_notes or ""),
-            "sender_company_name": sender_company_name,
-        }
-        
-        # Prepare attachments
-        attachments = []
-        
-        if email_data.include_pdf:
-            pdf_buffer = generate_quote_pdf(project, quote)
-            safe_project_name = "".join(c for c in project.name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            pdf_filename = f"cotizacion_{safe_project_name}_v{quote.version}.pdf"
-            attachments.append({
-                'filename': pdf_filename,
-                'content': pdf_buffer
-            })
-        
-        if email_data.include_docx:
-            from app.core.docx_generator import generate_quote_docx
-            docx_buffer = generate_quote_docx(project, quote)
-            safe_project_name = "".join(c for c in project.name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            docx_filename = f"cotizacion_{safe_project_name}_v{quote.version}.docx"
-            attachments.append({
-                'filename': docx_filename,
-                'content': docx_buffer
-            })
-        
-        # Send email
-        success = await send_email(
-            to_email=email_data.to_email,
-            subject=subject,
-            body_html=html_body,
-            body_text=text_body,
-            attachments=attachments if attachments else None,
-            cc=email_data.cc if email_data.cc else None,
-            bcc=email_data.bcc if email_data.bcc else None,
-            template_id=quote_template_id,
-            template_data=quote_template_data,
-        )
-        
-        if success:
-            if project.status != "Sent":
-                project.status = "Sent"
-            await db.commit()
-            logger.info(
-                f"Quote {quote_id} sent by email to {email_data.to_email}",
-                user_id=current_user.id,
-                project_id=project_id
-            )
-            return QuoteEmailResponse(
-                success=True,
-                message=f"Quote sent successfully to {email_data.to_email}"
-            )
-        else:
-            logger.error(
-                f"Failed to send quote {quote_id} by email",
-                user_id=current_user.id,
-                project_id=project_id,
-                to_email=email_data.to_email
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to send email. Please check email provider configuration."
-            )
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            f"Error sending quote {quote_id} by email",
-            error=str(e),
-            user_id=current_user.id,
-            project_id=project_id,
-            exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send email: {str(e)}"
-        )
-
-
-

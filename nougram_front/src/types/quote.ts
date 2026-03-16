@@ -75,6 +75,14 @@ export interface Tax {
     is_active: boolean;
 }
 
+export interface MarginSummary {
+    gross_margin_ratio?: string;
+    net_margin_ratio?: string;
+    target_margin_ratio?: string;
+    tax_burden_ratio?: string;
+    scale?: "ratio_0_1" | string;
+}
+
 export interface QuoteCalculationResponse {
     total_internal_cost: string;
     total_client_price: string;
@@ -85,6 +93,7 @@ export interface QuoteCalculationResponse {
 
     margin_percentage: string;
     target_margin_percentage: string | null;
+    margin?: MarginSummary | null;
 
     items: Array<{
         service_id: number;

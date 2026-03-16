@@ -31,8 +31,9 @@ async def lifespan(app: FastAPI):
     """
     Lifespan context manager for startup and shutdown events
     """
-    # Startup: Create database tables only in non-production (use Alembic in production)
-    if settings.ENVIRONMENT.lower() != "production":
+    # Startup schema creation is opt-in for local/dev only.
+    # Default path across environments should be Alembic migrations.
+    if settings.ENVIRONMENT.lower() != "production" and settings.CREATE_SCHEMA_ON_STARTUP:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
@@ -142,7 +143,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
-            "detail": f"Internal server error: {str(exc)}"
+            "detail": "Internal server error"
         },
         headers={
             "Access-Control-Allow-Origin": settings.cors_origins_list[0] if settings.cors_origins_list else "*",

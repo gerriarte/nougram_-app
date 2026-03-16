@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     
     # Environment
     ENVIRONMENT: str = "development"
+    CREATE_SCHEMA_ON_STARTUP: bool = False
     SUPER_ADMIN_EMAIL: str = "gerardoriarte@gmail.com"
     SUPER_ADMIN_ALLOWED_EMAILS: str = ""
     AUTO_PROVISION_SUPER_ADMIN: bool = False

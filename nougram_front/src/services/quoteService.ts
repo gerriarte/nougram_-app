@@ -33,6 +33,13 @@ type ProjectQuoteResponse = {
     total_taxes?: string | number;
     margin_percentage?: string | number;
     target_margin_percentage?: string | number;
+    margin?: {
+        gross_margin_ratio?: string | number;
+        net_margin_ratio?: string | number;
+        target_margin_ratio?: string | number;
+        tax_burden_ratio?: string | number;
+        scale?: string;
+    };
     items?: Array<{
         id?: number;
         service_id: number;
@@ -123,6 +130,14 @@ function toMarginRatio(value?: string | number): number {
     if (num > 1 && num <= 100) return num / 100;
     if (num > 100) return 0.35;
     return num;
+}
+
+function resolveTargetMarginRatio(quote?: ProjectQuoteResponse | null): number {
+    const canonical = quote?.margin?.target_margin_ratio;
+    if (canonical !== undefined && canonical !== null && canonical !== "") {
+        return toMarginRatio(canonical);
+    }
+    return toMarginRatio(quote?.target_margin_percentage);
 }
 
 function toSafeNumber(value?: string | number): number {
@@ -751,7 +766,7 @@ export const quoteService = {
             clientCompany: projectResponse.data.client_name,
             clientRequester: '',
             currency: (projectResponse.data.currency as 'COP' | 'USD') || 'COP',
-            targetMargin: toMarginRatio(detail?.target_margin_percentage),
+            targetMargin: resolveTargetMarginRatio(detail),
             selectedTaxIds: (projectResponse.data.taxes || []).map((tax) => Number(tax.id)).filter((id) => Number.isFinite(id)),
             selectedTaxes: (projectResponse.data.taxes || []).map((tax) => ({
                 id: Number(tax.id),
