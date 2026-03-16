@@ -34,8 +34,8 @@ Para que el frontend staging pueda iniciar sesión, el backend debe estar desple
 - Nuevo servicio en el mismo proyecto (o uno dedicado a staging)
 - Root directory: `backend`
 - Branch: `develop`
-- Build: Nixpacks detecta Python, o usar Dockerfile en `backend/`
-- Start command: `alembic upgrade head && gunicorn main:app -c gunicorn_config.py -w 1 -b 0.0.0.0:$PORT`
+- Build: Nixpacks detecta Python, o usar **Dockerfile** en `backend/` (recomendado: el Dockerfile ya ejecuta `alembic upgrade head` antes de Gunicorn).
+- Start command: opcional. Si usas el Dockerfile, no hace falta; si usas Nixpacks, pon: `alembic upgrade head && gunicorn main:app -c gunicorn_config.py -w 1 -b 0.0.0.0:$PORT`
 - Puerto: Railway inyecta `PORT`; exponer con `0.0.0.0:$PORT`
 
 **2. Variables de entorno del Backend (staging)**
@@ -139,3 +139,23 @@ git push origin develop
 - **PRs**: describir qué cambia y qué probar en staging.
 - **Staging**: probar antes de mergear a `main`.
 - **Prod**: solo desde `main`; sin merges directos de `develop`.
+
+---
+
+## Revisión post-deploy en Railway
+
+Después de un deploy (staging o prod), comprobar:
+
+1. **Backend – migraciones**
+   - Si el servicio usa el **Dockerfile** de `backend/`, las migraciones se ejecutan al arrancar (`alembic upgrade head`).
+   - En Railway: **Deployments** → último deploy del backend → **View logs**. Deberías ver líneas de Alembic (`Running upgrade ... -> ..., ...`) y luego Gunicorn.
+   - Si usas Nixpacks sin Dockerfile, el **Start Command** del servicio debe incluir `alembic upgrade head &&` antes de arrancar la app.
+
+2. **Backend – salud**
+   - Abrir `https://<tu-backend>/api/v1/` o `/docs` (staging). Debe responder 200 o cargar Swagger.
+
+3. **Frontend**
+   - Abrir la URL del frontend; login y una ruta protegida deben cargar sin error de conexión.
+
+4. **Nuevas tablas (ej. ai_usage_events, financial_ledger_events)**
+   - Si añadiste migraciones nuevas, el primer deploy que use el Dockerfile actualizado aplicará las migraciones. Si algo falla, en los logs del backend aparecerá el error de Alembic.

@@ -15,11 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Expose port
+# Expose port (Railway injects PORT at runtime)
 EXPOSE 8000
 
-# Run the application
-CMD ["python", "main.py"]
+# Run migrations then start the app (Railway uses PORT env var)
+CMD ["sh", "-c", "alembic upgrade head && exec gunicorn main:app -c gunicorn_config.py -w 1 -b 0.0.0.0:${PORT:-8000}"]
 
 
 
