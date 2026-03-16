@@ -4,12 +4,34 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
-import { Wallet, Info, ArrowUpRight, Percent, Users, Receipt } from 'lucide-react';
+import { Info, ArrowUpRight, Percent, Users, Receipt } from 'lucide-react';
 import Link from 'next/link';
 import { formatMoneyAmount } from '@/lib/utils';
 
 export function QuoteFinancialSummary() {
     const { summary, state, toggleTax, taxes, setTargetMargin, teamMembers } = useQuoteBuilder();
+    const [objectiveMode, setObjectiveMode] = React.useState<'margin' | 'markup'>('margin');
+
+    const markupRatioFromMargin = React.useMemo(() => {
+        const margin = Number(state.targetMargin || 0);
+        if (!Number.isFinite(margin) || margin <= 0) return 0;
+        if (margin >= 1) return 0;
+        return margin / (1 - margin);
+    }, [state.targetMargin]);
+
+    const objectiveDisplay = React.useMemo(() => {
+        if (objectiveMode === 'markup') {
+            return `${(markupRatioFromMargin * 100).toFixed(0)}%`;
+        }
+        return `${(state.targetMargin * 100).toFixed(0)}%`;
+    }, [objectiveMode, markupRatioFromMargin, state.targetMargin]);
+
+    const updateFromMarkupPercent = (markupPercent: number) => {
+        const safePercent = Math.max(0, Math.min(markupPercent, 300));
+        const markupRatio = safePercent / 100; // 150% => 1.5
+        const marginRatio = markupRatio / (1 + markupRatio); // m = markup/(1+markup)
+        setTargetMargin(Number.isFinite(marginRatio) ? marginRatio : 0);
+    };
 
     // Margin Color Logic
     let marginColor = 'text-red-500';
@@ -115,27 +137,82 @@ export function QuoteFinancialSummary() {
                     {/* Margin Control */}
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Margen de Ganancia</label>
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                                {objectiveMode === 'markup' ? 'Objetivo (Markup)' : 'Margen de Ganancia'}
+                            </label>
                             <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-black">
                                 <Percent size={10} />
-                                {(state.targetMargin * 100).toFixed(0)}%
+                                {objectiveDisplay}
                             </div>
                         </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setObjectiveMode('margin')}
+                                className={`text-[10px] px-2 py-1 rounded-full font-black transition-colors ${
+                                    objectiveMode === 'margin'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                }`}
+                            >
+                                Margen
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setObjectiveMode('markup')}
+                                className={`text-[10px] px-2 py-1 rounded-full font-black transition-colors ${
+                                    objectiveMode === 'markup'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                }`}
+                            >
+                                Markup
+                            </button>
+                        </div>
                         <div className="relative pt-1 px-1">
-                            <input
-                                type="range"
-                                min="0"
-                                max="0.80"
-                                step="0.05"
-                                value={state.targetMargin}
-                                onChange={(e) => setTargetMargin(parseFloat(e.target.value))}
-                                className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-700 transition-all"
-                            />
+                            {objectiveMode === 'margin' ? (
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="0.95"
+                                    step="0.01"
+                                    value={state.targetMargin}
+                                    onChange={(e) => setTargetMargin(parseFloat(e.target.value))}
+                                    className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-700 transition-all"
+                                />
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="300"
+                                        step="5"
+                                        value={Math.round(markupRatioFromMargin * 100)}
+                                        onChange={(e) => updateFromMarkupPercent(parseFloat(e.target.value))}
+                                        className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-700 transition-all"
+                                    />
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={300}
+                                        step={5}
+                                        value={Math.round(markupRatioFromMargin * 100)}
+                                        onChange={(e) => updateFromMarkupPercent(parseFloat(e.target.value || '0'))}
+                                        className="w-20 rounded-lg border border-gray-200 px-2 py-1 text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                    />
+                                    <span className="text-xs font-bold text-gray-500">%</span>
+                                </div>
+                            )}
                             <div className="flex justify-between text-[8px] font-bold text-gray-300 mt-2 uppercase tracking-tighter">
                                 <span>Volumen</span>
                                 <span>Equilibrio</span>
                                 <span>Alta Rentabilidad</span>
                             </div>
+                            {objectiveMode === 'markup' && (
+                                <p className="mt-2 text-[10px] text-gray-500 font-medium">
+                                    150% de markup equivale aproximadamente a {(state.targetMargin * 100).toFixed(1)}% de margen.
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>
