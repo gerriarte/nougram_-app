@@ -122,18 +122,25 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Multi-tenant: Validate organization_id from token matches user's current organization
+    # Multi-tenant: Resolve active organization from token.
+    # - Tenant users: token organization must match persisted user.organization_id.
+    # - Support users: token organization defines the active tenant context for this request.
     token_org_id = payload.get("organization_id")
     if token_org_id is not None:
         try:
             token_org_id_int = int(token_org_id)
-            # Validate that token's organization_id matches user's current organization_id
-            if user.organization_id is None or user.organization_id != token_org_id_int:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token organization mismatch. Please re-authenticate.",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+            role_type = payload.get("role_type")
+            if role_type == "support":
+                # Support users can operate on multiple tenants; use token tenant as active context.
+                setattr(user, "organization_id", token_org_id_int)
+            else:
+                # Tenant users must remain pinned to their own persisted organization.
+                if user.organization_id is None or user.organization_id != token_org_id_int:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token organization mismatch. Please re-authenticate.",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
         except (ValueError, TypeError):
             # Invalid organization_id in token, but allow if user has organization_id
             # This supports backward compatibility with old tokens
