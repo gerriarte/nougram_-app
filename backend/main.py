@@ -1,6 +1,8 @@
 """
 Main application entry point for Nougram Backend API
 """
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -36,6 +38,18 @@ async def lifespan(app: FastAPI):
     if settings.ENVIRONMENT.lower() != "production" and settings.CREATE_SCHEMA_ON_STARTUP:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+    # Log CORS config for debugging (e.g. Railway production)
+    origins = settings.cors_origins_list
+    logger.info(
+        "CORS configured",
+        extra={
+            "origin_count": len(origins),
+            "origins_sample": [o[:30] + "..." if len(o) > 30 else o for o in origins[:3]],
+        },
+    )
+    if not origins:
+        logger.warning("CORS_ORIGINS is empty or invalid; cross-origin requests will be blocked")
 
     # Optional startup bootstrap for super admin account.
     try:
@@ -96,8 +110,31 @@ app = FastAPI(
     redoc_url=_redoc_url
 )
 
-# Configure CORS
-# CORS must be added before other middleware
+# Fallback CORS: ensure CORS headers on every response when Origin is allowed
+# (handles proxies that may strip headers or OPTIONS not reaching app)
+class CORSFallbackMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        origin = request.headers.get("origin")
+        if not origin:
+            return response
+        allowed = settings.cors_origins_list
+        if not allowed:
+            return response
+        if origin not in allowed:
+            return response
+        # Ensure CORS headers so preflight/actual responses are accepted by browser
+        if "access-control-allow-origin" not in [h.lower() for h in response.headers.keys()]:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Max-Age"] = "3600"
+        return response
+
+
+# Configure CORS (add fallback first so it runs outermost and can fix responses)
+app.add_middleware(CORSFallbackMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,

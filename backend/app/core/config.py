@@ -95,8 +95,8 @@ class Settings(BaseSettings):
     
     @property
     def cors_origins_list(self) -> List[str]:
-        """Parse CORS origins from comma-separated string"""
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        """Parse CORS origins from comma-separated string; skip empty entries."""
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o and o.strip()]
     
     @property
     def stripe_price_ids_dict(self) -> dict:
