@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/Label';
 import { Alert } from '@/components/ui/Alert';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api-client';
-import { trackLoginAttempt, trackLoginResult } from '@/lib/analytics';
 
 type OrganizationResponse = {
   id?: number;
@@ -67,22 +66,16 @@ function LoginPageContent() {
       setError('Ingresa un correo electrónico válido.');
       return;
     }
-    trackLoginAttempt();
     const result = await login(safeEmail, safePassword);
     setSubmitting(false);
 
     if (!result.success) {
-      trackLoginResult({ success: false });
       setError(result.error || 'Error al iniciar sesión');
       return;
     }
 
     // Support users must pick an active tenant before tenant-scoped modules.
     if (result.user?.role === 'super_admin' && !result.user?.organization_id) {
-      trackLoginResult({
-        success: true,
-        user_id: result.user?.id,
-      });
       router.replace('/dashboard/super-admin/accounts');
       return;
     }
@@ -90,19 +83,10 @@ function LoginPageContent() {
     const redirectParam = searchParams.get('redirect');
     const redirectToParam = redirectParam && redirectParam.startsWith('/') ? redirectParam : null;
     if (redirectToParam) {
-      trackLoginResult({
-        success: true,
-        user_id: result.user?.id,
-      });
       router.replace(redirectToParam);
       return;
     }
-    const { path, organizationId } = await resolveDefaultPostLoginRoute();
-    trackLoginResult({
-      success: true,
-      user_id: result.user?.id,
-      organization_id: organizationId,
-    });
+    const { path } = await resolveDefaultPostLoginRoute();
     router.replace(path);
   };
 
