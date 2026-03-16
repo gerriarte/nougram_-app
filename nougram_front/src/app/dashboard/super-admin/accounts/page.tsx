@@ -348,8 +348,8 @@ export default function SuperAdminAccountsPage() {
         setDetailLoading(false);
     };
 
-    const switchActiveOrganization = async (organizationId: number) => {
-        if (!isSuperAdmin) return;
+    const switchActiveOrganization = async (organizationId: number): Promise<boolean> => {
+        if (!isSuperAdmin) return false;
         const response = await apiRequest<{ access_token: string }>(
             '/auth/switch-organization',
             {
@@ -359,10 +359,11 @@ export default function SuperAdminAccountsPage() {
         );
         if (response.error || !response.data?.access_token) {
             setError(response.error || 'No se pudo cambiar el tenant activo.');
-            return;
+            return false;
         }
         setAuthToken(response.data.access_token);
         await refreshCurrentUser();
+        return true;
     };
 
     useEffect(() => {
@@ -374,8 +375,11 @@ export default function SuperAdminAccountsPage() {
 
     useEffect(() => {
         if (selectedOrgId && isSuperAdmin) {
-            void switchActiveOrganization(selectedOrgId);
-            void loadOrganizationContext(selectedOrgId);
+            void (async () => {
+                const switched = await switchActiveOrganization(selectedOrgId);
+                if (!switched) return;
+                await loadOrganizationContext(selectedOrgId);
+            })();
         } else {
             setUsage(null);
             setBalance(null);
