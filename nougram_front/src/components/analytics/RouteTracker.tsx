@@ -1,10 +1,10 @@
 'use client';
 
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { trackPageView } from '@/lib/analytics';
 
-export function RouteTracker(): null {
+function RouteTrackerInner(): null {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const prevPathRef = useRef<string | null>(null);
@@ -19,4 +19,16 @@ export function RouteTracker(): null {
   }, [pathname, searchParams]);
 
   return null;
+}
+
+export function RouteTracker(): React.ReactNode {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) return null;
+  return (
+    <Suspense fallback={null}>
+      <RouteTrackerInner />
+    </Suspense>
+  );
 }
