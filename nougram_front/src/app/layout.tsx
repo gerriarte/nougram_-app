@@ -8,6 +8,10 @@ import { RouteTracker } from '@/components/analytics/RouteTracker';
 export const metadata: Metadata = {
   title: "Nougram Cotizador",
   description: "Calculadora de costos y cotizaciones",
+  icons: {
+    icon: [{ url: "/brand/Logo-iso-orange.svg", type: "image/svg+xml" }],
+    shortcut: ["/brand/Logo-iso-orange.svg"],
+  },
 };
 
 export default function RootLayout({
