@@ -8,6 +8,7 @@ import {
 } from "@/types/user";
 import { apiRequest } from "@/lib/api-client";
 import { isAuthenticated, removeAuthToken, setAuthToken } from "@/lib/auth";
+import { trackLogout } from "@/lib/analytics";
 
 type LoginResponse = {
   access_token: string;
@@ -18,6 +19,7 @@ type CurrentUserResponse = {
   id: number;
   email: string;
   full_name: string;
+  organization_id?: number | null;
   role?:
     | "super_admin"
     | "support_manager"
@@ -34,6 +36,7 @@ function mapToExtendedUser(data: CurrentUserResponse): UserProfileExtended {
     email: data.email,
     fullName: data.full_name,
     role: data.role || "collaborator",
+    organization_id: data.organization_id ?? null,
     status: "ACTIVE",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -157,10 +160,11 @@ export function useAuth() {
       return { success: false, error: "No se pudo obtener el usuario actual" };
     }
 
-    return { success: true };
+    return { success: true, user: currentUser };
   }, []);
 
   const logout = useCallback(() => {
+    trackLogout();
     removeAuthToken();
     authUserPromise = null;
     authUserCache = null;

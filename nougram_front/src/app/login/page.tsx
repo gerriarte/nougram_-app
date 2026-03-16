@@ -11,20 +11,24 @@ import { Label } from '@/components/ui/Label';
 import { Alert } from '@/components/ui/Alert';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api-client';
+import { trackLoginAttempt, trackLoginResult } from '@/lib/analytics';
 
 type OrganizationResponse = {
+  id?: number;
   settings?: Record<string, unknown> | null;
 };
 
-async function resolveDefaultPostLoginRoute(): Promise<string> {
+async function resolveDefaultPostLoginRoute(): Promise<{ path: string; organizationId?: string }> {
   const orgResponse = await apiRequest<OrganizationResponse>('/organizations/me');
   if (orgResponse.error || !orgResponse.data) {
-    return '/dashboard';
+    return { path: '/dashboard' };
   }
   const onboardingCompleted = Boolean(
     (orgResponse.data.settings as Record<string, unknown> | null | undefined)?.onboarding_completed
   );
-  return onboardingCompleted ? '/dashboard' : '/onboarding';
+  const path = onboardingCompleted ? '/dashboard' : '/onboarding';
+  const organizationId = orgResponse.data.id != null ? String(orgResponse.data.id) : undefined;
+  return { path, organizationId };
 }
 
 function LoginPageContent() {
@@ -46,8 +50,8 @@ function LoginPageContent() {
       return;
     }
     void (async () => {
-      const defaultRoute = await resolveDefaultPostLoginRoute();
-      router.replace(defaultRoute);
+      const { path } = await resolveDefaultPostLoginRoute();
+      router.replace(path);
     })();
   }, [loading, isAuthenticated, router, searchParams]);
 
@@ -63,21 +67,43 @@ function LoginPageContent() {
       setError('Ingresa un correo electrónico válido.');
       return;
     }
+    trackLoginAttempt();
     const result = await login(safeEmail, safePassword);
     setSubmitting(false);
 
     if (!result.success) {
+      trackLoginResult({ success: false });
       setError(result.error || 'Error al iniciar sesión');
       return;
     }
+
+    // Support users must pick an active tenant before tenant-scoped modules.
+    if (result.user?.role === 'super_admin' && !result.user?.organization_id) {
+      trackLoginResult({
+        success: true,
+        user_id: result.user?.id,
+      });
+      router.replace('/dashboard/super-admin/accounts');
+      return;
+    }
+
     const redirectParam = searchParams.get('redirect');
     const redirectToParam = redirectParam && redirectParam.startsWith('/') ? redirectParam : null;
     if (redirectToParam) {
+      trackLoginResult({
+        success: true,
+        user_id: result.user?.id,
+      });
       router.replace(redirectToParam);
       return;
     }
-    const defaultRoute = await resolveDefaultPostLoginRoute();
-    router.replace(defaultRoute);
+    const { path, organizationId } = await resolveDefaultPostLoginRoute();
+    trackLoginResult({
+      success: true,
+      user_id: result.user?.id,
+      organization_id: organizationId,
+    });
+    router.replace(path);
   };
 
   return (

@@ -73,10 +73,12 @@ async def get_tenant_context(
         )
     
     if organization_id is None:
-        # Support users without organization_id - cannot create tenant context
-        # For now, use default organization (can be enhanced later for multi-tenant admin views)
-        logger.warning(f"Support user {current_user.id} has no organization_id, using default organization")
-        organization_id = 1
+        # Support users must switch/select an active organization before tenant-scoped operations.
+        logger.warning(f"Support user {current_user.id} has no active organization context")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active organization selected. Use switch-organization first."
+        )
     
     # Load organization with all details
     result = await db.execute(

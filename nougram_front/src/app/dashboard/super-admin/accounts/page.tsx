@@ -8,11 +8,14 @@ import {
     Coins,
     CreditCard,
     Download,
+    FileText,
     PlusCircle,
     Power,
     RefreshCcw,
     Search,
     ShieldAlert,
+    Sparkles,
+    TrendingUp,
     Users
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
@@ -23,7 +26,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api-client';
-import { getAuthToken } from '@/lib/auth';
+import { getAuthToken, setAuthToken } from '@/lib/auth';
 
 type OrganizationItem = {
     id: number;
@@ -88,6 +91,33 @@ type OrganizationUser = {
 
 type OrganizationUsersResponse = {
     items: OrganizationUser[];
+};
+
+type ProposalConsumptionItem = {
+    organization_id: number;
+    total_links: number;
+    sent_count: number;
+    viewed_count: number;
+    accepted_count: number;
+    rejected_count: number;
+    revision_count: number;
+};
+
+type AIUsageItem = {
+    organization_id: number;
+    event_count: number;
+    total_prompt_tokens: number;
+    total_completion_tokens: number;
+    total_tokens: number;
+    total_estimated_cost_usd: number;
+};
+
+type PaidAccountItem = {
+    organization_id: number;
+    plan: string;
+    status: string;
+    current_period_start: string | null;
+    current_period_end: string | null;
 };
 
 const PLAN_OPTIONS = ['free', 'starter', 'professional', 'enterprise'];
@@ -162,7 +192,7 @@ export default function SuperAdminAccountsPage() {
         return { error: lastError };
     };
 
-    const { user, loading } = useAuth();
+    const { user, loading, refreshCurrentUser } = useAuth();
     const isSuperAdmin = user?.role === 'super_admin';
 
     const [listLoading, setListLoading] = useState(false);
@@ -182,6 +212,9 @@ export default function SuperAdminAccountsPage() {
     const [balance, setBalance] = useState<CreditBalanceResponse | null>(null);
     const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
     const [tenantUsers, setTenantUsers] = useState<OrganizationUser[]>([]);
+    const [proposalStats, setProposalStats] = useState<ProposalConsumptionItem | null>(null);
+    const [aiUsageStats, setAiUsageStats] = useState<AIUsageItem | null>(null);
+    const [paidAccountInfo, setPaidAccountInfo] = useState<PaidAccountItem | null>(null);
 
     const [plan, setPlan] = useState('free');
     const [status, setStatus] = useState('active');
@@ -251,14 +284,38 @@ export default function SuperAdminAccountsPage() {
 
         setDetailLoading(true);
         setError(null);
+        setProposalStats(null);
+        setAiUsageStats(null);
+        setPaidAccountInfo(null);
 
-        const [usageResponse, balanceResponse, transactionsResponse, usersResponse] = await Promise.all([
+        const since = new Date();
+        since.setDate(since.getDate() - 30);
+        const sinceParam = since.toISOString().slice(0, 19);
+
+        const [
+            usageResponse,
+            balanceResponse,
+            transactionsResponse,
+            usersResponse,
+            proposalsResponse,
+            aiUsageResponse,
+            paidAccountsResponse
+        ] = await Promise.all([
             supportRequest<UsageMetricsResponse>(`/organizations/${organizationId}/usage`),
             apiRequest<CreditBalanceResponse>(`/credits/admin/${organizationId}/balance`),
             apiRequest<CreditTransactionListResponse>(
                 `/credits/admin/${organizationId}/transactions?page=1&page_size=15`
             ),
-            apiRequest<OrganizationUsersResponse>(`/organizations/${organizationId}/users`)
+            apiRequest<OrganizationUsersResponse>(`/organizations/${organizationId}/users`),
+            supportRequest<{ items: ProposalConsumptionItem[] }>(
+                `/analytics/proposals?organization_id=${organizationId}`
+            ),
+            supportRequest<{ items: AIUsageItem[] }>(
+                `/analytics/ai-usage?organization_id=${organizationId}&since=${encodeURIComponent(sinceParam)}`
+            ),
+            supportRequest<{ items: PaidAccountItem[] }>(
+                `/analytics/paid-accounts?organization_id=${organizationId}`
+            )
         ]);
 
         const firstError =
@@ -277,7 +334,35 @@ export default function SuperAdminAccountsPage() {
         setBalance(balanceResponse.data || null);
         setTransactions(transactionsResponse.data?.items || []);
         setTenantUsers(usersResponse.data?.items || []);
+
+        if (!proposalsResponse.error && proposalsResponse.data?.items?.length) {
+            setProposalStats(proposalsResponse.data.items[0]);
+        }
+        if (!aiUsageResponse.error && aiUsageResponse.data?.items?.length) {
+            setAiUsageStats(aiUsageResponse.data.items[0]);
+        }
+        if (!paidAccountsResponse.error && paidAccountsResponse.data?.items?.length) {
+            setPaidAccountInfo(paidAccountsResponse.data.items[0]);
+        }
+
         setDetailLoading(false);
+    };
+
+    const switchActiveOrganization = async (organizationId: number) => {
+        if (!isSuperAdmin) return;
+        const response = await apiRequest<{ access_token: string }>(
+            '/auth/switch-organization',
+            {
+                method: 'POST',
+                body: JSON.stringify({ organization_id: organizationId }),
+            }
+        );
+        if (response.error || !response.data?.access_token) {
+            setError(response.error || 'No se pudo cambiar el tenant activo.');
+            return;
+        }
+        setAuthToken(response.data.access_token);
+        await refreshCurrentUser();
     };
 
     useEffect(() => {
@@ -289,12 +374,16 @@ export default function SuperAdminAccountsPage() {
 
     useEffect(() => {
         if (selectedOrgId && isSuperAdmin) {
+            void switchActiveOrganization(selectedOrgId);
             void loadOrganizationContext(selectedOrgId);
         } else {
             setUsage(null);
             setBalance(null);
             setTransactions([]);
             setTenantUsers([]);
+            setProposalStats(null);
+            setAiUsageStats(null);
+            setPaidAccountInfo(null);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedOrgId, isSuperAdmin]);
@@ -894,6 +983,76 @@ export default function SuperAdminAccountsPage() {
                                                 Owners en cuenta:{' '}
                                                 {tenantUsers.filter((member) => member.role === 'owner').length}
                                             </p>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                    <Card>
+                                        <CardContent className="space-y-2">
+                                            <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em] flex items-center gap-1.5">
+                                                <FileText size={12} />
+                                                Propuestas (tenant)
+                                            </p>
+                                            {detailLoading && <p className="text-sm text-system-gray">Cargando...</p>}
+                                            {!detailLoading && !proposalStats && (
+                                                <p className="text-sm text-system-gray">Sin datos</p>
+                                            )}
+                                            {!detailLoading && proposalStats && (
+                                                <>
+                                                    <p className="text-2xl font-black text-gray-900">
+                                                        {proposalStats.total_links} enlaces
+                                                    </p>
+                                                    <p className="text-xs text-system-gray">
+                                                        Enviadas: {proposalStats.sent_count} · Vistas: {proposalStats.viewed_count} · Aceptadas: {proposalStats.accepted_count} · Rechazadas: {proposalStats.rejected_count}
+                                                    </p>
+                                                </>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                    <Card>
+                                        <CardContent className="space-y-2">
+                                            <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em] flex items-center gap-1.5">
+                                                <Sparkles size={12} />
+                                                Uso IA (30 d)
+                                            </p>
+                                            {detailLoading && <p className="text-sm text-system-gray">Cargando...</p>}
+                                            {!detailLoading && !aiUsageStats && (
+                                                <p className="text-sm text-system-gray">Sin datos</p>
+                                            )}
+                                            {!detailLoading && aiUsageStats && (
+                                                <>
+                                                    <p className="text-2xl font-black text-gray-900">
+                                                        {aiUsageStats.total_tokens.toLocaleString('es-CO')} tokens
+                                                    </p>
+                                                    <p className="text-xs text-system-gray">
+                                                        {aiUsageStats.event_count} eventos · ~${aiUsageStats.total_estimated_cost_usd.toFixed(4)} USD
+                                                    </p>
+                                                </>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                    <Card>
+                                        <CardContent className="space-y-2">
+                                            <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em] flex items-center gap-1.5">
+                                                <TrendingUp size={12} />
+                                                Cuenta paga
+                                            </p>
+                                            {detailLoading && <p className="text-sm text-system-gray">Cargando...</p>}
+                                            {!detailLoading && !paidAccountInfo && (
+                                                <p className="text-sm text-system-gray">No (free/inactiva)</p>
+                                            )}
+                                            {!detailLoading && paidAccountInfo && (
+                                                <>
+                                                    <p className="text-2xl font-black text-gray-900 capitalize">
+                                                        {paidAccountInfo.plan}
+                                                    </p>
+                                                    <p className="text-xs text-system-gray">
+                                                        Estado: {paidAccountInfo.status}
+                                                        {paidAccountInfo.current_period_end ? ` · Vence: ${formatDate(paidAccountInfo.current_period_end)}` : ''}
+                                                    </p>
+                                                </>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 </div>
