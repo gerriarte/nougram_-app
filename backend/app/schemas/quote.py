@@ -8,6 +8,21 @@ from pydantic import BaseModel, Field, field_serializer
 from app.core.pydantic_config import DECIMAL_CONFIG
 
 
+class MarginSummary(BaseModel):
+    """Canonical margin contract using ratio scale (0-1)."""
+    gross_margin_ratio: Optional[Decimal] = Field(None, description="Gross margin before taxes (0-1)")
+    net_margin_ratio: Optional[Decimal] = Field(None, description="Net margin after taxes (0-1)")
+    target_margin_ratio: Optional[Decimal] = Field(None, description="Target margin (0-1)")
+    tax_burden_ratio: Optional[Decimal] = Field(None, description="Tax burden as share of client price (0-1)")
+    scale: str = Field(default="ratio_0_1", description="Scale used for ratio fields")
+
+    @field_serializer('gross_margin_ratio', 'net_margin_ratio', 'target_margin_ratio', 'tax_burden_ratio')
+    def serialize_decimal(self, value: Optional[Decimal]) -> Optional[str]:
+        return str(value) if value is not None else None
+
+    model_config = DECIMAL_CONFIG
+
+
 class QuoteItemBase(BaseModel):
     """Base schema for quote items (Sprint 14: supports multiple pricing types)
     ESTÁNDAR NOUGRAM: Campos monetarios usan Decimal serializado como string
@@ -121,8 +136,9 @@ class QuoteCalculateResponse(BaseModel):
     total_expenses_client_price: Decimal = Field(default=Decimal('0'), description="Total expenses client price (with markup)")
     total_taxes: Decimal = Field(default=Decimal('0'), description="Total taxes amount")
     total_with_taxes: Decimal = Field(default=Decimal('0'), description="Total client price with taxes")
-    margin_percentage: Decimal = Field(..., description="Calculated margin percentage (0-1)")
-    target_margin_percentage: Optional[Decimal] = Field(None, description="Target margin percentage used (0-1)")
+    margin_percentage: Decimal = Field(..., description="Legacy gross margin ratio (0-1)")
+    target_margin_percentage: Optional[Decimal] = Field(None, description="Legacy target margin ratio (0-1)")
+    margin: Optional[MarginSummary] = Field(default=None, description="Canonical margin contract (0-1 ratios)")
     items: List[dict] = Field(default_factory=list, description="Calculated items")
     expenses: List[dict] = Field(default_factory=list, description="Calculated expenses breakdown")
     taxes: List[dict] = Field(default_factory=list, description="Applied taxes breakdown")
@@ -230,7 +246,8 @@ class RentabilitySummaryResponse(BaseModel):
     total_internal_cost: Decimal = Field(..., description="Total internal cost")
     total_taxes: Decimal = Field(..., description="Total taxes")
     net_profit_amount: Decimal = Field(..., description="Net profit amount")
-    net_profit_margin: Decimal = Field(..., description="Net profit margin (0-1)")
+    net_profit_margin: Decimal = Field(..., description="Legacy net margin percentage (0-100)")
+    margin: Optional[MarginSummary] = Field(default=None, description="Canonical margin contract (0-1 ratios)")
     categories: List[RentabilityCategory] = Field(default_factory=list, description="Detailed breakdown categories")
     status: str = Field(..., description="Profitability status: healthy (>30%), warning (15-30%), critical (<15%)")
     

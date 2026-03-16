@@ -6,6 +6,7 @@ from decimal import Decimal
 from datetime import datetime
 from pydantic import BaseModel, Field, field_serializer
 from app.core.pydantic_config import DECIMAL_CONFIG
+from app.schemas.quote import MarginSummary
 
 
 class ProjectBase(BaseModel):
@@ -64,6 +65,7 @@ class QuoteResponse(BaseModel):
     total_with_taxes: Optional[Decimal] = None
     margin_percentage: Optional[Decimal] = None  # Calculated margin (result)
     target_margin_percentage: Optional[Decimal] = None  # Target margin for the quote (0-1)
+    margin: Optional[MarginSummary] = Field(default=None, description="Canonical margin contract (0-1 ratios)")
     notes: Optional[str] = None
     revisions_included: int = Field(default=2, description="Number of included revisions")
     revision_cost_per_additional: Optional[Decimal] = Field(None, description="Cost per additional revision", ge=0)

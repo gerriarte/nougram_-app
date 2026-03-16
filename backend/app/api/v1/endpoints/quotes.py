@@ -17,9 +17,16 @@ from app.core.permission_middleware import require_create_quotes
 from app.models.user import User
 from app.models.service import Service
 from app.models.project import Quote
-from app.schemas.quote import QuoteCalculateRequest, QuoteCalculateResponse, RentabilitySummaryResponse
+from app.schemas.quote import QuoteCalculateRequest, QuoteCalculateResponse, RentabilitySummaryResponse, MarginSummary
+
+from decimal import Decimal
 
 router = APIRouter()
+
+def _safe_ratio(numerator: Decimal, denominator: Decimal) -> Decimal:
+    if denominator <= 0:
+        return Decimal("0")
+    return numerator / denominator
 
 
 @router.post("/calculate", response_model=QuoteCalculateResponse, summary="Calculate quote totals")
@@ -159,17 +166,33 @@ async def calculate_quote(
     )
     
     # ESTÁNDAR NOUGRAM: Convertir valores float a Decimal para el schema
-    from decimal import Decimal
+    total_internal_cost = Decimal(str(totals["total_internal_cost"]))
+    total_client_price = Decimal(str(totals["total_client_price"]))
+    total_taxes = Decimal(str(totals["total_taxes"]))
+    gross_margin_ratio = Decimal(str(totals["margin_percentage"]))
+    target_margin_ratio = (
+        Decimal(str(totals.get("target_margin_percentage")))
+        if totals.get("target_margin_percentage") is not None
+        else None
+    )
+    net_margin_ratio = _safe_ratio(total_client_price - total_internal_cost - total_taxes, total_client_price)
+    tax_burden_ratio = _safe_ratio(total_taxes, total_client_price)
     
     return QuoteCalculateResponse(
-        total_internal_cost=Decimal(str(totals["total_internal_cost"])),
-        total_client_price=Decimal(str(totals["total_client_price"])),
+        total_internal_cost=total_internal_cost,
+        total_client_price=total_client_price,
         total_expenses_cost=Decimal(str(totals.get("total_expenses_cost", 0.0))),
         total_expenses_client_price=Decimal(str(totals.get("total_expenses_client_price", 0.0))),
-        total_taxes=Decimal(str(totals["total_taxes"])),
+        total_taxes=total_taxes,
         total_with_taxes=Decimal(str(totals["total_with_taxes"])),
-        margin_percentage=Decimal(str(totals["margin_percentage"])),
-        target_margin_percentage=Decimal(str(totals.get("target_margin_percentage"))) if totals.get("target_margin_percentage") is not None else None,  # Include target margin
+        margin_percentage=gross_margin_ratio,
+        target_margin_percentage=target_margin_ratio,  # Legacy field kept for compatibility
+        margin=MarginSummary(
+            gross_margin_ratio=gross_margin_ratio,
+            net_margin_ratio=net_margin_ratio,
+            target_margin_ratio=target_margin_ratio,
+            tax_burden_ratio=tax_burden_ratio,
+        ),
         items=totals.get("items", []),  # Enhanced breakdown from calculate_quote_totals_enhanced
         expenses=totals.get("expenses", []),  # Expenses breakdown (Sprint 15)
         taxes=totals.get("taxes", []),
@@ -228,4 +251,31 @@ async def get_quote_rentability(
             detail="Could not calculate rentability analysis"
         )
     
-    return analysis
+    total_client_price = Decimal(str(analysis.get("total_client_price", 0)))
+    total_taxes = Decimal(str(analysis.get("total_taxes", 0)))
+    gross_margin_ratio = Decimal(str(getattr(quote, "margin_percentage", 0) or 0))
+    net_profit_margin_percent = Decimal(str(analysis.get("net_profit_margin", 0) or 0))
+    net_margin_ratio = net_profit_margin_percent / Decimal("100")
+    tax_burden_ratio = _safe_ratio(total_taxes, total_client_price)
+    target_margin_ratio = (
+        Decimal(str(getattr(quote, "target_margin_percentage", 0)))
+        if getattr(quote, "target_margin_percentage", None) is not None
+        else None
+    )
+
+    return RentabilitySummaryResponse(
+        quote_id=analysis["quote_id"],
+        total_client_price=Decimal(str(analysis["total_client_price"])),
+        total_internal_cost=Decimal(str(analysis["total_internal_cost"])),
+        total_taxes=Decimal(str(analysis["total_taxes"])),
+        net_profit_amount=Decimal(str(analysis["net_profit_amount"])),
+        net_profit_margin=Decimal(str(analysis["net_profit_margin"])),  # Legacy percent scale kept
+        margin=MarginSummary(
+            gross_margin_ratio=gross_margin_ratio,
+            net_margin_ratio=net_margin_ratio,
+            target_margin_ratio=target_margin_ratio,
+            tax_burden_ratio=tax_burden_ratio,
+        ),
+        categories=analysis["categories"],
+        status=analysis["status"],
+    )

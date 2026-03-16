@@ -2,6 +2,7 @@
 Project management endpoints
 """
 import logging
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +45,7 @@ from app.schemas.project import (
     QuoteCreateNewVersion,
     ClientSearchResponse,
 )
-from app.schemas.quote import QuoteEmailRequest, QuoteEmailResponse, QuoteExpenseCreate, QuoteExpenseResponse
+from app.schemas.quote import QuoteEmailRequest, QuoteEmailResponse, QuoteExpenseCreate, QuoteExpenseResponse, MarginSummary
 from app.services.settings_service import SettingsService
 
 router = APIRouter()
@@ -61,6 +62,33 @@ def _compute_quote_tax_totals(quote: Quote, project: Project) -> tuple[Decimal, 
 
     total_with_taxes = total_client_price + total_taxes
     return total_taxes, total_with_taxes
+
+
+def _safe_ratio(numerator: Decimal, denominator: Decimal) -> Decimal:
+    if denominator <= 0:
+        return Decimal("0")
+    return numerator / denominator
+
+
+def _build_margin_summary(
+    total_client_price: Optional[Decimal],
+    total_internal_cost: Optional[Decimal],
+    total_taxes: Optional[Decimal],
+    gross_margin_ratio: Optional[Decimal],
+    target_margin_ratio: Optional[Decimal],
+) -> MarginSummary:
+    client = total_client_price if total_client_price is not None else Decimal("0")
+    internal = total_internal_cost if total_internal_cost is not None else Decimal("0")
+    taxes = total_taxes if total_taxes is not None else Decimal("0")
+    gross = gross_margin_ratio if gross_margin_ratio is not None else Decimal("0")
+    net = _safe_ratio(client - internal - taxes, client)
+    tax_burden = _safe_ratio(taxes, client)
+    return MarginSummary(
+        gross_margin_ratio=gross,
+        net_margin_ratio=net,
+        target_margin_ratio=target_margin_ratio,
+        tax_burden_ratio=tax_burden,
+    )
 
 
 def _proposal_to_notes_text(proposal_body: dict | None) -> str:
@@ -664,6 +692,13 @@ async def get_quote(
         total_taxes=total_taxes,
         total_with_taxes=total_with_taxes,
         margin_percentage=quote.margin_percentage,
+        margin=_build_margin_summary(
+            total_client_price=quote.total_client_price,
+            total_internal_cost=quote.total_internal_cost,
+            total_taxes=total_taxes,
+            gross_margin_ratio=quote.margin_percentage,
+            target_margin_ratio=quote.target_margin_percentage,
+        ),
         notes=quote.notes,
         created_at=quote.created_at,
         updated_at=quote.updated_at,
@@ -708,6 +743,13 @@ async def list_project_quotes(
                 total_with_taxes=total_with_taxes,
                 margin_percentage=quote.margin_percentage,
                 target_margin_percentage=quote.target_margin_percentage,
+                margin=_build_margin_summary(
+                    total_client_price=quote.total_client_price,
+                    total_internal_cost=quote.total_internal_cost,
+                    total_taxes=total_taxes,
+                    gross_margin_ratio=quote.margin_percentage,
+                    target_margin_ratio=quote.target_margin_percentage,
+                ),
                 notes=quote.notes,
                 revisions_included=getattr(quote, "revisions_included", 2),
                 revision_cost_per_additional=getattr(quote, "revision_cost_per_additional", None),
@@ -953,6 +995,13 @@ async def update_quote(
             total_taxes=total_taxes,
             total_with_taxes=total_with_taxes,
             margin_percentage=updated_quote.margin_percentage,
+            margin=_build_margin_summary(
+                total_client_price=updated_quote.total_client_price,
+                total_internal_cost=updated_quote.total_internal_cost,
+                total_taxes=total_taxes,
+                gross_margin_ratio=updated_quote.margin_percentage,
+                target_margin_ratio=updated_quote.target_margin_percentage,
+            ),
             notes=updated_quote.notes,
             revisions_included=updated_quote.revisions_included if hasattr(updated_quote, 'revisions_included') else 2,
             revision_cost_per_additional=updated_quote.revision_cost_per_additional if hasattr(updated_quote, 'revision_cost_per_additional') else None,
