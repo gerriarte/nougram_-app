@@ -6,6 +6,10 @@ import { Toaster } from '@/components/ui/Toaster';
 export const metadata: Metadata = {
   title: "Nougram Cotizador",
   description: "Calculadora de costos y cotizaciones",
+  icons: {
+    icon: [{ url: "/brand/Logo-iso-orange.svg", type: "image/svg+xml" }],
+    shortcut: ["/brand/Logo-iso-orange.svg"],
+  },
 };
 
 export default function RootLayout({
