@@ -107,8 +107,7 @@ async def complete_onboarding(
     
     **Permissions:**
     - Requires `can_modify_costs` permission (team and costs affect financial calculations)
-    - Allowed roles: owner, admin_financiero
-    - Must be owner of the organization
+    - Allowed roles: owner, admin_financiero, super_admin
     
     **Request Body:**
     - `organization_name`: Organization name (optional if already set)
@@ -125,11 +124,11 @@ async def complete_onboarding(
     - `400 Bad Request`: Validation error
     - `403 Forbidden`: User doesn't have permission
     """
-    # Verify user is owner or admin_financiero
-    if current_user.role not in ['owner', 'admin_financiero']:
+    # Verify user is owner, admin_financiero, or super_admin
+    if current_user.role not in ['owner', 'admin_financiero', 'super_admin']:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only organization owners and financial admins can complete onboarding"
+            detail="Only organization owners, financial admins, and super admins can complete onboarding"
         )
     
     controller = OnboardingController(db, tenant, current_user)
