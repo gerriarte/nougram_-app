@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { NougramCoreProvider } from '@/context/NougramCoreContext';
 import { Toaster } from '@/components/ui/Toaster';
@@ -24,7 +25,9 @@ export default function RootLayout({
       <body className="font-sans antialiased bg-gray-50 text-slate-900" suppressHydrationWarning>
         <GoogleTagManager />
         <NougramCoreProvider>
-          <RouteTracker />
+          <Suspense fallback={null}>
+            <RouteTracker />
+          </Suspense>
           {children}
           <Toaster />
         </NougramCoreProvider>
