@@ -117,7 +117,7 @@ export default function OnboardingPage() {
         });
 
         const importedCosts: FixedCostTemplate[] = [
-            ...payload.expenses.map((expense, index) => ({
+            ...payload.expenses.map<FixedCostTemplate>((expense, index) => ({
                 id: `import-expense-${index}`,
                 name: expense.name,
                 amount: Number(expense.amount_monthly) || 0,
@@ -127,9 +127,9 @@ export default function OnboardingPage() {
                 amortizable: false,
                 icon: '💼',
                 isCustom: true,
-                paymentType: 'monthly' as const,
+                paymentType: 'monthly',
             })),
-            ...payload.inventory_items.map((item, index) => ({
+            ...payload.inventory_items.map<FixedCostTemplate>((item, index) => ({
                 id: `import-inventory-${index}`,
                 name: item.name,
                 amount: Number(item.amount_monthly) || 0,
