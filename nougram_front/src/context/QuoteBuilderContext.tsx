@@ -14,6 +14,7 @@ import { pricingService } from '@/services/pricingService';
 import { CreditsRequiredError } from '@/lib/errors';
 import type { PaywallReason } from '@/components/billing/PaywallModal';
 import { getQuoteEditorMeta, saveQuoteEditorMeta } from '@/lib/quote-editor-meta';
+import { trackQuoteCreated, trackQuoteSaved } from '@/lib/analytics';
 
 // --- INITIAL STATE ---
 const INITIAL_STATE: QuoteBuilderState = {
@@ -352,6 +353,10 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                     projectType: state.projectType,
                     projectDescription: state.projectDescription,
                 });
+                trackQuoteSaved({
+                    project_id: state.id,
+                    quote_id: currentQuote?.quoteId != null ? String(currentQuote.quoteId) : undefined,
+                });
                 return state.id;
             } else {
                 const newProjectId = await quoteService.create(payload as any);
@@ -361,6 +366,8 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                     projectType: state.projectType,
                     projectDescription: state.projectDescription,
                 });
+                trackQuoteCreated({ project_id: newProjectId });
+                trackQuoteSaved({ project_id: newProjectId });
                 return newProjectId;
             }
         } catch (err) {

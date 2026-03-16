@@ -17,6 +17,8 @@ from app.repositories.equipment_repository import EquipmentRepository
 from app.repositories.organization_repository import OrganizationRepository
 from app.repositories.proposal_repository import ProposalRepository
 from app.repositories.proposal_client_link_repository import ProposalClientLinkRepository
+from app.repositories.ai_usage_repository import AIUsageRepository
+from app.repositories.financial_ledger_repository import FinancialLedgerRepository
 from app.repositories.subscription_repository import SubscriptionRepository
 from app.repositories.audit_log_repository import AuditLogRepository
 from app.repositories.credit_account_repository import CreditAccountRepository
@@ -143,5 +145,15 @@ class RepositoryFactory:
     def create_proposal_client_link_repository(db: AsyncSession, tenant_id: Optional[int] = None) -> ProposalClientLinkRepository:
         """Create ProposalClientLinkRepository with optional tenant context"""
         return ProposalClientLinkRepository(db, tenant_id=tenant_id)
+
+    @staticmethod
+    def create_ai_usage_repository(db: AsyncSession) -> AIUsageRepository:
+        """Create AIUsageRepository (no tenant scoping; used for cross-tenant analytics)."""
+        return AIUsageRepository(db, tenant_id=None)
+
+    @staticmethod
+    def create_financial_ledger_repository(db: AsyncSession) -> FinancialLedgerRepository:
+        """Create FinancialLedgerRepository (no tenant scoping; used for cross-tenant ledger)."""
+        return FinancialLedgerRepository(db, tenant_id=None)
 
 

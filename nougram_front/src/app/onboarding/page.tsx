@@ -15,6 +15,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { apiRequest } from '@/lib/api-client';
 import { onboardingService } from '@/services/onboardingService';
+import {
+    trackOnboardingStepCompleted,
+    trackOnboardingImportStarted,
+    trackOnboardingImportApplied,
+    trackOnboardingComplete,
+} from '@/lib/analytics';
 import { FixedCostTemplate } from '@/types/onboarding';
 import { normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
 import { Step3MyTeamData } from '@/types/onboarding';
@@ -89,8 +95,11 @@ export default function OnboardingPage() {
         }
     }, [isLoading, onboardingData.lastStep, currentStep]);
 
+    const stepNames: Record<number, string> = { 1: 'identity', 2: 'fixed_costs', 3: 'team', 4: 'ready' };
     const handleNext = () => {
-        setCurrentStep((prev) => prev + 1);
+        const next = currentStep + 1;
+        trackOnboardingStepCompleted({ step: stepNames[next] ?? String(next) });
+        setCurrentStep(next);
         window.scrollTo(0, 0);
     };
 
@@ -189,6 +198,8 @@ export default function OnboardingPage() {
             if (Number.isFinite(parsed)) setBackendBcr(parsed);
         }
 
+        const rowCount = (payload.expenses?.length ?? 0) + (payload.inventory_items?.length ?? 0);
+        trackOnboardingImportApplied({ row_count: rowCount });
         updateProgress(3);
         setCurrentStep(3);
         setImportPreview(null);
@@ -245,6 +256,7 @@ export default function OnboardingPage() {
 
     const handleImportFile = async (file?: File | null) => {
         if (!file) return;
+        trackOnboardingImportStarted({});
         setImportError(null);
         setImportLoading(true);
         const result = await onboardingService.previewImportExcel(file);
@@ -407,12 +419,14 @@ export default function OnboardingPage() {
     const handleGoToDashboard = async () => {
         const ok = await persistOnboardingInBackend();
         if (!ok) return;
+        trackOnboardingComplete({});
         router.push('/dashboard');
     };
 
     const handleCreateQuote = async () => {
         const ok = await persistOnboardingInBackend();
         if (!ok) return;
+        trackOnboardingComplete({});
         router.push('/projects/new');
     };
 

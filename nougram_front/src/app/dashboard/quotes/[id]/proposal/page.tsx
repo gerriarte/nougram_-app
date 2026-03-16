@@ -7,6 +7,7 @@ import { quoteService } from '@/services/quoteService';
 import { proposalService, ProposalBody, ProposalDocument } from '@/services/proposalService';
 import { Quote } from '@/components/dashboard/QuoteCard';
 import { getQuoteEditorMeta } from '@/lib/quote-editor-meta';
+import { trackProposalGeneratedWithAI } from '@/lib/analytics';
 
 export default function ProposalBuilderPage() {
     const router = useRouter();
@@ -80,6 +81,11 @@ export default function ProposalBuilderPage() {
             throw new Error('No se pudo generar la propuesta con IA');
         }
         setProposal(generated);
+        trackProposalGeneratedWithAI({
+            project_id: id,
+            quote_id: quote?.quoteId != null ? String(quote.quoteId) : undefined,
+            proposal_id: generated?.id != null ? String(generated.id) : undefined,
+        });
         return {
             title: generated.title,
             body_json: generated.body_json,

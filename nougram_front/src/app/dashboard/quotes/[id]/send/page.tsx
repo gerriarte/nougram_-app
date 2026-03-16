@@ -8,6 +8,7 @@ import type { QuoteSendPayload } from '@/components/quotes/QuoteSendView';
 import { quoteService } from '@/services/quoteService';
 import { Quote } from '@/components/dashboard/QuoteCard';
 import { proposalService, ProposalBody, ProposalDocument } from '@/services/proposalService';
+import { trackProposalShared } from '@/lib/analytics';
 
 /** Renders hybrid proposal body (guided sections + free_text) for preview and email. */
 function proposalBodyToText(body: ProposalBody): string {
@@ -94,6 +95,11 @@ export default function SendQuotePage() {
                     message: 'No se pudo compartir el acceso web de la propuesta.',
                 };
             }
+            trackProposalShared({
+                quote_id: quote?.quoteId != null ? String(quote.quoteId) : undefined,
+                proposal_id: data.proposalId != null ? String(data.proposalId) : undefined,
+                sent_email: true,
+            });
             return {
                 ok: true,
                 message: 'Propuesta enviada correctamente al portal del cliente.',
@@ -131,6 +137,11 @@ export default function SendQuotePage() {
                     message: 'No se pudo generar el acceso del portal cliente.',
                 };
             }
+            trackProposalShared({
+                quote_id: quote?.quoteId != null ? String(quote.quoteId) : undefined,
+                proposal_id: data.proposalId != null ? String(data.proposalId) : undefined,
+                sent_email: false,
+            });
             return {
                 ok: true,
                 message: 'Acceso generado. Ya puedes compartir link y clave desde tu propio correo.',

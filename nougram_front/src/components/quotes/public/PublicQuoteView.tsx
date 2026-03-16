@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Quote } from '@/components/dashboard/QuoteCard';
 import { Button } from '@/components/ui/Button';
 import { CheckCircle2, XCircle, Download, Calendar, Mail, Building, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { quoteService } from '@/services/quoteService';
 import { formatCurrency } from '@/lib/utils';
+import { trackProposalViewed, trackProposalDecision } from '@/lib/analytics';
 
 interface PublicQuoteViewProps {
     quote: Quote;
@@ -17,11 +18,24 @@ export function PublicQuoteView({ quote: initialQuote }: PublicQuoteViewProps) {
     const [actionState, setActionState] = useState<'idle' | 'accepting' | 'rejecting' | 'success_accepted' | 'success_rejected'>('idle');
     const [rejectReason, setRejectReason] = useState('');
     const [showRejectModal, setShowRejectModal] = useState(false);
+    const viewedTracked = useRef(false);
+
+    useEffect(() => {
+        if (viewedTracked.current) return;
+        viewedTracked.current = true;
+        trackProposalViewed({
+            proposal_id: initialQuote.quoteId != null ? String(initialQuote.quoteId) : undefined,
+        });
+    }, [initialQuote.quoteId]);
 
     const handleAccept = async () => {
         setActionState('accepting');
         try {
             await quoteService.acceptQuote(quote.publicToken!);
+            trackProposalDecision({
+                proposal_id: quote.quoteId != null ? String(quote.quoteId) : undefined,
+                decision: 'accepted',
+            });
             setActionState('success_accepted');
             setQuote({ ...quote, status: 'accepted' });
         } catch (error) {
@@ -34,6 +48,10 @@ export function PublicQuoteView({ quote: initialQuote }: PublicQuoteViewProps) {
         setActionState('rejecting');
         try {
             await quoteService.rejectQuote(quote.publicToken!, rejectReason);
+            trackProposalDecision({
+                proposal_id: quote.quoteId != null ? String(quote.quoteId) : undefined,
+                decision: 'rejected',
+            });
             setActionState('success_rejected');
             setQuote({ ...quote, status: 'rejected' });
             setShowRejectModal(false);

@@ -252,10 +252,12 @@ async def generate_proposal_with_ai(
 
     generated_sections = sections_result.get("sections") or {}
     executive_summary = _normalize_context_text(generated_sections.get("executive_summary"))
+    summary_usage = None
     if not executive_summary:
         summary_result = await ai_service.generate_executive_summary(summary_request)
         if summary_result.get("success"):
             executive_summary = _normalize_context_text(summary_result.get("summary"))
+            summary_usage = summary_result.get("usage")
 
     raw_objectives = generated_sections.get("objectives")
     objectives = []
@@ -327,6 +329,39 @@ async def generate_proposal_with_ai(
         is_locked=0,
     )
     created = await proposal_repo.create(entity)
+
+    # Persist AI usage for proposal generation (sections + optional executive summary)
+    ai_usage_repo = RepositoryFactory.create_ai_usage_repository(db)
+    sections_usage = sections_result.get("usage")
+    if sections_usage:
+        await ai_usage_repo.create_event(
+            organization_id=tenant.organization_id,
+            project_id=project_id,
+            proposal_id=created.id,
+            feature="proposal_ai_generate",
+            provider=sections_result.get("provider") or "openai",
+            model=getattr(ai_service, "model", None),
+            prompt_tokens=sections_usage.get("prompt_tokens", 0) or 0,
+            completion_tokens=sections_usage.get("completion_tokens", 0) or 0,
+            total_tokens=sections_usage.get("total_tokens", 0) or 0,
+            estimated_cost=sections_usage.get("estimated_cost"),
+            actor_user_id=current_user.id,
+        )
+    if summary_usage:
+        await ai_usage_repo.create_event(
+            organization_id=tenant.organization_id,
+            project_id=project_id,
+            proposal_id=created.id,
+            feature="proposal_executive_summary",
+            provider="openai",
+            model=getattr(ai_service, "model", None),
+            prompt_tokens=summary_usage.get("prompt_tokens", 0) or 0,
+            completion_tokens=summary_usage.get("completion_tokens", 0) or 0,
+            total_tokens=summary_usage.get("total_tokens", 0) or 0,
+            estimated_cost=summary_usage.get("estimated_cost"),
+            actor_user_id=current_user.id,
+        )
+
     return ProposalResponse.model_validate(created)
 
 

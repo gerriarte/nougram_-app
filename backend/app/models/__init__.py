@@ -19,6 +19,8 @@ from app.models.invitation import Invitation
 from app.models.annual_sales_projection import AnnualSalesProjection, AnnualSalesProjectionEntry
 from app.models.equipment import EquipmentAmortization
 from app.models.proposal import ProposalDocument, ProposalClientLink
+from app.models.ai_usage import AIUsageEvent
+from app.models.financial_ledger import FinancialLedgerEvent
 # Roles and DeleteRequest disabled during rollback
 # from app.models.role import DeleteRequest, UserRole, DeleteRequestStatus
 
@@ -46,6 +48,8 @@ __all__ = [
     "EquipmentAmortization",
     "ProposalDocument",
     "ProposalClientLink",
+    "AIUsageEvent",
+    "FinancialLedgerEvent",
     # "DeleteRequest",
     # "UserRole",
     # "DeleteRequestStatus",
