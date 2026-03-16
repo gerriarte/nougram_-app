@@ -306,7 +306,10 @@ async def delete_team_member(
         # )
         pass
     
-    logger.info("Deleting team member", member_id=member_id, user_id=current_user.id)
+    acting_user_id = current_user.id
+    acting_org_id = tenant.organization_id
+
+    logger.info("Deleting team member", member_id=member_id, user_id=acting_user_id)
     try:
         await team_repo.delete(member, soft=False)
     except Exception as exc:
@@ -326,8 +329,8 @@ async def delete_team_member(
         logger.warning(
             "Team member archived instead of hard delete due to existing allocations",
             member_id=member_id,
-            user_id=current_user.id,
-            organization_id=tenant.organization_id,
+            user_id=acting_user_id,
+            organization_id=acting_org_id,
         )
     
     # Invalidate blended cost rate cache
