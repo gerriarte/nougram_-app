@@ -250,7 +250,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                             Agregar ítem
                         </Button>
                     </div>
-                </div>
+                </CardContent>
             </Card>
 
             <Input
