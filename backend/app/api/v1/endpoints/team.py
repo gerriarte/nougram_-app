@@ -309,8 +309,17 @@ async def delete_team_member(
     logger.info("Deleting team member", member_id=member_id, user_id=current_user.id)
     try:
         await team_repo.delete(member, soft=False)
-    except IntegrityError:
-        # If historical quote allocations reference the member, archive it instead of failing.
+    except Exception as exc:
+        # asyncpg/SQLAlchemy may bubble different integrity exception classes depending
+        # on wrapping level. Handle FK-protected historical allocations uniformly.
+        is_fk_allocation_reference = (
+            isinstance(exc, IntegrityError)
+            or "quote_item_allocations_team_member_id_fkey" in str(exc)
+            or "ForeignKeyViolationError" in str(exc)
+        )
+        if not is_fk_allocation_reference:
+            raise
+
         await db.rollback()
         member.is_active = False
         await team_repo.update(member)
