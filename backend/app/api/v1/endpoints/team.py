@@ -4,6 +4,7 @@ Team member management endpoints
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -37,7 +38,8 @@ async def list_team_members(
     current_user: User = Depends(require_view_sensitive_data),  # Require permission to view sensitive data (salaries)
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page (max 100)")
+    page_size: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
+    include_inactive: bool = Query(False, description="Include inactive team members")
 ):
     """
     List all team members with pagination
@@ -52,12 +54,15 @@ async def list_team_members(
     try:
         team_repo = RepositoryFactory.create_team_repository(db, tenant.organization_id)
         
+        where_clause = None if include_inactive else TeamMember.is_active == True
+
         # Get total count
-        total = await team_repo.count()
+        total = await team_repo.count(where=where_clause)
         
         # Get paginated results
         offset = (page - 1) * page_size
         members = await team_repo.get_all(
+            where=where_clause,
             order_by=desc(TeamMember.created_at),
             limit=page_size,
             offset=offset
@@ -302,7 +307,19 @@ async def delete_team_member(
         pass
     
     logger.info("Deleting team member", member_id=member_id, user_id=current_user.id)
-    await team_repo.delete(member, soft=False)
+    try:
+        await team_repo.delete(member, soft=False)
+    except IntegrityError:
+        # If historical quote allocations reference the member, archive it instead of failing.
+        await db.rollback()
+        member.is_active = False
+        await team_repo.update(member)
+        logger.warning(
+            "Team member archived instead of hard delete due to existing allocations",
+            member_id=member_id,
+            user_id=current_user.id,
+            organization_id=tenant.organization_id,
+        )
     
     # Invalidate blended cost rate cache
     from app.core.cache import get_cache
