@@ -27,6 +27,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api-client';
 import { getAuthToken, setAuthToken } from '@/lib/auth';
+import { trackOrganizationSwitched } from '@/lib/analytics';
 
 type OrganizationItem = {
     id: number;
@@ -363,6 +364,7 @@ export default function SuperAdminAccountsPage() {
         }
         setAuthToken(response.data.access_token);
         await refreshCurrentUser();
+        trackOrganizationSwitched({ organization_id: String(organizationId) });
         return true;
     };
 

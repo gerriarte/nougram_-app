@@ -64,6 +64,11 @@ export interface SocialChargesConfig {
     int_cesantias_percentage: number;
     vacations_percentage: number;
     total_percentage: number;
+    country_code?: string;
+    preset_key?: string;
+    country_source?: 'account' | 'custom';
+    version?: number;
+    updated_at?: string;
 }
 
 export interface Tax {

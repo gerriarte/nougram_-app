@@ -66,6 +66,9 @@ class QuoteResponse(BaseModel):
     margin_percentage: Optional[Decimal] = None  # Calculated margin (result)
     target_margin_percentage: Optional[Decimal] = None  # Target margin for the quote (0-1)
     margin: Optional[MarginSummary] = Field(default=None, description="Canonical margin contract (0-1 ratios)")
+    contingency_description: Optional[str] = Field(None, description="Contingency description")
+    contingency_type: Optional[str] = Field(None, description="Contingency type: fixed|percentage")
+    contingency_value: Optional[Decimal] = Field(None, description="Contingency value")
     notes: Optional[str] = None
     revisions_included: int = Field(default=2, description="Number of included revisions")
     revision_cost_per_additional: Optional[Decimal] = Field(None, description="Cost per additional revision", ge=0)
@@ -74,7 +77,7 @@ class QuoteResponse(BaseModel):
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
     @field_serializer('total_internal_cost', 'total_client_price', 'total_taxes', 'total_with_taxes', 'margin_percentage',
-                      'target_margin_percentage', 'revision_cost_per_additional')
+                      'target_margin_percentage', 'revision_cost_per_additional', 'contingency_value')
     def serialize_decimal(self, value: Optional[Decimal]) -> Optional[str]:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None
@@ -177,6 +180,9 @@ class ProjectCreateWithQuote(ProjectCreate):
     """Schema for creating a project with initial quote - Sprint 16: includes revision fields"""
     quote_items: List[QuoteItemCreate] = Field(..., description="List of quote items", min_items=1)
     target_margin_percentage: Optional[Decimal] = Field(None, ge=0, le=1, description="Target margin for the quote (0-1, e.g., 0.40 = 40%)")
+    contingency_description: Optional[str] = Field(None, description="Contingency description")
+    contingency_type: Optional[str] = Field(None, description="Contingency type: fixed|percentage")
+    contingency_value: Optional[Decimal] = Field(None, ge=0, description="Contingency value")
     revisions_included: Optional[int] = Field(default=2, description="Number of included revisions", ge=0)
     revision_cost_per_additional: Optional[float] = Field(None, description="Cost per additional revision", ge=0)
     allow_low_margin: Optional[bool] = Field(False, description="Allow creating quote even if margin is below threshold")
@@ -194,12 +200,15 @@ class QuoteUpdate(BaseModel):
     items: List[QuoteItemCreate] = Field(..., description="List of quote items", min_items=1)
     notes: Optional[str] = Field(None, description="Notes for the quote")
     target_margin_percentage: Optional[Decimal] = Field(None, ge=0, le=1, description="Target margin for the quote (0-1, e.g., 0.40 = 40%)")
+    contingency_description: Optional[str] = Field(None, description="Contingency description")
+    contingency_type: Optional[str] = Field(None, description="Contingency type: fixed|percentage")
+    contingency_value: Optional[Decimal] = Field(None, ge=0, description="Contingency value")
     revisions_included: Optional[int] = Field(None, description="Number of included revisions", ge=0)
     revision_cost_per_additional: Optional[Decimal] = Field(None, description="Cost per additional revision", ge=0)
     allow_low_margin: Optional[bool] = Field(False, description="Allow creating quote even if margin is below threshold")
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
-    @field_serializer('target_margin_percentage', 'revision_cost_per_additional')
+    @field_serializer('target_margin_percentage', 'revision_cost_per_additional', 'contingency_value')
     def serialize_decimal(self, value: Optional[Decimal]) -> Optional[str]:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None
@@ -214,12 +223,15 @@ class QuoteCreateNewVersion(BaseModel):
     items: List[QuoteItemCreate] = Field(..., description="List of quote items", min_items=1)
     notes: Optional[str] = Field(None, description="Notes for the new version")
     target_margin_percentage: Optional[Decimal] = Field(None, ge=0, le=1, description="Target margin for the quote (0-1, e.g., 0.40 = 40%)")
+    contingency_description: Optional[str] = Field(None, description="Contingency description")
+    contingency_type: Optional[str] = Field(None, description="Contingency type: fixed|percentage")
+    contingency_value: Optional[Decimal] = Field(None, ge=0, description="Contingency value")
     revisions_included: Optional[int] = Field(None, description="Number of included revisions", ge=0)
     revision_cost_per_additional: Optional[Decimal] = Field(None, description="Cost per additional revision", ge=0)
     allow_low_margin: Optional[bool] = Field(False, description="Allow creating quote even if margin is below threshold")
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
-    @field_serializer('target_margin_percentage', 'revision_cost_per_additional')
+    @field_serializer('target_margin_percentage', 'revision_cost_per_additional', 'contingency_value')
     def serialize_decimal(self, value: Optional[Decimal]) -> Optional[str]:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None

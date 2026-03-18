@@ -76,6 +76,9 @@ class Quote(Base):
     # Sprint 16: Revision fields
     revisions_included = Column(Integer, default=2, nullable=False)  # Number of included revisions
     revision_cost_per_additional = Column(Numeric(precision=19, scale=4), nullable=True)  # ESTÁNDAR NOUGRAM: Numeric  # Cost per additional revision
+    contingency_description = Column(String, nullable=True)
+    contingency_type = Column(String, nullable=True)  # fixed | percentage
+    contingency_value = Column(Numeric(precision=19, scale=4), nullable=True)
     
     # Relationships
     project = relationship("Project", back_populates="quotes")

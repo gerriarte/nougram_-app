@@ -1,6 +1,9 @@
 import { apiRequest } from '@/lib/api-client';
 import { Currency, SocialChargesConfig } from '@/types/admin';
-import { buildSocialChargesConfigFromCurrency } from '@/lib/social-charges-presets';
+import {
+    buildSocialChargesConfigFromCurrency,
+    getSocialChargesPresetMetaByCountry,
+} from '@/lib/social-charges-presets';
 
 type CurrentUserResponse = {
     organization_id?: number | null;
@@ -12,6 +15,7 @@ type OrganizationResponse = {
         social_charges_config?: Partial<SocialChargesConfig>;
         primary_currency?: Currency;
         currency?: Currency;
+        country?: string;
         [key: string]: unknown;
     };
 };
@@ -26,9 +30,23 @@ type SaveOnboardingConfigResponse = {
 
 function normalizeSocialConfig(
     input: Partial<SocialChargesConfig>,
-    baseCurrency: Currency
+    baseCurrency: Currency,
+    accountCountryCode?: string
 ): SocialChargesConfig {
-    const preset = buildSocialChargesConfigFromCurrency(baseCurrency, false);
+    const presetFromCurrency = buildSocialChargesConfigFromCurrency(baseCurrency, false);
+    const normalizedAccountCountry = accountCountryCode?.toUpperCase();
+    const persistedSource = input.country_source === 'custom' ? 'custom' : 'account';
+    const resolvedCountry =
+        persistedSource === 'account'
+            ? (normalizedAccountCountry || input.country_code || presetFromCurrency.country_code)
+            : (input.country_code || normalizedAccountCountry || presetFromCurrency.country_code);
+    const presetFromCountry = getSocialChargesPresetMetaByCountry(resolvedCountry);
+    const preset = {
+        ...presetFromCurrency,
+        ...presetFromCountry.percentages,
+        country_code: presetFromCountry.countryCode,
+        preset_key: presetFromCountry.presetKey,
+    };
     const config: SocialChargesConfig = {
         enable_social_charges: Boolean(input.enable_social_charges ?? preset.enable_social_charges),
         health_percentage: Number(input.health_percentage ?? preset.health_percentage),
@@ -39,7 +57,12 @@ function normalizeSocialConfig(
         cesantias_percentage: Number(input.cesantias_percentage ?? preset.cesantias_percentage),
         int_cesantias_percentage: Number(input.int_cesantias_percentage ?? preset.int_cesantias_percentage),
         vacations_percentage: Number(input.vacations_percentage ?? preset.vacations_percentage),
-        total_percentage: 0
+        total_percentage: 0,
+        country_code: resolvedCountry || preset.country_code,
+        preset_key: input.preset_key || preset.preset_key,
+        country_source: persistedSource,
+        version: Number(input.version || 1),
+        updated_at: input.updated_at || new Date().toISOString(),
     };
 
     config.total_percentage =
@@ -72,18 +95,27 @@ export const socialChargesService = {
             orgResponse.data?.settings?.primary_currency ||
             orgResponse.data?.settings?.currency ||
             'COP';
+        const orgCountry = orgResponse.data?.settings?.country;
         const baseCurrency = orgCurrency as Currency;
         if (orgResponse.error || !config) return null;
-        return normalizeSocialConfig(config, baseCurrency);
+        return normalizeSocialConfig(config, baseCurrency, orgCountry);
     },
 
     async save(config: SocialChargesConfig): Promise<boolean> {
         const organizationId = await getCurrentOrganizationId();
         if (!organizationId) return false;
 
+        const orgResponse = await apiRequest<OrganizationResponse>(`/organizations/${organizationId}`);
+        const orgCurrency =
+            orgResponse.data?.settings?.primary_currency ||
+            orgResponse.data?.settings?.currency ||
+            'COP';
+        const orgCountry = orgResponse.data?.settings?.country;
+
+        const normalized = normalizeSocialConfig(config, orgCurrency as Currency, orgCountry);
         const payload = {
             social_charges_config: {
-                ...config
+                ...normalized
             }
         };
 

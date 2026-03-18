@@ -3,13 +3,15 @@ import { Currency, SocialChargesConfig } from '@/types/admin';
 type PresetMeta = {
   countryCode: string;
   countryLabel: string;
+  presetKey: string;
   percentages: Omit<SocialChargesConfig, 'enable_social_charges' | 'total_percentage'>;
 };
 
-const PRESETS_BY_CURRENCY: Record<Currency, PresetMeta> = {
-  COP: {
+const PRESETS_BY_COUNTRY: Record<string, PresetMeta> = {
+  CO: {
     countryCode: 'CO',
     countryLabel: 'Colombia',
+    presetKey: 'CO',
     percentages: {
       health_percentage: 8.5,
       pension_percentage: 12.0,
@@ -21,9 +23,10 @@ const PRESETS_BY_CURRENCY: Record<Currency, PresetMeta> = {
       vacations_percentage: 4.17,
     },
   },
-  MXN: {
+  MX: {
     countryCode: 'MX',
     countryLabel: 'Mexico',
+    presetKey: 'MX',
     percentages: {
       health_percentage: 7.58,
       pension_percentage: 5.15,
@@ -35,9 +38,10 @@ const PRESETS_BY_CURRENCY: Record<Currency, PresetMeta> = {
       vacations_percentage: 4.17,
     },
   },
-  PEN: {
+  PE: {
     countryCode: 'PE',
     countryLabel: 'Peru',
+    presetKey: 'PE',
     percentages: {
       health_percentage: 9.0,
       pension_percentage: 13.0,
@@ -49,9 +53,10 @@ const PRESETS_BY_CURRENCY: Record<Currency, PresetMeta> = {
       vacations_percentage: 8.33,
     },
   },
-  ARS: {
+  AR: {
     countryCode: 'AR',
     countryLabel: 'Argentina',
+    presetKey: 'AR',
     percentages: {
       health_percentage: 6.0,
       pension_percentage: 10.17,
@@ -63,9 +68,10 @@ const PRESETS_BY_CURRENCY: Record<Currency, PresetMeta> = {
       vacations_percentage: 4.17,
     },
   },
-  USD: {
+  US: {
     countryCode: 'US',
     countryLabel: 'United States',
+    presetKey: 'US',
     percentages: {
       health_percentage: 1.45,
       pension_percentage: 6.2,
@@ -77,9 +83,10 @@ const PRESETS_BY_CURRENCY: Record<Currency, PresetMeta> = {
       vacations_percentage: 4.17,
     },
   },
-  EUR: {
+  EU: {
     countryCode: 'EU',
     countryLabel: 'Eurozone',
+    presetKey: 'EU',
     percentages: {
       health_percentage: 8.0,
       pension_percentage: 12.0,
@@ -91,6 +98,15 @@ const PRESETS_BY_CURRENCY: Record<Currency, PresetMeta> = {
       vacations_percentage: 4.17,
     },
   },
+};
+
+const COUNTRY_BY_CURRENCY: Record<Currency, string> = {
+  COP: 'CO',
+  MXN: 'MX',
+  PEN: 'PE',
+  ARS: 'AR',
+  USD: 'US',
+  EUR: 'EU',
 };
 
 function computeTotal(
@@ -109,7 +125,18 @@ function computeTotal(
 }
 
 export function getSocialChargesPresetMeta(currency: Currency): PresetMeta {
-  return PRESETS_BY_CURRENCY[currency] || PRESETS_BY_CURRENCY.USD;
+  const countryCode = COUNTRY_BY_CURRENCY[currency] || 'US';
+  return PRESETS_BY_COUNTRY[countryCode] || PRESETS_BY_COUNTRY.US;
+}
+
+export function getSocialChargesPresetMetaByCountry(countryCode?: string): PresetMeta {
+  if (!countryCode) return PRESETS_BY_COUNTRY.US;
+  const normalized = countryCode.toUpperCase();
+  return PRESETS_BY_COUNTRY[normalized] || PRESETS_BY_COUNTRY.US;
+}
+
+export function listSocialChargesPresetMeta(): PresetMeta[] {
+  return Object.values(PRESETS_BY_COUNTRY);
 }
 
 export function buildSocialChargesConfigFromCurrency(
@@ -121,5 +148,25 @@ export function buildSocialChargesConfigFromCurrency(
     enable_social_charges: enabled,
     ...preset.percentages,
     total_percentage: computeTotal(preset.percentages),
+    country_code: preset.countryCode,
+    preset_key: preset.presetKey,
+    version: 1,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function buildSocialChargesConfigFromCountry(
+  countryCode: string,
+  enabled = false
+): SocialChargesConfig {
+  const preset = getSocialChargesPresetMetaByCountry(countryCode);
+  return {
+    enable_social_charges: enabled,
+    ...preset.percentages,
+    total_percentage: computeTotal(preset.percentages),
+    country_code: preset.countryCode,
+    preset_key: preset.presetKey,
+    version: 1,
+    updated_at: new Date().toISOString(),
   };
 }

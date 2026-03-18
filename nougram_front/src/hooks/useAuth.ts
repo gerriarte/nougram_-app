@@ -8,6 +8,7 @@ import {
 } from "@/types/user";
 import { apiRequest } from "@/lib/api-client";
 import { isAuthenticated, removeAuthToken, setAuthToken } from "@/lib/auth";
+import { trackLogout } from "@/lib/analytics";
 
 type LoginResponse = {
   access_token: string;
@@ -163,6 +164,7 @@ export function useAuth() {
   }, []);
 
   const logout = useCallback(() => {
+    trackLogout();
     removeAuthToken();
     authUserPromise = null;
     authUserCache = null;

@@ -40,6 +40,9 @@ type ProjectQuoteResponse = {
         tax_burden_ratio?: string | number;
         scale?: string;
     };
+    contingency_description?: string | null;
+    contingency_type?: 'fixed' | 'percentage' | string | null;
+    contingency_value?: string | number | null;
     items?: Array<{
         id?: number;
         service_id: number;
@@ -451,6 +454,9 @@ export const quoteService = {
                 tax_ids: data.selectedTaxIds || [],
                 quote_items: quoteItems,
                 target_margin_percentage: typeof data.targetMargin === 'number' ? toMarginRatio(data.targetMargin) : undefined,
+                contingency_description: data.contingency ? (data.contingency.description || '') : null,
+                contingency_type: data.contingency ? data.contingency.type : null,
+                contingency_value: data.contingency ? (data.contingency.value ?? 0) : null,
                 revisions_included: 2,
                 allow_low_margin: Boolean(data.allowLowMargin),
             }),
@@ -498,6 +504,9 @@ export const quoteService = {
                 body: JSON.stringify({
                     items: payloadItems,
                     target_margin_percentage: typeof data.targetMargin === 'number' ? toMarginRatio(data.targetMargin) : undefined,
+                    contingency_description: data.contingency ? (data.contingency.description || '') : null,
+                    contingency_type: data.contingency ? data.contingency.type : null,
+                    contingency_value: data.contingency ? (data.contingency.value ?? 0) : null,
                     allow_low_margin: Boolean(data.allowLowMargin),
                 }),
             }
@@ -534,6 +543,9 @@ export const quoteService = {
                 body: JSON.stringify({
                     items: payloadItems,
                     target_margin_percentage: typeof data.targetMargin === 'number' ? toMarginRatio(data.targetMargin) : undefined,
+                    contingency_description: data.contingency ? (data.contingency.description || '') : null,
+                    contingency_type: data.contingency ? data.contingency.type : null,
+                    contingency_value: data.contingency ? (data.contingency.value ?? 0) : null,
                     allow_low_margin: Boolean(data.allowLowMargin),
                 }),
             }
@@ -709,6 +721,7 @@ export const quoteService = {
         targetMargin: number;
         selectedTaxIds: number[];
         selectedTaxes: TaxConfig[];
+        contingency?: QuoteBuilderState['contingency'];
         items: QuoteItem[];
     } | null> => {
         const projectResponse = await apiRequest<ProjectResponse>(`/projects/${projectId}`);
@@ -775,6 +788,13 @@ export const quoteService = {
                 code: tax.code,
                 isActive: true,
             })),
+            contingency: (detail?.contingency_type && detail?.contingency_value !== null && detail?.contingency_value !== undefined)
+                ? {
+                    description: String(detail.contingency_description || ''),
+                    type: detail.contingency_type === 'fixed' ? 'fixed' : 'percentage',
+                    value: Number(detail.contingency_value || 0),
+                }
+                : undefined,
             items,
         };
     },

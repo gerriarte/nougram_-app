@@ -82,7 +82,7 @@ interface QuoteBuilderContextType {
     isValid: boolean;
     errors: string[];
 
-    saveQuote: (status?: 'Draft' | 'Sent') => Promise<string | undefined>;
+    saveQuote: (status?: 'Draft' | 'Sent' | 'Won' | 'Lost') => Promise<string | undefined>;
     loadQuote: (id: string) => Promise<void>;
 
     /** 402 / credits paywall: show PaywallModal when reason is set */
@@ -314,7 +314,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     }
 
     // --- PERSISTENCE ---
-    const saveQuote = async (status: 'Draft' | 'Sent' = 'Draft') => {
+    const saveQuote = async (status?: 'Draft' | 'Sent' | 'Won' | 'Lost') => {
         const { quoteService } = await import('@/services/quoteService');
         const activeTaxIds = new Set(
             (taxes || [])
@@ -348,7 +348,9 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 } else {
                     await quoteService.update(state.id, payload as any);
                 }
-                await quoteService.setProjectStatus(state.id, status);
+                if (status) {
+                    await quoteService.setProjectStatus(state.id, status);
+                }
                 saveQuoteEditorMeta(state.id, {
                     projectType: state.projectType,
                     projectDescription: state.projectDescription,
@@ -361,7 +363,9 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             } else {
                 const newProjectId = await quoteService.create(payload as any);
                 setState(prev => ({ ...prev, id: newProjectId, version: 1 }));
-                await quoteService.setProjectStatus(newProjectId, status);
+                if (status) {
+                    await quoteService.setProjectStatus(newProjectId, status);
+                }
                 saveQuoteEditorMeta(newProjectId, {
                     projectType: state.projectType,
                     projectDescription: state.projectDescription,
@@ -425,6 +429,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                     ? q.targetMargin
                     : INITIAL_STATE.targetMargin,
                 selectedTaxIds: q.selectedTaxIds || [],
+                contingency: q.contingency,
                 items: q.items || [],
             }));
         }

@@ -2,6 +2,7 @@
 Project Service - Business logic for project and quote management
 """
 from typing import Dict, List, Optional, Any
+from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, insert
 from sqlalchemy.orm import selectinload
@@ -30,6 +31,34 @@ from app.schemas.quote import QuoteEmailRequest, QuoteEmailResponse
 from app.services.credit_service import CreditService
 
 logger = logging.getLogger(__name__)
+
+def _apply_contingency_to_totals(
+    totals: Dict[str, Any],
+    contingency_type: Optional[str],
+    contingency_value: Optional[Decimal],
+) -> Dict[str, Any]:
+    if not contingency_type or contingency_value is None:
+        return totals
+    try:
+        contingency_numeric = Decimal(str(contingency_value))
+    except Exception:
+        contingency_numeric = Decimal("0")
+    if contingency_numeric <= 0:
+        return totals
+
+    base_price = Decimal(str(totals.get("total_client_price", 0) or 0))
+    internal_cost = Decimal(str(totals.get("total_internal_cost", 0) or 0))
+
+    if contingency_type == "fixed":
+        extra = contingency_numeric
+    else:
+        extra = base_price * (contingency_numeric / Decimal("100"))
+
+    total_with_contingency = base_price + extra
+    totals["total_client_price"] = float(total_with_contingency)
+    if total_with_contingency > 0:
+        totals["margin_percentage"] = float((total_with_contingency - internal_cost) / total_with_contingency)
+    return totals
 
 
 class ProjectService:
@@ -131,6 +160,9 @@ class ProjectService:
         revisions_included = project_data.revisions_included if hasattr(project_data, 'revisions_included') and project_data.revisions_included is not None else 2
         revision_cost_per_additional = getattr(project_data, 'revision_cost_per_additional', None)
         target_margin_percentage = getattr(project_data, 'target_margin_percentage', None)
+        contingency_description = getattr(project_data, 'contingency_description', None)
+        contingency_type = getattr(project_data, 'contingency_type', None)
+        contingency_value = getattr(project_data, 'contingency_value', None)
         logger.info(f"Calculating quote totals (enhanced) with {len(tax_ids)} taxes, revisions_included={revisions_included}, target_margin={target_margin_percentage}...")
         totals = await calculate_quote_totals_enhanced(
             self.db, 
@@ -144,6 +176,7 @@ class ProjectService:
             revisions_count=None,  # Only used when calculating additional revision costs
             currency=primary_currency,
         )
+        totals = _apply_contingency_to_totals(totals, contingency_type, contingency_value)
         logger.info(f"Quote totals calculated: {totals}")
         
         # Validate profitability before creating quote
@@ -187,6 +220,9 @@ class ProjectService:
             total_client_price=totals["total_client_price"],
             margin_percentage=totals["margin_percentage"],
             target_margin_percentage=target_margin_percentage,  # Save target margin
+            contingency_description=contingency_description,
+            contingency_type=contingency_type,
+            contingency_value=contingency_value,
             revisions_included=revisions_included,
             revision_cost_per_additional=revision_cost_per_additional
         )
@@ -335,6 +371,9 @@ class ProjectService:
         revisions_included = quote_data.revisions_included if quote_data.revisions_included is not None else (existing_quote.revisions_included if existing_quote.revisions_included else 2)
         revision_cost_per_additional = quote_data.revision_cost_per_additional if hasattr(quote_data, 'revision_cost_per_additional') and quote_data.revision_cost_per_additional is not None else existing_quote.revision_cost_per_additional
         target_margin_percentage = getattr(quote_data, 'target_margin_percentage', None)
+        contingency_description = getattr(quote_data, 'contingency_description', None)
+        contingency_type = getattr(quote_data, 'contingency_type', None)
+        contingency_value = getattr(quote_data, 'contingency_value', None)
         
         totals = await calculate_quote_totals_enhanced(
             self.db, 
@@ -348,6 +387,7 @@ class ProjectService:
             revisions_count=None,
             currency=project.currency,
         )
+        totals = _apply_contingency_to_totals(totals, contingency_type, contingency_value)
         
         # Validate profitability before creating new quote version
         allow_low_margin_flag = getattr(quote_data, 'allow_low_margin', False) or allow_low_margin
@@ -361,6 +401,9 @@ class ProjectService:
             total_client_price=totals["total_client_price"],
             margin_percentage=totals["margin_percentage"],
             target_margin_percentage=target_margin_percentage,  # Save target margin
+            contingency_description=contingency_description,
+            contingency_type=contingency_type,
+            contingency_value=contingency_value,
             notes=quote_data.notes,
             revisions_included=revisions_included,
             revision_cost_per_additional=revision_cost_per_additional
@@ -790,6 +833,9 @@ class ProjectService:
             total_client_price=final_quote.total_client_price,
             margin_percentage=final_quote.margin_percentage,
             notes=final_quote.notes,
+            contingency_description=getattr(final_quote, "contingency_description", None),
+            contingency_type=getattr(final_quote, "contingency_type", None),
+            contingency_value=getattr(final_quote, "contingency_value", None),
             revisions_included=final_quote.revisions_included if hasattr(final_quote, 'revisions_included') else 2,
             revision_cost_per_additional=final_quote.revision_cost_per_additional if hasattr(final_quote, 'revision_cost_per_additional') else None,
             created_at=final_quote.created_at,

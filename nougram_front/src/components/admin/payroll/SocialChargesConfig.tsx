@@ -8,7 +8,11 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { useNougram } from '@/context/NougramCoreContext';
-import { getSocialChargesPresetMeta } from '@/lib/social-charges-presets';
+import {
+    buildSocialChargesConfigFromCountry,
+    getSocialChargesPresetMeta,
+    listSocialChargesPresetMeta,
+} from '@/lib/social-charges-presets';
 
 // Mock Switch if not available
 function SimpleSwitch({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (c: boolean) => void }) {
@@ -30,6 +34,25 @@ export function SocialChargesConfig() {
     const [formData, setFormData] = React.useState(socialCharges);
     const currentCurrency = state.identity.primaryCurrency || 'COP';
     const presetMeta = getSocialChargesPresetMeta(currentCurrency);
+    const accountCountryCode = (state.identity.country || presetMeta.countryCode || 'CO').toUpperCase();
+    const [useAccountCountry, setUseAccountCountry] = React.useState(
+        socialCharges.country_source !== 'custom'
+    );
+    const [countryCode, setCountryCode] = React.useState(
+        socialCharges.country_code || accountCountryCode
+    );
+    const availablePresets = listSocialChargesPresetMeta();
+    const editableNumericFields: Array<keyof typeof formData> = [
+        'health_percentage',
+        'pension_percentage',
+        'arl_percentage',
+        'parafiscales_percentage',
+        'prima_services_percentage',
+        'cesantias_percentage',
+        'int_cesantias_percentage',
+        'vacations_percentage',
+    ];
+    const effectiveCountryCode = useAccountCountry ? accountCountryCode : countryCode;
 
     const handleSave = () => {
         // Calculate total
@@ -43,8 +66,33 @@ export function SocialChargesConfig() {
             formData.int_cesantias_percentage +
             formData.vacations_percentage;
 
-        updateSocialCharges({ ...formData, total_percentage: total });
+        updateSocialCharges({
+            ...formData,
+            total_percentage: total,
+            country_code: effectiveCountryCode,
+            preset_key: effectiveCountryCode,
+            country_source: useAccountCountry ? 'account' : 'custom',
+            version: (socialCharges.version || 0) + 1,
+            updated_at: new Date().toISOString(),
+        });
         setIsEditing(false);
+    };
+
+    const applyCountryPreset = () => {
+        const preset = buildSocialChargesConfigFromCountry(
+            effectiveCountryCode,
+            socialCharges.enable_social_charges
+        );
+        updateSocialCharges({
+            ...preset,
+            country_source: useAccountCountry ? 'account' : 'custom',
+            version: (socialCharges.version || 0) + 1,
+            updated_at: new Date().toISOString(),
+        });
+        setFormData((prev) => ({
+            ...prev,
+            ...preset,
+        }));
     };
 
     const handleChange = (key: keyof typeof formData, value: string) => {
@@ -53,8 +101,13 @@ export function SocialChargesConfig() {
 
     // Reset form when entering edit mode
     React.useEffect(() => {
-        if (isEditing) setFormData(socialCharges);
-    }, [isEditing, socialCharges]);
+        if (isEditing) {
+            setFormData(socialCharges);
+            const source = socialCharges.country_source === 'custom' ? 'custom' : 'account';
+            setUseAccountCountry(source === 'account');
+            setCountryCode(socialCharges.country_code || accountCountryCode);
+        }
+    }, [isEditing, socialCharges, accountCountryCode]);
 
     return (
         <Card>
@@ -62,7 +115,7 @@ export function SocialChargesConfig() {
                 <div>
                     <CardTitle>Cargas Sociales & Prestaciones</CardTitle>
                     <p className="text-sm text-gray-500">
-                        Configuracion para {presetMeta.countryLabel} ({currentCurrency}). Desactivado por defecto para cuentas nuevas.
+                        Configuracion por pais (pais de cuenta: {accountCountryCode}, moneda {currentCurrency}). Desactivado por defecto para cuentas nuevas.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -77,6 +130,57 @@ export function SocialChargesConfig() {
                 </div>
             </CardHeader>
             <CardContent>
+                <div className="mb-5 rounded-lg border border-gray-200 p-3 bg-gray-50/60">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                        <div className="space-y-1">
+                            <Label>Fuente de pais</Label>
+                            <div className="flex flex-col gap-2 text-sm">
+                                <label className="inline-flex items-center gap-2">
+                                    <input
+                                        type="radio"
+                                        name="countrySource"
+                                        checked={useAccountCountry}
+                                        onChange={() => setUseAccountCountry(true)}
+                                    />
+                                    Usar pais de la cuenta ({accountCountryCode})
+                                </label>
+                                <label className="inline-flex items-center gap-2">
+                                    <input
+                                        type="radio"
+                                        name="countrySource"
+                                        checked={!useAccountCountry}
+                                        onChange={() => setUseAccountCountry(false)}
+                                    />
+                                    Usar otro pais
+                                </label>
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <Label>Pais alterno</Label>
+                            <select
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+                                value={countryCode}
+                                onChange={(e) => setCountryCode(e.target.value)}
+                                disabled={useAccountCountry}
+                            >
+                                {availablePresets.map((preset) => (
+                                    <option key={preset.countryCode} value={preset.countryCode}>
+                                        {preset.countryLabel} ({preset.countryCode})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="text-xs text-gray-500 md:col-span-2">
+                            Se guardara en base de datos como configuracion editable de tu organizacion con versionado.
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <Button type="button" variant="secondary" size="sm" onClick={applyCountryPreset}>
+                            Aplicar preset del pais activo ({effectiveCountryCode})
+                        </Button>
+                    </div>
+                </div>
+
                 {/* View Mode */}
                 {!isEditing && (
                     <div className="space-y-4">
@@ -104,8 +208,8 @@ export function SocialChargesConfig() {
                 {isEditing && (
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            {Object.entries(formData).map(([key, val]) => {
-                                if (key === 'enable_social_charges' || key === 'total_percentage') return null;
+                            {editableNumericFields.map((key) => {
+                                const val = formData[key];
                                 return (
                                     <div key={key} className="space-y-1">
                                         <Label className="capitalize">{key.replace(/_/g, ' ').replace('percentage', '').trim()}</Label>
@@ -114,7 +218,7 @@ export function SocialChargesConfig() {
                                                 type="number"
                                                 step="0.01"
                                                 value={val as number}
-                                                onChange={e => handleChange(key as any, e.target.value)}
+                                                onChange={e => handleChange(key, e.target.value)}
                                             />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">%</span>
                                         </div>
