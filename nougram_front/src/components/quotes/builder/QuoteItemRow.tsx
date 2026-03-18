@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { useNougram } from '@/context/NougramCoreContext';
 import { QuoteItem, Service, ResourceAllocation } from '@/types/quote-builder';
-import { Trash2, Plus, Users, Clock, Calendar, Check, X, Edit2 } from 'lucide-react';
+import { Trash2, Plus, Clock, Calendar } from 'lucide-react';
 import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
 
 interface QuoteItemRowProps {
@@ -22,7 +22,6 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
     const [isAddingResource, setIsAddingResource] = useState(false);
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [newResourceHours, setNewResourceHours] = useState<number>(10);
-    const [isEditingTitle, setIsEditingTitle] = useState(false);
 
     const handleAddResource = () => {
         if (!selectedMemberId) return;
@@ -93,36 +92,21 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
             </Button>
 
             <div className="space-y-4">
-                {/* Header with Editable Title */}
+                {/* Header with Billing Focus */}
                 <div className="flex items-center gap-3 border-b border-gray-50 pb-3">
                     <div className={`p-2 rounded-lg ${item.pricingType === 'recurring' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>
                         {item.pricingType === 'recurring' ? <Calendar size={18} /> : <Clock size={18} />}
                     </div>
                     <div className="flex-1">
-                        {!isEditingTitle ? (
-                            <div className="flex items-center gap-2 group/title cursor-pointer" onClick={() => setIsEditingTitle(true)}>
-                                <h3 className="font-bold text-gray-900 text-sm hover:text-blue-600 transition-colors">
-                                    {item.serviceName}
-                                </h3>
-                                <Edit2 size={12} className="text-gray-300 opacity-0 group-hover/title:opacity-100 transition-opacity" />
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-2">
-                                <Input
-                                    autoFocus
-                                    className="h-7 text-sm font-bold bg-gray-50 border-blue-200"
-                                    value={item.serviceName}
-                                    onChange={e => updateItem(item.id, { serviceName: e.target.value })}
-                                    onBlur={() => setIsEditingTitle(false)}
-                                    onKeyDown={e => e.key === 'Enter' && setIsEditingTitle(false)}
-                                />
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setIsEditingTitle(false)}>
-                                    <Check size={14} className="text-green-600" />
-                                </Button>
-                            </div>
-                        )}
-                        <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
-                            Forma de cobro: {billingLabel}
+                        <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block mb-1">
+                            Forma de cobro
+                        </span>
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide uppercase ${
+                            item.pricingType === 'recurring'
+                                ? 'bg-purple-100 text-purple-700'
+                                : 'bg-blue-100 text-blue-700'
+                        }`}>
+                            {billingLabel}
                         </span>
                     </div>
                 </div>

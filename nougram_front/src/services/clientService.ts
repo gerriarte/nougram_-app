@@ -28,6 +28,22 @@ type ClientSearchResponse = {
   total: number;
 };
 
+type ClientListItem = {
+  id: number;
+  display_name: string;
+  requester_name?: string | null;
+  email?: string | null;
+  status?: string;
+};
+
+type ClientListResponse = {
+  items: ClientListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+};
+
 type ClientCreatePayload = {
   display_name: string;
   requester_name?: string;
@@ -37,6 +53,21 @@ type ClientCreatePayload = {
 };
 
 export const clientService = {
+  listClients: async (limit = 20): Promise<Client[]> => {
+    const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+    const response = await apiRequest<ClientListResponse>(
+      `/clients/?page=1&page_size=${safeLimit}&status=active`
+    );
+    if (response.error || !response.data?.items) return [];
+    return response.data.items.map((c) => ({
+      id: c.id,
+      name: normalizeOptionalText(c.display_name),
+      company: normalizeOptionalText(c.display_name),
+      requester: normalizeOptionalText(c.requester_name) || undefined,
+      email: normalizeOptionalText(c.email) || undefined,
+    }));
+  },
+
   searchClients: async (query: string): Promise<Client[]> => {
     if (!query || query.trim().length < 2) return [];
     const response = await apiRequest<ClientSearchResponse>(
