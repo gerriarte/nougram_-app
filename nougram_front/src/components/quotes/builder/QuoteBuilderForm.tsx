@@ -24,14 +24,12 @@ export function QuoteBuilderForm() {
     const router = useRouter();
     const [selectedBillingType, setSelectedBillingType] = React.useState<'' | 'hourly' | 'fixed' | 'recurring'>('');
 
-    const handleSave = async (status: 'Draft' | 'Sent', continueToNextStep: boolean = false) => {
-        if (!isValid && status === 'Sent') return;
-
+    const handleSave = async (options?: { goToProposal?: boolean; goToDashboard?: boolean }) => {
         try {
-            const projectId = await saveQuote(status);
-            if (continueToNextStep && projectId) {
-                router.push(`/dashboard/quotes/${projectId}/next-step`);
-            } else {
+            const projectId = await saveQuote();
+            if (options?.goToProposal && projectId) {
+                router.push(`/dashboard/quotes/${projectId}/proposal`);
+            } else if (options?.goToDashboard) {
                 router.push('/dashboard');
             }
         } catch (e) {
@@ -259,22 +257,22 @@ export function QuoteBuilderForm() {
             {/* 4. Actions */}
             <div className="sticky bottom-4 z-30" id="quote-final-proposal-section">
                 <div className="max-w-5xl mx-auto flex gap-3 justify-end rounded-2xl border border-gray-200 bg-white/95 backdrop-blur-xl shadow-lg p-3">
+                    <Button variant="secondary" onClick={() => handleSave({ goToDashboard: true })} className="w-full sm:w-auto">
+                        Guardar
+                    </Button>
                     <Button
                         variant="ghost"
                         onClick={() => (state.id ? router.push('/dashboard') : router.back())}
                         className="w-full sm:w-auto"
                     >
-                        {state.id ? 'Cancelar Edición' : 'Cancelar'}
-                    </Button>
-                    <Button variant="secondary" onClick={() => handleSave('Draft')} className="w-full sm:w-auto">
-                        Guardar Borrador
+                        Cancelar
                     </Button>
                     <Button
                         className={`w-full sm:w-auto ${isValid ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                         disabled={!isValid}
-                        onClick={() => handleSave('Draft', true)}
+                        onClick={() => handleSave({ goToProposal: true })}
                     >
-                        Guardar y Continuar
+                        Crear propuesta
                     </Button>
                 </div>
             </div>

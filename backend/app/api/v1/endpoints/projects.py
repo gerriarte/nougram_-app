@@ -91,6 +91,35 @@ def _build_margin_summary(
     )
 
 
+def _apply_contingency_to_totals(
+    totals: dict,
+    contingency_type: Optional[str],
+    contingency_value: Optional[Decimal],
+) -> dict:
+    if not contingency_type or contingency_value is None:
+        return totals
+    try:
+        contingency_numeric = Decimal(str(contingency_value))
+    except Exception:
+        contingency_numeric = Decimal("0")
+    if contingency_numeric <= 0:
+        return totals
+
+    base_price = Decimal(str(totals.get("total_client_price", 0) or 0))
+    internal_cost = Decimal(str(totals.get("total_internal_cost", 0) or 0))
+
+    if contingency_type == "fixed":
+        extra = contingency_numeric
+    else:
+        extra = base_price * (contingency_numeric / Decimal("100"))
+
+    total_with_contingency = base_price + extra
+    totals["total_client_price"] = float(total_with_contingency)
+    if total_with_contingency > 0:
+        totals["margin_percentage"] = float((total_with_contingency - internal_cost) / total_with_contingency)
+    return totals
+
+
 def _proposal_to_notes_text(proposal_body: dict | None) -> str:
     if not proposal_body:
         return ""
@@ -699,6 +728,9 @@ async def get_quote(
             gross_margin_ratio=quote.margin_percentage,
             target_margin_ratio=quote.target_margin_percentage,
         ),
+        contingency_description=getattr(quote, "contingency_description", None),
+        contingency_type=getattr(quote, "contingency_type", None),
+        contingency_value=getattr(quote, "contingency_value", None),
         notes=quote.notes,
         created_at=quote.created_at,
         updated_at=quote.updated_at,
@@ -750,6 +782,9 @@ async def list_project_quotes(
                     gross_margin_ratio=quote.margin_percentage,
                     target_margin_ratio=quote.target_margin_percentage,
                 ),
+                contingency_description=getattr(quote, "contingency_description", None),
+                contingency_type=getattr(quote, "contingency_type", None),
+                contingency_value=getattr(quote, "contingency_value", None),
                 notes=quote.notes,
                 revisions_included=getattr(quote, "revisions_included", 2),
                 revision_cost_per_additional=getattr(quote, "revision_cost_per_additional", None),
@@ -846,6 +881,9 @@ async def update_quote(
         revisions_included = quote_data.revisions_included if quote_data.revisions_included is not None else (quote.revisions_included if quote.revisions_included else 2)
         revision_cost_per_additional = quote_data.revision_cost_per_additional if hasattr(quote_data, 'revision_cost_per_additional') else quote.revision_cost_per_additional
         target_margin_percentage = getattr(quote_data, 'target_margin_percentage', None)
+        contingency_description = getattr(quote_data, 'contingency_description', None)
+        contingency_type = getattr(quote_data, 'contingency_type', None)
+        contingency_value = getattr(quote_data, 'contingency_value', None)
         
         totals = await calculate_quote_totals_enhanced(
             db, 
@@ -859,6 +897,7 @@ async def update_quote(
             revisions_count=None,
             currency=primary_currency
         )
+        totals = _apply_contingency_to_totals(totals, contingency_type, contingency_value)
         
         # Delete old items
         old_items_result = await db.execute(select(QuoteItem).where(QuoteItem.quote_id == quote_id))
@@ -873,6 +912,9 @@ async def update_quote(
         quote.total_client_price = Decimal(str(totals["total_client_price"]))
         quote.margin_percentage = Decimal(str(totals["margin_percentage"]))
         quote.target_margin_percentage = Decimal(str(target_margin_percentage)) if target_margin_percentage is not None else None  # Update target margin
+        quote.contingency_description = contingency_description
+        quote.contingency_type = contingency_type
+        quote.contingency_value = Decimal(str(contingency_value)) if contingency_value is not None else None
         if quote_data.notes is not None:
             quote.notes = quote_data.notes
         if quote_data.revisions_included is not None:
@@ -1002,6 +1044,9 @@ async def update_quote(
                 gross_margin_ratio=updated_quote.margin_percentage,
                 target_margin_ratio=updated_quote.target_margin_percentage,
             ),
+            contingency_description=getattr(updated_quote, "contingency_description", None),
+            contingency_type=getattr(updated_quote, "contingency_type", None),
+            contingency_value=getattr(updated_quote, "contingency_value", None),
             notes=updated_quote.notes,
             revisions_included=updated_quote.revisions_included if hasattr(updated_quote, 'revisions_included') else 2,
             revision_cost_per_additional=updated_quote.revision_cost_per_additional if hasattr(updated_quote, 'revision_cost_per_additional') else None,
