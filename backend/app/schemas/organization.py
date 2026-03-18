@@ -159,6 +159,26 @@ class SocialChargesConfig(BaseModel):
     vacations_percentage: Optional[float] = Field(4.17, ge=0, le=100, description="Provision for Vacaciones")
     
     total_percentage: Optional[float] = Field(None, ge=0, le=200, description="Total multiplier percentage (e.g. 51.0 for ~1.51)")
+    country_code: Optional[str] = Field(
+        None,
+        min_length=2,
+        max_length=3,
+        description="Country code used to source the preset (e.g. CO, MX, US)"
+    )
+    preset_key: Optional[str] = Field(
+        None,
+        max_length=32,
+        description="Preset identifier applied by UI (for auditability)"
+    )
+    version: Optional[int] = Field(
+        None,
+        ge=1,
+        description="Client-managed config version for future change tracking"
+    )
+    updated_at: Optional[str] = Field(
+        None,
+        description="ISO timestamp of latest config update (set by client)"
+    )
 
     class Config:
         json_schema_extra = {
@@ -172,7 +192,11 @@ class SocialChargesConfig(BaseModel):
                 "cesantias_percentage": 8.33,
                 "int_cesantias_percentage": 1.0,
                 "vacations_percentage": 4.17,
-                "total_percentage": 52.852
+                "total_percentage": 52.852,
+                "country_code": "CO",
+                "preset_key": "CO",
+                "version": 1,
+                "updated_at": "2026-03-16T18:30:00.000Z"
             }
         }
 

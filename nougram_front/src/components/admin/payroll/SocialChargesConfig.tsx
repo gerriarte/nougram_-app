@@ -8,7 +8,11 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { useNougram } from '@/context/NougramCoreContext';
-import { getSocialChargesPresetMeta } from '@/lib/social-charges-presets';
+import {
+    buildSocialChargesConfigFromCountry,
+    getSocialChargesPresetMeta,
+    listSocialChargesPresetMeta,
+} from '@/lib/social-charges-presets';
 
 // Mock Switch if not available
 function SimpleSwitch({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (c: boolean) => void }) {
@@ -28,8 +32,10 @@ export function SocialChargesConfig() {
     const { state } = useNougram();
     const [isEditing, setIsEditing] = React.useState(false);
     const [formData, setFormData] = React.useState(socialCharges);
+    const [countryCode, setCountryCode] = React.useState(socialCharges.country_code || 'CO');
     const currentCurrency = state.identity.primaryCurrency || 'COP';
     const presetMeta = getSocialChargesPresetMeta(currentCurrency);
+    const availablePresets = listSocialChargesPresetMeta();
 
     const handleSave = () => {
         // Calculate total
@@ -43,8 +49,31 @@ export function SocialChargesConfig() {
             formData.int_cesantias_percentage +
             formData.vacations_percentage;
 
-        updateSocialCharges({ ...formData, total_percentage: total });
+        updateSocialCharges({
+            ...formData,
+            total_percentage: total,
+            country_code: countryCode,
+            preset_key: countryCode,
+            version: (socialCharges.version || 0) + 1,
+            updated_at: new Date().toISOString(),
+        });
         setIsEditing(false);
+    };
+
+    const applyCountryPreset = () => {
+        const preset = buildSocialChargesConfigFromCountry(
+            countryCode,
+            socialCharges.enable_social_charges
+        );
+        updateSocialCharges({
+            ...preset,
+            version: (socialCharges.version || 0) + 1,
+            updated_at: new Date().toISOString(),
+        });
+        setFormData((prev) => ({
+            ...prev,
+            ...preset,
+        }));
     };
 
     const handleChange = (key: keyof typeof formData, value: string) => {
@@ -53,7 +82,10 @@ export function SocialChargesConfig() {
 
     // Reset form when entering edit mode
     React.useEffect(() => {
-        if (isEditing) setFormData(socialCharges);
+        if (isEditing) {
+            setFormData(socialCharges);
+            setCountryCode(socialCharges.country_code || presetMeta.countryCode);
+        }
     }, [isEditing, socialCharges]);
 
     return (
@@ -62,7 +94,7 @@ export function SocialChargesConfig() {
                 <div>
                     <CardTitle>Cargas Sociales & Prestaciones</CardTitle>
                     <p className="text-sm text-gray-500">
-                        Configuracion para {presetMeta.countryLabel} ({currentCurrency}). Desactivado por defecto para cuentas nuevas.
+                        Configuracion por pais (base: {presetMeta.countryLabel}, moneda {currentCurrency}). Desactivado por defecto para cuentas nuevas.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -77,6 +109,33 @@ export function SocialChargesConfig() {
                 </div>
             </CardHeader>
             <CardContent>
+                <div className="mb-5 rounded-lg border border-gray-200 p-3 bg-gray-50/60">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                        <div className="space-y-1">
+                            <Label>Pais de referencia</Label>
+                            <select
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+                                value={countryCode}
+                                onChange={(e) => setCountryCode(e.target.value)}
+                            >
+                                {availablePresets.map((preset) => (
+                                    <option key={preset.countryCode} value={preset.countryCode}>
+                                        {preset.countryLabel} ({preset.countryCode})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="text-xs text-gray-500 md:col-span-2">
+                            Se guardara en base de datos como configuracion editable de tu organizacion con versionado.
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <Button type="button" variant="secondary" size="sm" onClick={applyCountryPreset}>
+                            Aplicar preset del pais seleccionado
+                        </Button>
+                    </div>
+                </div>
+
                 {/* View Mode */}
                 {!isEditing && (
                     <div className="space-y-4">

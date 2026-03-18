@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { taxService } from '@/services/taxService';
 import { TaxConfig } from '@/types/quote-builder';
+import { SocialChargesConfig } from '@/components/admin/payroll/SocialChargesConfig';
 
 type TaxFormState = {
     name: string;
@@ -126,6 +127,8 @@ export default function TaxesAdminPage() {
                     Configura impuestos por país. Se aplican como porcentaje sobre la base de la cotización y funcionan igual en cualquier moneda.
                 </p>
             </div>
+
+            <SocialChargesConfig />
 
             <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

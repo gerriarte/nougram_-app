@@ -1,6 +1,9 @@
 import { apiRequest } from '@/lib/api-client';
 import { Currency, SocialChargesConfig } from '@/types/admin';
-import { buildSocialChargesConfigFromCurrency } from '@/lib/social-charges-presets';
+import {
+    buildSocialChargesConfigFromCurrency,
+    getSocialChargesPresetMetaByCountry,
+} from '@/lib/social-charges-presets';
 
 type CurrentUserResponse = {
     organization_id?: number | null;
@@ -28,7 +31,14 @@ function normalizeSocialConfig(
     input: Partial<SocialChargesConfig>,
     baseCurrency: Currency
 ): SocialChargesConfig {
-    const preset = buildSocialChargesConfigFromCurrency(baseCurrency, false);
+    const presetFromCurrency = buildSocialChargesConfigFromCurrency(baseCurrency, false);
+    const presetFromCountry = getSocialChargesPresetMetaByCountry(input.country_code);
+    const preset = {
+        ...presetFromCurrency,
+        ...presetFromCountry.percentages,
+        country_code: presetFromCountry.countryCode,
+        preset_key: presetFromCountry.presetKey,
+    };
     const config: SocialChargesConfig = {
         enable_social_charges: Boolean(input.enable_social_charges ?? preset.enable_social_charges),
         health_percentage: Number(input.health_percentage ?? preset.health_percentage),
@@ -39,7 +49,11 @@ function normalizeSocialConfig(
         cesantias_percentage: Number(input.cesantias_percentage ?? preset.cesantias_percentage),
         int_cesantias_percentage: Number(input.int_cesantias_percentage ?? preset.int_cesantias_percentage),
         vacations_percentage: Number(input.vacations_percentage ?? preset.vacations_percentage),
-        total_percentage: 0
+        total_percentage: 0,
+        country_code: input.country_code || preset.country_code,
+        preset_key: input.preset_key || preset.preset_key,
+        version: Number(input.version || 1),
+        updated_at: input.updated_at || new Date().toISOString(),
     };
 
     config.total_percentage =
@@ -81,9 +95,10 @@ export const socialChargesService = {
         const organizationId = await getCurrentOrganizationId();
         if (!organizationId) return false;
 
+        const normalized = normalizeSocialConfig(config, 'COP');
         const payload = {
             social_charges_config: {
-                ...config
+                ...normalized
             }
         };
 
