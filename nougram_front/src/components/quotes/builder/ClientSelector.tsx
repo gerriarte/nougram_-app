@@ -33,13 +33,12 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
   const [loading, setLoading] = useState(false);
 
   const fetchClients = useCallback(async (q: string) => {
-    if (!q || q.trim().length < 2) {
-      setClients([]);
-      return;
-    }
     setLoading(true);
     try {
-      const results = await clientService.searchClients(q);
+      const normalizedQuery = q.trim();
+      const results = normalizedQuery.length >= 2
+        ? await clientService.searchClients(normalizedQuery)
+        : await clientService.listClients(20);
       setClients(results);
     } catch {
       setClients([]);
@@ -49,9 +48,10 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
   }, []);
 
   useEffect(() => {
+    if (!isOpen) return;
     const t = setTimeout(() => fetchClients(searchTerm), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [searchTerm, fetchClients]);
+  }, [searchTerm, fetchClients, isOpen]);
 
   useEffect(() => {
     const normalized = normalizeSearchText(searchTerm);
@@ -170,9 +170,13 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
               {loading && (
                 <div className="p-4 text-center text-sm text-gray-500">Buscando...</div>
               )}
-              {!loading && clients.length === 0 && safeSearchTerm.trim().length >= 2 && (
+              {!loading && clients.length === 0 && (
                 <div className="p-8 text-center">
-                  <p className="text-sm text-gray-500">No se encontraron clientes.</p>
+                  <p className="text-sm text-gray-500">
+                    {safeSearchTerm.trim().length >= 2
+                      ? 'No se encontraron clientes.'
+                      : 'No hay clientes creados todavía.'}
+                  </p>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -181,11 +185,6 @@ export function ClientSelector({ value, clientId, onChange }: ClientSelectorProp
                   >
                     Crear nuevo ahora
                   </Button>
-                </div>
-              )}
-              {!loading && safeSearchTerm.trim().length < 2 && (
-                <div className="p-6 text-center text-sm text-gray-500">
-                  Escribe al menos 2 caracteres para buscar.
                 </div>
               )}
               {!loading &&

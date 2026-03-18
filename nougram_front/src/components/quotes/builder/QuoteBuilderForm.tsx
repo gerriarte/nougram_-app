@@ -14,9 +14,9 @@ import { PaywallModal } from '@/components/billing/PaywallModal';
 import { QuoteFlowStepper } from '@/components/quotes/QuoteFlowStepper';
 
 const QUOTE_FLOW_STEPS = [
-    { id: 1, title: 'Información del proyecto' },
-    { id: 2, title: 'Estimación unificada' },
-    { id: 3, title: 'Propuesta comercial' },
+    { id: 1, title: 'Información general' },
+    { id: 2, title: 'Tipo de cotización y costos' },
+    { id: 3, title: 'Validación y propuesta' },
 ];
 
 export function QuoteBuilderForm() {
@@ -86,6 +86,29 @@ export function QuoteBuilderForm() {
         addItem(candidateService.id);
     };
 
+    const hasProjectName = typeof state.projectName === 'string' && state.projectName.trim().length > 0;
+    const hasClient = Boolean(
+        state.clientId ||
+        (typeof state.clientCompany === 'string' && state.clientCompany.trim().length > 0) ||
+        (typeof state.clientName === 'string' && state.clientName.trim().length > 0)
+    );
+    const hasItems = state.items.length > 0;
+    const currentFlowStepId = !hasProjectName || !hasClient ? 1 : !hasItems ? 2 : 3;
+
+    const stepSectionById: Record<number, string> = {
+        1: 'quote-step-project-info',
+        2: 'quote-step-estimation',
+        3: 'quote-final-proposal-section',
+    };
+
+    const handleStepNavigation = (stepId: number) => {
+        const targetId = stepSectionById[stepId];
+        if (!targetId) return;
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
     return (
         <>
         <div className="space-y-8 pb-12 max-w-5xl mx-auto">
@@ -93,10 +116,11 @@ export function QuoteBuilderForm() {
                 className="sticky top-2 z-20 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur p-3 shadow-sm"
                 label="Flujo de cotización"
                 steps={QUOTE_FLOW_STEPS}
-                currentStepId={1}
+                currentStepId={currentFlowStepId}
+                onStepClick={handleStepNavigation}
             />
             {/* 1. Project Info */}
-            <Card className="overflow-hidden border-none shadow-xl bg-white/80 backdrop-blur-2xl">
+            <Card id="quote-step-project-info" className="overflow-hidden border-none shadow-xl bg-white/80 backdrop-blur-2xl">
                 <CardHeader className="bg-gray-50/50 border-b border-gray-100 flex flex-row justify-between items-start">
                     <div>
                         <CardTitle className="text-xl">Información General</CardTitle>
@@ -156,7 +180,7 @@ export function QuoteBuilderForm() {
             </Card>
 
             {/* 2. Billing Type Manager */}
-            <div className="space-y-6">
+            <div id="quote-step-estimation" className="space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Tipo de cotización</h2>

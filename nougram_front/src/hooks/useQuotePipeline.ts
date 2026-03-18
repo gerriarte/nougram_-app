@@ -62,7 +62,7 @@ export function useQuotePipeline() {
 
     useEffect(() => {
         const loadClients = async () => {
-            const res = await apiRequest<{ items: ClientOption[] }>('/clients/?page=1&page_size=200');
+            const res = await apiRequest<{ items: ClientOption[] }>('/clients/?page=1&page_size=100');
             if (res.data?.items) setClients(res.data.items);
         };
         loadClients();

@@ -16,6 +16,7 @@ interface QuoteFlowStepperProps {
   gridClassName?: string;
   showMobileProgress?: boolean;
   mobileProgressPercent?: number;
+  onStepClick?: (stepId: number) => void;
 }
 
 export function QuoteFlowStepper({
@@ -26,6 +27,7 @@ export function QuoteFlowStepper({
   gridClassName = 'grid grid-cols-1 sm:grid-cols-3 gap-2',
   showMobileProgress = false,
   mobileProgressPercent = 0,
+  onStepClick,
 }: QuoteFlowStepperProps) {
   return (
     <div className={className}>
@@ -37,10 +39,14 @@ export function QuoteFlowStepper({
 
       <div className={gridClassName}>
         {steps.map((step) => (
-          <div
+          <button
             key={step.id}
+            type="button"
+            onClick={() => onStepClick?.(step.id)}
+            disabled={!onStepClick}
             className={cn(
-              'rounded-xl border px-3 py-2 transition-colors',
+              'w-full text-left rounded-xl border px-3 py-2 transition-colors',
+              onStepClick ? 'cursor-pointer hover:border-blue-200 hover:bg-blue-50/40' : 'cursor-default',
               currentStepId === step.id
                 ? 'border-blue-100 bg-blue-50'
                 : currentStepId > step.id
@@ -72,7 +78,7 @@ export function QuoteFlowStepper({
             >
               {step.title}
             </p>
-          </div>
+          </button>
         ))}
       </div>
 

@@ -2,7 +2,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
-import { Eye, Clock, CheckCircle2, XCircle, MoreHorizontal, ArrowUpRight, Copy, Send } from 'lucide-react';
+import { Eye, Clock, CheckCircle2, XCircle, MoreHorizontal, ArrowUpRight, Send, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useNougram } from '@/context/NougramCoreContext';
 import { formatMoneyAmount } from '@/lib/utils';
 
@@ -37,9 +37,11 @@ export interface Quote {
 interface QuoteCardProps extends React.HTMLAttributes<HTMLDivElement> {
     quote: Quote;
     onStatusChange?: (id: string, status: Quote['status']) => void;
+    onOpenPublicAccess?: (quote: Quote) => void;
+    isPublicAccessLoading?: boolean;
 }
 
-export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
+export function QuoteCard({ quote, onStatusChange, onOpenPublicAccess, isPublicAccessLoading = false, ...props }: QuoteCardProps) {
     const router = useRouter();
     const { state } = useNougram();
     const baseAmount = quote.totalClientPrice ?? Math.max(0, quote.totalWithTaxes - (quote.totalTaxes ?? 0));
@@ -169,6 +171,17 @@ export function QuoteCard({ quote, onStatusChange, ...props }: QuoteCardProps) {
                             <CheckCircle2 size={11} /> Aceptar
                         </button>
                     )}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenPublicAccess?.(quote);
+                        }}
+                        className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+                        title="Acceso público"
+                        disabled={isPublicAccessLoading}
+                    >
+                        {isPublicAccessLoading ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}
+                    </button>
                     <button
                         onClick={(e) => {
                             e.stopPropagation();

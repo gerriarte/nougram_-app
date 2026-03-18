@@ -3,36 +3,22 @@
 import React from 'react';
 import { Quote } from './QuoteCard';
 import { useRouter } from 'next/navigation';
-import { Edit, ArrowUpRight, Link as LinkIcon, Check } from 'lucide-react';
+import { Edit, ArrowUpRight, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { quoteService } from '@/services/quoteService';
 import { useNougram } from '@/context/NougramCoreContext';
 import { formatMoneyAmount } from '@/lib/utils';
 
 interface QuoteTableProps {
     quotes: Quote[];
     onStatusChange: (id: string, status: Quote['status']) => void;
+    onOpenPublicAccess?: (quote: Quote) => void;
+    publicAccessLoadingQuoteId?: string | null;
 }
 
-export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
+export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicAccessLoadingQuoteId }: QuoteTableProps) {
     const router = useRouter();
-    const [copiedId, setCopiedId] = React.useState<string | null>(null);
     const { state } = useNougram();
     const displayCurrency = state.identity.primaryCurrency || 'COP';
-
-    const handleCopyLink = async (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        try {
-            const token = await quoteService.generatePublicLink(id);
-            const url = `${window.location.origin}/proposal/${token}`;
-            await navigator.clipboard.writeText(url);
-            setCopiedId(id);
-            setTimeout(() => setCopiedId(null), 2000);
-        } catch (error) {
-            console.error('No fue posible generar el enlace público', error);
-            alert('La generación de enlace público aún no está habilitada por backend.');
-        }
-    };
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -147,10 +133,14 @@ export function QuoteTable({ quotes, onStatusChange }: QuoteTableProps) {
                                             variant="ghost"
                                             size="sm"
                                             className="h-8 w-8 p-0 rounded-full text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                            onClick={(e) => handleCopyLink(quote.id, e)}
-                                            title="Copiar Enlace Público"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onOpenPublicAccess?.(quote);
+                                            }}
+                                            title="Ver acceso público"
+                                            disabled={publicAccessLoadingQuoteId === quote.id}
                                         >
-                                            {copiedId === quote.id ? <Check size={16} className="text-green-600" /> : <LinkIcon size={16} />}
+                                            {publicAccessLoadingQuoteId === quote.id ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}
                                         </Button>
 
                                         <Button

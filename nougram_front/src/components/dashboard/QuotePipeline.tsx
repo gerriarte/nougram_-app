@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { QuoteCard, Quote } from '@/components/dashboard/QuoteCard';
 import { KPIWidgets } from '@/components/dashboard/KPIWidgets';
-import { Search, Filter, Plus, Layout, List, ChevronRight, MoreHorizontal } from 'lucide-react';
+import { Search, Plus, Layout, List, Copy, Link as LinkIcon, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { useQuotePipeline } from '@/hooks/useQuotePipeline';
@@ -12,6 +12,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { QuoteTable } from '@/components/dashboard/QuoteTable';
 import { cn } from '@/lib/utils';
 import { BCRSummaryCard } from '@/components/admin/BCRSummaryCard';
+import { proposalService } from '@/services/proposalService';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
+import { Input } from '@/components/ui/Input';
 
 export function QuotePipeline() {
     const {
@@ -31,6 +34,65 @@ export function QuotePipeline() {
         updateFilter,
         clearFilters
     } = useQuotePipeline();
+    const [publicAccessLoadingQuoteId, setPublicAccessLoadingQuoteId] = useState<string | null>(null);
+    const [publicAccessModalOpen, setPublicAccessModalOpen] = useState(false);
+    const [publicAccessData, setPublicAccessData] = useState<{
+        quoteId: string;
+        project: string;
+        publicUrl: string;
+        accessCode?: string;
+        accessExpiresAt?: string;
+    } | null>(null);
+    const [publicAccessError, setPublicAccessError] = useState<string | null>(null);
+
+    const copyToClipboard = async (value: string) => {
+        try {
+            await navigator.clipboard.writeText(value);
+        } catch (error) {
+            console.error('No se pudo copiar al portapapeles', error);
+        }
+    };
+
+    const handleOpenPublicAccess = async (quote: Quote) => {
+        setPublicAccessLoadingQuoteId(quote.id);
+        setPublicAccessError(null);
+        try {
+            const proposal = await proposalService.getLatest(quote.id);
+            if (!proposal) {
+                setPublicAccessData(null);
+                setPublicAccessError('Esta cotización todavía no tiene una propuesta comercial guardada.');
+                setPublicAccessModalOpen(true);
+                return;
+            }
+
+            const share = await proposalService.shareWithClient(quote.id, proposal.id, {
+                quote_id: quote.quoteId,
+                send_email: false,
+            });
+            if (!share?.success || !share.public_url) {
+                setPublicAccessData(null);
+                setPublicAccessError('No se pudo recuperar el enlace público del cliente.');
+                setPublicAccessModalOpen(true);
+                return;
+            }
+
+            setPublicAccessData({
+                quoteId: quote.id,
+                project: quote.project,
+                publicUrl: share.public_url,
+                accessCode: share.access_code || undefined,
+                accessExpiresAt: share.access_expires_at,
+            });
+            setPublicAccessModalOpen(true);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'No fue posible abrir el acceso público.';
+            setPublicAccessData(null);
+            setPublicAccessError(message);
+            setPublicAccessModalOpen(true);
+        } finally {
+            setPublicAccessLoadingQuoteId(null);
+        }
+    };
 
     if (loading) {
         return (
@@ -160,6 +222,8 @@ export function QuotePipeline() {
                                                     draggable
                                                     onDragStart={(e) => e.dataTransfer.setData('quoteId', quote.id)}
                                                     onStatusChange={handleStatusChange}
+                                                    onOpenPublicAccess={handleOpenPublicAccess}
+                                                    isPublicAccessLoading={publicAccessLoadingQuoteId === quote.id}
                                                     className="cursor-grab active:cursor-grabbing"
                                                 />
                                             ))}
@@ -184,11 +248,82 @@ export function QuotePipeline() {
                             <QuoteTable
                                 quotes={filteredQuotes}
                                 onStatusChange={handleStatusChange}
+                                onOpenPublicAccess={handleOpenPublicAccess}
+                                publicAccessLoadingQuoteId={publicAccessLoadingQuoteId}
                             />
                         </motion.div>
                     )}
                 </AnimatePresence>
             </div>
+
+            <Dialog open={publicAccessModalOpen} onOpenChange={setPublicAccessModalOpen}>
+                <DialogContent className="sm:max-w-[620px]">
+                    <DialogHeader>
+                        <DialogTitle>Acceso público del cliente</DialogTitle>
+                        <DialogDescription>
+                            Usa este acceso rápido para compartir el portal del cliente.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {publicAccessError ? (
+                        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                            {publicAccessError}
+                        </div>
+                    ) : publicAccessData ? (
+                        <div className="space-y-4">
+                            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                                Proyecto: <span className="font-semibold text-gray-800">{publicAccessData.project}</span>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                                    <LinkIcon size={12} /> Enlace público
+                                </label>
+                                <div className="flex gap-2">
+                                    <Input value={publicAccessData.publicUrl} readOnly />
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        onClick={() => void copyToClipboard(publicAccessData.publicUrl)}
+                                    >
+                                        <Copy size={14} className="mr-1" /> Copiar
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {publicAccessData.accessCode && (
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                                        <KeyRound size={12} /> Clave temporal
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <Input value={publicAccessData.accessCode} readOnly />
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            onClick={() => void copyToClipboard(publicAccessData.accessCode!)}
+                                        >
+                                            <Copy size={14} className="mr-1" /> Copiar
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {publicAccessData.accessExpiresAt && (
+                                <p className="text-xs text-gray-500">
+                                    Vigencia: {new Date(publicAccessData.accessExpiresAt).toLocaleString()}
+                                </p>
+                            )}
+                        </div>
+                    ) : null}
+
+                    <DialogFooter>
+                        <Button variant="secondary" onClick={() => setPublicAccessModalOpen(false)}>
+                            Cerrar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
