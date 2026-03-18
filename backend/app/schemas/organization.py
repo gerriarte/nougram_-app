@@ -170,6 +170,11 @@ class SocialChargesConfig(BaseModel):
         max_length=32,
         description="Preset identifier applied by UI (for auditability)"
     )
+    country_source: Optional[str] = Field(
+        None,
+        max_length=16,
+        description="Source of country selection: account or custom"
+    )
     version: Optional[int] = Field(
         None,
         ge=1,
@@ -195,6 +200,7 @@ class SocialChargesConfig(BaseModel):
                 "total_percentage": 52.852,
                 "country_code": "CO",
                 "preset_key": "CO",
+                "country_source": "account",
                 "version": 1,
                 "updated_at": "2026-03-16T18:30:00.000Z"
             }
