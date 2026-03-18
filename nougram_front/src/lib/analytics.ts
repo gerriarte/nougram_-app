@@ -79,6 +79,16 @@ export function trackLogout(): void {
   pushToDataLayer({ event: "logout" });
 }
 
+export function trackOrganizationSwitched(params: {
+  organization_id?: string;
+}): void {
+  pushToDataLayer({
+    event: "organization_switched",
+    organization_id:
+      params.organization_id != null ? String(params.organization_id) : undefined,
+  });
+}
+
 // --- Onboarding ---
 export function trackOnboardingStepCompleted(params: {
   step: string;
