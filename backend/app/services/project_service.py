@@ -2,6 +2,7 @@
 Project Service - Business logic for project and quote management
 """
 from typing import Dict, List, Optional, Any
+from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, insert
 from sqlalchemy.orm import selectinload
