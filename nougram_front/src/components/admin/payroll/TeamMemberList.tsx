@@ -11,6 +11,8 @@ import { TeamMember } from '@/types/admin';
 import { formatCurrency } from '@/lib/utils';
 import { workTeamsService } from '@/services/workTeamsService';
 
+type TeamMemberInput = Omit<TeamMember, 'id' | 'salaryWithCharges' | 'isActive'>;
+
 export function TeamMemberList() {
     const { teamMembers, deleteTeamMember, updateTeamMember, addTeamMember } = useAdmin();
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -63,7 +65,7 @@ export function TeamMemberList() {
         setIsFormOpen(true);
     };
 
-    const handleSave = (data: Partial<TeamMember>) => {
+    const handleSave = (data: TeamMemberInput) => {
         if (editingMember) {
             updateTeamMember(editingMember.id, data);
         } else {

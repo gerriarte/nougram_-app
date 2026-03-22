@@ -128,7 +128,7 @@ export const workTeamsService = {
         return response.data.items;
     },
 
-    async publishVersion(teamId: number, payload: TeamPublishVersionPayload): Promise<TeamVersion | null> {
+    async publishVersion(teamId: number, payload: TeamPublishVersionPayload): Promise<TeamVersion> {
         const response = await apiRequest<TeamVersion>(`/settings/team-cells/${teamId}/publish-version`, {
             method: 'POST',
             body: JSON.stringify(payload),
