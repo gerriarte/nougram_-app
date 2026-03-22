@@ -13,12 +13,13 @@ import { formatCurrency } from '@/lib/utils';
 import { TeamSummary, TeamVersion, workTeamsService } from '@/services/workTeamsService';
 
 type TeamMemberInput = Omit<TeamMember, 'id' | 'salaryWithCharges' | 'isActive'>;
+type MemberTeamAssignment = { teamName: string; percentage: number };
 
 export function TeamMemberList() {
     const { teamMembers, deleteTeamMember, updateTeamMember, addTeamMember } = useAdmin();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | undefined>(undefined);
-    const [memberTeamsMap, setMemberTeamsMap] = useState<Record<string, string[]>>({});
+    const [memberTeamsMap, setMemberTeamsMap] = useState<Record<string, MemberTeamAssignment[]>>({});
     const [teams, setTeams] = useState<TeamSummary[]>([]);
     const [latestVersionByTeam, setLatestVersionByTeam] = useState<Record<number, TeamVersion | null>>({});
     const [assignTeamByMember, setAssignTeamByMember] = useState<Record<string, number>>({});
@@ -48,7 +49,7 @@ export function TeamMemberList() {
                 })
             );
 
-            const nextMap: Record<string, string[]> = {};
+            const nextMap: Record<string, MemberTeamAssignment[]> = {};
             const nextLatestByTeam: Record<number, TeamVersion | null> = {};
             versionsByTeam.forEach(({ teamId, teamName, latest }) => {
                 nextLatestByTeam[teamId] = latest || null;
@@ -57,7 +58,11 @@ export function TeamMemberList() {
                     .filter((member) => member.is_active !== false)
                     .forEach((member) => {
                         const key = String(member.team_member_id);
-                        nextMap[key] = [...(nextMap[key] || []), teamName];
+                        const percentage = Number(member.weight || 0) * 100;
+                        nextMap[key] = [
+                            ...(nextMap[key] || []),
+                            { teamName, percentage },
+                        ];
                     });
             });
             if (mounted) {
@@ -206,12 +211,12 @@ export function TeamMemberList() {
                                     <td className="px-4 py-3">
                                         {memberTeamsMap[member.id]?.length ? (
                                             <div className="flex flex-wrap gap-1">
-                                                {memberTeamsMap[member.id].map((teamName) => (
+                                                {memberTeamsMap[member.id].map((assignment) => (
                                                     <span
-                                                        key={`${member.id}-${teamName}`}
+                                                        key={`${member.id}-${assignment.teamName}`}
                                                         className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
                                                     >
-                                                        {teamName}
+                                                        {assignment.teamName} ({assignment.percentage.toFixed(1)}%)
                                                     </span>
                                                 ))}
                                             </div>
