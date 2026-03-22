@@ -28,6 +28,18 @@ const DEFAULT_MEMBER: VersionMemberDraft = {
     is_active: true,
 };
 
+function buildEvenPercentages(count: number): string[] {
+    if (count <= 0) return [];
+    // Use basis points to guarantee exact 100.00% total after distribution.
+    const totalBasisPoints = 10000;
+    const base = Math.floor(totalBasisPoints / count);
+    const remainder = totalBasisPoints - (base * count);
+    return Array.from({ length: count }, (_, index) => {
+        const bp = base + (index < remainder ? 1 : 0);
+        return (bp / 100).toFixed(2);
+    });
+}
+
 export function TeamCellsManager() {
     const [loading, setLoading] = React.useState(true);
     const [submitting, setSubmitting] = React.useState(false);
@@ -147,12 +159,27 @@ export function TeamCellsManager() {
         setVersionMembers((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
     };
 
+    const applyEvenDistribution = React.useCallback((drafts: VersionMemberDraft[]) => {
+        const distribution = buildEvenPercentages(drafts.length);
+        return drafts.map((item, index) => ({
+            ...item,
+            allocation_percentage: distribution[index] || '0',
+        }));
+    }, []);
+
     const addVersionMember = () => {
-        setVersionMembers((prev) => [...prev, { ...DEFAULT_MEMBER, allocation_percentage: '0' }]);
+        setVersionMembers((prev) => {
+            const next = [...prev, { ...DEFAULT_MEMBER, allocation_percentage: '0' }];
+            return applyEvenDistribution(next);
+        });
     };
 
     const removeVersionMember = (index: number) => {
-        setVersionMembers((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+        setVersionMembers((prev) => {
+            if (prev.length <= 1) return prev;
+            const next = prev.filter((_, i) => i !== index);
+            return applyEvenDistribution(next);
+        });
     };
 
     const handlePublishVersion = async () => {
@@ -344,7 +371,18 @@ export function TeamCellsManager() {
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                             : 'border-amber-200 bg-amber-50 text-amber-700'
                     }`}>
-                        Total participación: {totalPercentage.toFixed(2)}% {Math.abs(totalPercentage - 100) <= 0.05 ? '(OK)' : '(debe ser 100%)'}
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                            <span>Total participación: {totalPercentage.toFixed(2)}% {Math.abs(totalPercentage - 100) <= 0.05 ? '(OK)' : '(debe ser 100%)'}</span>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                className="h-7"
+                                onClick={() => setVersionMembers((prev) => applyEvenDistribution(prev))}
+                            >
+                                Repartir 100% automático
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="space-y-2">
