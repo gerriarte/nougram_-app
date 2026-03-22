@@ -131,35 +131,35 @@ class TeamCellRepository:
         notes: Optional[str],
         published_by: int,
     ) -> TeamCellVersion:
-        # Atomic publish to keep version number and members aligned.
-        async with self.db.begin():
-            current_max_result = await self.db.execute(
-                select(func.max(TeamCellVersion.version_number)).where(TeamCellVersion.cell_id == cell.id)
-            )
-            current_max = current_max_result.scalar() or 0
-            version = TeamCellVersion(
-                organization_id=self.tenant_id,
-                cell_id=cell.id,
-                version_number=current_max + 1,
-                status="published",
-                notes=notes,
-                published_by=published_by,
-                published_at=func.now(),
-            )
-            self.db.add(version)
-            await self.db.flush()
+        current_max_result = await self.db.execute(
+            select(func.max(TeamCellVersion.version_number)).where(TeamCellVersion.cell_id == cell.id)
+        )
+        current_max = current_max_result.scalar() or 0
+        version = TeamCellVersion(
+            organization_id=self.tenant_id,
+            cell_id=cell.id,
+            version_number=current_max + 1,
+            status="published",
+            notes=notes,
+            published_by=published_by,
+            published_at=func.now(),
+        )
+        self.db.add(version)
+        await self.db.flush()
 
-            for payload in members_payload:
-                self.db.add(
-                    TeamCellMemberVersion(
-                        organization_id=self.tenant_id,
-                        cell_version_id=version.id,
-                        team_member_id=payload["team_member_id"],
-                        weight=payload.get("weight"),
-                        role_override=payload.get("role_override"),
-                        is_active=payload.get("is_active", True),
-                    )
+        for payload in members_payload:
+            self.db.add(
+                TeamCellMemberVersion(
+                    organization_id=self.tenant_id,
+                    cell_version_id=version.id,
+                    team_member_id=payload["team_member_id"],
+                    weight=payload.get("weight"),
+                    role_override=payload.get("role_override"),
+                    is_active=payload.get("is_active", True),
                 )
+            )
+
+        await self.db.commit()
 
         result = await self.db.execute(
             select(TeamCellVersion)

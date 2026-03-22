@@ -6,10 +6,11 @@ import { useAdmin } from '@/context/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { Input } from '@/components/ui/Input';
 import { TeamMemberForm } from './TeamMemberForm';
 import { TeamMember } from '@/types/admin';
 import { formatCurrency } from '@/lib/utils';
-import { workTeamsService } from '@/services/workTeamsService';
+import { TeamSummary, TeamVersion, workTeamsService } from '@/services/workTeamsService';
 
 type TeamMemberInput = Omit<TeamMember, 'id' | 'salaryWithCharges' | 'isActive'>;
 
@@ -18,13 +19,24 @@ export function TeamMemberList() {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | undefined>(undefined);
     const [memberTeamsMap, setMemberTeamsMap] = useState<Record<string, string[]>>({});
+    const [teams, setTeams] = useState<TeamSummary[]>([]);
+    const [latestVersionByTeam, setLatestVersionByTeam] = useState<Record<number, TeamVersion | null>>({});
+    const [assignTeamByMember, setAssignTeamByMember] = useState<Record<string, number>>({});
+    const [assignPercentageByMember, setAssignPercentageByMember] = useState<Record<string, string>>({});
+    const [assigningMemberId, setAssigningMemberId] = useState<string | null>(null);
+    const [assignError, setAssignError] = useState<string | null>(null);
+    const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
 
-    useEffect(() => {
+    const loadMemberTeams = React.useCallback(async () => {
         let mounted = true;
-        const loadMemberTeams = async () => {
+        try {
             const teams = await workTeamsService.listTeams(true);
+            if (mounted) setTeams(teams);
             if (!teams.length) {
-                if (mounted) setMemberTeamsMap({});
+                if (mounted) {
+                    setMemberTeamsMap({});
+                    setLatestVersionByTeam({});
+                }
                 return;
             }
 
@@ -32,12 +44,14 @@ export function TeamMemberList() {
                 teams.map(async (team) => {
                     const versions = await workTeamsService.listTeamVersions(team.id, true);
                     const latest = versions.sort((a, b) => (b.version_number || 0) - (a.version_number || 0))[0];
-                    return { teamName: team.name, latest };
+                    return { teamId: team.id, teamName: team.name, latest };
                 })
             );
 
             const nextMap: Record<string, string[]> = {};
-            versionsByTeam.forEach(({ teamName, latest }) => {
+            const nextLatestByTeam: Record<number, TeamVersion | null> = {};
+            versionsByTeam.forEach(({ teamId, teamName, latest }) => {
+                nextLatestByTeam[teamId] = latest || null;
                 if (!latest) return;
                 (latest.members || [])
                     .filter((member) => member.is_active !== false)
@@ -46,14 +60,79 @@ export function TeamMemberList() {
                         nextMap[key] = [...(nextMap[key] || []), teamName];
                     });
             });
-            if (mounted) setMemberTeamsMap(nextMap);
-        };
-
-        void loadMemberTeams();
-        return () => {
+            if (mounted) {
+                setMemberTeamsMap(nextMap);
+                setLatestVersionByTeam(nextLatestByTeam);
+            }
+        } finally {
             mounted = false;
-        };
-    }, [teamMembers]);
+        }
+    }, []);
+
+    useEffect(() => {
+        void loadMemberTeams();
+    }, [loadMemberTeams, teamMembers]);
+
+    const handleAssignToTeam = async (memberId: string) => {
+        setAssignError(null);
+        setAssignSuccess(null);
+        const teamId = Number(assignTeamByMember[memberId] || 0);
+        const percentage = Number(assignPercentageByMember[memberId] || 0);
+        if (!teamId) {
+            setAssignError('Selecciona un equipo para asignar el miembro.');
+            return;
+        }
+        if (percentage <= 0 || percentage > 100) {
+            setAssignError('Ingresa un porcentaje válido entre 0.01 y 100.');
+            return;
+        }
+
+        const latest = latestVersionByTeam[teamId];
+        const existingMembers = (latest?.members || [])
+            .filter((m) => m.is_active !== false && String(m.team_member_id) !== memberId)
+            .map((m) => ({
+                team_member_id: Number(m.team_member_id),
+                allocation_percentage: Number(m.weight || 0) * 100,
+                role_override: m.role_override || null,
+                is_active: true,
+            }));
+
+        const currentMember = teamMembers.find((m) => m.id === memberId);
+        const mergedMembers = [
+            ...existingMembers,
+            {
+                team_member_id: Number(memberId),
+                allocation_percentage: percentage,
+                role_override: currentMember?.role || null,
+                is_active: true,
+            },
+        ];
+
+        const total = mergedMembers.reduce((acc, item) => acc + item.allocation_percentage, 0);
+        if (Math.abs(total - 100) > 0.05) {
+            setAssignError(`La suma de porcentajes del equipo debe ser 100%. Actual: ${total.toFixed(2)}%.`);
+            return;
+        }
+
+        setAssigningMemberId(memberId);
+        try {
+            await workTeamsService.publishVersion(teamId, {
+                members: mergedMembers.map((m) => ({
+                    team_member_id: m.team_member_id,
+                    weight: (m.allocation_percentage / 100).toFixed(6),
+                    role_override: m.role_override,
+                    is_active: m.is_active,
+                })),
+                notes: 'Asignación desde vista de miembros',
+            });
+            setAssignSuccess('Miembro asignado al equipo correctamente.');
+            await loadMemberTeams();
+        } catch (e) {
+            setAssignError(e instanceof Error ? e.message : 'No se pudo asignar el miembro al equipo.');
+        } finally {
+            setAssigningMemberId(null);
+        }
+    };
 
     const handleCreate = () => {
         setEditingMember(undefined);
@@ -94,6 +173,16 @@ export function TeamMemberList() {
                 <Button onClick={handleCreate}>+ Agregar Miembro</Button>
             </CardHeader>
             <CardContent>
+                {assignError && (
+                    <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {assignError}
+                    </div>
+                )}
+                {assignSuccess && (
+                    <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        {assignSuccess}
+                    </div>
+                )}
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-gray-50 text-gray-700 uppercase text-xs">
@@ -129,6 +218,44 @@ export function TeamMemberList() {
                                         ) : (
                                             <span className="text-xs text-gray-400">Sin equipo</span>
                                         )}
+                                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                                            <select
+                                                className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs min-w-[140px]"
+                                                value={assignTeamByMember[member.id] || ''}
+                                                onChange={(e) => setAssignTeamByMember((prev) => ({
+                                                    ...prev,
+                                                    [member.id]: Number(e.target.value) || 0,
+                                                }))}
+                                            >
+                                                <option value="">Asignar a equipo...</option>
+                                                {teams.map((team) => (
+                                                    <option key={team.id} value={team.id}>
+                                                        {team.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <Input
+                                                type="number"
+                                                min={0.01}
+                                                max={100}
+                                                step={0.01}
+                                                className="h-8 w-24 bg-white border-gray-200 text-xs"
+                                                placeholder="% recurso"
+                                                value={assignPercentageByMember[member.id] || ''}
+                                                onChange={(e) => setAssignPercentageByMember((prev) => ({
+                                                    ...prev,
+                                                    [member.id]: e.target.value,
+                                                }))}
+                                            />
+                                            <Button
+                                                size="sm"
+                                                className="h-8 text-xs"
+                                                onClick={() => void handleAssignToTeam(member.id)}
+                                                disabled={assigningMemberId === member.id}
+                                            >
+                                                {assigningMemberId === member.id ? 'Asignando...' : 'Asignar'}
+                                            </Button>
+                                        </div>
                                     </td>
                                     <td className="px-4 py-3">
                                         {formatCurrency(member.salaryMonthlyBrute, member.currency)}

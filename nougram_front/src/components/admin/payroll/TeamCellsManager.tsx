@@ -111,6 +111,39 @@ export function TeamCellsManager() {
         setSuccess(null);
     };
 
+    const buildPayloadMembers = (drafts: VersionMemberDraft[]): TeamPublishMemberInput[] => {
+        const normalizedMembers = drafts.map((item) => ({
+            team_member_id: Number(item.team_member_id),
+            allocation_percentage: Number(item.allocation_percentage || 0),
+            role_override: item.role_override.trim() || null,
+            is_active: item.is_active,
+        }));
+
+        const invalidMember = normalizedMembers.some(
+            (m) => !m.team_member_id || m.allocation_percentage <= 0 || m.allocation_percentage > 100
+        );
+        if (invalidMember) {
+            throw new Error('Cada integrante requiere miembro y porcentaje entre 0.01 y 100.');
+        }
+
+        const uniqueMemberIds = new Set(normalizedMembers.map((m) => m.team_member_id));
+        if (uniqueMemberIds.size !== normalizedMembers.length) {
+            throw new Error('No repitas el mismo miembro en la versión.');
+        }
+
+        const percentageTotal = normalizedMembers.reduce((acc, item) => acc + item.allocation_percentage, 0);
+        if (Math.abs(percentageTotal - 100) > 0.05) {
+            throw new Error(`El total de porcentajes debe sumar 100%. Actualmente: ${percentageTotal.toFixed(2)}%.`);
+        }
+
+        return normalizedMembers.map((item) => ({
+            team_member_id: item.team_member_id,
+            weight: (item.allocation_percentage / 100).toFixed(6),
+            role_override: item.role_override,
+            is_active: item.is_active,
+        }));
+    };
+
     const handleCreateTeam = async () => {
         clearMessages();
         if (!newTeamName.trim()) {
@@ -133,11 +166,23 @@ export function TeamCellsManager() {
                 setError('No se pudo crear el equipo.');
                 return;
             }
-            setSuccess('Equipo creado correctamente.');
+
+            const payloadMembers = buildPayloadMembers(versionMembers);
+            await workTeamsService.publishVersion(created.id, {
+                members: payloadMembers,
+                notes: versionNotes.trim() || undefined,
+            });
+
+            setSuccess('Equipo creado y versionado correctamente.');
             setNewTeamName('');
             setNewTeamDescription('');
+            setVersionNotes('');
+            setVersionMembers([{ ...DEFAULT_MEMBER }]);
             setSelectedTeamId(created.id);
             await loadCatalog();
+            await loadVersions(created.id);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'No se pudo crear/versionar el equipo.');
         } finally {
             setSubmitting(false);
         }
@@ -161,40 +206,13 @@ export function TeamCellsManager() {
             setError('Selecciona un equipo para publicar una versión.');
             return;
         }
-
-        const normalizedMembers = versionMembers.map((item) => ({
-            team_member_id: Number(item.team_member_id),
-            allocation_percentage: Number(item.allocation_percentage || 0),
-            role_override: item.role_override.trim() || null,
-            is_active: item.is_active,
-        }));
-
-        const invalidMember = normalizedMembers.some(
-            (m) => !m.team_member_id || m.allocation_percentage <= 0 || m.allocation_percentage > 100
-        );
-        if (invalidMember) {
-            setError('Cada integrante requiere miembro y porcentaje entre 0.01 y 100.');
+        let payloadMembers: TeamPublishMemberInput[] = [];
+        try {
+            payloadMembers = buildPayloadMembers(versionMembers);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'No se pudo validar la versión del equipo.');
             return;
         }
-
-        const uniqueMemberIds = new Set(normalizedMembers.map((m) => m.team_member_id));
-        if (uniqueMemberIds.size !== normalizedMembers.length) {
-            setError('No repitas el mismo miembro en la versión.');
-            return;
-        }
-
-        const percentageTotal = normalizedMembers.reduce((acc, item) => acc + item.allocation_percentage, 0);
-        if (Math.abs(percentageTotal - 100) > 0.05) {
-            setError(`El total de porcentajes debe sumar 100%. Actualmente: ${percentageTotal.toFixed(2)}%.`);
-            return;
-        }
-
-        const payloadMembers: TeamPublishMemberInput[] = normalizedMembers.map((item) => ({
-            team_member_id: item.team_member_id,
-            weight: (item.allocation_percentage / 100).toFixed(6),
-            role_override: item.role_override,
-            is_active: item.is_active,
-        }));
 
         setSubmitting(true);
         try {
@@ -243,9 +261,9 @@ export function TeamCellsManager() {
                 <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
                     <h3 className="text-sm font-bold uppercase tracking-wide text-blue-700 mb-2">Paso a paso de equipos</h3>
                     <ol className="list-decimal ml-5 space-y-1 text-sm text-blue-900">
-                        <li>Crea el equipo (nombre y descripción).</li>
-                        <li>Selecciona el equipo y agrega integrantes con porcentaje de participación.</li>
-                        <li>Publica la versión para usarla en cotizaciones por ocupación.</li>
+                        <li>Crea el equipo.</li>
+                        <li>Asigna integrantes y porcentaje del recurso (total 100%).</li>
+                        <li>Guarda y luego solo agrega/ajusta integrantes cuando lo necesites.</li>
                     </ol>
                     <p className="text-xs text-blue-800 mt-3">
                         El porcentaje define cómo se reparte la carga del equipo. La suma de todos los integrantes debe ser 100%.
@@ -254,7 +272,7 @@ export function TeamCellsManager() {
 
                 <div className="grid grid-cols-1 gap-6">
                     <div className="rounded-xl border border-gray-200 p-4 space-y-3">
-                        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-600">Paso 1: Crear Equipo</h3>
+                        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-600">Paso 1: Crear equipo + asignar integrantes</h3>
                         <Input
                             value={newTeamName}
                             onChange={(e) => setNewTeamName(e.target.value)}
@@ -268,7 +286,7 @@ export function TeamCellsManager() {
                             className="h-10 bg-white border-gray-200"
                         />
                         <Button onClick={() => void handleCreateTeam()} disabled={submitting || loading}>
-                            Crear equipo
+                            Crear equipo y guardar asignación inicial
                         </Button>
                     </div>
                 </div>
@@ -307,7 +325,7 @@ export function TeamCellsManager() {
 
                 <div className="rounded-xl border border-gray-200 p-4 space-y-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-3">
-                        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-600">Paso 2: Publicar Versión de Equipo</h3>
+                        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-600">Paso 2: Agregar o ajustar miembros en equipo existente</h3>
                         <select
                             value={selectedTeamId || ''}
                             onChange={(e) => setSelectedTeamId(Number(e.target.value) || 0)}
