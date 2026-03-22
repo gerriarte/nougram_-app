@@ -66,6 +66,13 @@ export default function AvailabilityPage() {
     const [monthlyTrend, setMonthlyTrend] = React.useState<
         Array<{ label: string; tentative: number; committed: number; actual: number; total: number }>
     >([]);
+    const [hoveredMonth, setHoveredMonth] = React.useState<{
+        label: string;
+        tentative: number;
+        committed: number;
+        actual: number;
+        total: number;
+    } | null>(null);
 
     const loadOverview = React.useCallback(async () => {
         setLoading(true);
@@ -114,6 +121,15 @@ export default function AvailabilityPage() {
             }
             return [...prev, state];
         });
+    };
+
+    const applyQuickRange = (monthsBack: number) => {
+        const now = new Date();
+        const currentMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+        const rangeStart = new Date(Date.UTC(currentMonthStart.getUTCFullYear(), currentMonthStart.getUTCMonth() - (monthsBack - 1), 1));
+        const rangeEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+        setPeriodStart(toISODate(rangeStart));
+        setPeriodEnd(toISODate(rangeEnd));
     };
 
     if (loading) {
@@ -183,10 +199,15 @@ export default function AvailabilityPage() {
                         </div>
                     </div>
                     <div className="mt-3">
-                        <Button className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2" onClick={() => void loadOverview()}>
-                            <Calendar size={14} />
-                            Aplicar filtros
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2" onClick={() => void loadOverview()}>
+                                <Calendar size={14} />
+                                Aplicar filtros
+                            </Button>
+                            <Button variant="secondary" onClick={() => applyQuickRange(3)}>Últimos 3 meses</Button>
+                            <Button variant="secondary" onClick={() => applyQuickRange(6)}>Últimos 6 meses</Button>
+                            <Button variant="secondary" onClick={() => applyQuickRange(12)}>Últimos 12 meses</Button>
+                        </div>
                     </div>
                 </div>
 
@@ -241,7 +262,12 @@ export default function AvailabilityPage() {
                                         const committedH = month.total > 0 ? (month.committed / month.total) * monthHeight : 0;
                                         const actualH = month.total > 0 ? (month.actual / month.total) * monthHeight : 0;
                                         return (
-                                            <div key={month.label} className="flex flex-col items-center">
+                                            <div
+                                                key={month.label}
+                                                className="flex flex-col items-center"
+                                                onMouseEnter={() => setHoveredMonth(month)}
+                                                onMouseLeave={() => setHoveredMonth((prev) => (prev?.label === month.label ? null : prev))}
+                                            >
                                                 <div className="text-[10px] text-gray-500 mb-1">{formatHours(month.total)}</div>
                                                 <div className="w-10 h-[120px] rounded-md bg-gray-100 border border-gray-200 flex flex-col-reverse overflow-hidden">
                                                     <div style={{ height: `${actualH}px` }} className="bg-violet-500" />
@@ -253,6 +279,17 @@ export default function AvailabilityPage() {
                                         );
                                     })}
                                 </div>
+                                {hoveredMonth && (
+                                    <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                                        <div className="font-bold text-gray-900 mb-1">{hoveredMonth.label}</div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            <span>Tentative: {formatHours(hoveredMonth.tentative)}</span>
+                                            <span>Committed: {formatHours(hoveredMonth.committed)}</span>
+                                            <span>Actual: {formatHours(hoveredMonth.actual)}</span>
+                                            <span className="font-semibold">Total: {formatHours(hoveredMonth.total)}</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
