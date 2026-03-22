@@ -15,14 +15,15 @@ import {
 
 type VersionMemberDraft = {
     team_member_id: number;
-    weight: string;
+    allocation_percentage: string;
     role_override: string;
     is_active: boolean;
 };
 
+const DEFAULT_GROUP_NAME = 'Equipos de Trabajo';
 const DEFAULT_MEMBER: VersionMemberDraft = {
     team_member_id: 0,
-    weight: '1.0',
+    allocation_percentage: '100',
     role_override: '',
     is_active: true,
 };
@@ -34,39 +35,44 @@ export function TeamCellsManager() {
     const [success, setSuccess] = React.useState<string | null>(null);
 
     const [groups, setGroups] = React.useState<TeamGroup[]>([]);
-    const [cells, setCells] = React.useState<TeamSummary[]>([]);
+    const [teams, setTeams] = React.useState<TeamSummary[]>([]);
     const [versions, setVersions] = React.useState<TeamVersion[]>([]);
     const [members, setMembers] = React.useState<Array<{ id: number; name: string; role: string; isActive: boolean }>>([]);
 
-    const [newGroupName, setNewGroupName] = React.useState('');
-    const [newGroupDescription, setNewGroupDescription] = React.useState('');
-    const [newCellName, setNewCellName] = React.useState('');
-    const [newCellDescription, setNewCellDescription] = React.useState('');
-    const [newCellGroupId, setNewCellGroupId] = React.useState<number>(0);
-
-    const [selectedCellId, setSelectedCellId] = React.useState<number>(0);
+    const [newTeamName, setNewTeamName] = React.useState('');
+    const [newTeamDescription, setNewTeamDescription] = React.useState('');
+    const [selectedTeamId, setSelectedTeamId] = React.useState<number>(0);
     const [versionMembers, setVersionMembers] = React.useState<VersionMemberDraft[]>([{ ...DEFAULT_MEMBER }]);
     const [versionNotes, setVersionNotes] = React.useState('');
 
-    const groupNameById = React.useMemo(() => {
-        const map = new Map<number, string>();
-        groups.forEach((g) => map.set(g.id, g.name));
-        return map;
-    }, [groups]);
-
     const activeMembers = React.useMemo(() => members.filter((m) => m.isActive), [members]);
+    const totalPercentage = React.useMemo(
+        () => versionMembers.reduce((acc, item) => acc + (Number(item.allocation_percentage) || 0), 0),
+        [versionMembers]
+    );
+
+    const ensureDefaultGroup = React.useCallback(async (currentGroups: TeamGroup[]): Promise<number | null> => {
+        if (currentGroups.length > 0) {
+            return currentGroups[0].id;
+        }
+        const created = await workTeamsService.createGroup({
+            name: DEFAULT_GROUP_NAME,
+            description: 'Grupo base autogenerado para operación por equipos.',
+        });
+        return created?.id ?? null;
+    }, []);
 
     const loadCatalog = React.useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const [loadedGroups, loadedCells, loadedMembers] = await Promise.all([
+            const [loadedGroups, loadedTeams, loadedMembers] = await Promise.all([
                 workTeamsService.listGroups(true),
                 workTeamsService.listTeams(true),
                 teamService.getAll(),
             ]);
             setGroups(loadedGroups);
-            setCells(loadedCells);
+            setTeams(loadedTeams);
             setMembers(
                 loadedMembers.map((m) => ({
                     id: Number(m.id),
@@ -75,21 +81,20 @@ export function TeamCellsManager() {
                     isActive: m.isActive,
                 })).filter((m) => Number.isFinite(m.id))
             );
-            if (!newCellGroupId && loadedGroups.length > 0) setNewCellGroupId(loadedGroups[0].id);
-            if (!selectedCellId && loadedCells.length > 0) setSelectedCellId(loadedCells[0].id);
+            if (!selectedTeamId && loadedTeams.length > 0) setSelectedTeamId(loadedTeams[0].id);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'No se pudo cargar la configuración de equipos.');
         } finally {
             setLoading(false);
         }
-    }, [newCellGroupId, selectedCellId]);
+    }, [selectedTeamId]);
 
-    const loadVersions = React.useCallback(async (cellId: number) => {
-        if (!cellId) {
+    const loadVersions = React.useCallback(async (teamId: number) => {
+        if (!teamId) {
             setVersions([]);
             return;
         }
-        const loaded = await workTeamsService.listTeamVersions(cellId, true);
+        const loaded = await workTeamsService.listTeamVersions(teamId, true);
         setVersions(loaded);
     }, []);
 
@@ -98,64 +103,40 @@ export function TeamCellsManager() {
     }, [loadCatalog]);
 
     React.useEffect(() => {
-        void loadVersions(selectedCellId);
-    }, [selectedCellId, loadVersions]);
+        void loadVersions(selectedTeamId);
+    }, [selectedTeamId, loadVersions]);
 
     const clearMessages = () => {
         setError(null);
         setSuccess(null);
     };
 
-    const handleCreateGroup = async () => {
+    const handleCreateTeam = async () => {
         clearMessages();
-        if (!newGroupName.trim()) {
-            setError('El nombre del grupo es obligatorio.');
-            return;
-        }
-        setSubmitting(true);
-        try {
-            const created = await workTeamsService.createGroup({
-                name: newGroupName.trim(),
-                description: newGroupDescription.trim() || undefined,
-            });
-            if (!created) {
-                setError('No se pudo crear el grupo.');
-                return;
-            }
-            setSuccess('Grupo creado correctamente.');
-            setNewGroupName('');
-            setNewGroupDescription('');
-            await loadCatalog();
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const handleCreateCell = async () => {
-        clearMessages();
-        if (!newCellGroupId) {
-            setError('Selecciona un grupo para crear el equipo.');
-            return;
-        }
-        if (!newCellName.trim()) {
+        if (!newTeamName.trim()) {
             setError('El nombre del equipo es obligatorio.');
             return;
         }
         setSubmitting(true);
         try {
+            const groupId = await ensureDefaultGroup(groups);
+            if (!groupId) {
+                setError('No se pudo preparar el grupo base para crear el equipo.');
+                return;
+            }
             const created = await workTeamsService.createTeam({
-                group_id: newCellGroupId,
-                name: newCellName.trim(),
-                description: newCellDescription.trim() || undefined,
+                group_id: groupId,
+                name: newTeamName.trim(),
+                description: newTeamDescription.trim() || undefined,
             });
             if (!created) {
                 setError('No se pudo crear el equipo.');
                 return;
             }
             setSuccess('Equipo creado correctamente.');
-            setNewCellName('');
-            setNewCellDescription('');
-            setSelectedCellId(created.id);
+            setNewTeamName('');
+            setNewTeamDescription('');
+            setSelectedTeamId(created.id);
             await loadCatalog();
         } finally {
             setSubmitting(false);
@@ -167,7 +148,7 @@ export function TeamCellsManager() {
     };
 
     const addVersionMember = () => {
-        setVersionMembers((prev) => [...prev, { ...DEFAULT_MEMBER }]);
+        setVersionMembers((prev) => [...prev, { ...DEFAULT_MEMBER, allocation_percentage: '0' }]);
     };
 
     const removeVersionMember = (index: number) => {
@@ -176,21 +157,23 @@ export function TeamCellsManager() {
 
     const handlePublishVersion = async () => {
         clearMessages();
-        if (!selectedCellId) {
+        if (!selectedTeamId) {
             setError('Selecciona un equipo para publicar una versión.');
             return;
         }
 
-        const normalizedMembers: TeamPublishMemberInput[] = versionMembers.map((item) => ({
+        const normalizedMembers = versionMembers.map((item) => ({
             team_member_id: Number(item.team_member_id),
-            weight: item.weight,
+            allocation_percentage: Number(item.allocation_percentage || 0),
             role_override: item.role_override.trim() || null,
             is_active: item.is_active,
         }));
 
-        const invalidMember = normalizedMembers.some((m) => !m.team_member_id || Number(m.weight) <= 0);
+        const invalidMember = normalizedMembers.some(
+            (m) => !m.team_member_id || m.allocation_percentage <= 0 || m.allocation_percentage > 100
+        );
         if (invalidMember) {
-            setError('Cada integrante requiere miembro y peso mayor a 0.');
+            setError('Cada integrante requiere miembro y porcentaje entre 0.01 y 100.');
             return;
         }
 
@@ -200,10 +183,23 @@ export function TeamCellsManager() {
             return;
         }
 
+        const percentageTotal = normalizedMembers.reduce((acc, item) => acc + item.allocation_percentage, 0);
+        if (Math.abs(percentageTotal - 100) > 0.05) {
+            setError(`El total de porcentajes debe sumar 100%. Actualmente: ${percentageTotal.toFixed(2)}%.`);
+            return;
+        }
+
+        const payloadMembers: TeamPublishMemberInput[] = normalizedMembers.map((item) => ({
+            team_member_id: item.team_member_id,
+            weight: (item.allocation_percentage / 100).toFixed(6),
+            role_override: item.role_override,
+            is_active: item.is_active,
+        }));
+
         setSubmitting(true);
         try {
-            const published = await workTeamsService.publishVersion(selectedCellId, {
-                members: normalizedMembers,
+            const published = await workTeamsService.publishVersion(selectedTeamId, {
+                members: payloadMembers,
                 notes: versionNotes.trim() || undefined,
             });
             if (!published) {
@@ -213,7 +209,7 @@ export function TeamCellsManager() {
             setSuccess(`Versión V${published.version_number} publicada correctamente.`);
             setVersionNotes('');
             setVersionMembers([{ ...DEFAULT_MEMBER }]);
-            await loadVersions(selectedCellId);
+            await loadVersions(selectedTeamId);
         } finally {
             setSubmitting(false);
         }
@@ -224,7 +220,7 @@ export function TeamCellsManager() {
             <CardHeader className="space-y-2">
                 <CardTitle>Equipos de Trabajo</CardTitle>
                 <p className="text-sm text-gray-500">
-                    Define grupos y equipos reutilizables para cotizar ocupación por porcentaje y mantener costos por integrante.
+                    Crea y versiona equipos reutilizables para cotizar por porcentaje de ocupación sin editar manualmente integrante por integrante.
                 </p>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -246,54 +242,35 @@ export function TeamCellsManager() {
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="rounded-xl border border-gray-200 p-4 space-y-3">
-                        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-600">Crear Grupo</h3>
-                        <Input
-                            value={newGroupName}
-                            onChange={(e) => setNewGroupName(e.target.value)}
-                            placeholder="Ej. Comercial"
-                            className="h-10 bg-white border-gray-200"
-                        />
-                        <Input
-                            value={newGroupDescription}
-                            onChange={(e) => setNewGroupDescription(e.target.value)}
-                            placeholder="Descripción (opcional)"
-                            className="h-10 bg-white border-gray-200"
-                        />
-                        <Button onClick={() => void handleCreateGroup()} disabled={submitting || loading}>
-                            Guardar grupo
-                        </Button>
-                    </div>
+                <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-blue-700 mb-2">Paso a paso de equipos</h3>
+                    <ol className="list-decimal ml-5 space-y-1 text-sm text-blue-900">
+                        <li>Crea el equipo (nombre y descripción).</li>
+                        <li>Selecciona el equipo y agrega integrantes con porcentaje de participación.</li>
+                        <li>Publica la versión para usarla en cotizaciones por ocupación.</li>
+                    </ol>
+                    <p className="text-xs text-blue-800 mt-3">
+                        El porcentaje define cómo se reparte la carga del equipo. La suma de todos los integrantes debe ser 100%.
+                    </p>
+                </div>
 
+                <div className="grid grid-cols-1 gap-6">
                     <div className="rounded-xl border border-gray-200 p-4 space-y-3">
-                        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-600">Crear Equipo</h3>
-                        <select
-                            value={newCellGroupId || ''}
-                            onChange={(e) => setNewCellGroupId(Number(e.target.value) || 0)}
-                            className="w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm"
-                        >
-                            <option value="">Selecciona grupo...</option>
-                            {groups.map((group) => (
-                                <option key={group.id} value={group.id}>
-                                    {group.name}
-                                </option>
-                            ))}
-                        </select>
+                        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-600">Paso 1: Crear Equipo</h3>
                         <Input
-                            value={newCellName}
-                            onChange={(e) => setNewCellName(e.target.value)}
+                            value={newTeamName}
+                            onChange={(e) => setNewTeamName(e.target.value)}
                             placeholder="Ej. Equipo Comercial Senior"
                             className="h-10 bg-white border-gray-200"
                         />
                         <Input
-                            value={newCellDescription}
-                            onChange={(e) => setNewCellDescription(e.target.value)}
+                            value={newTeamDescription}
+                            onChange={(e) => setNewTeamDescription(e.target.value)}
                             placeholder="Descripción (opcional)"
                             className="h-10 bg-white border-gray-200"
                         />
-                        <Button onClick={() => void handleCreateCell()} disabled={submitting || loading}>
-                            Guardar equipo
+                        <Button onClick={() => void handleCreateTeam()} disabled={submitting || loading}>
+                            Crear equipo
                         </Button>
                     </div>
                 </div>
@@ -307,23 +284,21 @@ export function TeamCellsManager() {
                             <thead className="bg-white text-gray-600">
                                 <tr>
                                     <th className="px-4 py-3 text-left font-semibold">Equipo</th>
-                                    <th className="px-4 py-3 text-left font-semibold">Grupo</th>
                                     <th className="px-4 py-3 text-left font-semibold">Descripción</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {cells.length === 0 ? (
+                                {teams.length === 0 ? (
                                     <tr>
-                                        <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
+                                        <td colSpan={2} className="px-4 py-6 text-center text-gray-400">
                                             Aún no hay equipos configurados.
                                         </td>
                                     </tr>
                                 ) : (
-                                    cells.map((cell) => (
-                                        <tr key={cell.id} className="border-t border-gray-100">
-                                            <td className="px-4 py-3 font-medium text-gray-900">{cell.name}</td>
-                                            <td className="px-4 py-3 text-gray-600">{groupNameById.get(cell.group_id) || `Grupo ${cell.group_id}`}</td>
-                                            <td className="px-4 py-3 text-gray-600">{cell.description || '-'}</td>
+                                    teams.map((team) => (
+                                        <tr key={team.id} className="border-t border-gray-100">
+                                            <td className="px-4 py-3 font-medium text-gray-900">{team.name}</td>
+                                            <td className="px-4 py-3 text-gray-600">{team.description || '-'}</td>
                                         </tr>
                                     ))
                                 )}
@@ -334,16 +309,16 @@ export function TeamCellsManager() {
 
                 <div className="rounded-xl border border-gray-200 p-4 space-y-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-3">
-                        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-600">Publicar Versión de Equipo</h3>
+                        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-600">Paso 2: Publicar Versión de Equipo</h3>
                         <select
-                            value={selectedCellId || ''}
-                            onChange={(e) => setSelectedCellId(Number(e.target.value) || 0)}
+                            value={selectedTeamId || ''}
+                            onChange={(e) => setSelectedTeamId(Number(e.target.value) || 0)}
                             className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm md:min-w-[280px]"
                         >
                             <option value="">Selecciona equipo...</option>
-                            {cells.map((cell) => (
-                                <option key={cell.id} value={cell.id}>
-                                    {cell.name}
+                            {teams.map((team) => (
+                                <option key={team.id} value={team.id}>
+                                    {team.name}
                                 </option>
                             ))}
                         </select>
@@ -364,6 +339,14 @@ export function TeamCellsManager() {
                         </div>
                     </div>
 
+                    <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
+                        Math.abs(totalPercentage - 100) <= 0.05
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                    }`}>
+                        Total participación: {totalPercentage.toFixed(2)}% {Math.abs(totalPercentage - 100) <= 0.05 ? '(OK)' : '(debe ser 100%)'}
+                    </div>
+
                     <div className="space-y-2">
                         {versionMembers.map((member, index) => (
                             <div key={`${index}-${member.team_member_id}`} className="grid grid-cols-1 md:grid-cols-12 gap-2">
@@ -382,11 +365,12 @@ export function TeamCellsManager() {
                                 <Input
                                     type="number"
                                     min={0.01}
+                                    max={100}
                                     step={0.01}
-                                    value={member.weight}
-                                    onChange={(e) => updateVersionMember(index, { weight: e.target.value || '1.0' })}
+                                    value={member.allocation_percentage}
+                                    onChange={(e) => updateVersionMember(index, { allocation_percentage: e.target.value || '0' })}
                                     className="md:col-span-2 h-10 bg-white border-gray-200"
-                                    placeholder="Peso"
+                                    placeholder="%"
                                 />
                                 <Input
                                     value={member.role_override}
@@ -421,7 +405,7 @@ export function TeamCellsManager() {
                         <Button
                             type="button"
                             onClick={() => void handlePublishVersion()}
-                            disabled={submitting || loading || !selectedCellId}
+                            disabled={submitting || loading || !selectedTeamId}
                         >
                             Publicar versión
                         </Button>
