@@ -77,8 +77,10 @@ class CapacityService:
 
         for item in (quote.items or []):
             months = 1
+            item_cell_id = None
             if getattr(item, "cell_assignment", None) is not None:
                 months = max(1, int(getattr(item.cell_assignment, "duration_months", 1) or 1))
+                item_cell_id = getattr(item.cell_assignment, "cell_id", None)
 
             for alloc in (item.allocations or []):
                 alloc_hours = Decimal(str(alloc.hours or 0))
@@ -91,6 +93,7 @@ class CapacityService:
                         CapacityCommitment(
                             organization_id=self.organization_id,
                             team_member_id=alloc.team_member_id,
+                            cell_id=item_cell_id,
                             source_type="proposal_link",
                             source_id=link.id,
                             state="committed",

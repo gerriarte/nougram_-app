@@ -26,6 +26,7 @@ class CapacityCommitment(Base):
     id = Column(Integer, primary_key=True, index=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     team_member_id = Column(Integer, ForeignKey("team_members.id"), nullable=False, index=True)
+    cell_id = Column(Integer, ForeignKey("team_cells.id"), nullable=True, index=True)
     source_type = Column(String, nullable=False, index=True)  # proposal_link, quote, project
     source_id = Column(Integer, nullable=False, index=True)
     state = Column(String, nullable=False, index=True)  # tentative, committed, actual
@@ -37,6 +38,7 @@ class CapacityCommitment(Base):
 
     organization = relationship("Organization")
     team_member = relationship("TeamMember")
+    cell = relationship("TeamCell")
 
 
 class CapacityEvent(Base):

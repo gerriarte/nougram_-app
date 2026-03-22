@@ -125,3 +125,66 @@ class TeamCellVersionResponse(BaseModel):
 class TeamCellVersionListResponse(BaseModel):
     items: list[TeamCellVersionResponse]
     total: int
+
+
+class CapacityMemberOverviewResponse(BaseModel):
+    team_member_id: int
+    name: str
+    role: str
+    capacity_hours: Decimal = Decimal("0")
+    tentative_hours: Decimal = Decimal("0")
+    committed_hours: Decimal = Decimal("0")
+    actual_hours: Decimal = Decimal("0")
+    total_hours: Decimal = Decimal("0")
+    utilization_ratio: Decimal = Decimal("0")
+
+    @field_serializer(
+        "capacity_hours",
+        "tentative_hours",
+        "committed_hours",
+        "actual_hours",
+        "total_hours",
+        "utilization_ratio",
+    )
+    def serialize_decimal(self, value: Decimal) -> str:
+        return str(value)
+
+    model_config = DECIMAL_CONFIG
+
+
+class CapacityCellOverviewResponse(BaseModel):
+    cell_id: int
+    cell_name: str
+    tentative_hours: Decimal = Decimal("0")
+    committed_hours: Decimal = Decimal("0")
+    actual_hours: Decimal = Decimal("0")
+    total_hours: Decimal = Decimal("0")
+
+    @field_serializer("tentative_hours", "committed_hours", "actual_hours", "total_hours")
+    def serialize_decimal(self, value: Decimal) -> str:
+        return str(value)
+
+    model_config = DECIMAL_CONFIG
+
+
+class CapacityTotalsResponse(BaseModel):
+    tentative_hours: Decimal = Decimal("0")
+    committed_hours: Decimal = Decimal("0")
+    actual_hours: Decimal = Decimal("0")
+    total_hours: Decimal = Decimal("0")
+
+    @field_serializer("tentative_hours", "committed_hours", "actual_hours", "total_hours")
+    def serialize_decimal(self, value: Decimal) -> str:
+        return str(value)
+
+    model_config = DECIMAL_CONFIG
+
+
+class CapacityOverviewResponse(BaseModel):
+    period_start: datetime
+    period_end: datetime
+    months_count: int
+    states: list[str]
+    members: list[CapacityMemberOverviewResponse]
+    cells: list[CapacityCellOverviewResponse]
+    totals: CapacityTotalsResponse

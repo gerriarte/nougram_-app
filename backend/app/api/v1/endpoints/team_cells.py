@@ -1,17 +1,28 @@
 """
 Team groups/cells endpoints for reusable staffing structures.
 """
+from datetime import date, datetime, time, timezone
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.logging import get_logger
 from app.core.permission_middleware import require_modify_costs, require_view_sensitive_data
 from app.core.tenant import TenantContext, get_tenant_context
+from app.models.capacity import CapacityCommitment
+from app.models.team import TeamMember
+from app.models.team_cells import TeamCell
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.team_cells import (
+    CapacityCellOverviewResponse,
+    CapacityMemberOverviewResponse,
+    CapacityOverviewResponse,
+    CapacityTotalsResponse,
     TeamCellCreate,
     TeamCellListResponse,
     TeamCellPublishVersionRequest,
@@ -27,6 +38,162 @@ from app.schemas.team_cells import (
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+def _to_period_bounds(period_start: date, period_end: date) -> tuple[datetime, datetime]:
+    start = datetime.combine(period_start, time.min).replace(tzinfo=timezone.utc)
+    end = datetime.combine(period_end, time.max).replace(tzinfo=timezone.utc)
+    return start, end
+
+
+@router.get("/capacity/overview", response_model=CapacityOverviewResponse)
+async def get_capacity_overview(
+    period_start: date = Query(..., description="Period start date (YYYY-MM-DD)"),
+    period_end: date = Query(..., description="Period end date (YYYY-MM-DD)"),
+    states: list[str] = Query(default=["tentative", "committed", "actual"]),
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(require_view_sensitive_data),
+    db: AsyncSession = Depends(get_db),
+):
+    if period_end < period_start:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period_end must be >= period_start")
+
+    normalized_states = [s.strip().lower() for s in (states or []) if str(s).strip()]
+    if not normalized_states:
+        normalized_states = ["tentative", "committed", "actual"]
+    allowed_states = {"tentative", "committed", "actual"}
+    if any(s not in allowed_states for s in normalized_states):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid state value. Allowed: tentative, committed, actual",
+        )
+
+    period_start_dt, period_end_dt = _to_period_bounds(period_start, period_end)
+    months_count = ((period_end.year - period_start.year) * 12) + (period_end.month - period_start.month) + 1
+    months_count = max(1, months_count)
+
+    active_members_result = await db.execute(
+        select(TeamMember).where(
+            TeamMember.organization_id == tenant.organization_id,
+            TeamMember.is_active == True,
+        )
+    )
+    active_members = active_members_result.scalars().all()
+
+    member_hours_result = await db.execute(
+        select(
+            CapacityCommitment.team_member_id,
+            CapacityCommitment.state,
+            func.sum(CapacityCommitment.hours).label("hours_sum"),
+        )
+        .where(
+            CapacityCommitment.organization_id == tenant.organization_id,
+            CapacityCommitment.state.in_(normalized_states),
+            CapacityCommitment.period_start <= period_end_dt,
+            CapacityCommitment.period_end >= period_start_dt,
+        )
+        .group_by(CapacityCommitment.team_member_id, CapacityCommitment.state)
+    )
+    member_hours_rows = member_hours_result.all()
+    member_state_hours: dict[int, dict[str, Decimal]] = {}
+    for team_member_id, state_name, hours_sum in member_hours_rows:
+        member_state_hours.setdefault(team_member_id, {})[state_name] = Decimal(str(hours_sum or 0))
+
+    members_response: list[CapacityMemberOverviewResponse] = []
+    for member in active_members:
+        states_dict = member_state_hours.get(member.id, {})
+        tentative = states_dict.get("tentative", Decimal("0"))
+        committed = states_dict.get("committed", Decimal("0"))
+        actual = states_dict.get("actual", Decimal("0"))
+        total = tentative + committed + actual
+        non_billable = Decimal(str(member.non_billable_hours_percentage or 0))
+        capacity_monthly = Decimal(str(member.billable_hours_per_week or 0)) * Decimal("4.33") * (Decimal("1") - non_billable)
+        capacity_hours = capacity_monthly * Decimal(str(months_count))
+        utilization_ratio = (total / capacity_hours) if capacity_hours > 0 else Decimal("0")
+        members_response.append(
+            CapacityMemberOverviewResponse(
+                team_member_id=member.id,
+                name=member.name,
+                role=member.role,
+                capacity_hours=capacity_hours,
+                tentative_hours=tentative,
+                committed_hours=committed,
+                actual_hours=actual,
+                total_hours=total,
+                utilization_ratio=utilization_ratio,
+            )
+        )
+
+    cell_hours_result = await db.execute(
+        select(
+            CapacityCommitment.cell_id,
+            TeamCell.name,
+            CapacityCommitment.state,
+            func.sum(CapacityCommitment.hours).label("hours_sum"),
+        )
+        .join(TeamCell, TeamCell.id == CapacityCommitment.cell_id)
+        .where(
+            CapacityCommitment.organization_id == tenant.organization_id,
+            CapacityCommitment.cell_id.isnot(None),
+            CapacityCommitment.state.in_(normalized_states),
+            CapacityCommitment.period_start <= period_end_dt,
+            CapacityCommitment.period_end >= period_start_dt,
+        )
+        .group_by(CapacityCommitment.cell_id, TeamCell.name, CapacityCommitment.state)
+    )
+    cell_rows = cell_hours_result.all()
+    cell_state_hours: dict[int, dict[str, Decimal]] = {}
+    cell_names: dict[int, str] = {}
+    for cell_id, cell_name, state_name, hours_sum in cell_rows:
+        if cell_id is None:
+            continue
+        cell_names[cell_id] = cell_name or f"Cell {cell_id}"
+        cell_state_hours.setdefault(cell_id, {})[state_name] = Decimal(str(hours_sum or 0))
+
+    cells_response: list[CapacityCellOverviewResponse] = []
+    for cell_id, states_dict in cell_state_hours.items():
+        tentative = states_dict.get("tentative", Decimal("0"))
+        committed = states_dict.get("committed", Decimal("0"))
+        actual = states_dict.get("actual", Decimal("0"))
+        total = tentative + committed + actual
+        cells_response.append(
+            CapacityCellOverviewResponse(
+                cell_id=cell_id,
+                cell_name=cell_names.get(cell_id, f"Cell {cell_id}"),
+                tentative_hours=tentative,
+                committed_hours=committed,
+                actual_hours=actual,
+                total_hours=total,
+            )
+        )
+
+    totals = CapacityTotalsResponse(
+        tentative_hours=sum((m.tentative_hours for m in members_response), start=Decimal("0")),
+        committed_hours=sum((m.committed_hours for m in members_response), start=Decimal("0")),
+        actual_hours=sum((m.actual_hours for m in members_response), start=Decimal("0")),
+        total_hours=sum((m.total_hours for m in members_response), start=Decimal("0")),
+    )
+
+    logger.info(
+        "Capacity overview generated",
+        organization_id=tenant.organization_id,
+        user_id=current_user.id,
+        period_start=period_start.isoformat(),
+        period_end=period_end.isoformat(),
+        states=normalized_states,
+        members_count=len(members_response),
+        cells_count=len(cells_response),
+    )
+
+    return CapacityOverviewResponse(
+        period_start=period_start_dt,
+        period_end=period_end_dt,
+        months_count=months_count,
+        states=normalized_states,
+        members=members_response,
+        cells=cells_response,
+        totals=totals,
+    )
 
 
 @router.get("/team-groups", response_model=TeamGroupListResponse)
