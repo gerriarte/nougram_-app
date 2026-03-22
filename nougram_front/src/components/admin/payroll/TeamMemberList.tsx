@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAdmin } from '@/context/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -17,6 +17,7 @@ type MemberTeamAssignment = { teamName: string; percentage: number };
 
 export function TeamMemberList() {
     const { teamMembers, deleteTeamMember, updateTeamMember, addTeamMember } = useAdmin();
+    const loadSequenceRef = useRef(0);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | undefined>(undefined);
     const [memberTeamsMap, setMemberTeamsMap] = useState<Record<string, MemberTeamAssignment[]>>({});
@@ -29,15 +30,14 @@ export function TeamMemberList() {
     const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
 
     const loadMemberTeams = React.useCallback(async () => {
-        let mounted = true;
+        const currentSequence = ++loadSequenceRef.current;
         try {
             const teams = await workTeamsService.listTeams(true);
-            if (mounted) setTeams(teams);
+            if (currentSequence !== loadSequenceRef.current) return;
+            setTeams(teams);
             if (!teams.length) {
-                if (mounted) {
-                    setMemberTeamsMap({});
-                    setLatestVersionByTeam({});
-                }
+                setMemberTeamsMap({});
+                setLatestVersionByTeam({});
                 return;
             }
 
@@ -65,18 +65,20 @@ export function TeamMemberList() {
                         ];
                     });
             });
-            if (mounted) {
-                setMemberTeamsMap(nextMap);
-                setLatestVersionByTeam(nextLatestByTeam);
-            }
-        } finally {
-            mounted = false;
+            if (currentSequence !== loadSequenceRef.current) return;
+            setMemberTeamsMap(nextMap);
+            setLatestVersionByTeam(nextLatestByTeam);
+        } catch {
+            if (currentSequence !== loadSequenceRef.current) return;
+            setTeams([]);
+            setMemberTeamsMap({});
+            setLatestVersionByTeam({});
         }
     }, []);
 
     useEffect(() => {
         void loadMemberTeams();
-    }, [loadMemberTeams, teamMembers]);
+    }, [loadMemberTeams]);
 
     const handleAssignToTeam = async (memberId: string) => {
         setAssignError(null);

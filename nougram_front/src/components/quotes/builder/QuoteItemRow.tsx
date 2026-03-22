@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/Input';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { useNougram } from '@/context/NougramCoreContext';
 import { QuoteItem, ResourceAllocation } from '@/types/quote-builder';
-import { workTeamsService, TeamSummary, TeamVersion } from '@/services/workTeamsService';
 import { Trash2, Plus, Clock, Calendar } from 'lucide-react';
 import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
 
@@ -19,67 +18,9 @@ interface QuoteItemRowProps {
 export function QuoteItemRow({ item }: QuoteItemRowProps) {
     const { updateItem, removeItem, teamMembers } = useQuoteBuilder();
     const { state: coreState } = useNougram();
-    const currentAssignment = item.teamAssignment;
     const [isAddingResource, setIsAddingResource] = useState(false);
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [newResourceHours, setNewResourceHours] = useState<number>(10);
-    const [selectedResourceTeamId, setSelectedResourceTeamId] = useState<number | ''>('');
-    const [resourceTeamVersions, setResourceTeamVersions] = useState<TeamVersion[]>([]);
-    const [selectedResourceTeamVersionId, setSelectedResourceTeamVersionId] = useState<number | ''>('');
-    const [newTeamResourceHours, setNewTeamResourceHours] = useState<number>(10);
-    const [availableCells, setAvailableCells] = useState<TeamSummary[]>([]);
-    const [availableVersions, setAvailableVersions] = useState<TeamVersion[]>([]);
-    const [selectedCellId, setSelectedCellId] = useState<number>(currentAssignment?.cellId || 0);
-    const [selectedVersionId, setSelectedVersionId] = useState<number>(currentAssignment?.cellVersionId || 0);
-    const [occupancyPercentage, setOccupancyPercentage] = useState<number>(currentAssignment?.occupancyPercentage || 100);
-    const [cellDurationMonths, setCellDurationMonths] = useState<number>(currentAssignment?.durationMonths || 1);
-
-    React.useEffect(() => {
-        let mounted = true;
-        const loadCells = async () => {
-            if (!coreState.features.teamCellsEnabled) return;
-            const cells = await workTeamsService.listTeams();
-            if (mounted) setAvailableCells(cells);
-        };
-        void loadCells();
-        return () => { mounted = false; };
-    }, [coreState.features.teamCellsEnabled]);
-
-    React.useEffect(() => {
-        let mounted = true;
-        const loadVersions = async () => {
-            if (!selectedCellId || !coreState.features.teamCellsEnabled) {
-                if (mounted) setAvailableVersions([]);
-                return;
-            }
-            const versions = await workTeamsService.listTeamVersions(selectedCellId);
-            if (!mounted) return;
-            setAvailableVersions(versions);
-            if (!selectedVersionId && versions.length > 0) {
-                setSelectedVersionId(versions[0].id);
-            }
-        };
-        void loadVersions();
-        return () => { mounted = false; };
-    }, [selectedCellId, selectedVersionId, coreState.features.teamCellsEnabled]);
-
-    React.useEffect(() => {
-        let mounted = true;
-        const loadResourceTeamVersions = async () => {
-            if (!selectedResourceTeamId || !coreState.features.teamCellsEnabled) {
-                if (mounted) setResourceTeamVersions([]);
-                return;
-            }
-            const versions = await workTeamsService.listTeamVersions(Number(selectedResourceTeamId));
-            if (!mounted) return;
-            setResourceTeamVersions(versions);
-            if (!selectedResourceTeamVersionId && versions.length > 0) {
-                setSelectedResourceTeamVersionId(versions[0].id);
-            }
-        };
-        void loadResourceTeamVersions();
-        return () => { mounted = false; };
-    }, [selectedResourceTeamId, selectedResourceTeamVersionId, coreState.features.teamCellsEnabled]);
 
     const handleAddResource = () => {
         if (!selectedMemberId) return;
@@ -102,40 +43,6 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
         setNewResourceHours(10);
     };
 
-    const handleAddTeamResources = () => {
-        const teamId = Number(selectedResourceTeamId || 0);
-        const versionId = Number(selectedResourceTeamVersionId || 0);
-        const totalTeamHours = Math.max(0, Number(newTeamResourceHours || 0));
-        if (!teamId || !versionId || totalTeamHours <= 0) return;
-
-        const selectedVersion = resourceTeamVersions.find((version) => version.id === versionId);
-        if (!selectedVersion) return;
-
-        const activeVersionMembers = (selectedVersion.members || []).filter((member) => member.is_active !== false);
-        const totalWeight = activeVersionMembers.reduce((acc, member) => acc + (Number(member.weight) || 0), 0);
-        if (!activeVersionMembers.length || totalWeight <= 0) return;
-
-        const generatedAllocations: ResourceAllocation[] = activeVersionMembers.map((member) => {
-            const memberWeight = Number(member.weight || 0);
-            const ratio = memberWeight / totalWeight;
-            const hours = Number((totalTeamHours * ratio).toFixed(2));
-            const tm = teamMembers.find((m) => m.id === Number(member.team_member_id));
-            return {
-                id: crypto.randomUUID(),
-                teamMemberId: Number(member.team_member_id),
-                hours,
-                role: member.role_override || tm?.role || undefined,
-            };
-        }).filter((alloc) => alloc.hours > 0);
-
-        const currentAllocations = item.allocations || [];
-        updateItem(item.id, { allocations: [...currentAllocations, ...generatedAllocations] });
-        setSelectedResourceTeamId('');
-        setSelectedResourceTeamVersionId('');
-        setResourceTeamVersions([]);
-        setNewTeamResourceHours(10);
-        setIsAddingResource(false);
-    };
 
     const removeResource = (allocId: string) => {
         const currentAllocations = item.allocations || [];
@@ -171,48 +78,6 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                 return 'Precio fijo';
         }
     })();
-
-    const applyCellAssignment = () => {
-        const selectedVersion = availableVersions.find((version) => version.id === selectedVersionId);
-        if (!selectedCellId || !selectedVersion) return;
-
-        const activeMembers = (selectedVersion.members || []).filter((member) => member.is_active !== false);
-        const totalWeight = activeMembers.reduce((acc, member) => acc + (Number(member.weight) || 0), 0);
-        const occupancyRatio = Math.max(0, Number(occupancyPercentage || 0)) / 100;
-        const duration = Math.max(1, Number(cellDurationMonths || 1));
-
-        const generatedAllocations: ResourceAllocation[] = activeMembers.map((member) => {
-            const weight = Number(member.weight || 0);
-            const normalizedWeight = totalWeight > 0 ? (weight / totalWeight) : 0;
-            const teamMember = teamMembers.find((tm) => tm.id === Number(member.team_member_id));
-            const monthlyCapacity = Number(teamMember?.availableHours || 0);
-            const hours = Number((monthlyCapacity * occupancyRatio * duration * normalizedWeight).toFixed(2));
-
-            return {
-                id: crypto.randomUUID(),
-                teamMemberId: Number(member.team_member_id),
-                hours: Math.max(0, hours),
-                role: member.role_override || teamMember?.role || undefined,
-            };
-        }).filter((alloc) => alloc.hours > 0);
-
-        const estimatedHours = generatedAllocations.reduce((acc, alloc) => acc + Number(alloc.hours || 0), 0);
-
-        updateItem(item.id, {
-            teamAssignment: {
-                cellId: selectedCellId,
-                cellVersionId: selectedVersion.id,
-                occupancyPercentage: Math.max(0, Number(occupancyPercentage || 0)),
-                durationMonths: duration,
-            },
-            allocations: generatedAllocations,
-            estimatedHours,
-        });
-    };
-
-    const clearCellAssignment = () => {
-        updateItem(item.id, { teamAssignment: undefined });
-    };
 
     return (
         <Card className="p-5 bg-white border border-gray-100 shadow-sm relative group transition-all hover:shadow-md hover:border-gray-200">
@@ -262,80 +127,6 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                                     </span>
                                 )}
                             </div>
-
-                            {coreState.features.teamCellsEnabled && (
-                                <div className="mb-3 rounded-lg border border-purple-200 bg-purple-50/60 p-3 space-y-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700">
-                                            Asignacion por equipo
-                                        </span>
-                                        {currentAssignment && (
-                                            <button
-                                                type="button"
-                                                onClick={clearCellAssignment}
-                                                className="text-[10px] font-semibold text-purple-700 hover:text-purple-900"
-                                            >
-                                                Volver a manual
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <select
-                                            className="h-8 rounded-md border border-purple-200 bg-white text-xs"
-                                            value={selectedCellId || ''}
-                                            onChange={(e) => {
-                                                setSelectedCellId(Number(e.target.value) || 0);
-                                                setSelectedVersionId(0);
-                                            }}
-                                        >
-                                            <option value="">Seleccionar equipo...</option>
-                                            {availableCells.map((cell) => (
-                                                <option key={cell.id} value={cell.id}>{cell.name}</option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            className="h-8 rounded-md border border-purple-200 bg-white text-xs"
-                                            value={selectedVersionId || ''}
-                                            onChange={(e) => setSelectedVersionId(Number(e.target.value) || 0)}
-                                            disabled={!selectedCellId}
-                                        >
-                                            <option value="">Version...</option>
-                                            {availableVersions.map((version) => (
-                                                <option key={version.id} value={version.id}>
-                                                    V{version.version_number} ({version.status})
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <Input
-                                            type="number"
-                                            min={1}
-                                            max={100}
-                                            className="h-8 text-xs bg-white border-purple-200"
-                                            value={occupancyPercentage}
-                                            onChange={(e) => setOccupancyPercentage(Math.max(1, Number(e.target.value) || 1))}
-                                            placeholder="% ocupacion equipo"
-                                        />
-                                        <Input
-                                            type="number"
-                                            min={1}
-                                            className="h-8 text-xs bg-white border-purple-200"
-                                            value={cellDurationMonths}
-                                            onChange={(e) => setCellDurationMonths(Math.max(1, Number(e.target.value) || 1))}
-                                            placeholder="Meses"
-                                        />
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        className="w-full h-8 text-xs text-purple-700 hover:text-purple-900 hover:bg-purple-100"
-                                        onClick={applyCellAssignment}
-                                        disabled={!selectedCellId || !selectedVersionId}
-                                    >
-                                        Aplicar equipo
-                                    </Button>
-                                </div>
-                            )}
 
                             {(!item.allocations || item.allocations.length === 0) && (
                                 <div className="text-center py-4 text-xs text-gray-400 italic">
@@ -412,67 +203,6 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                                     </Button>
                                 ) : (
                                     <div className="space-y-3 animate-in fade-in slide-in-from-top-1">
-                                        <div className="rounded-lg border border-gray-100 bg-white p-2">
-                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                                                <div className="md:col-span-4 space-y-1">
-                                                    <label className="text-[10px] font-bold text-gray-400">Equipo</label>
-                                                    <select
-                                                        className="w-full h-8 text-xs rounded-md border-gray-200 bg-white"
-                                                        value={selectedResourceTeamId}
-                                                        onChange={e => {
-                                                            setSelectedResourceTeamId(Number(e.target.value) || '');
-                                                            setSelectedResourceTeamVersionId('');
-                                                        }}
-                                                    >
-                                                        <option value="">Seleccionar equipo...</option>
-                                                        {availableCells.map(team => (
-                                                            <option key={team.id} value={team.id}>{team.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div className="md:col-span-3 space-y-1">
-                                                    <label className="text-[10px] font-bold text-gray-400">Versión</label>
-                                                    <select
-                                                        className="w-full h-8 text-xs rounded-md border-gray-200 bg-white"
-                                                        value={selectedResourceTeamVersionId}
-                                                        onChange={e => setSelectedResourceTeamVersionId(Number(e.target.value) || '')}
-                                                        disabled={!selectedResourceTeamId}
-                                                    >
-                                                        <option value="">Seleccionar...</option>
-                                                        {resourceTeamVersions.map(version => (
-                                                            <option key={version.id} value={version.id}>
-                                                                V{version.version_number} ({version.status})
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div className="md:col-span-2 space-y-1">
-                                                    <label className="text-[10px] font-bold text-gray-400">Horas equipo</label>
-                                                    <Input
-                                                        type="number"
-                                                        className="h-8 text-xs"
-                                                        min={0}
-                                                        step={0.5}
-                                                        value={newTeamResourceHours}
-                                                        onChange={e => setNewTeamResourceHours(Number(e.target.value))}
-                                                    />
-                                                </div>
-                                                <div className="md:col-span-3 flex gap-1">
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={handleAddTeamResources}
-                                                        disabled={!selectedResourceTeamId || !selectedResourceTeamVersionId || newTeamResourceHours <= 0}
-                                                        className="h-8 px-3 bg-purple-600"
-                                                    >
-                                                        Agregar equipo
-                                                    </Button>
-                                                    <Button size="sm" variant="ghost" onClick={() => setIsAddingResource(false)} className="h-8 px-2">
-                                                        ✕
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
-
                                         <div className="flex items-end gap-2">
                                             <div className="flex-1 space-y-1">
                                                 <label className="text-[10px] font-bold text-gray-400">Miembro</label>
@@ -499,6 +229,9 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                                             <div className="flex gap-1">
                                                 <Button size="sm" onClick={handleAddResource} disabled={!selectedMemberId} className="h-8 px-3 bg-blue-600">
                                                     + Miembro
+                                                </Button>
+                                                <Button size="sm" variant="ghost" onClick={() => setIsAddingResource(false)} className="h-8 px-2">
+                                                    ✕
                                                 </Button>
                                             </div>
                                         </div>
