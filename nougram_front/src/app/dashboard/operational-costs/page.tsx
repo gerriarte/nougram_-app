@@ -5,6 +5,7 @@ import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { fetchOperationalCosts, type OperationalCostPayload } from '@/lib/operational-costs-api';
 import { formatCurrency } from '@/lib/utils';
 import { useNougram } from '@/context/NougramCoreContext';
+import { apiRequest } from '@/lib/api-client';
 import {
   TrendingUp,
   Wallet,
@@ -32,6 +33,7 @@ export default function OperationalCostsPage() {
   const [data, setData] = useState<OperationalCostPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [legalName, setLegalName] = useState<string>('');
 
   const load = async () => {
     setLoading(true);
@@ -50,9 +52,24 @@ export default function OperationalCostsPage() {
     void load();
   }, []);
 
+  useEffect(() => {
+    const loadOrganizationName = async () => {
+      const response = await apiRequest<{ name?: string }>('/organizations/me');
+      const backendName = (response.data?.name || '').trim();
+      if (backendName) {
+        setLegalName(backendName);
+      }
+    };
+    void loadOrganizationName();
+  }, []);
+
   const currency = data?.calculation_metadata?.currency ?? 'USD';
   const meta = data?.calculation_metadata;
-  const companyName = state.identity.name || 'Nombre de la empresa';
+  const stateName = (state.identity.name || '').trim();
+  const companyName =
+    legalName ||
+    (stateName && stateName !== 'Mi Agencia' ? stateName : '') ||
+    'Razón Social registrada';
 
   if (loading && !data) {
     return (

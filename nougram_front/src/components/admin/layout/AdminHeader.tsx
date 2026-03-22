@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, LogOut, ChevronDown, Building2 } from 'lucide-react';
+import { Users, LogOut, ChevronDown, Building2, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api-client';
@@ -113,6 +113,12 @@ export function AdminHeader() {
                                         Usuarios (Equipo)
                                     </a>
                                 )}
+                                <Link href="/billing" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-white hover:text-secondary hover:shadow-sm rounded-2xl transition-all group">
+                                    <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                                        <CreditCard size={16} strokeWidth={2} />
+                                    </div>
+                                    Gestionar suscripción
+                                </Link>
                             </div>
 
                             <div className="mt-2 px-2 pt-2 border-t border-gray-100/50">
