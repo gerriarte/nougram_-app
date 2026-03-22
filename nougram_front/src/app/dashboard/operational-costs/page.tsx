@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { fetchOperationalCosts, type OperationalCostPayload } from '@/lib/operational-costs-api';
 import { formatCurrency } from '@/lib/utils';
+import { useNougram } from '@/context/NougramCoreContext';
 import {
   TrendingUp,
   Wallet,
@@ -27,6 +28,7 @@ function formatPercent(value: string | null | undefined): string {
 }
 
 export default function OperationalCostsPage() {
+  const { state } = useNougram();
   const [data, setData] = useState<OperationalCostPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export default function OperationalCostsPage() {
 
   const currency = data?.calculation_metadata?.currency ?? 'USD';
   const meta = data?.calculation_metadata;
+  const companyName = state.identity.name || 'Nombre de la empresa';
 
   if (loading && !data) {
     return (
@@ -95,10 +98,10 @@ export default function OperationalCostsPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-              Costo operacional
+              Costo de operación ({companyName})
             </h1>
             <p className="text-gray-500 font-medium mt-1">
-              Mes en curso · Una sola fuente de verdad (backend). Sin cálculos locales.
+              Reporte general de costos operacionales.
             </p>
           </div>
           <button

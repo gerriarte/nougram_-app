@@ -528,9 +528,10 @@ async def update_organization(
     if org_data.subscription_status is not None and is_super_admin:
         org.subscription_status = org_data.subscription_status
     if org_data.settings is not None:
-        if org.settings is None:
-            org.settings = {}
-        org.settings.update(org_data.settings)
+        # Reassign JSON object to ensure SQLAlchemy persists nested settings updates.
+        updated_settings = dict(org.settings) if isinstance(org.settings, dict) else {}
+        updated_settings.update(org_data.settings)
+        org.settings = updated_settings
     
     await db.commit()
     await db.refresh(org)

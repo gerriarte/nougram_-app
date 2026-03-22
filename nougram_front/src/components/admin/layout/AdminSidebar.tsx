@@ -41,7 +41,7 @@ export function AdminSidebar({ isCollapsed, onToggleCollapse }: AdminSidebarProp
         { label: 'Dashboard & Pipeline', href: '/dashboard', icon: LayoutDashboard },
         { label: 'Gestión de Clientes', href: '/dashboard/clients', icon: UserCircle2 },
         { label: 'Nómina (Equipo)', href: '/admin/payroll', icon: UsersRound },
-        { label: 'Overhead (Gastos)', href: '/admin/overhead', icon: Building2 },
+        { label: 'Inventario de Gastos', href: '/admin/overhead', icon: Building2 },
         { label: 'Impuestos', href: '/admin/taxes', icon: Receipt },
         ...(showOperationalCosts
             ? [{ label: 'Costo operacional', href: '/dashboard/operational-costs', icon: Calculator }]
