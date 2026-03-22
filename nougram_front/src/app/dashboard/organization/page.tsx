@@ -87,7 +87,7 @@ export default function OrganizationPage() {
       ]);
 
       if (organizationResponse.error || !organizationResponse.data) {
-        setError(organizationResponse.error || 'No se pudo cargar la información de la empresa.');
+        setError(organizationResponse.error || 'No se pudo cargar la informaciÃ³n de la empresa.');
         setLoading(false);
         return;
       }
@@ -127,7 +127,7 @@ export default function OrganizationPage() {
 
     const normalizedName = legalNameDraft.trim();
     if (!normalizedName) {
-      setProfileMessage('La razón social es obligatoria.');
+      setProfileMessage('La razÃ³n social es obligatoria.');
       return;
     }
 
@@ -136,7 +136,7 @@ export default function OrganizationPage() {
       : Number(employeeCountDraft);
 
     if (parsedEmployeeCount != null && (!Number.isFinite(parsedEmployeeCount) || parsedEmployeeCount < 0)) {
-      setProfileMessage('El número de empleados debe ser un valor mayor o igual a 0.');
+      setProfileMessage('El nÃºmero de empleados debe ser un valor mayor o igual a 0.');
       return;
     }
 
@@ -184,13 +184,13 @@ export default function OrganizationPage() {
     setSavingPlan(false);
 
     if (response.error || !response.data) {
-      setPlanMessage(response.error || 'No se pudo actualizar el tipo de suscripción.');
+      setPlanMessage(response.error || 'No se pudo actualizar el tipo de suscripciÃ³n.');
       return;
     }
 
     setOrganization(response.data);
     setPlanDraft(response.data.subscription_plan || 'free');
-    setPlanMessage('Tipo de suscripción actualizado.');
+    setPlanMessage('Tipo de suscripciÃ³n actualizado.');
   };
 
   const handleSaveCurrency = async () => {
@@ -240,7 +240,7 @@ export default function OrganizationPage() {
 
         {loading && (
           <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-system-gray">
-            Cargando información de la empresa...
+            Cargando informaciÃ³n de la empresa...
           </div>
         )}
 
@@ -256,21 +256,21 @@ export default function OrganizationPage() {
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Datos de empresa</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Registra la información base para uso administrativo y reportes.
+                  Registra la informaciÃ³n base para uso administrativo y reportes.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className="space-y-1.5">
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
-                    <FileText size={13} /> Razón Social
+                    <FileText size={13} /> RazÃ³n Social
                   </span>
                   <input
                     value={legalNameDraft}
                     onChange={(event) => setLegalNameDraft(event.target.value)}
                     disabled={!canManageCompanyProfile}
                     className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
-                    placeholder="Razón social"
+                    placeholder="RazÃ³n social"
                   />
                 </label>
 
@@ -289,7 +289,7 @@ export default function OrganizationPage() {
 
                 <label className="space-y-1.5">
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
-                    <Users size={13} /> Número de empleados
+                    <Users size={13} /> NÃºmero de empleados
                   </span>
                   <input
                     type="number"
@@ -304,7 +304,7 @@ export default function OrganizationPage() {
 
                 <label className="space-y-1.5">
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
-                    <MapPin size={13} /> País de origen
+                    <MapPin size={13} /> PaÃ­s de origen
                   </span>
                   <input
                     value={originCountryDraft}
@@ -324,7 +324,7 @@ export default function OrganizationPage() {
                     onChange={(event) => setOriginCityDraft(event.target.value)}
                     disabled={!canManageCompanyProfile}
                     className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
-                    placeholder="Ej: Bogotá"
+                    placeholder="Ej: BogotÃ¡"
                   />
                 </label>
               </div>
@@ -355,12 +355,12 @@ export default function OrganizationPage() {
 
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2 space-y-4">
-                <h3 className="text-lg font-bold text-gray-900">Configuración operativa</h3>
+                <h3 className="text-lg font-bold text-gray-900">ConfiguraciÃ³n operativa</h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-system-gray flex items-center gap-1">
-                      <CreditCard size={13} /> Tipo de suscripción
+                      <CreditCard size={13} /> Tipo de suscripciÃ³n
                     </p>
                     <select
                       value={planDraft}
@@ -381,7 +381,7 @@ export default function OrganizationPage() {
                       className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                     >
                       {savingPlan ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                      Guardar suscripción
+                      Guardar suscripciÃ³n
                     </button>
                     {planMessage && (
                       <p className={`text-xs font-semibold ${planMessage.includes('actualizado') ? 'text-green-600' : 'text-red-600'}`}>
@@ -392,7 +392,7 @@ export default function OrganizationPage() {
 
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-system-gray flex items-center gap-1">
-                      <Coins size={13} /> Moneda principal de operación
+                      <Coins size={13} /> Moneda principal de operaciÃ³n
                     </p>
                     <select
                       value={currencyDraft}
@@ -435,7 +435,7 @@ export default function OrganizationPage() {
                   <p className="text-lg font-bold text-gray-900">{organization.user_count ?? 0}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Estado de suscripción</p>
+                  <p className="text-xs text-gray-500">Estado de suscripciÃ³n</p>
                   <p className="text-sm font-semibold text-gray-800">{organization.subscription_status || 'active'}</p>
                 </div>
               </div>
