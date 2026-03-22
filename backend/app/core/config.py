@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     # Feature flags (roles)
     FEATURE_ROLES: bool = False
     FEATURE_ROLES_ENFORCE: bool = False
+    FEATURE_TEAM_CELLS: bool = False
     
     # Stripe Configuration
     STRIPE_SECRET_KEY: str = ""

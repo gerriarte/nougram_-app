@@ -24,6 +24,7 @@ from app.repositories.audit_log_repository import AuditLogRepository
 from app.repositories.credit_account_repository import CreditAccountRepository
 from app.repositories.credit_transaction_repository import CreditTransactionRepository
 from app.repositories.invitation_repository import InvitationRepository
+from app.repositories.team_cell_repository import TeamCellRepository
 from app.core.tenant import TenantContext
 
 T = TypeVar('T', bound=BaseRepository)
@@ -145,6 +146,11 @@ class RepositoryFactory:
     def create_proposal_client_link_repository(db: AsyncSession, tenant_id: Optional[int] = None) -> ProposalClientLinkRepository:
         """Create ProposalClientLinkRepository with optional tenant context"""
         return ProposalClientLinkRepository(db, tenant_id=tenant_id)
+
+    @staticmethod
+    def create_team_cell_repository(db: AsyncSession, tenant_id: int) -> TeamCellRepository:
+        """Create TeamCellRepository with tenant context"""
+        return TeamCellRepository(db, tenant_id=tenant_id)
 
     @staticmethod
     def create_ai_usage_repository(db: AsyncSession) -> AIUsageRepository:

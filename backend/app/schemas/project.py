@@ -107,6 +107,10 @@ class QuoteItemCreate(BaseModel):
     billing_frequency: Optional[str] = Field(None, description="Billing frequency: 'monthly', 'annual' (for recurring pricing)")
     project_value: Optional[Decimal] = Field(None, description="Project value (for project_value pricing)", ge=0)
     allocations: List['QuoteItemAllocationCreate'] = Field(default_factory=list, description="Resource allocations for this quote item")
+    cell_assignment: Optional['QuoteItemCellAssignmentCreate'] = Field(
+        None,
+        description="Optional cell-based assignment; expanded to member allocations server-side"
+    )
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
     @field_serializer('fixed_price', 'quantity', 'recurring_price', 'project_value')
@@ -135,6 +139,7 @@ class QuoteItemResponse(BaseModel):
     billing_frequency: Optional[str] = None
     project_value: Optional[Decimal] = None
     allocations: List['QuoteItemAllocationResponse'] = Field(default_factory=list)
+    cell_assignment: Optional['QuoteItemCellAssignmentResponse'] = None
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
     @field_serializer('internal_cost', 'client_price', 'margin_percentage', 'fixed_price', 'quantity', 'recurring_price', 'project_value')
@@ -171,6 +176,35 @@ class QuoteItemAllocationResponse(BaseModel):
 
     @field_serializer('hours')
     def serialize_hours(self, value: Optional[Decimal]) -> Optional[str]:
+        return str(value) if value is not None else None
+
+    model_config = DECIMAL_CONFIG
+
+
+class QuoteItemCellAssignmentCreate(BaseModel):
+    """Schema for assigning a staffing cell to a quote item"""
+    cell_id: int = Field(..., gt=0)
+    cell_version_id: Optional[int] = Field(None, gt=0, description="Optional explicit version; defaults to latest")
+    occupancy_percentage: Decimal = Field(..., gt=0, le=100, description="Cell occupancy percentage (0-100)")
+    duration_months: Optional[int] = Field(1, ge=1, le=60)
+
+    @field_serializer('occupancy_percentage')
+    def serialize_occupancy(self, value: Optional[Decimal]) -> Optional[str]:
+        return str(value) if value is not None else None
+
+    model_config = DECIMAL_CONFIG
+
+
+class QuoteItemCellAssignmentResponse(BaseModel):
+    """Schema for quote item cell assignment response"""
+    id: int
+    cell_id: int
+    cell_version_id: int
+    occupancy_percentage: Decimal
+    duration_months: int
+
+    @field_serializer('occupancy_percentage')
+    def serialize_occupancy(self, value: Optional[Decimal]) -> Optional[str]:
         return str(value) if value is not None else None
 
     model_config = DECIMAL_CONFIG

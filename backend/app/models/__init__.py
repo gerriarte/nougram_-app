@@ -6,7 +6,7 @@ from app.models.cost import CostFixed
 from app.models.team import TeamMember
 from app.models.service import Service
 from app.models.client import Client
-from app.models.project import Project, Quote, QuoteItem, QuoteItemAllocation
+from app.models.project import Project, Quote, QuoteItem, QuoteItemAllocation, QuoteItemCellAssignment
 from app.models.settings import AgencySettings
 from app.models.tax import Tax
 from app.models.organization import Organization
@@ -21,6 +21,7 @@ from app.models.equipment import EquipmentAmortization
 from app.models.proposal import ProposalDocument, ProposalClientLink
 from app.models.ai_usage import AIUsageEvent
 from app.models.financial_ledger import FinancialLedgerEvent
+from app.models.team_cells import TeamGroup, TeamCell, TeamCellVersion, TeamCellMemberVersion
 # Roles and DeleteRequest disabled during rollback
 # from app.models.role import DeleteRequest, UserRole, DeleteRequestStatus
 
@@ -34,6 +35,7 @@ __all__ = [
     "Quote",
     "QuoteItem",
     "QuoteItemAllocation",
+    "QuoteItemCellAssignment",
     "AgencySettings",
     "Tax",
     "Organization",
@@ -50,6 +52,10 @@ __all__ = [
     "ProposalClientLink",
     "AIUsageEvent",
     "FinancialLedgerEvent",
+    "TeamGroup",
+    "TeamCell",
+    "TeamCellVersion",
+    "TeamCellMemberVersion",
     # "DeleteRequest",
     # "UserRole",
     # "DeleteRequestStatus",

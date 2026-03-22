@@ -32,6 +32,11 @@ export interface NougramState {
     identity: AgencyIdentity;
     financials: FinancialState;
     equipment: Equipment[]; // Inventory
+    features: {
+        teamCellsEnabled: boolean;
+        resourceOccupancyEnabled: boolean;
+        resourcePlanningMode: 'simple' | 'advanced';
+    };
     user: {
         role: UserRole;
         credits: number;
@@ -68,6 +73,11 @@ const DEFAULT_STATE: NougramState = {
         exchangeRateCOP: 4200
     },
     equipment: [],
+    features: {
+        teamCellsEnabled: false,
+        resourceOccupancyEnabled: true,
+        resourcePlanningMode: 'simple',
+    },
     user: { role: 'owner', credits: 100 },
     isHydrated: false
 };
@@ -89,6 +99,11 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
     type CurrencySettingsResponse = {
         primary_currency?: Currency;
     };
+    type FeatureFlagsResponse = {
+        team_cells_enabled?: boolean;
+        resource_occupancy_enabled?: boolean;
+        resource_planning_mode?: 'simple' | 'advanced';
+    };
 
     // Initial hydration from backend-only sources.
     useEffect(() => {
@@ -103,9 +118,10 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
 
     useEffect(() => {
         const hydrateOrganizationName = async () => {
-            const [organizationResponse, currencyResponse] = await Promise.all([
+            const [organizationResponse, currencyResponse, featuresResponse] = await Promise.all([
                 apiRequest<OrganizationMeResponse>('/organizations/me'),
                 apiRequest<CurrencySettingsResponse>('/settings/currency'),
+                apiRequest<FeatureFlagsResponse>('/settings/features'),
             ]);
             if (organizationResponse.error || !organizationResponse.data) return;
             const backendCountry = organizationResponse.data.settings?.country;
@@ -113,6 +129,7 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
                 currencyResponse.data?.primary_currency ||
                 organizationResponse.data.settings?.primary_currency ||
                 organizationResponse.data.settings?.currency;
+            const backendFeatures = featuresResponse.data;
             setState((prev) => ({
                 ...prev,
                 identity: {
@@ -120,6 +137,11 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
                     name: organizationResponse.data?.name || prev.identity.name,
                     primaryCurrency: backendCurrency || prev.identity.primaryCurrency,
                     country: backendCountry || prev.identity.country,
+                },
+                features: {
+                    teamCellsEnabled: Boolean(backendFeatures?.team_cells_enabled),
+                    resourceOccupancyEnabled: backendFeatures?.resource_occupancy_enabled !== false,
+                    resourcePlanningMode: backendFeatures?.resource_planning_mode === 'advanced' ? 'advanced' : 'simple',
                 },
             }));
         };

@@ -36,6 +36,7 @@ class ProjectRepository(BaseRepository[Project]):
         query = select(Project).options(
             selectinload(Project.quotes).selectinload(Quote.items).selectinload(QuoteItem.service),
             selectinload(Project.quotes).selectinload(Quote.items).selectinload(QuoteItem.allocations),
+            selectinload(Project.quotes).selectinload(Quote.items).selectinload(QuoteItem.cell_assignment),
             selectinload(Project.taxes)
         ).where(Project.id == id)
         
@@ -98,6 +99,7 @@ class ProjectRepository(BaseRepository[Project]):
         query = select(Quote).options(
             selectinload(Quote.items).selectinload(QuoteItem.service),
             selectinload(Quote.items).selectinload(QuoteItem.allocations),
+            selectinload(Quote.items).selectinload(QuoteItem.cell_assignment),
             selectinload(Quote.expenses),  # Sprint 15: Load expenses
             selectinload(Quote.project)
         ).where(Quote.id == quote_id)
