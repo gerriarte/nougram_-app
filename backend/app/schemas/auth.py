@@ -13,7 +13,16 @@ class LoginRequest(BaseModel):
 
 class UserUpdate(BaseModel):
     """Schema for updating current user profile"""
-    full_name: str = Field(..., description="User full name", min_length=1)
+    full_name: Optional[str] = Field(None, description="User full name", min_length=1)
+    job_title: Optional[str] = Field(None, max_length=120)
+    specialty: Optional[str] = Field(None, max_length=120)
+    bio: Optional[str] = Field(None, max_length=1000)
+    linkedin_url: Optional[str] = Field(None, max_length=255)
+    portfolio_url: Optional[str] = Field(None, max_length=255)
+    instagram_url: Optional[str] = Field(None, max_length=255)
+    behance_url: Optional[str] = Field(None, max_length=255)
+    timezone: Optional[str] = Field(None, max_length=64)
+    language: Optional[str] = Field(None, max_length=8)
 
 
 class GoogleLoginRequest(BaseModel):
@@ -43,6 +52,15 @@ class UserResponse(BaseModel):
     role: str = Field(default="product_manager", description="User role")  # Always str, never enum
     organization_id: Optional[int] = Field(None, description="Organization ID for multi-tenant support")
     email_verified: bool = Field(default=True, description="Whether user email is verified")
+    job_title: Optional[str] = None
+    specialty: Optional[str] = None
+    bio: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    instagram_url: Optional[str] = None
+    behance_url: Optional[str] = None
+    timezone: Optional[str] = None
+    language: Optional[str] = None
 
     class Config:
         from_attributes = False  # Disable to avoid enum issues
@@ -103,4 +121,15 @@ class VerifyEmailRequest(BaseModel):
 
 class VerifyEmailResponse(BaseModel):
     """Response after successful email verification."""
+    message: str
+
+
+class ChangePasswordRequest(BaseModel):
+    """Change password for authenticated user."""
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8)
+
+
+class ChangePasswordResponse(BaseModel):
+    """Response after successful password change."""
     message: str

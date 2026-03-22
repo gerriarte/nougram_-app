@@ -69,10 +69,32 @@ export const userService = {
             method: 'PUT',
             body: JSON.stringify({
                 full_name: updates.fullName,
+                job_title: updates.job_title,
+                specialty: updates.specialty,
+                bio: updates.bio,
+                linkedin_url: updates.linkedin_url,
+                portfolio_url: updates.portfolio_url,
+                instagram_url: updates.instagram_url,
+                behance_url: updates.behance_url,
+                timezone: updates.timezone,
+                language: updates.language,
             }),
         });
         if (response.error) {
             throw new Error(response.error);
         }
-    }
+    },
+
+    changePassword: async (currentPassword: string, newPassword: string): Promise<void> => {
+        const response = await apiRequest('/auth/me/change-password', {
+            method: 'POST',
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword,
+            }),
+        });
+        if (response.error) {
+            throw new Error(response.error);
+        }
+    },
 };

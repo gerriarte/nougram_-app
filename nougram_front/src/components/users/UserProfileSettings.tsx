@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { userService } from '@/services/userService';
 import {
     User, Mail, Briefcase, Award, Linkedin,
-    Globe, Github, Camera, Shield, Save,
+    Globe, Instagram, Shield, Save,
     Calendar, Languages, Clock, CheckCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,12 +23,35 @@ export function UserProfileSettings() {
         bio: user?.bio || '',
         linkedin_url: user?.linkedin_url || '',
         portfolio_url: user?.portfolio_url || '',
-        github_url: user?.github_url || '',
+        instagram_url: user?.instagram_url || '',
         behance_url: user?.behance_url || '',
         timezone: user?.timezone || 'America/Bogota',
         language: user?.language || 'es'
     });
     const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const [passwordData, setPasswordData] = useState({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+    });
+    const [passwordStatus, setPasswordStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!user) return;
+        setFormData({
+            fullName: user.fullName || '',
+            job_title: user.job_title || '',
+            specialty: user.specialty || '',
+            bio: user.bio || '',
+            linkedin_url: user.linkedin_url || '',
+            portfolio_url: user.portfolio_url || '',
+            instagram_url: user.instagram_url || '',
+            behance_url: user.behance_url || '',
+            timezone: user.timezone || 'America/Bogota',
+            language: user.language || 'es',
+        });
+    }, [user]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -46,6 +69,50 @@ export function UserProfileSettings() {
         }
     };
 
+    const handleChangePassword = async () => {
+        setPasswordStatus('saving');
+        setPasswordMessage(null);
+
+        if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+            setPasswordStatus('error');
+            setPasswordMessage('Completa todos los campos de contraseña.');
+            return;
+        }
+        if (passwordData.newPassword.length < 8) {
+            setPasswordStatus('error');
+            setPasswordMessage('La nueva contraseña debe tener mínimo 8 caracteres.');
+            return;
+        }
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            setPasswordStatus('error');
+            setPasswordMessage('La confirmación no coincide con la nueva contraseña.');
+            return;
+        }
+
+        try {
+            await userService.changePassword(passwordData.currentPassword, passwordData.newPassword);
+            setPasswordStatus('success');
+            setPasswordMessage('Contraseña actualizada correctamente.');
+            setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+            setTimeout(() => {
+                setPasswordStatus('idle');
+                setPasswordMessage(null);
+            }, 2200);
+        } catch (error) {
+            setPasswordStatus('error');
+            setPasswordMessage(error instanceof Error ? error.message : 'No se pudo actualizar la contraseña.');
+        }
+    };
+
+    const userInitials = user?.fullName
+        ? user.fullName
+            .split(' ')
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase())
+            .join('')
+        : 'U';
+
     return (
         <form onSubmit={handleSave} className="space-y-10">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -56,17 +123,8 @@ export function UserProfileSettings() {
                         <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-blue-500/10 to-indigo-600/10 animate-pulse" />
 
                         <div className="relative mt-4 mb-8">
-                            <div className="w-32 h-32 rounded-[2.5rem] bg-white p-1 shadow-2xl mx-auto group-hover:rotate-2 transition-transform duration-500 overflow-hidden ring-4 ring-white/50">
-                                <div className="w-full h-full rounded-[2.2rem] bg-gray-100 flex items-center justify-center text-gray-400 overflow-hidden relative">
-                                    {user?.avatarUrl ? (
-                                        <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <User size={48} strokeWidth={1.5} />
-                                    )}
-                                    <button type="button" className="absolute inset-0 bg-black/20 backdrop-blur-sm opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
-                                        <Camera size={24} strokeWidth={1.5} />
-                                    </button>
-                                </div>
+                            <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-primary to-secondary text-white flex items-center justify-center text-2xl font-bold shadow-lg">
+                                {userInitials}
                             </div>
                         </div>
 
@@ -105,9 +163,39 @@ export function UserProfileSettings() {
                             <h4 className="font-bold text-lg text-gray-900">Seguridad</h4>
                             <p className="text-system-gray text-sm font-medium leading-relaxed mt-1">Protege tu acceso y mantén tus datos a salvo.</p>
                         </div>
-                        <Button type="button" variant="secondary" className="w-full bg-white border border-gray-100 font-bold rounded-xl h-12 shadow-sm">
-                            Cambiar Contraseña
+                        <div className="space-y-3">
+                            <Input
+                                type="password"
+                                placeholder="Contraseña actual"
+                                value={passwordData.currentPassword}
+                                onChange={e => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                            />
+                            <Input
+                                type="password"
+                                placeholder="Nueva contraseña"
+                                value={passwordData.newPassword}
+                                onChange={e => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                            />
+                            <Input
+                                type="password"
+                                placeholder="Confirmar nueva contraseña"
+                                value={passwordData.confirmPassword}
+                                onChange={e => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                            />
+                        </div>
+                        <Button
+                            type="button"
+                            onClick={() => void handleChangePassword()}
+                            disabled={passwordStatus === 'saving'}
+                            className="w-full bg-white border border-gray-100 font-bold rounded-xl h-12 shadow-sm"
+                        >
+                            {passwordStatus === 'saving' ? 'Actualizando...' : 'Cambiar contraseña'}
                         </Button>
+                        {passwordMessage && (
+                            <p className={`text-xs font-semibold ${passwordStatus === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                                {passwordMessage}
+                            </p>
+                        )}
                     </Card>
                 </div>
 
@@ -208,16 +296,50 @@ export function UserProfileSettings() {
                                 </div>
                             </div>
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black text-system-gray uppercase tracking-[0.15em] px-1">GitHub</label>
+                                <label className="text-[10px] font-black text-system-gray uppercase tracking-[0.15em] px-1">Instagram</label>
                                 <div className="relative group">
                                     <Input
-                                        value={formData.github_url}
-                                        onChange={e => setFormData({ ...formData, github_url: e.target.value })}
-                                        placeholder="github.com/usuario"
+                                        value={formData.instagram_url}
+                                        onChange={e => setFormData({ ...formData, instagram_url: e.target.value })}
+                                        placeholder="instagram.com/usuario"
                                         className="pl-12"
                                     />
-                                    <Github className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={18} strokeWidth={1.5} />
+                                    <Instagram className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={18} strokeWidth={1.5} />
                                 </div>
+                            </div>
+                        </div>
+                    </Card>
+
+                    <Card className="p-10">
+                        <div className="flex items-center gap-4 mb-10">
+                            <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-blue-600 border border-gray-100 shadow-sm">
+                                <Languages size={24} strokeWidth={1.5} />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-900 tracking-tight leading-none">Preferencias</h2>
+                                <p className="text-system-gray font-medium text-sm mt-1.5">Configuración regional de tu perfil.</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-system-gray uppercase tracking-[0.15em] px-1">Zona horaria</label>
+                                <Input
+                                    value={formData.timezone}
+                                    onChange={e => setFormData({ ...formData, timezone: e.target.value })}
+                                    placeholder="America/Bogota"
+                                />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-system-gray uppercase tracking-[0.15em] px-1">Idioma</label>
+                                <select
+                                    value={formData.language}
+                                    onChange={e => setFormData({ ...formData, language: e.target.value })}
+                                    className="w-full h-12 rounded-2xl border border-transparent bg-gray-200/50 px-4 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500/50 outline-none"
+                                >
+                                    <option value="es">Español</option>
+                                    <option value="en">English</option>
+                                </select>
                             </div>
                         </div>
                     </Card>

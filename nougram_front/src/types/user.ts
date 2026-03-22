@@ -24,7 +24,7 @@ export interface UserProfileExtended extends UserProfile {
     // Social links
     linkedin_url?: string;
     portfolio_url?: string;
-    github_url?: string;
+    instagram_url?: string;
     behance_url?: string;
 
     // Preferences
