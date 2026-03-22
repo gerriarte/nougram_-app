@@ -24,7 +24,9 @@ export interface QuoteItem {
     billingFrequency?: 'monthly' | 'annual';
     durationMonths?: number; // New: For recurring services
     allocations?: import('./quote-builder').ResourceAllocation[]; // New: Per-item resource allocations
-    cellAssignment?: import('./quote-builder').TeamCellAssignment;
+    teamAssignment?: import('./quote-builder').TeamAssignment;
+    // Deprecated: keep for compatibility while migrating to teamAssignment.
+    cellAssignment?: import('./quote-builder').TeamAssignment;
     projectValue?: number;   // Project Value (Selling Price)
 
     // Calculated Real-time
@@ -56,13 +58,16 @@ export interface ResourceAllocation {
     notes?: string;
 }
 
-export interface TeamCellAssignment {
+export interface TeamAssignment {
     id?: number;
     cellId: number;
     cellVersionId?: number;
     occupancyPercentage: number;
     durationMonths?: number;
 }
+
+// Deprecated alias kept for compatibility.
+export type TeamCellAssignment = TeamAssignment;
 
 export interface TeamMemberMock {
     id: number;

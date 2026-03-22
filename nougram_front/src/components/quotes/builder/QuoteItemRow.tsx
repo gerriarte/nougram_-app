@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { useNougram } from '@/context/NougramCoreContext';
 import { QuoteItem, ResourceAllocation } from '@/types/quote-builder';
-import { teamCellsService, TeamCellSummary, TeamCellVersion } from '@/services/teamCellsService';
+import { workTeamsService, TeamSummary, TeamVersion } from '@/services/workTeamsService';
 import { Trash2, Plus, Clock, Calendar } from 'lucide-react';
 import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
 
@@ -19,21 +19,22 @@ interface QuoteItemRowProps {
 export function QuoteItemRow({ item }: QuoteItemRowProps) {
     const { updateItem, removeItem, teamMembers } = useQuoteBuilder();
     const { state: coreState } = useNougram();
+    const currentAssignment = item.teamAssignment || item.cellAssignment;
     const [isAddingResource, setIsAddingResource] = useState(false);
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [newResourceHours, setNewResourceHours] = useState<number>(10);
-    const [availableCells, setAvailableCells] = useState<TeamCellSummary[]>([]);
-    const [availableVersions, setAvailableVersions] = useState<TeamCellVersion[]>([]);
-    const [selectedCellId, setSelectedCellId] = useState<number>(item.cellAssignment?.cellId || 0);
-    const [selectedVersionId, setSelectedVersionId] = useState<number>(item.cellAssignment?.cellVersionId || 0);
-    const [occupancyPercentage, setOccupancyPercentage] = useState<number>(item.cellAssignment?.occupancyPercentage || 100);
-    const [cellDurationMonths, setCellDurationMonths] = useState<number>(item.cellAssignment?.durationMonths || 1);
+    const [availableCells, setAvailableCells] = useState<TeamSummary[]>([]);
+    const [availableVersions, setAvailableVersions] = useState<TeamVersion[]>([]);
+    const [selectedCellId, setSelectedCellId] = useState<number>(currentAssignment?.cellId || 0);
+    const [selectedVersionId, setSelectedVersionId] = useState<number>(currentAssignment?.cellVersionId || 0);
+    const [occupancyPercentage, setOccupancyPercentage] = useState<number>(currentAssignment?.occupancyPercentage || 100);
+    const [cellDurationMonths, setCellDurationMonths] = useState<number>(currentAssignment?.durationMonths || 1);
 
     React.useEffect(() => {
         let mounted = true;
         const loadCells = async () => {
             if (!coreState.features.teamCellsEnabled) return;
-            const cells = await teamCellsService.listCells();
+            const cells = await workTeamsService.listTeams();
             if (mounted) setAvailableCells(cells);
         };
         void loadCells();
@@ -47,7 +48,7 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                 if (mounted) setAvailableVersions([]);
                 return;
             }
-            const versions = await teamCellsService.listCellVersions(selectedCellId);
+            const versions = await workTeamsService.listTeamVersions(selectedCellId);
             if (!mounted) return;
             setAvailableVersions(versions);
             if (!selectedVersionId && versions.length > 0) {
@@ -141,7 +142,7 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
         const estimatedHours = generatedAllocations.reduce((acc, alloc) => acc + Number(alloc.hours || 0), 0);
 
         updateItem(item.id, {
-            cellAssignment: {
+            teamAssignment: {
                 cellId: selectedCellId,
                 cellVersionId: selectedVersion.id,
                 occupancyPercentage: Math.max(0, Number(occupancyPercentage || 0)),
@@ -153,7 +154,7 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
     };
 
     const clearCellAssignment = () => {
-        updateItem(item.id, { cellAssignment: undefined });
+        updateItem(item.id, { teamAssignment: undefined, cellAssignment: undefined });
     };
 
     return (
@@ -211,7 +212,7 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                                         <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700">
                                             Asignacion por equipo
                                         </span>
-                                        {item.cellAssignment && (
+                                        {currentAssignment && (
                                             <button
                                                 type="button"
                                                 onClick={clearCellAssignment}

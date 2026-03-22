@@ -12,7 +12,7 @@ type TeamGroupListResponse = {
     total: number;
 };
 
-export type TeamCellSummary = {
+export type TeamSummary = {
     id: number;
     group_id: number;
     name: string;
@@ -21,11 +21,11 @@ export type TeamCellSummary = {
 };
 
 type TeamCellListResponse = {
-    items: TeamCellSummary[];
+    items: TeamSummary[];
     total: number;
 };
 
-export type TeamCellVersionMember = {
+export type TeamVersionMember = {
     id: number;
     team_member_id: number;
     weight: string | number;
@@ -33,16 +33,16 @@ export type TeamCellVersionMember = {
     is_active: boolean;
 };
 
-export type TeamCellVersion = {
+export type TeamVersion = {
     id: number;
     cell_id: number;
     version_number: number;
     status: string;
-    members: TeamCellVersionMember[];
+    members: TeamVersionMember[];
 };
 
 type TeamCellVersionListResponse = {
-    items: TeamCellVersion[];
+    items: TeamVersion[];
     total: number;
 };
 
@@ -59,7 +59,7 @@ type TeamCellCreatePayload = {
     is_active?: boolean;
 };
 
-export type TeamCellPublishMemberInput = {
+export type TeamPublishMemberInput = {
     team_member_id: number;
     weight: string;
     role_override?: string | null;
@@ -67,17 +67,17 @@ export type TeamCellPublishMemberInput = {
 };
 
 type TeamCellPublishVersionPayload = {
-    members: TeamCellPublishMemberInput[];
+    members: TeamPublishMemberInput[];
     notes?: string;
 };
 
-type TeamCellVersionResponse = TeamCellVersion;
+type TeamCellVersionResponse = TeamVersion;
 
 let cachedGroups: TeamGroup[] | null = null;
-let cachedCells: TeamCellSummary[] | null = null;
-const cachedVersionsByCell = new Map<number, TeamCellVersion[]>();
+let cachedCells: TeamSummary[] | null = null;
+const cachedVersionsByCell = new Map<number, TeamVersion[]>();
 
-export const teamCellsService = {
+export const workTeamsService = {
     async listGroups(forceRefresh = false): Promise<TeamGroup[]> {
         if (!forceRefresh && cachedGroups) return cachedGroups;
         const response = await apiRequest<TeamGroupListResponse>('/settings/team-groups?include_inactive=false');
@@ -99,7 +99,7 @@ export const teamCellsService = {
         return response.data;
     },
 
-    async listCells(forceRefresh = false): Promise<TeamCellSummary[]> {
+    async listTeams(forceRefresh = false): Promise<TeamSummary[]> {
         if (!forceRefresh && cachedCells) return cachedCells;
         const response = await apiRequest<TeamCellListResponse>('/settings/team-cells?include_inactive=false');
         if (response.error || !response.data?.items) return [];
@@ -107,8 +107,8 @@ export const teamCellsService = {
         return cachedCells;
     },
 
-    async createCell(payload: TeamCellCreatePayload): Promise<TeamCellSummary | null> {
-        const response = await apiRequest<TeamCellSummary>('/settings/team-cells', {
+    async createTeam(payload: TeamCellCreatePayload): Promise<TeamSummary | null> {
+        const response = await apiRequest<TeamSummary>('/settings/team-cells', {
             method: 'POST',
             body: JSON.stringify({
                 ...payload,
@@ -120,23 +120,35 @@ export const teamCellsService = {
         return response.data;
     },
 
-    async listCellVersions(cellId: number, forceRefresh = false): Promise<TeamCellVersion[]> {
-        if (!forceRefresh && cachedVersionsByCell.has(cellId)) {
-            return cachedVersionsByCell.get(cellId) || [];
+    async listTeamVersions(teamId: number, forceRefresh = false): Promise<TeamVersion[]> {
+        if (!forceRefresh && cachedVersionsByCell.has(teamId)) {
+            return cachedVersionsByCell.get(teamId) || [];
         }
-        const response = await apiRequest<TeamCellVersionListResponse>(`/settings/team-cells/${cellId}/versions`);
+        const response = await apiRequest<TeamCellVersionListResponse>(`/settings/team-cells/${teamId}/versions`);
         if (response.error || !response.data?.items) return [];
-        cachedVersionsByCell.set(cellId, response.data.items);
+        cachedVersionsByCell.set(teamId, response.data.items);
         return response.data.items;
     },
 
-    async publishVersion(cellId: number, payload: TeamCellPublishVersionPayload): Promise<TeamCellVersionResponse | null> {
-        const response = await apiRequest<TeamCellVersionResponse>(`/settings/team-cells/${cellId}/publish-version`, {
+    async publishVersion(teamId: number, payload: TeamCellPublishVersionPayload): Promise<TeamCellVersionResponse | null> {
+        const response = await apiRequest<TeamCellVersionResponse>(`/settings/team-cells/${teamId}/publish-version`, {
             method: 'POST',
             body: JSON.stringify(payload),
         });
         if (response.error || !response.data) return null;
-        cachedVersionsByCell.delete(cellId);
+        cachedVersionsByCell.delete(teamId);
         return response.data;
     },
+};
+
+// Backward compatibility aliases while transitioning from "cell" to "team".
+export type TeamCellSummary = TeamSummary;
+export type TeamCellVersionMember = TeamVersionMember;
+export type TeamCellVersion = TeamVersion;
+export type TeamCellPublishMemberInput = TeamPublishMemberInput;
+export const teamCellsService = {
+    ...workTeamsService,
+    listCells: workTeamsService.listTeams,
+    createCell: workTeamsService.createTeam,
+    listCellVersions: workTeamsService.listTeamVersions,
 };

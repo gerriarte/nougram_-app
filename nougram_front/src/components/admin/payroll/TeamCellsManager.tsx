@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { teamService } from '@/services/teamService';
 import {
-    TeamCellPublishMemberInput,
-    TeamCellSummary,
-    TeamCellVersion,
+    TeamPublishMemberInput,
+    TeamSummary,
+    TeamVersion,
     TeamGroup,
-    teamCellsService
-} from '@/services/teamCellsService';
+    workTeamsService
+} from '@/services/workTeamsService';
 
 type VersionMemberDraft = {
     team_member_id: number;
@@ -34,8 +34,8 @@ export function TeamCellsManager() {
     const [success, setSuccess] = React.useState<string | null>(null);
 
     const [groups, setGroups] = React.useState<TeamGroup[]>([]);
-    const [cells, setCells] = React.useState<TeamCellSummary[]>([]);
-    const [versions, setVersions] = React.useState<TeamCellVersion[]>([]);
+    const [cells, setCells] = React.useState<TeamSummary[]>([]);
+    const [versions, setVersions] = React.useState<TeamVersion[]>([]);
     const [members, setMembers] = React.useState<Array<{ id: number; name: string; role: string; isActive: boolean }>>([]);
 
     const [newGroupName, setNewGroupName] = React.useState('');
@@ -61,8 +61,8 @@ export function TeamCellsManager() {
         setError(null);
         try {
             const [loadedGroups, loadedCells, loadedMembers] = await Promise.all([
-                teamCellsService.listGroups(true),
-                teamCellsService.listCells(true),
+                workTeamsService.listGroups(true),
+                workTeamsService.listTeams(true),
                 teamService.getAll(),
             ]);
             setGroups(loadedGroups);
@@ -89,7 +89,7 @@ export function TeamCellsManager() {
             setVersions([]);
             return;
         }
-        const loaded = await teamCellsService.listCellVersions(cellId, true);
+        const loaded = await workTeamsService.listTeamVersions(cellId, true);
         setVersions(loaded);
     }, []);
 
@@ -114,7 +114,7 @@ export function TeamCellsManager() {
         }
         setSubmitting(true);
         try {
-            const created = await teamCellsService.createGroup({
+            const created = await workTeamsService.createGroup({
                 name: newGroupName.trim(),
                 description: newGroupDescription.trim() || undefined,
             });
@@ -143,7 +143,7 @@ export function TeamCellsManager() {
         }
         setSubmitting(true);
         try {
-            const created = await teamCellsService.createCell({
+            const created = await workTeamsService.createTeam({
                 group_id: newCellGroupId,
                 name: newCellName.trim(),
                 description: newCellDescription.trim() || undefined,
@@ -181,7 +181,7 @@ export function TeamCellsManager() {
             return;
         }
 
-        const normalizedMembers: TeamCellPublishMemberInput[] = versionMembers.map((item) => ({
+        const normalizedMembers: TeamPublishMemberInput[] = versionMembers.map((item) => ({
             team_member_id: Number(item.team_member_id),
             weight: item.weight,
             role_override: item.role_override.trim() || null,
@@ -202,7 +202,7 @@ export function TeamCellsManager() {
 
         setSubmitting(true);
         try {
-            const published = await teamCellsService.publishVersion(selectedCellId, {
+            const published = await workTeamsService.publishVersion(selectedCellId, {
                 members: normalizedMembers,
                 notes: versionNotes.trim() || undefined,
             });

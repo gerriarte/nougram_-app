@@ -253,6 +253,7 @@ function resolveRecurringPrice(item: QuoteItem): number | undefined {
 }
 
 function mapQuoteItemToApi(item: QuoteItem) {
+    const assignment = item.teamAssignment || item.cellAssignment;
     return {
         service_id: item.serviceId,
         estimated_hours: resolveEstimatedHours(item),
@@ -269,12 +270,12 @@ function mapQuoteItemToApi(item: QuoteItem) {
             start_date: alloc.startDate,
             end_date: alloc.endDate,
         })),
-        cell_assignment: item.cellAssignment
+        cell_assignment: assignment
             ? {
-                cell_id: item.cellAssignment.cellId,
-                cell_version_id: item.cellAssignment.cellVersionId,
-                occupancy_percentage: item.cellAssignment.occupancyPercentage,
-                duration_months: item.cellAssignment.durationMonths || 1,
+                cell_id: assignment.cellId,
+                cell_version_id: assignment.cellVersionId,
+                occupancy_percentage: assignment.occupancyPercentage,
+                duration_months: assignment.durationMonths || 1,
             }
             : undefined,
     };
@@ -778,7 +779,7 @@ export const quoteService = {
                     startDate: alloc.start_date,
                     endDate: alloc.end_date,
                 })).filter((alloc) => Number.isFinite(alloc.teamMemberId) && Number.isFinite(alloc.hours) && alloc.hours > 0),
-                cellAssignment: item.cell_assignment
+                teamAssignment: item.cell_assignment
                     ? {
                         id: item.cell_assignment.id,
                         cellId: Number(item.cell_assignment.cell_id),
