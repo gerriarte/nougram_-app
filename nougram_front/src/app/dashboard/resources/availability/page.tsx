@@ -3,22 +3,62 @@
 
 import React from 'react';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
-import { TeamAvailabilityDashboard } from '@/components/quotes/builder/TeamAvailabilityDashboard';
-import { AllocationTimeline } from '@/components/quotes/builder/AllocationTimeline';
-import { useResourceAllocation } from '@/hooks/useResourceAllocation';
-import { Users, Filter, Calendar } from 'lucide-react';
+import { BarChart3, Calendar, Filter, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { capacityService, type CapacityState } from '@/services/capacityService';
+
+const ALL_STATES: CapacityState[] = ['tentative', 'committed', 'actual'];
+
+function currentMonthRange(): { start: string; end: string } {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    const start = new Date(Date.UTC(year, month, 1));
+    const end = new Date(Date.UTC(year, month + 1, 0));
+    const toISODate = (d: Date) => d.toISOString().split('T')[0];
+    return { start: toISODate(start), end: toISODate(end) };
+}
+
+function formatHours(value: number): string {
+    return `${value.toFixed(1)}h`;
+}
 
 export default function AvailabilityPage() {
-    const { teamMembers, loading, getUtilization } = useResourceAllocation();
+    const defaultRange = React.useMemo(() => currentMonthRange(), []);
+    const [periodStart, setPeriodStart] = React.useState(defaultRange.start);
+    const [periodEnd, setPeriodEnd] = React.useState(defaultRange.end);
+    const [selectedStates, setSelectedStates] = React.useState<CapacityState[]>(ALL_STATES);
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState<string | null>(null);
+    const [overview, setOverview] = React.useState<Awaited<ReturnType<typeof capacityService.getOverview>> | null>(null);
 
-    // In a real app, this would fetch ALL allocations from all projects.
-    // For this mock implementation, we assume the service provides global data
-    // or we use dummy data for the dashboard.
-    const mockGlobalAllocations = [
-        { id: '1', teamMemberId: 1, hours: 40, role: 'Lead Dev', startDate: '2026-02-01', endDate: '2026-02-28' },
-        { id: '2', teamMemberId: 2, hours: 20, role: 'Designer', startDate: '2026-02-05', endDate: '2026-02-15' },
-    ];
+    const loadOverview = React.useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await capacityService.getOverview(periodStart, periodEnd, selectedStates);
+            setOverview(data);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Error cargando capacidad.';
+            setError(message);
+        } finally {
+            setLoading(false);
+        }
+    }, [periodStart, periodEnd, selectedStates]);
+
+    React.useEffect(() => {
+        void loadOverview();
+    }, [loadOverview]);
+
+    const toggleState = (state: CapacityState) => {
+        setSelectedStates((prev) => {
+            if (prev.includes(state)) {
+                const next = prev.filter((s) => s !== state);
+                return next.length > 0 ? next : prev;
+            }
+            return [...prev, state];
+        });
+    };
 
     if (loading) {
         return (
@@ -33,54 +73,175 @@ export default function AvailabilityPage() {
     return (
         <AdminLayout>
             <div className="space-y-8 pb-20">
-                {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-black text-gray-900 tracking-tight">Capacidad del Equipo</h1>
-                        <p className="text-gray-500 font-medium">Visualización global de carga de trabajo y disponibilidad.</p>
+                        <p className="text-gray-500 font-medium">Seguimiento de ocupación por periodo y estado operativo.</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <Button variant="secondary" className="flex items-center gap-2">
-                            <Filter size={16} />
-                            Filtros
-                        </Button>
-                        <Button className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 shadow-lg shadow-blue-100">
-                            <Calendar size={16} />
-                            Planificar Mes
+                        <Button variant="secondary" className="flex items-center gap-2" onClick={() => void loadOverview()}>
+                            <RefreshCw size={16} />
+                            Actualizar
                         </Button>
                     </div>
                 </div>
 
-                {/* Main Content */}
-                <div className="grid grid-cols-1 gap-8">
-                    {/* Summary Widgets could go here */}
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Filter size={16} className="text-gray-500" />
+                        <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Filtros</h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500">Desde</label>
+                            <input
+                                type="date"
+                                value={periodStart}
+                                onChange={(e) => setPeriodStart(e.target.value)}
+                                className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500">Hasta</label>
+                            <input
+                                type="date"
+                                value={periodEnd}
+                                onChange={(e) => setPeriodEnd(e.target.value)}
+                                className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500">Estados</label>
+                            <div className="h-9 rounded-md border border-gray-200 px-3 flex items-center gap-3">
+                                {ALL_STATES.map((state) => (
+                                    <label key={state} className="text-xs text-gray-700 flex items-center gap-1.5">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedStates.includes(state)}
+                                            onChange={() => toggleState(state)}
+                                        />
+                                        {state}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <Button className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2" onClick={() => void loadOverview()}>
+                            <Calendar size={14} />
+                            Aplicar filtros
+                        </Button>
+                    </div>
+                </div>
 
-                    <TeamAvailabilityDashboard
-                        membersOverride={teamMembers}
-                        utilizationCalcOverride={(id) => {
-                            const member = teamMembers.find(m => m.id === id);
-                            if (!member) return { capacity: 0, used: 0, percentage: 0 };
-                            // Using local mockGlobalAllocations for this view
-                            const used = mockGlobalAllocations
-                                .filter(a => a.teamMemberId === id)
-                                .reduce((sum, a) => sum + a.hours, 0);
-                            return {
-                                capacity: member.availableHours,
-                                used,
-                                percentage: (used / member.availableHours) * 100
-                            };
-                        }}
-                    />
+                {error && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+                        {error}
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <p className="text-xs text-gray-500 font-semibold uppercase">Tentative</p>
+                        <p className="text-xl font-black text-gray-900">{formatHours(overview?.totals.tentativeHours || 0)}</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <p className="text-xs text-gray-500 font-semibold uppercase">Committed</p>
+                        <p className="text-xl font-black text-gray-900">{formatHours(overview?.totals.committedHours || 0)}</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <p className="text-xs text-gray-500 font-semibold uppercase">Actual</p>
+                        <p className="text-xl font-black text-gray-900">{formatHours(overview?.totals.actualHours || 0)}</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <p className="text-xs text-gray-500 font-semibold uppercase">Total</p>
+                        <p className="text-xl font-black text-blue-700">{formatHours(overview?.totals.totalHours || 0)}</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-8">
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-5 shadow-sm">
+                        <div className="flex items-center gap-2 px-1 mb-3">
+                            <BarChart3 size={18} className="text-gray-400" />
+                            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Resumen por Miembro</h2>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 text-gray-600">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left font-semibold">Miembro</th>
+                                        <th className="px-4 py-3 text-left font-semibold">Rol</th>
+                                        <th className="px-4 py-3 text-right font-semibold">Capacidad</th>
+                                        <th className="px-4 py-3 text-right font-semibold">Tentative</th>
+                                        <th className="px-4 py-3 text-right font-semibold">Committed</th>
+                                        <th className="px-4 py-3 text-right font-semibold">Actual</th>
+                                        <th className="px-4 py-3 text-right font-semibold">Utilización</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(overview?.members || []).length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
+                                                No hay ocupación por miembro en el periodo seleccionado.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        (overview?.members || []).map((member) => (
+                                            <tr key={member.teamMemberId} className="border-t border-gray-100">
+                                                <td className="px-4 py-3 font-medium text-gray-900">{member.name}</td>
+                                                <td className="px-4 py-3 text-gray-600">{member.role}</td>
+                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(member.capacityHours)}</td>
+                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(member.tentativeHours)}</td>
+                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(member.committedHours)}</td>
+                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(member.actualHours)}</td>
+                                                <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                                                    {(member.utilizationRatio * 100).toFixed(1)}%
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 px-1">
-                            <Users size={18} className="text-gray-400" />
-                            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Cronograma Global</h2>
+                            <BarChart3 size={18} className="text-gray-400" />
+                            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Resumen por Célula</h2>
                         </div>
-                        <AllocationTimeline
-                            allocationsOverride={mockGlobalAllocations as any}
-                            membersOverride={teamMembers}
-                        />
+                        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 text-gray-600">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left font-semibold">Célula</th>
+                                        <th className="px-4 py-3 text-right font-semibold">Tentative</th>
+                                        <th className="px-4 py-3 text-right font-semibold">Committed</th>
+                                        <th className="px-4 py-3 text-right font-semibold">Actual</th>
+                                        <th className="px-4 py-3 text-right font-semibold">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(overview?.cells || []).length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+                                                No hay ocupación por célula en el periodo seleccionado.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        (overview?.cells || []).map((cell) => (
+                                            <tr key={cell.cellId} className="border-t border-gray-100">
+                                                <td className="px-4 py-3 font-medium text-gray-900">{cell.cellName}</td>
+                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(cell.tentativeHours)}</td>
+                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(cell.committedHours)}</td>
+                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(cell.actualHours)}</td>
+                                                <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatHours(cell.totalHours)}</td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
