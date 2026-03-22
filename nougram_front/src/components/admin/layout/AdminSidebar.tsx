@@ -16,7 +16,8 @@ import {
     PanelLeftOpen,
     ShieldCheck,
     Receipt,
-    Calculator
+    Calculator,
+    BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -41,6 +42,7 @@ export function AdminSidebar({ isCollapsed, onToggleCollapse }: AdminSidebarProp
         { label: 'Dashboard & Pipeline', href: '/dashboard', icon: LayoutDashboard },
         { label: 'Gestión de Clientes', href: '/dashboard/clients', icon: UserCircle2 },
         { label: 'Nómina (Equipo)', href: '/admin/payroll', icon: UsersRound },
+        { label: 'Capacidad del Equipo', href: '/dashboard/resources/availability', icon: BarChart3 },
         { label: 'Inventario de Gastos', href: '/admin/overhead', icon: Building2 },
         { label: 'Impuestos', href: '/admin/taxes', icon: Receipt },
         ...(showOperationalCosts

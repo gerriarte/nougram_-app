@@ -3,7 +3,7 @@ Main API router for v1
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, costs, team, services, quotes, projects, clients, insights, integrations, settings, taxes, maintenance, delete_requests, users, ai, organizations, templates, billing, stripe_webhooks, credits, support, invitations, expenses, sales_projection, annual_projection, onboarding, dashboard, equipment, proposals, proposal_portal, admin
+from app.api.v1.endpoints import auth, costs, team, team_cells, services, quotes, projects, clients, insights, integrations, settings, taxes, maintenance, delete_requests, users, ai, organizations, templates, billing, stripe_webhooks, credits, support, invitations, expenses, sales_projection, annual_projection, onboarding, dashboard, equipment, proposals, proposal_portal, admin
 
 api_router = APIRouter()
 
@@ -11,6 +11,7 @@ api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
 api_router.include_router(costs.router, prefix="/settings", tags=["costs"])
 api_router.include_router(team.router, prefix="/settings", tags=["team"])
+api_router.include_router(team_cells.router, prefix="/settings", tags=["team-cells"])
 api_router.include_router(equipment.router, prefix="/settings", tags=["equipment"])
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
 api_router.include_router(services.router, prefix="/services", tags=["services"])

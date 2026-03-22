@@ -24,6 +24,7 @@ export interface QuoteItem {
     billingFrequency?: 'monthly' | 'annual';
     durationMonths?: number; // New: For recurring services
     allocations?: import('./quote-builder').ResourceAllocation[]; // New: Per-item resource allocations
+    teamAssignment?: import('./quote-builder').TeamAssignment;
     projectValue?: number;   // Project Value (Selling Price)
 
     // Calculated Real-time
@@ -53,6 +54,14 @@ export interface ResourceAllocation {
     startDate?: string; // ISO Date YYYY-MM-DD
     endDate?: string;   // ISO Date YYYY-MM-DD
     notes?: string;
+}
+
+export interface TeamAssignment {
+    id?: number;
+    cellId: number;
+    cellVersionId?: number;
+    occupancyPercentage: number;
+    durationMonths?: number;
 }
 
 export interface TeamMemberMock {

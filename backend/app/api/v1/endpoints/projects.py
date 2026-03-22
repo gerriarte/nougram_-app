@@ -25,8 +25,10 @@ from app.core.permissions import can_create, can_edit, can_delete, PermissionErr
 from app.core.permission_middleware import require_create_projects
 from app.repositories.factory import RepositoryFactory
 from app.models.role import DeleteRequest, DeleteRequestStatus
-from app.models.project import Project, Quote, QuoteItem, QuoteItemAllocation, QuoteExpense, project_taxes
+from app.models.project import Project, Quote, QuoteItem, QuoteItemAllocation, QuoteItemCellAssignment, QuoteExpense, project_taxes
 from app.models.service import Service
+from app.models.team import TeamMember
+from app.models.team_cells import TeamCellVersion
 from app.models.tax import Tax
 from app.models.user import User
 from sqlalchemy import insert, delete as sql_delete
@@ -47,8 +49,111 @@ from app.schemas.project import (
 )
 from app.schemas.quote import QuoteEmailRequest, QuoteEmailResponse, QuoteExpenseCreate, QuoteExpenseResponse, MarginSummary
 from app.services.settings_service import SettingsService
+from app.services.capacity_service import CapacityService
 
 router = APIRouter()
+
+
+async def _get_cell_version_for_quote(
+    db: AsyncSession,
+    organization_id: int,
+    cell_id: int,
+    cell_version_id: Optional[int],
+    cache: dict[tuple[int, Optional[int]], TeamCellVersion],
+) -> TeamCellVersion:
+    cache_key = (cell_id, cell_version_id)
+    if cache_key in cache:
+        return cache[cache_key]
+
+    query = (
+        select(TeamCellVersion)
+        .where(
+            TeamCellVersion.organization_id == organization_id,
+            TeamCellVersion.cell_id == cell_id,
+        )
+        .options(selectinload(TeamCellVersion.members))
+        .order_by(TeamCellVersion.version_number.desc())
+    )
+    if cell_version_id is not None:
+        query = query.where(TeamCellVersion.id == cell_version_id)
+    result = await db.execute(query)
+    version = result.scalar_one_or_none()
+    if not version:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cell version not found for cell_id={cell_id}")
+    cache[cache_key] = version
+    return version
+
+
+async def _expand_cell_assignment_for_quote(
+    db: AsyncSession,
+    organization_id: int,
+    cell_assignment,
+    cache: dict[tuple[int, Optional[int]], TeamCellVersion],
+) -> tuple[TeamCellVersion, list[dict], Decimal]:
+    if not settings.FEATURE_TEAM_CELLS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Team cells feature is disabled for this environment.")
+
+    cell_id = int(getattr(cell_assignment, "cell_id"))
+    requested_version_id = getattr(cell_assignment, "cell_version_id", None)
+    occupancy_pct = Decimal(str(getattr(cell_assignment, "occupancy_percentage", 0)))
+    duration_months = int(getattr(cell_assignment, "duration_months", 1) or 1)
+    if occupancy_pct <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="occupancy_percentage must be greater than 0")
+
+    version = await _get_cell_version_for_quote(
+        db=db,
+        organization_id=organization_id,
+        cell_id=cell_id,
+        cell_version_id=requested_version_id,
+        cache=cache,
+    )
+    active_members = [m for m in (version.members or []) if m.is_active]
+    if not active_members:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cell version {version.id} has no active members.")
+
+    member_ids = [member.team_member_id for member in active_members]
+    member_result = await db.execute(
+        select(TeamMember).where(
+            TeamMember.organization_id == organization_id,
+            TeamMember.id.in_(member_ids),
+            TeamMember.is_active == True,
+        )
+    )
+    team_members = {member.id: member for member in member_result.scalars().all()}
+    if len(team_members) != len(set(member_ids)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="One or more cell members are invalid or inactive.")
+
+    total_weight = sum(Decimal(str(member.weight or 0)) for member in active_members)
+    if total_weight <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cell version weights must be greater than 0.")
+
+    occupancy_ratio = occupancy_pct / Decimal("100")
+    allocations: list[dict] = []
+    total_hours = Decimal("0")
+    for member in active_members:
+        tm = team_members[member.team_member_id]
+        weekly_hours = Decimal(str(tm.billable_hours_per_week or 0))
+        non_billable = Decimal(str(tm.non_billable_hours_percentage or 0))
+        capacity_monthly = weekly_hours * Decimal("4.33") * (Decimal("1") - non_billable)
+        normalized_weight = Decimal(str(member.weight or 0)) / total_weight
+        hours = capacity_monthly * occupancy_ratio * Decimal(str(duration_months)) * normalized_weight
+        if hours <= 0:
+            continue
+        total_hours += hours
+        allocations.append(
+            {
+                "team_member_id": member.team_member_id,
+                "hours": hours,
+                "role": member.role_override,
+                "start_date": None,
+                "end_date": None,
+            }
+        )
+
+    if total_hours <= 0 or not allocations:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cell assignment expansion produced zero hours.")
+
+    return version, allocations, total_hours
 
 
 def _compute_quote_tax_totals(quote: Quote, project: Project) -> tuple[Decimal, Decimal]:
@@ -694,6 +799,17 @@ async def get_quote(
             recurring_price=getattr(item, 'recurring_price', None),
             billing_frequency=getattr(item, 'billing_frequency', None),
             project_value=getattr(item, 'project_value', None),
+            cell_assignment=(
+                {
+                    "id": item.cell_assignment.id,
+                    "cell_id": item.cell_assignment.cell_id,
+                    "cell_version_id": item.cell_assignment.cell_version_id,
+                    "occupancy_percentage": item.cell_assignment.occupancy_percentage,
+                    "duration_months": item.cell_assignment.duration_months,
+                }
+                if getattr(item, "cell_assignment", None) is not None
+                else None
+            ),
             internal_cost=item.internal_cost,
             client_price=item.client_price,
             margin_percentage=item.margin_percentage,
@@ -865,10 +981,21 @@ async def update_quote(
         
         # Calculate new totals (using enhanced function - Sprint 14-16)
         items_dict = []
+        cell_version_cache: dict[tuple[int, Optional[int]], TeamCellVersion] = {}
         for item in quote_data.items:
+            estimated_hours = getattr(item, 'estimated_hours', None)
+            cell_assignment = getattr(item, "cell_assignment", None)
+            if cell_assignment is not None:
+                _, _, expanded_total_hours = await _expand_cell_assignment_for_quote(
+                    db=db,
+                    organization_id=tenant.organization_id,
+                    cell_assignment=cell_assignment,
+                    cache=cell_version_cache,
+                )
+                estimated_hours = float(expanded_total_hours)
             item_dict = {
                 "service_id": item.service_id,
-                "estimated_hours": getattr(item, 'estimated_hours', None),
+                "estimated_hours": estimated_hours,
                 "pricing_type": getattr(item, 'pricing_type', None),
                 "fixed_price": getattr(item, 'fixed_price', None),
                 "quantity": getattr(item, 'quantity', 1.0),
@@ -925,6 +1052,7 @@ async def update_quote(
         # Create new items using enhanced calculation results (Sprint 14-16)
         quote_items = []
         quote_allocations = []
+        quote_cell_assignments = []
         items_breakdown = totals.get("items", [])
         breakdown_map = {item["service_id"]: item for item in items_breakdown}
         
@@ -963,23 +1091,67 @@ async def update_quote(
             quote_items.append(quote_item)
 
             allocations = getattr(item_data, 'allocations', []) or []
+            cell_assignment = getattr(item_data, "cell_assignment", None)
+            if cell_assignment is not None:
+                version, expanded_allocations, expanded_total_hours = await _expand_cell_assignment_for_quote(
+                    db=db,
+                    organization_id=tenant.organization_id,
+                    cell_assignment=cell_assignment,
+                    cache=cell_version_cache,
+                )
+                if getattr(item_data, "estimated_hours", None) is None:
+                    quote_item.estimated_hours = expanded_total_hours
+                allocations = expanded_allocations
+                quote_cell_assignments.append(
+                    QuoteItemCellAssignment(
+                        quote_item=quote_item,
+                        cell_id=version.cell_id,
+                        cell_version_id=version.id,
+                        occupancy_percentage=getattr(cell_assignment, "occupancy_percentage"),
+                        duration_months=int(getattr(cell_assignment, "duration_months", 1) or 1),
+                    )
+                )
+
             for alloc in allocations:
+                alloc_team_member_id = getattr(alloc, "team_member_id", None)
+                alloc_hours = getattr(alloc, "hours", None)
+                alloc_role = getattr(alloc, "role", None)
+                alloc_start = getattr(alloc, "start_date", None)
+                alloc_end = getattr(alloc, "end_date", None)
+                if isinstance(alloc, dict):
+                    alloc_team_member_id = alloc.get("team_member_id")
+                    alloc_hours = alloc.get("hours")
+                    alloc_role = alloc.get("role")
+                    alloc_start = alloc.get("start_date")
+                    alloc_end = alloc.get("end_date")
                 quote_allocations.append(
                     QuoteItemAllocation(
                         quote_item=quote_item,
-                        team_member_id=alloc.team_member_id,
-                        hours=alloc.hours,
-                        role=getattr(alloc, 'role', None),
-                        start_date=getattr(alloc, 'start_date', None),
-                        end_date=getattr(alloc, 'end_date', None),
+                        team_member_id=alloc_team_member_id,
+                        hours=alloc_hours,
+                        role=alloc_role,
+                        start_date=alloc_start,
+                        end_date=alloc_end,
                     )
                 )
         
         db.add_all(quote_items)
         if quote_allocations:
             db.add_all(quote_allocations)
+        if quote_cell_assignments:
+            db.add_all(quote_cell_assignments)
         await db.commit()
         await db.refresh(quote)
+
+        try:
+            capacity_service = CapacityService(db, tenant.organization_id)
+            await capacity_service.sync_tentative_from_quote(
+                quote_id=quote.id,
+                project_id=project_id,
+                actor_user_id=current_user.id,
+            )
+        except Exception as sync_error:
+            logger.warning(f"Failed to sync tentative capacity on quote update {quote.id}: {sync_error}")
         
         # Build response
         quote_result = await db.execute(
@@ -988,6 +1160,7 @@ async def update_quote(
             .options(
                 selectinload(Quote.items).selectinload(QuoteItem.service),
                 selectinload(Quote.items).selectinload(QuoteItem.allocations),
+                selectinload(Quote.items).selectinload(QuoteItem.cell_assignment),
             )
         )
         updated_quote = quote_result.scalar_one()
@@ -1005,6 +1178,17 @@ async def update_quote(
                 recurring_price=getattr(item, 'recurring_price', None),
                 billing_frequency=getattr(item, 'billing_frequency', None),
                 project_value=getattr(item, 'project_value', None),
+                cell_assignment=(
+                    {
+                        "id": item.cell_assignment.id,
+                        "cell_id": item.cell_assignment.cell_id,
+                        "cell_version_id": item.cell_assignment.cell_version_id,
+                        "occupancy_percentage": item.cell_assignment.occupancy_percentage,
+                        "duration_months": item.cell_assignment.duration_months,
+                    }
+                    if getattr(item, "cell_assignment", None) is not None
+                    else None
+                ),
                 internal_cost=item.internal_cost,
                 client_price=item.client_price,
                 margin_percentage=item.margin_percentage,

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
+import { useNougram } from '@/context/NougramCoreContext';
 import { ResourceAllocationModal } from './ResourceAllocationModal';
 import { ResourceAllocation } from '@/types/quote-builder';
 import { Trash2, Edit2, Users, Activity, AlertCircle, Calendar, Plus, UserPlus, Clock } from 'lucide-react';
@@ -19,6 +20,7 @@ export function ResourceAllocationSection() {
         removeResourceAllocation,
         getMemberUtilization
     } = useQuoteBuilder();
+    const { state: coreState } = useNougram();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAllocation, setEditingAllocation] = useState<ResourceAllocation | null>(null);
@@ -66,6 +68,16 @@ export function ResourceAllocationSection() {
                                 </label>
                             </div>
                             <p className="text-sm text-gray-500 font-medium mt-1">Gestión avanzada de capacidad y cronogramas del equipo.</p>
+                            <div className="mt-2 flex items-center gap-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                                    Modo {coreState.features.resourcePlanningMode === 'advanced' ? 'avanzado' : 'simple'}
+                                </span>
+                                {coreState.features.teamCellsEnabled && (
+                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-purple-100 text-purple-700">
+                                        Células habilitadas
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
 

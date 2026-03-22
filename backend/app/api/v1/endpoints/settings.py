@@ -15,13 +15,34 @@ from app.schemas.settings import (
     AgencySettingsResponse,
     AgencySettingsUpdate,
     ExchangeRatesResponse,
+    FeatureFlagsResponse,
 )
 from app.services.settings_service import SettingsService
 from app.services.exchange_rate_service import get_today_exchange_rates
+from app.core.config import settings
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/features", response_model=FeatureFlagsResponse)
+async def get_feature_flags(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return frontend feature flags for resource planning modules.
+
+    Occupancy tracking remains enabled in all modes; team cells can be toggled
+    independently to support simple/advanced experiences per environment.
+    """
+    _ = current_user  # Keep authenticated access for tenant-facing settings endpoints.
+    team_cells_enabled = bool(settings.FEATURE_TEAM_CELLS)
+    return FeatureFlagsResponse(
+        team_cells_enabled=team_cells_enabled,
+        resource_occupancy_enabled=True,
+        resource_planning_mode="advanced" if team_cells_enabled else "simple",
+    )
 
 
 @router.get("/currency", response_model=AgencySettingsResponse)

@@ -112,6 +112,7 @@ class QuoteItem(Base):
     quote = relationship("Quote", back_populates="items")
     service = relationship("Service")
     allocations = relationship("QuoteItemAllocation", back_populates="quote_item", cascade="all, delete-orphan")
+    cell_assignment = relationship("QuoteItemCellAssignment", back_populates="quote_item", cascade="all, delete-orphan", uselist=False)
 
 
 class QuoteItemAllocation(Base):
@@ -131,6 +132,23 @@ class QuoteItemAllocation(Base):
 
     quote_item = relationship("QuoteItem", back_populates="allocations")
     team_member = relationship("TeamMember")
+
+
+class QuoteItemCellAssignment(Base):
+    """
+    Cell-based assignment metadata for a quote item.
+    """
+    __tablename__ = "quote_item_cell_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    quote_item_id = Column(Integer, ForeignKey("quote_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    cell_id = Column(Integer, ForeignKey("team_cells.id", ondelete="RESTRICT"), nullable=False, index=True)
+    cell_version_id = Column(Integer, ForeignKey("team_cell_versions.id", ondelete="RESTRICT"), nullable=False, index=True)
+    occupancy_percentage = Column(Numeric(precision=10, scale=4), nullable=False)
+    duration_months = Column(Integer, nullable=False, default=1, server_default="1")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    quote_item = relationship("QuoteItem", back_populates="cell_assignment")
 
 
 class QuoteExpense(Base):

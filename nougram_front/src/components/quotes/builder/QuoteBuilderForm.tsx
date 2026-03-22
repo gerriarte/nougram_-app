@@ -20,7 +20,7 @@ const QUOTE_FLOW_STEPS = [
 ];
 
 export function QuoteBuilderForm() {
-    const { state, services, updateProjectInfo, addItem, summary, isValid, errors, saveQuote, paywall, clearPaywall } = useQuoteBuilder();
+    const { state, services, updateProjectInfo, addItem, isValid, errors, saveQuote, paywall, clearPaywall } = useQuoteBuilder();
     const router = useRouter();
     const [selectedBillingType, setSelectedBillingType] = React.useState<'' | 'hourly' | 'fixed' | 'recurring'>('');
 
@@ -249,14 +249,7 @@ export function QuoteBuilderForm() {
                 ) : (
                     <div className="space-y-4">
                         {state.items.map(item => {
-                            const service = services.find(s => s.id === item.serviceId) || {
-                                id: item.serviceId,
-                                name: item.serviceName || `Servicio ${item.serviceId}`,
-                                pricingType: item.pricingType,
-                                defaultMarginTarget: state.targetMargin || 0.35,
-                                isActive: false,
-                            };
-                            return <QuoteItemRow key={item.id} item={item} service={service} />;
+                            return <QuoteItemRow key={item.id} item={item} />;
                         })}
                     </div>
                 )}

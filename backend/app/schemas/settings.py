@@ -2,7 +2,7 @@
 Pydantic schemas for Agency Settings
 ESTÁNDAR NOUGRAM: Campos monetarios y tasas usan Decimal serializado como string
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Literal
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_serializer
 from app.core.currency import Currency
@@ -46,3 +46,16 @@ class ExchangeRatesResponse(BaseModel):
     """Schema for exchange rates response"""
     rates: Dict[str, ExchangeRateInfo] = Field(..., description="Exchange rates for all supported currencies")
     base_currency: str = Field(default="USD", description="Base currency for rates")
+
+
+class FeatureFlagsResponse(BaseModel):
+    """Schema for feature flags consumed by frontend modules."""
+    team_cells_enabled: bool = Field(default=False, description="Enable advanced team cells module")
+    resource_occupancy_enabled: bool = Field(
+        default=True,
+        description="Enable occupancy tracking regardless of planning mode"
+    )
+    resource_planning_mode: Literal["simple", "advanced"] = Field(
+        default="simple",
+        description="Planning mode for resource assignment UI"
+    )

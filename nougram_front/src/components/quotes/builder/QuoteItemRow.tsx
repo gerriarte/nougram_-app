@@ -7,16 +7,15 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { useNougram } from '@/context/NougramCoreContext';
-import { QuoteItem, Service, ResourceAllocation } from '@/types/quote-builder';
+import { QuoteItem, ResourceAllocation } from '@/types/quote-builder';
 import { Trash2, Plus, Clock, Calendar } from 'lucide-react';
 import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
 
 interface QuoteItemRowProps {
     item: QuoteItem;
-    service: Service;
 }
 
-export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
+export function QuoteItemRow({ item }: QuoteItemRowProps) {
     const { updateItem, removeItem, teamMembers } = useQuoteBuilder();
     const { state: coreState } = useNougram();
     const [isAddingResource, setIsAddingResource] = useState(false);
@@ -43,6 +42,7 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
         setSelectedMemberId('');
         setNewResourceHours(10);
     };
+
 
     const removeResource = (allocId: string) => {
         const currentAllocations = item.allocations || [];
@@ -202,36 +202,38 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                         <Plus size={12} className="mr-1.5" /> Agregar Recurso
                                     </Button>
                                 ) : (
-                                    <div className="flex items-end gap-2 animate-in fade-in slide-in-from-top-1">
-                                        <div className="flex-1 space-y-1">
-                                            <label className="text-[10px] font-bold text-gray-400">Miembro</label>
-                                            <select
-                                                className="w-full h-8 text-xs rounded-md border-gray-200 bg-white"
-                                                value={selectedMemberId}
-                                                onChange={e => setSelectedMemberId(Number(e.target.value))}
-                                            >
-                                                <option value="">Seleccionar...</option>
-                                                {teamMembers.map(m => (
-                                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="w-20 space-y-1">
-                                            <label className="text-[10px] font-bold text-gray-400">Horas</label>
-                                            <Input
-                                                type="number"
-                                                className="h-8 text-xs"
-                                                value={newResourceHours}
-                                                onChange={e => setNewResourceHours(Number(e.target.value))}
-                                            />
-                                        </div>
-                                        <div className="flex gap-1">
-                                            <Button size="sm" onClick={handleAddResource} disabled={!selectedMemberId} className="h-8 px-3 bg-blue-600">
-                                                ✓
-                                            </Button>
-                                            <Button size="sm" variant="ghost" onClick={() => setIsAddingResource(false)} className="h-8 px-2">
-                                                ✕
-                                            </Button>
+                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-1">
+                                        <div className="flex items-end gap-2">
+                                            <div className="flex-1 space-y-1">
+                                                <label className="text-[10px] font-bold text-gray-400">Miembro</label>
+                                                <select
+                                                    className="w-full h-8 text-xs rounded-md border-gray-200 bg-white"
+                                                    value={selectedMemberId}
+                                                    onChange={e => setSelectedMemberId(Number(e.target.value))}
+                                                >
+                                                    <option value="">Seleccionar...</option>
+                                                    {teamMembers.map(m => (
+                                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="w-20 space-y-1">
+                                                <label className="text-[10px] font-bold text-gray-400">Horas</label>
+                                                <Input
+                                                    type="number"
+                                                    className="h-8 text-xs"
+                                                    value={newResourceHours}
+                                                    onChange={e => setNewResourceHours(Number(e.target.value))}
+                                                />
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <Button size="sm" onClick={handleAddResource} disabled={!selectedMemberId} className="h-8 px-3 bg-blue-600">
+                                                    + Miembro
+                                                </Button>
+                                                <Button size="sm" variant="ghost" onClick={() => setIsAddingResource(false)} className="h-8 px-2">
+                                                    ✕
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
