@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { QuoteCard, Quote } from '@/components/dashboard/QuoteCard';
 import { KPIWidgets } from '@/components/dashboard/KPIWidgets';
-import { Search, Plus, Layout, List, Copy, Link as LinkIcon, KeyRound } from 'lucide-react';
+import { Search, Plus, Layout, List, Copy, Link as LinkIcon, KeyRound, SlidersHorizontal, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useQuotePipeline } from '@/hooks/useQuotePipeline';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { proposalService } from '@/services/proposalService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
+import { toast } from 'sonner';
 
 export function QuotePipeline() {
     const {
@@ -45,6 +46,42 @@ export function QuotePipeline() {
         accessExpiresAt?: string;
     } | null>(null);
     const [publicAccessError, setPublicAccessError] = useState<string | null>(null);
+    const [kpiFilterModalOpen, setKpiFilterModalOpen] = useState(false);
+    const [kpiDraftFilter, setKpiDraftFilter] = useState(kpiFilter);
+    const [isApplyingKpiFilter, setIsApplyingKpiFilter] = useState(false);
+
+    const openKpiFilterModal = () => {
+        setKpiDraftFilter(kpiFilter);
+        setKpiFilterModalOpen(true);
+    };
+
+    const applyKpiFilter = () => {
+        setIsApplyingKpiFilter(true);
+        updateKpiFilter(kpiDraftFilter);
+    };
+
+    const kpiFilterLabel = kpiFilter.rangeMode === 'relative'
+        ? `Últimos ${kpiFilter.monthsBack} mes${kpiFilter.monthsBack === 1 ? '' : 'es'}`
+        : (kpiFilter.customStart && kpiFilter.customEnd
+            ? `${kpiFilter.customStart} → ${kpiFilter.customEnd}`
+            : 'Rango personalizado');
+
+    useEffect(() => {
+        if (isApplyingKpiFilter && !kpiLoading) {
+            if (kpiError) {
+                toast.error('No se pudo aplicar el filtro KPI', {
+                    description: kpiError,
+                });
+                setIsApplyingKpiFilter(false);
+                return;
+            }
+            toast.success('Filtro KPI aplicado', {
+                description: `Rango activo: ${kpiFilterLabel}`,
+            });
+            setKpiFilterModalOpen(false);
+            setIsApplyingKpiFilter(false);
+        }
+    }, [isApplyingKpiFilter, kpiLoading, kpiError, kpiFilterLabel]);
 
     const copyToClipboard = async (value: string) => {
         try {
@@ -106,82 +143,29 @@ export function QuotePipeline() {
 
     return (
         <div className="space-y-12 pb-20">
-            {/* 1. KPIs + temporal filter */}
+            {/* 1. KPIs */}
             <div className="space-y-6">
-                <div className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white/70 p-4 md:p-5 shadow-sm">
-                    <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-900 tracking-tight">Indicadores (KPI)</h2>
-                            <p className="text-sm text-gray-500 mt-1 max-w-xl">
-                                Última cotización por proyecto, sin borradores. Filtro por fecha de actualización de la cotización.
-                            </p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <div className="inline-flex rounded-xl bg-gray-100/80 p-1">
-                                <button
-                                    type="button"
-                                    onClick={() => updateKpiFilter({ rangeMode: 'relative' })}
-                                    className={cn(
-                                        'px-4 py-2 text-xs font-bold rounded-lg transition-all',
-                                        kpiFilter.rangeMode === 'relative'
-                                            ? 'bg-white text-gray-900 shadow-sm'
-                                            : 'text-gray-500 hover:text-gray-800'
-                                    )}
-                                >
-                                    Últimos N meses
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => updateKpiFilter({ rangeMode: 'custom' })}
-                                    className={cn(
-                                        'px-4 py-2 text-xs font-bold rounded-lg transition-all',
-                                        kpiFilter.rangeMode === 'custom'
-                                            ? 'bg-white text-gray-900 shadow-sm'
-                                            : 'text-gray-500 hover:text-gray-800'
-                                    )}
-                                >
-                                    Rango personalizado
-                                </button>
-                            </div>
-                        </div>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 tracking-tight">Indicadores (KPI)</h2>
+                        <p className="text-sm text-gray-500 mt-1 max-w-xl">
+                            Última cotización por proyecto, sin borradores. Filtro por fecha de actualización de la cotización.
+                        </p>
                     </div>
-
-                    {kpiFilter.rangeMode === 'relative' ? (
-                        <div className="flex flex-wrap items-center gap-3">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Ventana</label>
-                            <select
-                                value={kpiFilter.monthsBack}
-                                onChange={(e) => updateKpiFilter({ monthsBack: Number(e.target.value) })}
-                                className="h-11 min-w-[160px] rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                            >
-                                <option value={1}>Último mes</option>
-                                <option value={3}>Últimos 3 meses</option>
-                                <option value={6}>Últimos 6 meses</option>
-                                <option value={12}>Últimos 12 meses</option>
-                            </select>
-                        </div>
-                    ) : (
-                        <div className="flex flex-wrap items-end gap-3">
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Desde</label>
-                                <input
-                                    type="date"
-                                    value={kpiFilter.customStart}
-                                    onChange={(e) => updateKpiFilter({ customStart: e.target.value })}
-                                    className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Hasta</label>
-                                <input
-                                    type="date"
-                                    value={kpiFilter.customEnd}
-                                    onChange={(e) => updateKpiFilter({ customEnd: e.target.value })}
-                                    className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                                />
-                            </div>
-                        </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                        <span className="text-xs font-semibold text-gray-500 bg-gray-100/70 px-3 py-1.5 rounded-full">
+                            {kpiFilterLabel}
+                        </span>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            className="h-11 rounded-xl px-4"
+                            onClick={openKpiFilterModal}
+                        >
+                            <SlidersHorizontal size={15} className="mr-2" />
+                            Ajustar rango KPI
+                        </Button>
+                    </div>
                 </div>
 
                 <KPIWidgets kpiSummary={kpiSummary} kpiLoading={kpiLoading} kpiError={kpiError} />
@@ -396,6 +380,115 @@ export function QuotePipeline() {
                     <DialogFooter>
                         <Button variant="secondary" onClick={() => setPublicAccessModalOpen(false)}>
                             Cerrar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={kpiFilterModalOpen} onOpenChange={setKpiFilterModalOpen}>
+                <DialogContent className="sm:max-w-[560px]">
+                    <DialogHeader>
+                        <DialogTitle>Filtro temporal de KPI</DialogTitle>
+                        <DialogDescription>
+                            Unifica rango parametrizado y rango personalizado para actualizar las métricas.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-5">
+                        <div className="inline-flex rounded-xl bg-gray-100/80 p-1">
+                            <button
+                                type="button"
+                                onClick={() => setKpiDraftFilter((prev) => ({ ...prev, rangeMode: 'relative' }))}
+                                disabled={isApplyingKpiFilter}
+                                className={cn(
+                                    'px-4 py-2 text-xs font-bold rounded-lg transition-all',
+                                    kpiDraftFilter.rangeMode === 'relative'
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-800'
+                                )}
+                            >
+                                Últimos N meses
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setKpiDraftFilter((prev) => ({ ...prev, rangeMode: 'custom' }))}
+                                disabled={isApplyingKpiFilter}
+                                className={cn(
+                                    'px-4 py-2 text-xs font-bold rounded-lg transition-all',
+                                    kpiDraftFilter.rangeMode === 'custom'
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-800'
+                                )}
+                            >
+                                Rango personalizado
+                            </button>
+                        </div>
+
+                        {kpiDraftFilter.rangeMode === 'relative' ? (
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Ventana</label>
+                                <select
+                                    value={kpiDraftFilter.monthsBack}
+                                    onChange={(e) => setKpiDraftFilter((prev) => ({ ...prev, monthsBack: Number(e.target.value) }))}
+                                    disabled={isApplyingKpiFilter}
+                                    className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                                >
+                                    <option value={1}>Último mes</option>
+                                    <option value={3}>Últimos 3 meses</option>
+                                    <option value={6}>Últimos 6 meses</option>
+                                    <option value={12}>Últimos 12 meses</option>
+                                </select>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Desde</label>
+                                    <input
+                                        type="date"
+                                        value={kpiDraftFilter.customStart}
+                                        onChange={(e) => setKpiDraftFilter((prev) => ({ ...prev, customStart: e.target.value }))}
+                                        disabled={isApplyingKpiFilter}
+                                        className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Hasta</label>
+                                    <input
+                                        type="date"
+                                        value={kpiDraftFilter.customEnd}
+                                        onChange={(e) => setKpiDraftFilter((prev) => ({ ...prev, customEnd: e.target.value }))}
+                                        disabled={isApplyingKpiFilter}
+                                        className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setKpiFilterModalOpen(false)}
+                            disabled={isApplyingKpiFilter}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={applyKpiFilter}
+                            disabled={
+                                isApplyingKpiFilter ||
+                                (kpiDraftFilter.rangeMode === 'custom' &&
+                                    (!kpiDraftFilter.customStart || !kpiDraftFilter.customEnd))
+                            }
+                        >
+                            {isApplyingKpiFilter ? (
+                                <>
+                                    <Loader2 size={14} className="mr-2 animate-spin" />
+                                    Aplicando...
+                                </>
+                            ) : (
+                                'Aplicar'
+                            )}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

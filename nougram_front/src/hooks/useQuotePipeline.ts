@@ -27,7 +27,10 @@ export interface ClientOption {
     email?: string | null;
 }
 
-const DEFAULT_TZ = 'America/Bogota';
+const DEFAULT_TZ =
+    Intl.DateTimeFormat().resolvedOptions().timeZone ||
+    process.env.NEXT_PUBLIC_DEFAULT_TIMEZONE ||
+    'America/Bogota';
 
 export interface KpiDateFilterState {
     rangeMode: KpiRangeMode;
@@ -139,17 +142,66 @@ export function useQuotePipeline() {
         setKpiFilter((prev) => ({ ...prev, ...patch }));
     }, []);
 
+    const isCountedForDashboard = (status: Quote['status']): boolean => status !== 'draft';
+    const isWonForDashboard = (status: Quote['status']): boolean => status === 'accepted';
+
     const handleStatusChange = async (id: string, newStatus: Quote['status']) => {
+        const previousQuote = quotes.find((q) => q.id === id);
+        const previousStatus = previousQuote?.status;
+        const previousKpi = kpiSummary;
+
         // Optimistic update
         setQuotes(prevQuotes => prevQuotes.map(quote =>
             quote.id === id ? { ...quote, status: newStatus } : quote
         ));
 
+        // Optimistic KPI update so widgets react immediately.
+        if (previousQuote && previousKpi && previousStatus && previousStatus !== newStatus) {
+            const fromCounted = isCountedForDashboard(previousStatus);
+            const toCounted = isCountedForDashboard(newStatus);
+            const fromWon = isWonForDashboard(previousStatus);
+            const toWon = isWonForDashboard(newStatus);
+
+            const billed = Number(previousQuote.totalWithTaxes || 0);
+            const operationalCost = Number(previousQuote.internalCost || 0);
+            const netMargin = billed - operationalCost;
+
+            setKpiSummary((prev) => {
+                if (!prev) return prev;
+
+                const deltaCount = toCounted ? (fromCounted ? 0 : 1) : (fromCounted ? -1 : 0);
+                const deltaWon = toWon ? (fromWon ? 0 : 1) : (fromWon ? -1 : 0);
+                const deltaFactor = toCounted ? (fromCounted ? 0 : 1) : (fromCounted ? -1 : 0);
+
+                return {
+                    ...prev,
+                    kpis: {
+                        ...prev.kpis,
+                        totalCotizadoConImpuestos: prev.kpis.totalCotizadoConImpuestos + (billed * deltaFactor),
+                        costoTotalOperacional: prev.kpis.costoTotalOperacional + (operationalCost * deltaFactor),
+                        margenNetoTotal: prev.kpis.margenNetoTotal + (netMargin * deltaFactor),
+                        numeroPropuestasRealizadas: Math.max(0, prev.kpis.numeroPropuestasRealizadas + deltaCount),
+                        numeroPropuestasGanadas: Math.max(0, prev.kpis.numeroPropuestasGanadas + deltaWon),
+                    },
+                };
+            });
+        }
+
         try {
             await quoteService.updateStatus(id, newStatus);
+            // Reconcile with backend source-of-truth after optimistic paint.
+            void loadKpiSummary();
         } catch (err) {
             console.error("Failed to update status", err);
-            // Revert on failure could be implemented here
+            // Revert optimistic changes on failure.
+            if (previousStatus) {
+                setQuotes(prevQuotes => prevQuotes.map(quote =>
+                    quote.id === id ? { ...quote, status: previousStatus } : quote
+                ));
+            }
+            if (previousKpi) {
+                setKpiSummary(previousKpi);
+            }
         }
     };
 
