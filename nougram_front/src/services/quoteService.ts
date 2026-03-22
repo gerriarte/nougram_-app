@@ -62,6 +62,13 @@ type ProjectQuoteResponse = {
             start_date?: string;
             end_date?: string;
         }>;
+        cell_assignment?: {
+            id?: number;
+            cell_id: number;
+            cell_version_id: number;
+            occupancy_percentage: string | number;
+            duration_months: number;
+        } | null;
         internal_cost?: string | number;
         client_price?: string | number;
         margin_percentage?: string | number;
@@ -262,6 +269,14 @@ function mapQuoteItemToApi(item: QuoteItem) {
             start_date: alloc.startDate,
             end_date: alloc.endDate,
         })),
+        cell_assignment: item.cellAssignment
+            ? {
+                cell_id: item.cellAssignment.cellId,
+                cell_version_id: item.cellAssignment.cellVersionId,
+                occupancy_percentage: item.cellAssignment.occupancyPercentage,
+                duration_months: item.cellAssignment.durationMonths || 1,
+            }
+            : undefined,
     };
 }
 
@@ -763,6 +778,15 @@ export const quoteService = {
                     startDate: alloc.start_date,
                     endDate: alloc.end_date,
                 })).filter((alloc) => Number.isFinite(alloc.teamMemberId) && Number.isFinite(alloc.hours) && alloc.hours > 0),
+                cellAssignment: item.cell_assignment
+                    ? {
+                        id: item.cell_assignment.id,
+                        cellId: Number(item.cell_assignment.cell_id),
+                        cellVersionId: Number(item.cell_assignment.cell_version_id),
+                        occupancyPercentage: Number(item.cell_assignment.occupancy_percentage || 0),
+                        durationMonths: Number(item.cell_assignment.duration_months || 1),
+                    }
+                    : undefined,
                 internalCost: Number(item.internal_cost || 0),
                 clientPrice: Number(item.client_price || 0),
                 marginPercentage: toPercent(item.margin_percentage || 0),

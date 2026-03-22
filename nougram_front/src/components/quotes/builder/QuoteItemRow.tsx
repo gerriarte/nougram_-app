@@ -7,21 +7,56 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { useNougram } from '@/context/NougramCoreContext';
-import { QuoteItem, Service, ResourceAllocation } from '@/types/quote-builder';
+import { QuoteItem, ResourceAllocation } from '@/types/quote-builder';
+import { teamCellsService, TeamCellSummary, TeamCellVersion } from '@/services/teamCellsService';
 import { Trash2, Plus, Clock, Calendar } from 'lucide-react';
 import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
 
 interface QuoteItemRowProps {
     item: QuoteItem;
-    service: Service;
 }
 
-export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
+export function QuoteItemRow({ item }: QuoteItemRowProps) {
     const { updateItem, removeItem, teamMembers } = useQuoteBuilder();
     const { state: coreState } = useNougram();
     const [isAddingResource, setIsAddingResource] = useState(false);
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [newResourceHours, setNewResourceHours] = useState<number>(10);
+    const [availableCells, setAvailableCells] = useState<TeamCellSummary[]>([]);
+    const [availableVersions, setAvailableVersions] = useState<TeamCellVersion[]>([]);
+    const [selectedCellId, setSelectedCellId] = useState<number>(item.cellAssignment?.cellId || 0);
+    const [selectedVersionId, setSelectedVersionId] = useState<number>(item.cellAssignment?.cellVersionId || 0);
+    const [occupancyPercentage, setOccupancyPercentage] = useState<number>(item.cellAssignment?.occupancyPercentage || 100);
+    const [cellDurationMonths, setCellDurationMonths] = useState<number>(item.cellAssignment?.durationMonths || 1);
+
+    React.useEffect(() => {
+        let mounted = true;
+        const loadCells = async () => {
+            if (!coreState.features.teamCellsEnabled) return;
+            const cells = await teamCellsService.listCells();
+            if (mounted) setAvailableCells(cells);
+        };
+        void loadCells();
+        return () => { mounted = false; };
+    }, [coreState.features.teamCellsEnabled]);
+
+    React.useEffect(() => {
+        let mounted = true;
+        const loadVersions = async () => {
+            if (!selectedCellId || !coreState.features.teamCellsEnabled) {
+                if (mounted) setAvailableVersions([]);
+                return;
+            }
+            const versions = await teamCellsService.listCellVersions(selectedCellId);
+            if (!mounted) return;
+            setAvailableVersions(versions);
+            if (!selectedVersionId && versions.length > 0) {
+                setSelectedVersionId(versions[0].id);
+            }
+        };
+        void loadVersions();
+        return () => { mounted = false; };
+    }, [selectedCellId, selectedVersionId, coreState.features.teamCellsEnabled]);
 
     const handleAddResource = () => {
         if (!selectedMemberId) return;
@@ -79,6 +114,48 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
         }
     })();
 
+    const applyCellAssignment = () => {
+        const selectedVersion = availableVersions.find((version) => version.id === selectedVersionId);
+        if (!selectedCellId || !selectedVersion) return;
+
+        const activeMembers = (selectedVersion.members || []).filter((member) => member.is_active !== false);
+        const totalWeight = activeMembers.reduce((acc, member) => acc + (Number(member.weight) || 0), 0);
+        const occupancyRatio = Math.max(0, Number(occupancyPercentage || 0)) / 100;
+        const duration = Math.max(1, Number(cellDurationMonths || 1));
+
+        const generatedAllocations: ResourceAllocation[] = activeMembers.map((member) => {
+            const weight = Number(member.weight || 0);
+            const normalizedWeight = totalWeight > 0 ? (weight / totalWeight) : 0;
+            const teamMember = teamMembers.find((tm) => tm.id === Number(member.team_member_id));
+            const monthlyCapacity = Number(teamMember?.availableHours || 0);
+            const hours = Number((monthlyCapacity * occupancyRatio * duration * normalizedWeight).toFixed(2));
+
+            return {
+                id: crypto.randomUUID(),
+                teamMemberId: Number(member.team_member_id),
+                hours: Math.max(0, hours),
+                role: member.role_override || teamMember?.role || undefined,
+            };
+        }).filter((alloc) => alloc.hours > 0);
+
+        const estimatedHours = generatedAllocations.reduce((acc, alloc) => acc + Number(alloc.hours || 0), 0);
+
+        updateItem(item.id, {
+            cellAssignment: {
+                cellId: selectedCellId,
+                cellVersionId: selectedVersion.id,
+                occupancyPercentage: Math.max(0, Number(occupancyPercentage || 0)),
+                durationMonths: duration,
+            },
+            allocations: generatedAllocations,
+            estimatedHours,
+        });
+    };
+
+    const clearCellAssignment = () => {
+        updateItem(item.id, { cellAssignment: undefined });
+    };
+
     return (
         <Card className="p-5 bg-white border border-gray-100 shadow-sm relative group transition-all hover:shadow-md hover:border-gray-200">
             {/* Delete Button */}
@@ -127,6 +204,80 @@ export function QuoteItemRow({ item, service }: QuoteItemRowProps) {
                                     </span>
                                 )}
                             </div>
+
+                            {coreState.features.teamCellsEnabled && (
+                                <div className="mb-3 rounded-lg border border-purple-200 bg-purple-50/60 p-3 space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700">
+                                            Asignacion por celula
+                                        </span>
+                                        {item.cellAssignment && (
+                                            <button
+                                                type="button"
+                                                onClick={clearCellAssignment}
+                                                className="text-[10px] font-semibold text-purple-700 hover:text-purple-900"
+                                            >
+                                                Volver a manual
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <select
+                                            className="h-8 rounded-md border border-purple-200 bg-white text-xs"
+                                            value={selectedCellId || ''}
+                                            onChange={(e) => {
+                                                setSelectedCellId(Number(e.target.value) || 0);
+                                                setSelectedVersionId(0);
+                                            }}
+                                        >
+                                            <option value="">Seleccionar celula...</option>
+                                            {availableCells.map((cell) => (
+                                                <option key={cell.id} value={cell.id}>{cell.name}</option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            className="h-8 rounded-md border border-purple-200 bg-white text-xs"
+                                            value={selectedVersionId || ''}
+                                            onChange={(e) => setSelectedVersionId(Number(e.target.value) || 0)}
+                                            disabled={!selectedCellId}
+                                        >
+                                            <option value="">Version...</option>
+                                            {availableVersions.map((version) => (
+                                                <option key={version.id} value={version.id}>
+                                                    V{version.version_number} ({version.status})
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            max={100}
+                                            className="h-8 text-xs bg-white border-purple-200"
+                                            value={occupancyPercentage}
+                                            onChange={(e) => setOccupancyPercentage(Math.max(1, Number(e.target.value) || 1))}
+                                            placeholder="% ocupacion"
+                                        />
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            className="h-8 text-xs bg-white border-purple-200"
+                                            value={cellDurationMonths}
+                                            onChange={(e) => setCellDurationMonths(Math.max(1, Number(e.target.value) || 1))}
+                                            placeholder="Meses"
+                                        />
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="w-full h-8 text-xs text-purple-700 hover:text-purple-900 hover:bg-purple-100"
+                                        onClick={applyCellAssignment}
+                                        disabled={!selectedCellId || !selectedVersionId}
+                                    >
+                                        Aplicar celula
+                                    </Button>
+                                </div>
+                            )}
 
                             {(!item.allocations || item.allocations.length === 0) && (
                                 <div className="text-center py-4 text-xs text-gray-400 italic">
