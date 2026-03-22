@@ -1,0 +1,152 @@
+"""
+Business service for occupancy commitments derived from proposal decisions.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from decimal import Decimal
+import calendar
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.logging import get_logger
+from app.models.capacity import CapacityCommitment
+from app.models.proposal import ProposalClientLink
+from app.repositories.factory import RepositoryFactory
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class CapacitySyncResult:
+    commitments_count: int
+    total_hours: Decimal
+
+
+class CapacityService:
+    def __init__(self, db: AsyncSession, organization_id: int):
+        self.db = db
+        self.organization_id = organization_id
+        self.repo = RepositoryFactory.create_capacity_repository(db, organization_id)
+
+    @staticmethod
+    def _month_range(base: datetime, offset: int) -> tuple[datetime, datetime]:
+        year = base.year + ((base.month - 1 + offset) // 12)
+        month = ((base.month - 1 + offset) % 12) + 1
+        _, last_day = calendar.monthrange(year, month)
+        start = datetime(year, month, 1, tzinfo=timezone.utc)
+        end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
+        return start, end
+
+    async def sync_committed_from_proposal(
+        self,
+        *,
+        link: ProposalClientLink,
+        actor_user_id: int | None,
+        reference_date: datetime | None = None,
+    ) -> CapacitySyncResult:
+        await self.repo.delete_commitments_by_source(source_type="proposal_link", source_id=link.id)
+
+        if not link.quote_id:
+            await self.repo.add_event(
+                event_type="capacity_commitments_skipped_missing_quote",
+                source_type="proposal_link",
+                source_id=link.id,
+                payload={"reason": "missing_quote_id"},
+                created_by_id=actor_user_id,
+            )
+            await self.db.commit()
+            return CapacitySyncResult(commitments_count=0, total_hours=Decimal("0"))
+
+        quote = await self.repo.get_quote_for_capacity(quote_id=link.quote_id, project_id=link.project_id)
+        if not quote:
+            await self.repo.add_event(
+                event_type="capacity_commitments_skipped_quote_not_found",
+                source_type="proposal_link",
+                source_id=link.id,
+                payload={"quote_id": link.quote_id, "project_id": link.project_id},
+                created_by_id=actor_user_id,
+            )
+            await self.db.commit()
+            return CapacitySyncResult(commitments_count=0, total_hours=Decimal("0"))
+
+        ref_date = reference_date or datetime.now(timezone.utc)
+        commitments: list[CapacityCommitment] = []
+        total_hours = Decimal("0")
+
+        for item in (quote.items or []):
+            months = 1
+            if getattr(item, "cell_assignment", None) is not None:
+                months = max(1, int(getattr(item.cell_assignment, "duration_months", 1) or 1))
+
+            for alloc in (item.allocations or []):
+                alloc_hours = Decimal(str(alloc.hours or 0))
+                if alloc_hours <= 0:
+                    continue
+                hours_per_month = alloc_hours / Decimal(str(months))
+                for offset in range(months):
+                    period_start, period_end = self._month_range(ref_date, offset)
+                    commitments.append(
+                        CapacityCommitment(
+                            organization_id=self.organization_id,
+                            team_member_id=alloc.team_member_id,
+                            source_type="proposal_link",
+                            source_id=link.id,
+                            state="committed",
+                            period_start=period_start,
+                            period_end=period_end,
+                            hours=hours_per_month,
+                        )
+                    )
+                    total_hours += hours_per_month
+
+        await self.repo.add_commitments(commitments)
+        await self.repo.add_event(
+            event_type="capacity_commitments_synced",
+            source_type="proposal_link",
+            source_id=link.id,
+            payload={
+                "quote_id": link.quote_id,
+                "project_id": link.project_id,
+                "state": "committed",
+                "commitments_count": len(commitments),
+                "total_hours": str(total_hours),
+            },
+            created_by_id=actor_user_id,
+        )
+        await self.db.commit()
+
+        logger.info(
+            "Capacity commitments synced from proposal decision",
+            organization_id=self.organization_id,
+            proposal_link_id=link.id,
+            quote_id=link.quote_id,
+            commitments_count=len(commitments),
+            total_hours=str(total_hours),
+        )
+        return CapacitySyncResult(commitments_count=len(commitments), total_hours=total_hours)
+
+    async def clear_commitments_for_proposal(
+        self,
+        *,
+        link: ProposalClientLink,
+        actor_user_id: int | None,
+        reason: str,
+    ) -> None:
+        await self.repo.delete_commitments_by_source(source_type="proposal_link", source_id=link.id)
+        await self.repo.add_event(
+            event_type="capacity_commitments_cleared",
+            source_type="proposal_link",
+            source_id=link.id,
+            payload={"reason": reason, "quote_id": link.quote_id, "project_id": link.project_id},
+            created_by_id=actor_user_id,
+        )
+        await self.db.commit()
+
+        logger.info(
+            "Capacity commitments cleared from proposal decision",
+            organization_id=self.organization_id,
+            proposal_link_id=link.id,
+            reason=reason,
+        )

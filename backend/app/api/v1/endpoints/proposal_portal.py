@@ -14,10 +14,11 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.email import send_email
 from app.core.security import create_access_token, decode_access_token, verify_password
-from app.models.project import Quote
+from app.models.project import Project, Quote
 from app.models.proposal import ProposalClientLink, ProposalDocument
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
+from app.services.capacity_service import CapacityService
 from app.schemas.proposal import (
     ProposalClientDecisionRequest,
     ProposalClientPortalResponse,
@@ -158,7 +159,33 @@ async def submit_proposal_decision(
     link.status = payload.decision
     link.decision_comment = payload.comment
     link.decided_at = now
+
+    if payload.decision == "accepted":
+        project_result = await db.execute(
+            select(Project).where(
+                Project.id == link.project_id,
+                Project.organization_id == link.organization_id,
+            )
+        )
+        project = project_result.scalar_one_or_none()
+        if project and project.status != "Won":
+            project.status = "Won"
+
     await db.commit()
+
+    capacity_service = CapacityService(db, link.organization_id)
+    if payload.decision == "accepted":
+        await capacity_service.sync_committed_from_proposal(
+            link=link,
+            actor_user_id=None,
+            reference_date=now,
+        )
+    elif payload.decision in {"rejected", "revision_requested"}:
+        await capacity_service.clear_commitments_for_proposal(
+            link=link,
+            actor_user_id=None,
+            reason=payload.decision,
+        )
 
     result = await db.execute(
         select(ProposalDocument)

@@ -22,6 +22,7 @@ from app.models.proposal import ProposalDocument, ProposalClientLink
 from app.models.ai_usage import AIUsageEvent
 from app.models.financial_ledger import FinancialLedgerEvent
 from app.models.team_cells import TeamGroup, TeamCell, TeamCellVersion, TeamCellMemberVersion
+from app.models.capacity import CapacityCommitment, CapacityEvent
 # Roles and DeleteRequest disabled during rollback
 # from app.models.role import DeleteRequest, UserRole, DeleteRequestStatus
 
@@ -56,6 +57,8 @@ __all__ = [
     "TeamCell",
     "TeamCellVersion",
     "TeamCellMemberVersion",
+    "CapacityCommitment",
+    "CapacityEvent",
     # "DeleteRequest",
     # "UserRole",
     # "DeleteRequestStatus",
