@@ -103,10 +103,7 @@ class TeamCellVersionMemberResponse(BaseModel):
     def serialize_weight(self, value: Decimal) -> str:
         return str(value)
 
-    model_config = DECIMAL_CONFIG
-
-    class Config:
-        from_attributes = True
+    model_config = {**DECIMAL_CONFIG, "from_attributes": True}
 
 
 class TeamCellVersionResponse(BaseModel):
