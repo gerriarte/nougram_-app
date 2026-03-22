@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAdmin } from '@/context/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -9,11 +9,49 @@ import { Badge } from '@/components/ui/Badge';
 import { TeamMemberForm } from './TeamMemberForm';
 import { TeamMember } from '@/types/admin';
 import { formatCurrency } from '@/lib/utils';
+import { workTeamsService } from '@/services/workTeamsService';
 
 export function TeamMemberList() {
-    const { teamMembers, deleteTeamMember, updateTeamMember, addTeamMember, globalSettings } = useAdmin();
+    const { teamMembers, deleteTeamMember, updateTeamMember, addTeamMember } = useAdmin();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | undefined>(undefined);
+    const [memberTeamsMap, setMemberTeamsMap] = useState<Record<string, string[]>>({});
+
+    useEffect(() => {
+        let mounted = true;
+        const loadMemberTeams = async () => {
+            const teams = await workTeamsService.listTeams(true);
+            if (!teams.length) {
+                if (mounted) setMemberTeamsMap({});
+                return;
+            }
+
+            const versionsByTeam = await Promise.all(
+                teams.map(async (team) => {
+                    const versions = await workTeamsService.listTeamVersions(team.id, true);
+                    const latest = versions.sort((a, b) => (b.version_number || 0) - (a.version_number || 0))[0];
+                    return { teamName: team.name, latest };
+                })
+            );
+
+            const nextMap: Record<string, string[]> = {};
+            versionsByTeam.forEach(({ teamName, latest }) => {
+                if (!latest) return;
+                (latest.members || [])
+                    .filter((member) => member.is_active !== false)
+                    .forEach((member) => {
+                        const key = String(member.team_member_id);
+                        nextMap[key] = [...(nextMap[key] || []), teamName];
+                    });
+            });
+            if (mounted) setMemberTeamsMap(nextMap);
+        };
+
+        void loadMemberTeams();
+        return () => {
+            mounted = false;
+        };
+    }, [teamMembers]);
 
     const handleCreate = () => {
         setEditingMember(undefined);
@@ -25,7 +63,7 @@ export function TeamMemberList() {
         setIsFormOpen(true);
     };
 
-    const handleSave = (data: any) => {
+    const handleSave = (data: Partial<TeamMember>) => {
         if (editingMember) {
             updateTeamMember(editingMember.id, data);
         } else {
@@ -59,6 +97,7 @@ export function TeamMemberList() {
                         <thead className="bg-gray-50 text-gray-700 uppercase text-xs">
                             <tr>
                                 <th className="px-4 py-3">Nombre / Rol</th>
+                                <th className="px-4 py-3">Equipos</th>
                                 <th className="px-4 py-3">Salario Base</th>
                                 <th className="px-4 py-3">Con Cargas</th>
                                 <th className="px-4 py-3">Horas/Sem</th>
@@ -72,6 +111,22 @@ export function TeamMemberList() {
                                     <td className="px-4 py-3">
                                         <div className="font-medium text-gray-900">{member.name}</div>
                                         <div className="text-xs text-gray-500">{member.role}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {memberTeamsMap[member.id]?.length ? (
+                                            <div className="flex flex-wrap gap-1">
+                                                {memberTeamsMap[member.id].map((teamName) => (
+                                                    <span
+                                                        key={`${member.id}-${teamName}`}
+                                                        className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
+                                                    >
+                                                        {teamName}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <span className="text-xs text-gray-400">Sin equipo</span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3">
                                         {formatCurrency(member.salaryMonthlyBrute, member.currency)}
@@ -103,7 +158,7 @@ export function TeamMemberList() {
                             ))}
                             {teamMembers.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 italic">
+                                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500 italic">
                                         No hay miembros configurados. Agrega uno para empezar.
                                     </td>
                                 </tr>

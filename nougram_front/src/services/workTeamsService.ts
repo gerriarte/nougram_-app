@@ -133,7 +133,9 @@ export const workTeamsService = {
             method: 'POST',
             body: JSON.stringify(payload),
         });
-        if (response.error || !response.data) return null;
+        if (response.error || !response.data) {
+            throw new Error(response.error || 'No se pudo publicar la versión del equipo.');
+        }
         cachedVersionsByTeam.delete(teamId);
         return response.data;
     },

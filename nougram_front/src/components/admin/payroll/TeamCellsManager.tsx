@@ -202,14 +202,12 @@ export function TeamCellsManager() {
                 members: payloadMembers,
                 notes: versionNotes.trim() || undefined,
             });
-            if (!published) {
-                setError('No se pudo publicar la versión del equipo.');
-                return;
-            }
             setSuccess(`Versión V${published.version_number} publicada correctamente.`);
             setVersionNotes('');
             setVersionMembers([{ ...DEFAULT_MEMBER }]);
             await loadVersions(selectedTeamId);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'No se pudo publicar la versión del equipo.');
         } finally {
             setSubmitting(false);
         }
