@@ -19,7 +19,7 @@ interface QuoteItemRowProps {
 export function QuoteItemRow({ item }: QuoteItemRowProps) {
     const { updateItem, removeItem, teamMembers } = useQuoteBuilder();
     const { state: coreState } = useNougram();
-    const currentAssignment = item.teamAssignment || item.cellAssignment;
+    const currentAssignment = item.teamAssignment;
     const [isAddingResource, setIsAddingResource] = useState(false);
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [newResourceHours, setNewResourceHours] = useState<number>(10);
@@ -154,7 +154,7 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
     };
 
     const clearCellAssignment = () => {
-        updateItem(item.id, { teamAssignment: undefined, cellAssignment: undefined });
+        updateItem(item.id, { teamAssignment: undefined });
     };
 
     return (

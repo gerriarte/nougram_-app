@@ -253,7 +253,7 @@ function resolveRecurringPrice(item: QuoteItem): number | undefined {
 }
 
 function mapQuoteItemToApi(item: QuoteItem) {
-    const assignment = item.teamAssignment || item.cellAssignment;
+    const assignment = item.teamAssignment;
     return {
         service_id: item.serviceId,
         estimated_hours: resolveEstimatedHours(item),
