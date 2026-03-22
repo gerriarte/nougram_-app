@@ -5,20 +5,156 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload
-from datetime import datetime, date
-from typing import Optional
+from datetime import datetime, date, time, timezone as dt_timezone
+from typing import Literal, Optional
+from zoneinfo import ZoneInfo
+
+from dateutil.relativedelta import relativedelta
 
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.tenant import get_tenant_context, TenantContext
 from app.core.ai_advisor import query_ai_advisor
 from app.core.permission_middleware import require_view_analytics
+from app.core.exceptions import BusinessLogicError
+from app.core.logging import get_logger
 from app.models.user import User
 from app.models.project import Project, Quote
 from app.models.service import Service
-from app.schemas.insight import AIAdvisorRequest, AIAdvisorResponse
+from app.schemas.insight import (
+    AIAdvisorRequest,
+    AIAdvisorResponse,
+    DashboardKpiSummaryResponse,
+    DashboardKpiMeta,
+    DashboardKpiNumbers,
+)
+from app.repositories.dashboard_kpi_repository import DashboardKpiRepository
+from app.services.settings_service import SettingsService
 
 router = APIRouter()
+logger = get_logger(__name__)
+
+
+def _resolve_dashboard_kpi_range(
+    range_mode: Literal["relative", "custom"],
+    months_back: Optional[int],
+    start_date: Optional[date],
+    end_date: Optional[date],
+    timezone_name: str,
+) -> tuple[datetime, datetime, dict]:
+    """
+    Build inclusive UTC window for Quote.updated_at filtering.
+
+    relative: from first day of (current local month - (months_back - 1)) through now (local).
+    custom: local start 00:00 through local end 23:59:59.999999.
+    """
+    try:
+        tz = ZoneInfo(timezone_name)
+    except Exception as exc:
+        logger.warning(
+            "Invalid KPI timezone",
+            extra={"timezone": timezone_name, "error": str(exc)},
+        )
+        raise BusinessLogicError(f"Invalid timezone: {timezone_name}") from exc
+
+    meta_parts: dict = {
+        "timezone": timezone_name,
+        "months_back": None,
+        "custom_start_date": None,
+        "custom_end_date": None,
+    }
+
+    if range_mode == "relative":
+        if months_back is None:
+            raise BusinessLogicError("months_back is required when range_mode=relative")
+        now_local = datetime.now(tz)
+        first_this_month = now_local.date().replace(day=1)
+        start_day = first_this_month - relativedelta(months=months_back - 1)
+        start_local = datetime.combine(start_day, time.min, tzinfo=tz)
+        end_local = now_local
+        meta_parts["months_back"] = months_back
+    else:
+        if start_date is None or end_date is None:
+            raise BusinessLogicError("start_date and end_date are required when range_mode=custom")
+        if start_date > end_date:
+            raise BusinessLogicError("start_date must be on or before end_date")
+        start_local = datetime.combine(start_date, time.min, tzinfo=tz)
+        end_local = datetime.combine(end_date, time(23, 59, 59, 999999), tzinfo=tz)
+        meta_parts["custom_start_date"] = start_date.isoformat()
+        meta_parts["custom_end_date"] = end_date.isoformat()
+
+    start_utc = start_local.astimezone(dt_timezone.utc)
+    end_utc = end_local.astimezone(dt_timezone.utc)
+    return start_utc, end_utc, meta_parts
+
+
+@router.get("/dashboard/kpi-summary", response_model=DashboardKpiSummaryResponse)
+async def get_dashboard_kpi_summary(
+    range_mode: Literal["relative", "custom"] = Query(..., description="relative | custom"),
+    months_back: Optional[int] = Query(
+        None,
+        ge=1,
+        le=120,
+        description="Required when range_mode=relative (e.g. 3 = current month + two prior calendar months)",
+    ),
+    start_date: Optional[date] = Query(None, description="Custom range start (YYYY-MM-DD), local TZ"),
+    end_date: Optional[date] = Query(None, description="Custom range end (YYYY-MM-DD), local TZ"),
+    timezone_name: str = Query("America/Bogota", alias="timezone", description="IANA timezone for range boundaries"),
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(require_view_analytics),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Unified dashboard KPIs: latest quote per project, exclude Draft projects,
+    filter by Quote.updated_at in the requested window.
+    """
+    start_utc, end_utc, range_meta = _resolve_dashboard_kpi_range(
+        range_mode=range_mode,
+        months_back=months_back,
+        start_date=start_date,
+        end_date=end_date,
+        timezone_name=timezone_name,
+    )
+
+    repo = DashboardKpiRepository(db)
+    totals = await repo.aggregate_latest_quotes_kpis(
+        organization_id=tenant.organization_id,
+        range_start_utc=start_utc,
+        range_end_utc=end_utc,
+    )
+
+    settings_service = SettingsService(db)
+    currency = await settings_service.get_primary_currency(tenant.organization_id)
+
+    meta = DashboardKpiMeta(
+        range_mode=range_mode,
+        timezone=range_meta["timezone"],
+        applied_start=start_utc.isoformat(),
+        applied_end=end_utc.isoformat(),
+        months_back=range_meta["months_back"],
+        custom_start_date=range_meta["custom_start_date"],
+        custom_end_date=range_meta["custom_end_date"],
+        latest_quote_only=True,
+        exclude_draft=True,
+        date_field="quote.updated_at",
+    )
+
+    kpis = DashboardKpiNumbers(
+        totalCotizadoConImpuestos=float(totals.total_cotizado_con_impuestos),
+        costoTotalOperacional=float(totals.costo_total_operacional),
+        margenNetoTotal=float(totals.margen_neto_total),
+        numeroPropuestasRealizadas=totals.numero_propuestas_realizadas,
+        numeroPropuestasGanadas=totals.numero_propuestas_ganadas,
+    )
+
+    logger.info(
+        "Dashboard KPI summary computed",
+        organization_id=tenant.organization_id,
+        range_mode=range_mode,
+        proposals=totals.numero_propuestas_realizadas,
+    )
+
+    return DashboardKpiSummaryResponse(meta=meta, kpis=kpis, currency=currency)
 
 
 @router.get("/dashboard")

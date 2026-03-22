@@ -5,13 +5,11 @@ import React, { useState } from 'react';
 import { QuoteCard, Quote } from '@/components/dashboard/QuoteCard';
 import { KPIWidgets } from '@/components/dashboard/KPIWidgets';
 import { Search, Plus, Layout, List, Copy, Link as LinkIcon, KeyRound } from 'lucide-react';
-import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { useQuotePipeline } from '@/hooks/useQuotePipeline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QuoteTable } from '@/components/dashboard/QuoteTable';
 import { cn } from '@/lib/utils';
-import { BCRSummaryCard } from '@/components/admin/BCRSummaryCard';
 import { proposalService } from '@/services/proposalService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
@@ -19,7 +17,6 @@ import { Input } from '@/components/ui/Input';
 export function QuotePipeline() {
     const {
         quotes: filteredQuotes,
-        allQuotes,
         clients,
         error,
         search,
@@ -29,10 +26,14 @@ export function QuotePipeline() {
         handleStatusChange,
         columns,
         loading,
-        metrics,
         filters,
         updateFilter,
-        clearFilters
+        clearFilters,
+        kpiSummary,
+        kpiLoading,
+        kpiError,
+        kpiFilter,
+        updateKpiFilter,
     } = useQuotePipeline();
     const [publicAccessLoadingQuoteId, setPublicAccessLoadingQuoteId] = useState<string | null>(null);
     const [publicAccessModalOpen, setPublicAccessModalOpen] = useState(false);
@@ -94,17 +95,6 @@ export function QuotePipeline() {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="flex h-[400px] items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
-                    <p className="text-sm font-bold text-system-gray uppercase tracking-widest">Sincronizando Pipeline...</p>
-                </div>
-            </div>
-        );
-    }
-
     if (error) {
         return (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
@@ -116,13 +106,98 @@ export function QuotePipeline() {
 
     return (
         <div className="space-y-12 pb-20">
-            {/* 1. KPIs Section */}
-            {/* 1. KPIs Section */}
+            {/* 1. KPIs + temporal filter */}
             <div className="space-y-6">
-                <KPIWidgets metrics={metrics} />
+                <div className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white/70 p-4 md:p-5 shadow-sm">
+                    <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-900 tracking-tight">Indicadores (KPI)</h2>
+                            <p className="text-sm text-gray-500 mt-1 max-w-xl">
+                                Última cotización por proyecto, sin borradores. Filtro por fecha de actualización de la cotización.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <div className="inline-flex rounded-xl bg-gray-100/80 p-1">
+                                <button
+                                    type="button"
+                                    onClick={() => updateKpiFilter({ rangeMode: 'relative' })}
+                                    className={cn(
+                                        'px-4 py-2 text-xs font-bold rounded-lg transition-all',
+                                        kpiFilter.rangeMode === 'relative'
+                                            ? 'bg-white text-gray-900 shadow-sm'
+                                            : 'text-gray-500 hover:text-gray-800'
+                                    )}
+                                >
+                                    Últimos N meses
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => updateKpiFilter({ rangeMode: 'custom' })}
+                                    className={cn(
+                                        'px-4 py-2 text-xs font-bold rounded-lg transition-all',
+                                        kpiFilter.rangeMode === 'custom'
+                                            ? 'bg-white text-gray-900 shadow-sm'
+                                            : 'text-gray-500 hover:text-gray-800'
+                                    )}
+                                >
+                                    Rango personalizado
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {kpiFilter.rangeMode === 'relative' ? (
+                        <div className="flex flex-wrap items-center gap-3">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Ventana</label>
+                            <select
+                                value={kpiFilter.monthsBack}
+                                onChange={(e) => updateKpiFilter({ monthsBack: Number(e.target.value) })}
+                                className="h-11 min-w-[160px] rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                            >
+                                <option value={1}>Último mes</option>
+                                <option value={3}>Últimos 3 meses</option>
+                                <option value={6}>Últimos 6 meses</option>
+                                <option value={12}>Últimos 12 meses</option>
+                            </select>
+                        </div>
+                    ) : (
+                        <div className="flex flex-wrap items-end gap-3">
+                            <div className="flex flex-col gap-1">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Desde</label>
+                                <input
+                                    type="date"
+                                    value={kpiFilter.customStart}
+                                    onChange={(e) => updateKpiFilter({ customStart: e.target.value })}
+                                    className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Hasta</label>
+                                <input
+                                    type="date"
+                                    value={kpiFilter.customEnd}
+                                    onChange={(e) => updateKpiFilter({ customEnd: e.target.value })}
+                                    className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <KPIWidgets kpiSummary={kpiSummary} kpiLoading={kpiLoading} kpiError={kpiError} />
             </div>
 
             {/* 2. Pipeline Controls */}
+            {loading ? (
+                <div className="flex h-[320px] items-center justify-center rounded-2xl border border-gray-100 bg-gray-50/40">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+                        <p className="text-sm font-bold text-system-gray uppercase tracking-widest">Sincronizando Pipeline...</p>
+                    </div>
+                </div>
+            ) : null}
+
+            {!loading ? (
             <div className="space-y-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
@@ -255,6 +330,7 @@ export function QuotePipeline() {
                     )}
                 </AnimatePresence>
             </div>
+            ) : null}
 
             <Dialog open={publicAccessModalOpen} onOpenChange={setPublicAccessModalOpen}>
                 <DialogContent className="sm:max-w-[620px]">

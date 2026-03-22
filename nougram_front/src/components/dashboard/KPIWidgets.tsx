@@ -3,103 +3,150 @@
 
 import React from 'react';
 import { Card } from '@/components/ui/Card';
-import { TrendingUp, TrendingDown, DollarSign, PieChart, Activity, AlertCircle, ChevronRight } from 'lucide-react';
+import {
+    TrendingUp,
+    DollarSign,
+    PieChart,
+    Activity,
+    AlertCircle,
+    ChevronRight,
+    BarChart3,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
-import type { PipelineMetrics } from '@/hooks/useQuotePipeline';
 import type { Quote } from '@/components/dashboard/QuoteCard';
 import { formatMoneyAmount } from '@/lib/utils';
+import type { DashboardKpiSummaryResponse } from '@/types/dashboard';
 
 interface KPIWidgetsProps {
-    metrics: PipelineMetrics;
+    kpiSummary: DashboardKpiSummaryResponse | null;
+    kpiLoading: boolean;
+    kpiError: string | null;
 }
 
-export function KPIWidgets({ metrics }: KPIWidgetsProps) {
+function formatRangeLabel(isoStart: string, isoEnd: string): string {
+    try {
+        const a = new Date(isoStart);
+        const b = new Date(isoEnd);
+        return `${a.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })} — ${b.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    } catch {
+        return `${isoStart} — ${isoEnd}`;
+    }
+}
+
+export function KPIWidgets({ kpiSummary, kpiLoading, kpiError }: KPIWidgetsProps) {
     type KpiCard = {
         title: string;
         value: string;
         icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
         color: string;
         bg: string;
-        trend?: 'up' | 'down';
-        change?: string;
         subtitle?: string;
-        status?: string;
     };
+
+    if (kpiLoading) {
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                    <Card key={i} className="p-5 h-[140px] animate-pulse bg-gray-100/80" />
+                ))}
+            </div>
+        );
+    }
+
+    if (kpiError || !kpiSummary) {
+        return (
+            <Card className="p-6 border-amber-200 bg-amber-50/60">
+                <p className="text-sm font-bold text-amber-900">
+                    {kpiError || 'No hay datos de KPI para mostrar.'}
+                </p>
+                <p className="text-xs text-amber-800/80 mt-2">
+                    Métricas basadas en la última cotización guardada por proyecto (excluye borradores).
+                </p>
+            </Card>
+        );
+    }
+
+    const { kpis, currency, meta } = kpiSummary;
+    const rangeHint = formatRangeLabel(meta.applied_start, meta.applied_end);
 
     const cards: KpiCard[] = [
         {
-            title: 'Total Cotizado',
-            value: `$${formatMoneyAmount(metrics.totalQuoted)}`,
-            trend: 'up',
+            title: 'Total cotizado (impuestos)',
+            value: `${currency} ${formatMoneyAmount(kpis.totalCotizadoConImpuestos)}`,
             icon: DollarSign,
-            color: 'text-blue-500',
-            bg: 'bg-blue-50/50'
+            color: 'text-blue-600',
+            bg: 'bg-blue-50/60',
+            subtitle: 'Última versión / proyecto',
         },
         {
-            title: 'Pipeline Value',
-            value: `$${formatMoneyAmount(metrics.pipelineValue)}`,
-            subtitle: `${metrics.sentCount} activas`,
+            title: 'Costo operacional',
+            value: `${currency} ${formatMoneyAmount(kpis.costoTotalOperacional)}`,
             icon: Activity,
-            color: 'text-purple-500',
-            bg: 'bg-purple-50/50'
+            color: 'text-violet-600',
+            bg: 'bg-violet-50/60',
         },
         {
-            title: 'Win Rate',
-            value: `${metrics.winRate.toFixed(1)}%`,
-            trend: 'up',
-            icon: PieChart,
-            color: 'text-green-500',
-            bg: 'bg-green-50/50'
-        },
-        {
-            title: 'Margen Promedio',
-            value: `${metrics.avgMargin.toFixed(1)}%`,
-            status: metrics.avgMargin >= 20 ? 'Saludable' : 'Revisar',
+            title: 'Margen neto total',
+            value: `${currency} ${formatMoneyAmount(kpis.margenNetoTotal)}`,
             icon: TrendingUp,
-            color: 'text-orange-500',
-            bg: 'bg-orange-50/50'
-        }
+            color: 'text-emerald-600',
+            bg: 'bg-emerald-50/60',
+        },
+        {
+            title: 'Propuestas realizadas',
+            value: String(kpis.numeroPropuestasRealizadas),
+            icon: BarChart3,
+            color: 'text-slate-600',
+            bg: 'bg-slate-50/80',
+            subtitle: 'Proyectos no Draft en ventana',
+        },
+        {
+            title: 'Propuestas ganadas',
+            value: String(kpis.numeroPropuestasGanadas),
+            icon: PieChart,
+            color: 'text-green-600',
+            bg: 'bg-green-50/60',
+            subtitle: 'Estado Won en misma ventana',
+        },
     ];
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {cards.map((metric, index) => (
-                <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                >
-                    <Card className="p-5 hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)] transition-all duration-500 group h-full">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center ${metric.bg} ${metric.color} group-hover:scale-110 transition-transform duration-500`}>
-                                <metric.icon size={20} strokeWidth={1.5} />
+        <div className="space-y-3">
+            <p className="text-[11px] font-semibold text-gray-500 tracking-wide">
+                KPI por actualización de cotización · {rangeHint} · {meta.timezone}
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                {cards.map((metric, index) => (
+                    <motion.div
+                        key={metric.title}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.06 }}
+                    >
+                        <Card className="p-5 hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] transition-all duration-500 group h-full border border-gray-100/80">
+                            <div className="flex justify-between items-start mb-4">
+                                <div
+                                    className={`w-10 h-10 rounded-[14px] flex items-center justify-center ${metric.bg} ${metric.color} group-hover:scale-105 transition-transform duration-500`}
+                                >
+                                    <metric.icon size={20} strokeWidth={1.5} />
+                                </div>
                             </div>
-                            {metric.change && (
-                                <span className={`text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wider ${metric.trend === 'up' ? 'bg-green-50 text-green-600 border border-green-100/50' : 'bg-red-50 text-red-600 border border-red-100/50'}`}>
-                                    {metric.change}
-                                </span>
-                            )}
-                            {metric.status && (
-                                <span className="text-[10px] font-black px-3 py-1.5 rounded-full bg-green-50 text-green-600 border border-green-100/50 uppercase tracking-wider">
-                                    {metric.status}
-                                </span>
-                            )}
-                        </div>
-
-                        <div>
-                            <p className="text-[10px] font-black text-system-gray uppercase tracking-[0.2em] mb-2">{metric.title}</p>
-                            <h3 className="text-3xl font-bold text-gray-900 tracking-tight">{metric.value}</h3>
-                            {metric.subtitle && (
-                                <p className="text-sm text-system-gray mt-2 font-medium flex items-center gap-1.5">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                                    {metric.subtitle}
+                            <div>
+                                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.15em] mb-2">
+                                    {metric.title}
                                 </p>
-                            )}
-                        </div>
-                    </Card>
-                </motion.div>
-            ))}
+                                <h3 className="text-2xl font-bold text-gray-900 tracking-tight">{metric.value}</h3>
+                                {metric.subtitle && (
+                                    <p className="text-xs text-gray-500 mt-2 font-medium flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                                        {metric.subtitle}
+                                    </p>
+                                )}
+                            </div>
+                        </Card>
+                    </motion.div>
+                ))}
+            </div>
         </div>
     );
 }
