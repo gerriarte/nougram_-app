@@ -35,7 +35,7 @@ export function OverheadSummary() {
 
             <Card className="bg-white border-gray-100 shadow-sm">
                 <CardContent className="p-6">
-                    <p className="text-sm font-medium text-gray-500 uppercase">Overhead Operacional</p>
+                    <p className="text-sm font-medium text-gray-500 uppercase">Inventario de Gastos Operacional</p>
                     <p className="text-2xl font-bold text-gray-700 mt-2">
                         {formatCurrency(overheadCosts, currency)}
                     </p>

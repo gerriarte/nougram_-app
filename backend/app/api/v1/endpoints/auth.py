@@ -30,6 +30,8 @@ from app.schemas.auth import (
     ResetPasswordResponse,
     VerifyEmailRequest,
     VerifyEmailResponse,
+    ChangePasswordRequest,
+    ChangePasswordResponse,
 )
 
 router = APIRouter()
@@ -348,6 +350,15 @@ async def get_current_user_info(
         role=user_role,  # Explicit string
         organization_id=current_user.organization_id,  # Multi-tenant: include organization_id
         email_verified=bool(getattr(current_user, "email_verified", True)),
+        job_title=current_user.job_title,
+        specialty=current_user.specialty,
+        bio=current_user.bio,
+        linkedin_url=current_user.linkedin_url,
+        portfolio_url=current_user.portfolio_url,
+        instagram_url=current_user.instagram_url,
+        behance_url=current_user.behance_url,
+        timezone=current_user.timezone,
+        language=current_user.language,
     )
 
 @router.put("/me", response_model=UserResponse)
@@ -357,8 +368,50 @@ async def update_current_user_info(
     db: AsyncSession = Depends(get_db),
 ):
     """Update current user profile information."""
+    if (
+        payload.full_name is None
+        and payload.job_title is None
+        and payload.specialty is None
+        and payload.bio is None
+        and payload.linkedin_url is None
+        and payload.portfolio_url is None
+        and payload.instagram_url is None
+        and payload.behance_url is None
+        and payload.timezone is None
+        and payload.language is None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No profile fields provided",
+        )
 
-    current_user.full_name = payload.full_name
+    if payload.full_name is not None:
+        full_name = payload.full_name.strip()
+        if not full_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El nombre no puede estar vacío",
+            )
+        current_user.full_name = full_name
+    if payload.job_title is not None:
+        current_user.job_title = payload.job_title.strip() or None
+    if payload.specialty is not None:
+        current_user.specialty = payload.specialty.strip() or None
+    if payload.bio is not None:
+        current_user.bio = payload.bio.strip() or None
+    if payload.linkedin_url is not None:
+        current_user.linkedin_url = payload.linkedin_url.strip() or None
+    if payload.portfolio_url is not None:
+        current_user.portfolio_url = payload.portfolio_url.strip() or None
+    if payload.instagram_url is not None:
+        current_user.instagram_url = payload.instagram_url.strip() or None
+    if payload.behance_url is not None:
+        current_user.behance_url = payload.behance_url.strip() or None
+    if payload.timezone is not None:
+        current_user.timezone = payload.timezone.strip() or None
+    if payload.language is not None:
+        current_user.language = payload.language.strip() or None
+
     await db.commit()
     await db.refresh(current_user)
 
@@ -372,8 +425,51 @@ async def update_current_user_info(
         full_name=current_user.full_name,
         has_calendar_connected=current_user.google_refresh_token is not None,
         role=user_role,
+        organization_id=current_user.organization_id,
         email_verified=bool(getattr(current_user, "email_verified", True)),
+        job_title=current_user.job_title,
+        specialty=current_user.specialty,
+        bio=current_user.bio,
+        linkedin_url=current_user.linkedin_url,
+        portfolio_url=current_user.portfolio_url,
+        instagram_url=current_user.instagram_url,
+        behance_url=current_user.behance_url,
+        timezone=current_user.timezone,
+        language=current_user.language,
     )
+
+
+@router.post("/me/change-password", response_model=ChangePasswordResponse)
+async def change_current_user_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change current authenticated user password."""
+    if not current_user.hashed_password or not verify_password(
+        payload.current_password,
+        current_user.hashed_password,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña actual es incorrecta",
+        )
+
+    if payload.current_password == payload.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La nueva contraseña debe ser diferente a la actual",
+        )
+
+    current_user.hashed_password = get_password_hash(payload.new_password)
+    await db.commit()
+
+    logger.info(
+        "Password changed from profile",
+        user_id=current_user.id,
+        email=current_user.email,
+    )
+    return ChangePasswordResponse(message="Contraseña actualizada correctamente")
 
 
 @router.post("/switch-organization", response_model=TokenResponse)

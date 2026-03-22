@@ -30,7 +30,7 @@ export default function OverheadPage() {
     return (
         <div className="space-y-8">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Overhead & Activos</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Inventario de Gastos & Activos</h1>
                 <p className="text-gray-500">Gestiona tus costos fijos, licencias y la amortización de equipos.</p>
             </div>
 

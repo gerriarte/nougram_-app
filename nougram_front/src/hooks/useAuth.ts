@@ -20,6 +20,15 @@ type CurrentUserResponse = {
   email: string;
   full_name: string;
   organization_id?: number | null;
+  job_title?: string | null;
+  specialty?: string | null;
+  bio?: string | null;
+  linkedin_url?: string | null;
+  portfolio_url?: string | null;
+  instagram_url?: string | null;
+  behance_url?: string | null;
+  timezone?: string | null;
+  language?: string | null;
   role?:
     | "super_admin"
     | "support_manager"
@@ -38,6 +47,15 @@ function mapToExtendedUser(data: CurrentUserResponse): UserProfileExtended {
     role: data.role || "collaborator",
     organization_id: data.organization_id ?? null,
     status: "ACTIVE",
+    job_title: data.job_title ?? undefined,
+    specialty: data.specialty ?? undefined,
+    bio: data.bio ?? undefined,
+    linkedin_url: data.linkedin_url ?? undefined,
+    portfolio_url: data.portfolio_url ?? undefined,
+    instagram_url: data.instagram_url ?? undefined,
+    behance_url: data.behance_url ?? undefined,
+    timezone: data.timezone ?? undefined,
+    language: data.language ?? undefined,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

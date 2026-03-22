@@ -2,12 +2,31 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Building2, ArrowLeft, Users, CreditCard, Hash, Save, RefreshCw, Coins } from 'lucide-react';
+import {
+  Building2,
+  ArrowLeft,
+  Users,
+  CreditCard,
+  Save,
+  RefreshCw,
+  Coins,
+  IdCard,
+  FileText,
+  MapPin,
+} from 'lucide-react';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { apiRequest } from '@/lib/api-client';
 import { useAuth } from '@/hooks/useAuth';
 import { settingsService } from '@/services/settingsService';
 import { useNougram } from '@/context/NougramCoreContext';
+
+type OrganizationSettings = {
+  nit?: string;
+  employee_count?: number;
+  origin_country?: string;
+  origin_city?: string;
+  [key: string]: unknown;
+};
 
 type OrganizationResponse = {
   id: number;
@@ -16,26 +35,37 @@ type OrganizationResponse = {
   subscription_plan?: string | null;
   subscription_status?: string | null;
   user_count?: number | null;
-  settings?: Record<string, unknown> | null;
+  settings?: OrganizationSettings | null;
 };
 
 export default function OrganizationPage() {
   const { user } = useAuth();
   const { updateIdentity } = useNougram();
+
   const [organization, setOrganization] = useState<OrganizationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [nameDraft, setNameDraft] = useState('');
+
+  const [legalNameDraft, setLegalNameDraft] = useState('');
+  const [nitDraft, setNitDraft] = useState('');
+  const [employeeCountDraft, setEmployeeCountDraft] = useState('');
+  const [originCountryDraft, setOriginCountryDraft] = useState('');
+  const [originCityDraft, setOriginCityDraft] = useState('');
+
   const [planDraft, setPlanDraft] = useState('free');
   const [currencyDraft, setCurrencyDraft] = useState('COP');
   const [availableCurrencies, setAvailableCurrencies] = useState<string[]>(['USD', 'COP', 'ARS', 'EUR', 'PEN', 'MXN']);
-  const [savingName, setSavingName] = useState(false);
+
+  const [savingProfile, setSavingProfile] = useState(false);
   const [savingPlan, setSavingPlan] = useState(false);
   const [savingCurrency, setSavingCurrency] = useState(false);
-  const [nameMessage, setNameMessage] = useState<string | null>(null);
+
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [currencyMessage, setCurrencyMessage] = useState<string | null>(null);
 
+  const canManageCompanyProfile =
+    user?.role === 'owner' || user?.role === 'super_admin' || user?.role === 'admin_financiero';
   const canManageSubscription = user?.role === 'owner' || user?.role === 'super_admin';
   const canManageCurrency = user?.role === 'owner' || user?.role === 'super_admin';
 
@@ -62,9 +92,19 @@ export default function OrganizationPage() {
         return;
       }
 
-      setOrganization(organizationResponse.data);
-      setNameDraft(organizationResponse.data.name || '');
-      setPlanDraft(organizationResponse.data.subscription_plan || 'free');
+      const org = organizationResponse.data;
+      const orgSettings = (org.settings || {}) as OrganizationSettings;
+
+      setOrganization(org);
+      setLegalNameDraft(org.name || '');
+      setNitDraft(String(orgSettings.nit || ''));
+      setEmployeeCountDraft(
+        orgSettings.employee_count != null ? String(orgSettings.employee_count) : ''
+      );
+      setOriginCountryDraft(String(orgSettings.origin_country || ''));
+      setOriginCityDraft(String(orgSettings.origin_city || ''));
+      setPlanDraft(org.subscription_plan || 'free');
+
       if (currencyResponse?.primary_currency) {
         setCurrencyDraft(currencyResponse.primary_currency);
       }
@@ -72,41 +112,64 @@ export default function OrganizationPage() {
         const codes = currencyResponse.available_currencies
           .map((option) => option?.code)
           .filter((code): code is string => Boolean(code));
-        if (codes.length) {
-          setAvailableCurrencies(codes);
-        }
+        if (codes.length) setAvailableCurrencies(codes);
       }
+
       setLoading(false);
     };
 
     void loadOrganization();
   }, []);
 
-  const handleSaveName = async () => {
+  const handleSaveCompanyProfile = async () => {
     if (!organization) return;
-    const trimmed = nameDraft.trim();
-    setNameMessage(null);
-    if (!trimmed) {
-      setNameMessage('El nombre de la empresa es obligatorio.');
+    setProfileMessage(null);
+
+    const normalizedName = legalNameDraft.trim();
+    if (!normalizedName) {
+      setProfileMessage('La razón social es obligatoria.');
       return;
     }
 
-    setSavingName(true);
+    const parsedEmployeeCount = employeeCountDraft.trim() === ''
+      ? null
+      : Number(employeeCountDraft);
+
+    if (parsedEmployeeCount != null && (!Number.isFinite(parsedEmployeeCount) || parsedEmployeeCount < 0)) {
+      setProfileMessage('El número de empleados debe ser un valor mayor o igual a 0.');
+      return;
+    }
+
+    setSavingProfile(true);
     const response = await apiRequest<OrganizationResponse>(`/organizations/${organization.id}`, {
       method: 'PUT',
-      body: JSON.stringify({ name: trimmed }),
+      body: JSON.stringify({
+        name: normalizedName,
+        settings: {
+          nit: nitDraft.trim() || null,
+          employee_count: parsedEmployeeCount,
+          origin_country: originCountryDraft.trim() || null,
+          origin_city: originCityDraft.trim() || null,
+        },
+      }),
     });
-    setSavingName(false);
+    setSavingProfile(false);
 
     if (response.error || !response.data) {
-      setNameMessage(response.error || 'No se pudo guardar el nombre de la empresa.');
+      setProfileMessage(response.error || 'No se pudo guardar la ficha de empresa.');
       return;
     }
 
-    setOrganization(response.data);
-    setNameDraft(response.data.name);
-    updateIdentity({ name: response.data.name });
-    setNameMessage('Nombre actualizado correctamente.');
+    const org = response.data;
+    const orgSettings = (org.settings || {}) as OrganizationSettings;
+    setOrganization(org);
+    setLegalNameDraft(org.name || '');
+    setNitDraft(String(orgSettings.nit || ''));
+    setEmployeeCountDraft(orgSettings.employee_count != null ? String(orgSettings.employee_count) : '');
+    setOriginCountryDraft(String(orgSettings.origin_country || ''));
+    setOriginCityDraft(String(orgSettings.origin_city || ''));
+    updateIdentity({ name: org.name });
+    setProfileMessage('Ficha de empresa actualizada correctamente.');
   };
 
   const handleSavePlan = async () => {
@@ -147,16 +210,14 @@ export default function OrganizationPage() {
       const codes = updated.available_currencies
         .map((option) => option?.code)
         .filter((code): code is string => Boolean(code));
-      if (codes.length) {
-        setAvailableCurrencies(codes);
-      }
+      if (codes.length) setAvailableCurrencies(codes);
     }
     setCurrencyMessage('Moneda principal actualizada correctamente.');
   };
 
   return (
     <AdminLayout>
-      <div className="max-w-5xl mx-auto px-6 py-12 space-y-8">
+      <div className="max-w-6xl mx-auto px-6 py-10 space-y-8">
         <div className="space-y-4">
           <Link
             href="/dashboard"
@@ -172,7 +233,7 @@ export default function OrganizationPage() {
             </div>
             <div>
               <h1 className="text-4xl font-bold text-gray-900 tracking-tight">Empresa</h1>
-              <p className="text-system-gray font-medium">Configuración del tenant actual</p>
+              <p className="text-system-gray font-medium">Ficha general de la empresa</p>
             </div>
           </div>
         </div>
@@ -190,131 +251,196 @@ export default function OrganizationPage() {
         )}
 
         {!loading && organization && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-gray-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-system-gray mb-1">
-                Nombre
-              </p>
-              <div className="space-y-3">
-                <input
-                  value={nameDraft}
-                  onChange={(event) => setNameDraft(event.target.value)}
-                  className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                  placeholder="Nombre de la empresa"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveName}
-                  disabled={savingName}
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {savingName ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                  Guardar nombre
-                </button>
-                {nameMessage && (
-                  <p className={`text-xs font-semibold ${nameMessage.includes('correctamente') ? 'text-green-600' : 'text-red-600'}`}>
-                    {nameMessage}
-                  </p>
-                )}
+          <>
+            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-5">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Datos de empresa</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Registra la información base para uso administrativo y reportes.
+                </p>
               </div>
-            </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-system-gray mb-1 flex items-center gap-1">
-                <Hash size={13} />
-                Slug
-              </p>
-              <p className="text-lg font-bold text-gray-900">{organization.slug}</p>
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                    <FileText size={13} /> Razón Social
+                  </span>
+                  <input
+                    value={legalNameDraft}
+                    onChange={(event) => setLegalNameDraft(event.target.value)}
+                    disabled={!canManageCompanyProfile}
+                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    placeholder="Razón social"
+                  />
+                </label>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-system-gray mb-1 flex items-center gap-1">
-                <CreditCard size={13} />
-                Tipo de suscripción
-              </p>
-              <div className="space-y-3">
-                <select
-                  value={planDraft}
-                  onChange={(event) => setPlanDraft(event.target.value)}
-                  disabled={!canManageSubscription}
-                  className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
-                >
-                  {PLAN_OPTIONS.map((plan) => (
-                    <option key={plan.value} value={plan.value}>
-                      {plan.label}
-                    </option>
-                  ))}
-                </select>
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                    <IdCard size={13} /> NIT
+                  </span>
+                  <input
+                    value={nitDraft}
+                    onChange={(event) => setNitDraft(event.target.value)}
+                    disabled={!canManageCompanyProfile}
+                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    placeholder="NIT"
+                  />
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                    <Users size={13} /> Número de empleados
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={employeeCountDraft}
+                    onChange={(event) => setEmployeeCountDraft(event.target.value)}
+                    disabled={!canManageCompanyProfile}
+                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    placeholder="Ej: 25"
+                  />
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                    <MapPin size={13} /> País de origen
+                  </span>
+                  <input
+                    value={originCountryDraft}
+                    onChange={(event) => setOriginCountryDraft(event.target.value)}
+                    disabled={!canManageCompanyProfile}
+                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    placeholder="Ej: Colombia"
+                  />
+                </label>
+
+                <label className="space-y-1.5 md:col-span-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                    <MapPin size={13} /> Ciudad de origen
+                  </span>
+                  <input
+                    value={originCityDraft}
+                    onChange={(event) => setOriginCityDraft(event.target.value)}
+                    disabled={!canManageCompanyProfile}
+                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    placeholder="Ej: Bogotá"
+                  />
+                </label>
+              </div>
+
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={handleSavePlan}
-                  disabled={savingPlan || !canManageSubscription}
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                  onClick={handleSaveCompanyProfile}
+                  disabled={savingProfile || !canManageCompanyProfile}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                 >
-                  {savingPlan ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                  Guardar suscripción
+                  {savingProfile ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                  Guardar ficha de empresa
                 </button>
-                {!canManageSubscription && (
+                {!canManageCompanyProfile && (
                   <p className="text-xs font-semibold text-amber-600">
-                    Solo Owner o Super Admin pueden cambiar la suscripción.
-                  </p>
-                )}
-                {planMessage && (
-                  <p className={`text-xs font-semibold ${planMessage.includes('actualizado') ? 'text-green-600' : 'text-red-600'}`}>
-                    {planMessage}
+                    No tienes permisos para editar la ficha de empresa.
                   </p>
                 )}
               </div>
-            </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-system-gray mb-1 flex items-center gap-1">
-                <Users size={13} />
-                Usuarios
-              </p>
-              <p className="text-lg font-bold text-gray-900">{organization.user_count ?? 0}</p>
-            </div>
+              {profileMessage && (
+                <p className={`text-xs font-semibold ${profileMessage.includes('correctamente') ? 'text-green-600' : 'text-red-600'}`}>
+                  {profileMessage}
+                </p>
+              )}
+            </section>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-system-gray mb-1 flex items-center gap-1">
-                <Coins size={13} />
-                Moneda principal de operación
-              </p>
-              <div className="space-y-3">
-                <select
-                  value={currencyDraft}
-                  onChange={(event) => setCurrencyDraft(event.target.value)}
-                  disabled={!canManageCurrency}
-                  className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
-                >
-                  {availableCurrencies.map((currencyCode) => (
-                    <option key={currencyCode} value={currencyCode}>
-                      {currencyCode}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={handleSaveCurrency}
-                  disabled={savingCurrency || !canManageCurrency}
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {savingCurrency ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                  Guardar moneda
-                </button>
-                {!canManageCurrency && (
-                  <p className="text-xs font-semibold text-amber-600">
-                    Solo Owner o Super Admin pueden cambiar la moneda principal.
-                  </p>
-                )}
-                {currencyMessage && (
-                  <p className={`text-xs font-semibold ${currencyMessage.includes('correctamente') ? 'text-green-600' : 'text-red-600'}`}>
-                    {currencyMessage}
-                  </p>
-                )}
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2 space-y-4">
+                <h3 className="text-lg font-bold text-gray-900">Configuración operativa</h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-system-gray flex items-center gap-1">
+                      <CreditCard size={13} /> Tipo de suscripción
+                    </p>
+                    <select
+                      value={planDraft}
+                      onChange={(event) => setPlanDraft(event.target.value)}
+                      disabled={!canManageSubscription}
+                      className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    >
+                      {PLAN_OPTIONS.map((plan) => (
+                        <option key={plan.value} value={plan.value}>
+                          {plan.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleSavePlan}
+                      disabled={savingPlan || !canManageSubscription}
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                    >
+                      {savingPlan ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                      Guardar suscripción
+                    </button>
+                    {planMessage && (
+                      <p className={`text-xs font-semibold ${planMessage.includes('actualizado') ? 'text-green-600' : 'text-red-600'}`}>
+                        {planMessage}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-system-gray flex items-center gap-1">
+                      <Coins size={13} /> Moneda principal de operación
+                    </p>
+                    <select
+                      value={currencyDraft}
+                      onChange={(event) => setCurrencyDraft(event.target.value)}
+                      disabled={!canManageCurrency}
+                      className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    >
+                      {availableCurrencies.map((currencyCode) => (
+                        <option key={currencyCode} value={currencyCode}>
+                          {currencyCode}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleSaveCurrency}
+                      disabled={savingCurrency || !canManageCurrency}
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                    >
+                      {savingCurrency ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                      Guardar moneda
+                    </button>
+                    {currencyMessage && (
+                      <p className={`text-xs font-semibold ${currencyMessage.includes('correctamente') ? 'text-green-600' : 'text-red-600'}`}>
+                        {currencyMessage}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-3">
+                <h3 className="text-sm font-bold uppercase tracking-wide text-system-gray">Referencia</h3>
+                <div>
+                  <p className="text-xs text-gray-500">Slug</p>
+                  <p className="text-lg font-bold text-gray-900 break-all">{organization.slug}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Usuarios activos</p>
+                  <p className="text-lg font-bold text-gray-900">{organization.user_count ?? 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Estado de suscripción</p>
+                  <p className="text-sm font-semibold text-gray-800">{organization.subscription_status || 'active'}</p>
+                </div>
+              </div>
+            </section>
+          </>
         )}
       </div>
     </AdminLayout>

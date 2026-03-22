@@ -79,7 +79,7 @@ export function BCRSummaryCard({ summary, isLoading }: BCRSummaryCardProps) {
                         </div>
 
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Overhead Fijo</span>
+                            <span className="text-gray-600">Inventario de Gastos Fijo</span>
                             <span className="font-medium">{formatCurrency(summary.total_fixed_overhead, summaryCurrency)}</span>
                         </div>
 

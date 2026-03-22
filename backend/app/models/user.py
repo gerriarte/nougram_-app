@@ -20,6 +20,16 @@ class User(Base):
     email_verified = Column(Boolean, nullable=False, server_default=text("true"))
     email_verified_at = Column(DateTime(timezone=True), nullable=True)
     google_refresh_token = Column(String, nullable=True)  # Encrypted
+    # Extended profile fields
+    job_title = Column(String(120), nullable=True)
+    specialty = Column(String(120), nullable=True)
+    bio = Column(String(1000), nullable=True)
+    linkedin_url = Column(String(255), nullable=True)
+    portfolio_url = Column(String(255), nullable=True)
+    instagram_url = Column(String(255), nullable=True)
+    behance_url = Column(String(255), nullable=True)
+    timezone = Column(String(64), nullable=True)
+    language = Column(String(8), nullable=True)
     # Roles: non-disruptive string-based role (nullable, defaults handled at DB/migration)
     role = Column(String(32), nullable=True, index=True)
     

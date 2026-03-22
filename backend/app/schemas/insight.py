@@ -1,7 +1,7 @@
 """
 Pydantic schemas for Insights and AI
 """
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -16,4 +16,37 @@ class AIAdvisorResponse(BaseModel):
     success: bool = Field(..., description="Whether the query was successful")
     answer: str = Field(..., description="AI advisor response")
     provider: Optional[str] = Field(None, description="AI provider used")
+
+
+class DashboardKpiMeta(BaseModel):
+    """Metadata for unified dashboard KPI response."""
+
+    range_mode: Literal["relative", "custom"] = Field(..., description="How the date window was built")
+    timezone: str = Field(..., description="IANA timezone used for range boundaries")
+    applied_start: str = Field(..., description="Inclusive range start (ISO 8601, UTC)")
+    applied_end: str = Field(..., description="Inclusive range end (ISO 8601, UTC)")
+    months_back: Optional[int] = Field(None, description="Only when range_mode=relative")
+    custom_start_date: Optional[str] = Field(None, description="Only when range_mode=custom (YYYY-MM-DD local)")
+    custom_end_date: Optional[str] = Field(None, description="Only when range_mode=custom (YYYY-MM-DD local)")
+    latest_quote_only: bool = Field(True, description="Metrics use latest quote version per project")
+    exclude_draft: bool = Field(True, description="Projects in Draft are excluded")
+    date_field: str = Field("quote.updated_at", description="Temporal filter field")
+
+
+class DashboardKpiNumbers(BaseModel):
+    """Unified KPI block (latest non-draft quote per project, date on quote.updated_at)."""
+
+    totalCotizadoConImpuestos: float = Field(..., description="Sum of total with taxes")
+    costoTotalOperacional: float = Field(..., description="Sum of total_internal_cost")
+    margenNetoTotal: float = Field(..., description="Sum of (total with taxes - internal cost)")
+    numeroPropuestasRealizadas: int = Field(..., description="Projects counted (latest quote in window)")
+    numeroPropuestasGanadas: int = Field(..., description="Subset with project status Won")
+
+
+class DashboardKpiSummaryResponse(BaseModel):
+    """GET /insights/dashboard/kpi-summary contract."""
+
+    meta: DashboardKpiMeta
+    kpis: DashboardKpiNumbers
+    currency: str = Field(..., description="Organization primary currency for display")
 

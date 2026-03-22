@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { UserList } from '@/components/users/UserList';
 import { InvitationList } from '@/components/users/InvitationList';
 import { UserProfileSettings } from '@/components/users/UserProfileSettings';
-import { Users, Mail, Settings, ShieldCheck, ArrowLeft, CreditCard } from 'lucide-react';
+import { Users, Mail, Settings, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 
@@ -50,7 +50,7 @@ export default function UserManagementPage() {
                         </p>
                     </div>
 
-                    <div className="w-full md:w-auto space-y-3">
+                    <div className="w-full md:w-auto">
                         <div className="bg-gray-200/50 p-1.5 rounded-2xl flex w-full md:w-auto backdrop-blur-sm border border-gray-200/20">
                             {tabs.map((tab) => (
                                 <button
@@ -68,13 +68,6 @@ export default function UserManagementPage() {
                                 </button>
                             ))}
                         </div>
-                        <Link
-                            href="/billing"
-                            className="inline-flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 transition-colors"
-                        >
-                            <CreditCard size={14} />
-                            Gestionar suscripcion
-                        </Link>
                     </div>
                 </div>
                 {/* Content Area */}
