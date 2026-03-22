@@ -342,13 +342,13 @@ export default function AvailabilityPage() {
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 px-1">
                             <BarChart3 size={18} className="text-gray-400" />
-                            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Resumen por Célula</h2>
+                            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Resumen por Equipo</h2>
                         </div>
                         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
                             <table className="w-full text-sm">
                                 <thead className="bg-gray-50 text-gray-600">
                                     <tr>
-                                        <th className="px-4 py-3 text-left font-semibold">Célula</th>
+                                        <th className="px-4 py-3 text-left font-semibold">Equipo</th>
                                         <th className="px-4 py-3 text-right font-semibold">Tentative</th>
                                         <th className="px-4 py-3 text-right font-semibold">Committed</th>
                                         <th className="px-4 py-3 text-right font-semibold">Actual</th>
@@ -359,7 +359,7 @@ export default function AvailabilityPage() {
                                     {(overview?.cells || []).length === 0 ? (
                                         <tr>
                                             <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
-                                                No hay ocupación por célula en el periodo seleccionado.
+                                                No hay ocupación por equipo en el periodo seleccionado.
                                             </td>
                                         </tr>
                                     ) : (

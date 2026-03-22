@@ -209,7 +209,7 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                                 <div className="mb-3 rounded-lg border border-purple-200 bg-purple-50/60 p-3 space-y-2">
                                     <div className="flex items-center justify-between gap-2">
                                         <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700">
-                                            Asignacion por celula
+                                            Asignacion por equipo
                                         </span>
                                         {item.cellAssignment && (
                                             <button
@@ -230,7 +230,7 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                                                 setSelectedVersionId(0);
                                             }}
                                         >
-                                            <option value="">Seleccionar celula...</option>
+                                            <option value="">Seleccionar equipo...</option>
                                             {availableCells.map((cell) => (
                                                 <option key={cell.id} value={cell.id}>{cell.name}</option>
                                             ))}
@@ -255,7 +255,7 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                                             className="h-8 text-xs bg-white border-purple-200"
                                             value={occupancyPercentage}
                                             onChange={(e) => setOccupancyPercentage(Math.max(1, Number(e.target.value) || 1))}
-                                            placeholder="% ocupacion"
+                                            placeholder="% ocupacion equipo"
                                         />
                                         <Input
                                             type="number"
@@ -274,7 +274,7 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                                         onClick={applyCellAssignment}
                                         disabled={!selectedCellId || !selectedVersionId}
                                     >
-                                        Aplicar celula
+                                        Aplicar equipo
                                     </Button>
                                 </div>
                             )}
