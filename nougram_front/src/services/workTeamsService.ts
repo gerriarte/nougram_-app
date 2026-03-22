@@ -118,6 +118,18 @@ export const workTeamsService = {
         return response.data;
     },
 
+    async removeTeam(teamId: number): Promise<boolean> {
+        const response = await apiRequest<void>(`/settings/team-cells/${teamId}`, {
+            method: 'DELETE',
+        });
+        if (response.error) {
+            throw new Error(response.error);
+        }
+        cachedTeams = null;
+        cachedVersionsByTeam.delete(teamId);
+        return true;
+    },
+
     async listTeamVersions(teamId: number, forceRefresh = false): Promise<TeamVersion[]> {
         if (!forceRefresh && cachedVersionsByTeam.has(teamId)) {
             return cachedVersionsByTeam.get(teamId) || [];

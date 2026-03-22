@@ -49,6 +49,7 @@ from app.schemas.project import (
 )
 from app.schemas.quote import QuoteEmailRequest, QuoteEmailResponse, QuoteExpenseCreate, QuoteExpenseResponse, MarginSummary
 from app.services.settings_service import SettingsService
+from app.services.capacity_service import CapacityService
 
 router = APIRouter()
 
@@ -1141,6 +1142,16 @@ async def update_quote(
             db.add_all(quote_cell_assignments)
         await db.commit()
         await db.refresh(quote)
+
+        try:
+            capacity_service = CapacityService(db, tenant.organization_id)
+            await capacity_service.sync_tentative_from_quote(
+                quote_id=quote.id,
+                project_id=project_id,
+                actor_user_id=current_user.id,
+            )
+        except Exception as sync_error:
+            logger.warning(f"Failed to sync tentative capacity on quote update {quote.id}: {sync_error}")
         
         # Build response
         quote_result = await db.execute(

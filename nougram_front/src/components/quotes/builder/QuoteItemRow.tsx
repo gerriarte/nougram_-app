@@ -23,6 +23,10 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
     const [isAddingResource, setIsAddingResource] = useState(false);
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [newResourceHours, setNewResourceHours] = useState<number>(10);
+    const [selectedResourceTeamId, setSelectedResourceTeamId] = useState<number | ''>('');
+    const [resourceTeamVersions, setResourceTeamVersions] = useState<TeamVersion[]>([]);
+    const [selectedResourceTeamVersionId, setSelectedResourceTeamVersionId] = useState<number | ''>('');
+    const [newTeamResourceHours, setNewTeamResourceHours] = useState<number>(10);
     const [availableCells, setAvailableCells] = useState<TeamSummary[]>([]);
     const [availableVersions, setAvailableVersions] = useState<TeamVersion[]>([]);
     const [selectedCellId, setSelectedCellId] = useState<number>(currentAssignment?.cellId || 0);
@@ -59,6 +63,24 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
         return () => { mounted = false; };
     }, [selectedCellId, selectedVersionId, coreState.features.teamCellsEnabled]);
 
+    React.useEffect(() => {
+        let mounted = true;
+        const loadResourceTeamVersions = async () => {
+            if (!selectedResourceTeamId || !coreState.features.teamCellsEnabled) {
+                if (mounted) setResourceTeamVersions([]);
+                return;
+            }
+            const versions = await workTeamsService.listTeamVersions(Number(selectedResourceTeamId));
+            if (!mounted) return;
+            setResourceTeamVersions(versions);
+            if (!selectedResourceTeamVersionId && versions.length > 0) {
+                setSelectedResourceTeamVersionId(versions[0].id);
+            }
+        };
+        void loadResourceTeamVersions();
+        return () => { mounted = false; };
+    }, [selectedResourceTeamId, selectedResourceTeamVersionId, coreState.features.teamCellsEnabled]);
+
     const handleAddResource = () => {
         if (!selectedMemberId) return;
 
@@ -78,6 +100,41 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
         setIsAddingResource(false);
         setSelectedMemberId('');
         setNewResourceHours(10);
+    };
+
+    const handleAddTeamResources = () => {
+        const teamId = Number(selectedResourceTeamId || 0);
+        const versionId = Number(selectedResourceTeamVersionId || 0);
+        const totalTeamHours = Math.max(0, Number(newTeamResourceHours || 0));
+        if (!teamId || !versionId || totalTeamHours <= 0) return;
+
+        const selectedVersion = resourceTeamVersions.find((version) => version.id === versionId);
+        if (!selectedVersion) return;
+
+        const activeVersionMembers = (selectedVersion.members || []).filter((member) => member.is_active !== false);
+        const totalWeight = activeVersionMembers.reduce((acc, member) => acc + (Number(member.weight) || 0), 0);
+        if (!activeVersionMembers.length || totalWeight <= 0) return;
+
+        const generatedAllocations: ResourceAllocation[] = activeVersionMembers.map((member) => {
+            const memberWeight = Number(member.weight || 0);
+            const ratio = memberWeight / totalWeight;
+            const hours = Number((totalTeamHours * ratio).toFixed(2));
+            const tm = teamMembers.find((m) => m.id === Number(member.team_member_id));
+            return {
+                id: crypto.randomUUID(),
+                teamMemberId: Number(member.team_member_id),
+                hours,
+                role: member.role_override || tm?.role || undefined,
+            };
+        }).filter((alloc) => alloc.hours > 0);
+
+        const currentAllocations = item.allocations || [];
+        updateItem(item.id, { allocations: [...currentAllocations, ...generatedAllocations] });
+        setSelectedResourceTeamId('');
+        setSelectedResourceTeamVersionId('');
+        setResourceTeamVersions([]);
+        setNewTeamResourceHours(10);
+        setIsAddingResource(false);
     };
 
     const removeResource = (allocId: string) => {
@@ -354,36 +411,96 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                                         <Plus size={12} className="mr-1.5" /> Agregar Recurso
                                     </Button>
                                 ) : (
-                                    <div className="flex items-end gap-2 animate-in fade-in slide-in-from-top-1">
-                                        <div className="flex-1 space-y-1">
-                                            <label className="text-[10px] font-bold text-gray-400">Miembro</label>
-                                            <select
-                                                className="w-full h-8 text-xs rounded-md border-gray-200 bg-white"
-                                                value={selectedMemberId}
-                                                onChange={e => setSelectedMemberId(Number(e.target.value))}
-                                            >
-                                                <option value="">Seleccionar...</option>
-                                                {teamMembers.map(m => (
-                                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                                ))}
-                                            </select>
+                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-1">
+                                        <div className="rounded-lg border border-gray-100 bg-white p-2">
+                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                                                <div className="md:col-span-4 space-y-1">
+                                                    <label className="text-[10px] font-bold text-gray-400">Equipo</label>
+                                                    <select
+                                                        className="w-full h-8 text-xs rounded-md border-gray-200 bg-white"
+                                                        value={selectedResourceTeamId}
+                                                        onChange={e => {
+                                                            setSelectedResourceTeamId(Number(e.target.value) || '');
+                                                            setSelectedResourceTeamVersionId('');
+                                                        }}
+                                                    >
+                                                        <option value="">Seleccionar equipo...</option>
+                                                        {availableCells.map(team => (
+                                                            <option key={team.id} value={team.id}>{team.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="md:col-span-3 space-y-1">
+                                                    <label className="text-[10px] font-bold text-gray-400">Versión</label>
+                                                    <select
+                                                        className="w-full h-8 text-xs rounded-md border-gray-200 bg-white"
+                                                        value={selectedResourceTeamVersionId}
+                                                        onChange={e => setSelectedResourceTeamVersionId(Number(e.target.value) || '')}
+                                                        disabled={!selectedResourceTeamId}
+                                                    >
+                                                        <option value="">Seleccionar...</option>
+                                                        {resourceTeamVersions.map(version => (
+                                                            <option key={version.id} value={version.id}>
+                                                                V{version.version_number} ({version.status})
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="md:col-span-2 space-y-1">
+                                                    <label className="text-[10px] font-bold text-gray-400">Horas equipo</label>
+                                                    <Input
+                                                        type="number"
+                                                        className="h-8 text-xs"
+                                                        min={0}
+                                                        step={0.5}
+                                                        value={newTeamResourceHours}
+                                                        onChange={e => setNewTeamResourceHours(Number(e.target.value))}
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-3 flex gap-1">
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={handleAddTeamResources}
+                                                        disabled={!selectedResourceTeamId || !selectedResourceTeamVersionId || newTeamResourceHours <= 0}
+                                                        className="h-8 px-3 bg-purple-600"
+                                                    >
+                                                        Agregar equipo
+                                                    </Button>
+                                                    <Button size="sm" variant="ghost" onClick={() => setIsAddingResource(false)} className="h-8 px-2">
+                                                        ✕
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="w-20 space-y-1">
-                                            <label className="text-[10px] font-bold text-gray-400">Horas</label>
-                                            <Input
-                                                type="number"
-                                                className="h-8 text-xs"
-                                                value={newResourceHours}
-                                                onChange={e => setNewResourceHours(Number(e.target.value))}
-                                            />
-                                        </div>
-                                        <div className="flex gap-1">
-                                            <Button size="sm" onClick={handleAddResource} disabled={!selectedMemberId} className="h-8 px-3 bg-blue-600">
-                                                ✓
-                                            </Button>
-                                            <Button size="sm" variant="ghost" onClick={() => setIsAddingResource(false)} className="h-8 px-2">
-                                                ✕
-                                            </Button>
+
+                                        <div className="flex items-end gap-2">
+                                            <div className="flex-1 space-y-1">
+                                                <label className="text-[10px] font-bold text-gray-400">Miembro</label>
+                                                <select
+                                                    className="w-full h-8 text-xs rounded-md border-gray-200 bg-white"
+                                                    value={selectedMemberId}
+                                                    onChange={e => setSelectedMemberId(Number(e.target.value))}
+                                                >
+                                                    <option value="">Seleccionar...</option>
+                                                    {teamMembers.map(m => (
+                                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="w-20 space-y-1">
+                                                <label className="text-[10px] font-bold text-gray-400">Horas</label>
+                                                <Input
+                                                    type="number"
+                                                    className="h-8 text-xs"
+                                                    value={newResourceHours}
+                                                    onChange={e => setNewResourceHours(Number(e.target.value))}
+                                                />
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <Button size="sm" onClick={handleAddResource} disabled={!selectedMemberId} className="h-8 px-3 bg-blue-600">
+                                                    + Miembro
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}

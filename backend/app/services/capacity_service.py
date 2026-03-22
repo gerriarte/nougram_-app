@@ -39,6 +39,87 @@ class CapacityService:
         end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
         return start, end
 
+    async def sync_tentative_from_quote(
+        self,
+        *,
+        quote_id: int,
+        project_id: int,
+        actor_user_id: int | None,
+        reference_date: datetime | None = None,
+    ) -> CapacitySyncResult:
+        await self.repo.delete_commitments_by_source(source_type="quote", source_id=quote_id)
+
+        quote = await self.repo.get_quote_for_capacity(quote_id=quote_id, project_id=project_id)
+        if not quote:
+            await self.repo.add_event(
+                event_type="capacity_commitments_skipped_quote_not_found",
+                source_type="quote",
+                source_id=quote_id,
+                payload={"quote_id": quote_id, "project_id": project_id},
+                created_by_id=actor_user_id,
+            )
+            await self.db.commit()
+            return CapacitySyncResult(commitments_count=0, total_hours=Decimal("0"))
+
+        ref_date = reference_date or datetime.now(timezone.utc)
+        commitments: list[CapacityCommitment] = []
+        total_hours = Decimal("0")
+
+        for item in (quote.items or []):
+            months = 1
+            item_cell_id = None
+            if getattr(item, "cell_assignment", None) is not None:
+                months = max(1, int(getattr(item.cell_assignment, "duration_months", 1) or 1))
+                item_cell_id = getattr(item.cell_assignment, "cell_id", None)
+
+            for alloc in (item.allocations or []):
+                alloc_hours = Decimal(str(alloc.hours or 0))
+                if alloc_hours <= 0:
+                    continue
+                hours_per_month = alloc_hours / Decimal(str(months))
+                for offset in range(months):
+                    period_start, period_end = self._month_range(ref_date, offset)
+                    commitments.append(
+                        CapacityCommitment(
+                            organization_id=self.organization_id,
+                            team_member_id=alloc.team_member_id,
+                            cell_id=item_cell_id,
+                            source_type="quote",
+                            source_id=quote_id,
+                            state="tentative",
+                            period_start=period_start,
+                            period_end=period_end,
+                            hours=hours_per_month,
+                        )
+                    )
+                    total_hours += hours_per_month
+
+        await self.repo.add_commitments(commitments)
+        await self.repo.add_event(
+            event_type="capacity_commitments_synced",
+            source_type="quote",
+            source_id=quote_id,
+            payload={
+                "quote_id": quote_id,
+                "project_id": project_id,
+                "state": "tentative",
+                "commitments_count": len(commitments),
+                "total_hours": str(total_hours),
+            },
+            created_by_id=actor_user_id,
+        )
+        await self.db.commit()
+
+        logger.info(
+            "Tentative capacity commitments synced from quote save",
+            organization_id=self.organization_id,
+            quote_id=quote_id,
+            project_id=project_id,
+            commitments_count=len(commitments),
+            total_hours=str(total_hours),
+        )
+        return CapacitySyncResult(commitments_count=len(commitments), total_hours=total_hours)
+
     async def sync_committed_from_proposal(
         self,
         *,

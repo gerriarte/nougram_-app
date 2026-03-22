@@ -200,6 +200,24 @@ export function TeamCellsManager() {
         setVersionMembers((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
     };
 
+    const handleDeleteTeam = async (teamId: number) => {
+        if (!confirm('¿Eliminar este equipo? Esto desactiva el equipo y su asignación, sin eliminar miembros.')) return;
+        clearMessages();
+        setSubmitting(true);
+        try {
+            await workTeamsService.removeTeam(teamId);
+            setSuccess('Equipo eliminado correctamente.');
+            if (selectedTeamId === teamId) {
+                setSelectedTeamId(0);
+            }
+            await loadCatalog();
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'No se pudo eliminar el equipo.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handlePublishVersion = async () => {
         clearMessages();
         if (!selectedTeamId) {
@@ -301,12 +319,13 @@ export function TeamCellsManager() {
                                 <tr>
                                     <th className="px-4 py-3 text-left font-semibold">Equipo</th>
                                     <th className="px-4 py-3 text-left font-semibold">Descripción</th>
+                                    <th className="px-4 py-3 text-right font-semibold">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {teams.length === 0 ? (
                                     <tr>
-                                        <td colSpan={2} className="px-4 py-6 text-center text-gray-400">
+                                        <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
                                             Aún no hay equipos configurados.
                                         </td>
                                     </tr>
@@ -315,6 +334,17 @@ export function TeamCellsManager() {
                                         <tr key={team.id} className="border-t border-gray-100">
                                             <td className="px-4 py-3 font-medium text-gray-900">{team.name}</td>
                                             <td className="px-4 py-3 text-gray-600">{team.description || '-'}</td>
+                                            <td className="px-4 py-3 text-right">
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="destructive"
+                                                    onClick={() => void handleDeleteTeam(team.id)}
+                                                    disabled={submitting}
+                                                >
+                                                    Eliminar
+                                                </Button>
+                                            </td>
                                         </tr>
                                     ))
                                 )}

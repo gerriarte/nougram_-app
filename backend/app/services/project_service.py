@@ -392,6 +392,17 @@ class ProjectService:
         
         await self.db.commit()
         await self.db.refresh(quote)
+
+        try:
+            from app.services.capacity_service import CapacityService
+            capacity_service = CapacityService(self.db, self.organization_id)
+            await capacity_service.sync_tentative_from_quote(
+                quote_id=quote.id,
+                project_id=project.id,
+                actor_user_id=current_user.id,
+            )
+        except Exception as sync_error:
+            logger.warning(f"Failed to sync tentative capacity for quote {quote.id}: {sync_error}")
         
         # Build response
         response = await self._build_quote_response(quote)
@@ -583,6 +594,17 @@ class ProjectService:
         logger.info(f"Consumed 1 credit for new quote version by user {current_user.id}")
         await self.db.commit()
         await self.db.refresh(new_quote)
+
+        try:
+            from app.services.capacity_service import CapacityService
+            capacity_service = CapacityService(self.db, self.organization_id)
+            await capacity_service.sync_tentative_from_quote(
+                quote_id=new_quote.id,
+                project_id=project_id,
+                actor_user_id=current_user.id,
+            )
+        except Exception as sync_error:
+            logger.warning(f"Failed to sync tentative capacity for quote {new_quote.id}: {sync_error}")
         
         # Invalidate dashboard cache (quote affects metrics)
         from app.core.cache import get_cache
