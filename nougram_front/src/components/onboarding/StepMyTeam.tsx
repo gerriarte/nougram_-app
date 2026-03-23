@@ -191,6 +191,13 @@ export function StepMyTeam({
         ]);
     };
 
+    const openTeamManager = (createDraft: boolean) => {
+        if (createDraft) {
+            addAdditionalMember();
+        }
+        setIsTeamModalOpen(true);
+    };
+
     const updateAdditionalMember = (id: string, updates: Partial<TeamMemberDraft>) => {
         setAdditionalMembers((prev) => prev.map((member) => (member.id === id ? { ...member, ...updates } : member)));
     };
@@ -216,6 +223,31 @@ export function StepMyTeam({
 
             <Card className="bg-amber-50 border-amber-200">
                 <CardContent className="space-y-3 pt-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-semibold text-amber-900">Registro de equipo en nómina</p>
+                            <p className="text-xs text-amber-800">
+                                Agrega recursos desde aquí sin desplazarte al final.
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => openTeamManager(false)}
+                                className="whitespace-nowrap"
+                            >
+                                Ver miembros
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={() => openTeamManager(true)}
+                                className="whitespace-nowrap"
+                            >
+                                + Agregar recurso
+                            </Button>
+                        </div>
+                    </div>
                     <div className="space-y-2 max-w-xs">
                         <Label>Cantidad de personas en nómina</Label>
                         <Input
@@ -233,6 +265,24 @@ export function StepMyTeam({
                                 : ' Actualmente estas modelando 1 persona.'}
                         </p>
                     </Alert>
+                    <div className="rounded-lg border border-amber-200 bg-white/70 p-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                            <div>
+                                <p className="text-xs uppercase tracking-wide text-gray-500">Modelados</p>
+                                <p className="font-semibold text-gray-900">{modeledMembers.length}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs uppercase tracking-wide text-gray-500">Adicionales válidos</p>
+                                <p className="font-semibold text-gray-900">{validAdditionalMembers.length}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs uppercase tracking-wide text-gray-500">Pendientes por registrar</p>
+                                <p className="font-semibold text-gray-900">
+                                    {Math.max(payrollHeadcount - modeledMembers.length, 0)}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
 
@@ -445,7 +495,7 @@ export function StepMyTeam({
                                     Gestiona los otros miembros de nómina en una vista dedicada para evitar confusiones.
                                 </p>
                             </div>
-                            <Button type="button" variant="secondary" onClick={() => setIsTeamModalOpen(true)}>
+                            <Button type="button" variant="secondary" onClick={() => openTeamManager(false)}>
                                 Gestionar miembros
                             </Button>
                         </div>
