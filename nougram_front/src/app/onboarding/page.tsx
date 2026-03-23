@@ -13,6 +13,7 @@ import { StepReady } from '@/components/onboarding/StepReady';
 import { Button } from '@/components/ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api-client';
 import { onboardingService } from '@/services/onboardingService';
 import {
@@ -60,6 +61,7 @@ type ImportPayload = {
 
 export default function OnboardingPage() {
     const router = useRouter();
+    const { loading: authLoading, isAuthenticated } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
     const [persistError, setPersistError] = useState<string | null>(null);
     const [persisting, setPersisting] = useState(false);
@@ -87,6 +89,12 @@ export default function OnboardingPage() {
         updateTeam,
         updateProgress
     } = useOnboarding();
+
+    useEffect(() => {
+        if (!authLoading && !isAuthenticated) {
+            router.push('/login');
+        }
+    }, [authLoading, isAuthenticated, router]);
 
     useEffect(() => {
         if (isLoading) return;
@@ -429,6 +437,17 @@ export default function OnboardingPage() {
         trackOnboardingComplete({});
         router.push('/projects/new');
     };
+
+    if (authLoading || !isAuthenticated) {
+        return (
+            <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Validando sesión...
+                </div>
+            </main>
+        );
+    }
 
     return (
         <main className="min-h-screen bg-gray-50 pb-20">
