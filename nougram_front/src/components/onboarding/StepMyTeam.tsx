@@ -4,11 +4,10 @@ import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
-import { Badge } from '../ui/Badge';
 import { Alert } from '../ui/Alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
 import { Step3MyTeamData } from '@/types/onboarding';
-import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 
 interface StepMyTeamProps {
     onNext: (data: Step3MyTeamData) => void;
@@ -29,18 +28,6 @@ const ROLES = [
 ];
 
 const LEVELS = ['Junior', 'Mid', 'Senior'];
-
-function InfoTip({ text }: { text: string }) {
-    return (
-        <span
-            className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-700 text-[10px] font-bold cursor-help"
-            title={text}
-            aria-label={text}
-        >
-            i
-        </span>
-    );
-}
 
 type TeamMemberDraft = {
     id: string;
@@ -100,12 +87,10 @@ export function StepMyTeam({
     );
 
     // Calculations
-    const nonBillableHours = totalHours - billableHours;
     const salaryNum = parseFloat(salary) || 0;
 
     // Social Charges Math (Colombia Defaults)
     const SOCIAL_CHARGES_RATE = 0.52852; // ~52.8%
-    const salaryWithCharges = applySocialCharges ? salaryNum * (1 + SOCIAL_CHARGES_RATE) : salaryNum;
     const selectedRole = isCustomRole ? customRole : role;
 
     const modeledMembers = [
@@ -191,6 +176,13 @@ export function StepMyTeam({
         ]);
     };
 
+    const openTeamManager = (createDraft: boolean) => {
+        if (createDraft) {
+            addAdditionalMember();
+        }
+        setIsTeamModalOpen(true);
+    };
+
     const updateAdditionalMember = (id: string, updates: Partial<TeamMemberDraft>) => {
         setAdditionalMembers((prev) => prev.map((member) => (member.id === id ? { ...member, ...updates } : member)));
     };
@@ -211,11 +203,28 @@ export function StepMyTeam({
         <div className="space-y-6 max-w-3xl mx-auto">
             <div className="text-center space-y-2">
                 <h1 className="text-2xl font-bold text-gray-900">Configura tu propio costo</h1>
-                <p className="text-gray-600">Calcula cuánto te cuesta realmente tu hora de trabajo y registra la base de nómina.</p>
+                <p className="text-gray-600">Gestiona toda la nómina desde un solo modal y calcula el BCR en tiempo real.</p>
             </div>
 
             <Card className="bg-amber-50 border-amber-200">
-                <CardContent className="space-y-3 pt-6">
+                <CardContent className="space-y-4 pt-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-semibold text-amber-900">Registro de equipo en nómina</p>
+                            <p className="text-xs text-amber-800">
+                                Todo el flujo de carga y edición de miembros está centralizado en el modal.
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button type="button" variant="secondary" onClick={() => openTeamManager(false)} className="whitespace-nowrap">
+                                Ver miembros
+                            </Button>
+                            <Button type="button" onClick={() => openTeamManager(true)} className="whitespace-nowrap">
+                                + Agregar recurso
+                            </Button>
+                        </div>
+                    </div>
+
                     <div className="space-y-2 max-w-xs">
                         <Label>Cantidad de personas en nómina</Label>
                         <Input
@@ -225,6 +234,7 @@ export function StepMyTeam({
                             onChange={(e) => setPayrollHeadcount(Math.max(1, parseInt(e.target.value || '1', 10)))}
                         />
                     </div>
+
                     <Alert variant="warning" className="bg-amber-100 border-amber-200">
                         <p className="text-sm text-amber-900">
                             Para un BCR preciso, registra todos los miembros del equipo en nómina.
@@ -236,270 +246,82 @@ export function StepMyTeam({
                 </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                {/* 1. Personal Details */}
-                <Card className="md:col-span-2">
-                    <CardContent className="space-y-4 pt-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Tu Nombre *</Label>
-                                <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Juan Pérez" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Tu Rol/Cargo *</Label>
-                                    <select
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                        value={isCustomRole ? '__custom__' : role}
-                                        onChange={e => {
-                                            if (e.target.value === '__custom__') {
-                                                setIsCustomRole(true);
-                                                setRole('');
-                                            } else {
-                                                setIsCustomRole(false);
-                                                setRole(e.target.value);
-                                            }
-                                        }}
-                                    >
-                                        <option value="">Seleccionar...</option>
-                                        {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                                        <option value="__custom__">+ Crear nuevo rol/cargo</option>
-                                    </select>
-                                    {isCustomRole && (
-                                        <Input
-                                            value={customRole}
-                                            onChange={(e) => setCustomRole(e.target.value)}
-                                            placeholder="Ej: Estratega de Contenidos"
-                                        />
-                                    )}
-                                    <p className="text-xs text-gray-500">
-                                        Usa el desplegable o crea un rol nuevo en este mismo campo.
-                                    </p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Nivel *</Label>
-                                    <select
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                        value={level}
-                                        onChange={e => setLevel(e.target.value as any)}
-                                    >
-                                        <option value="">Seleccionar...</option>
-                                        {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                                    </select>
-                                </div>
-                            </div>
+            <Card>
+                <CardContent className="space-y-3 pt-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-gray-500">Modelados</p>
+                            <p className="font-semibold text-gray-900">{modeledMembers.length}</p>
                         </div>
-
-                        <div className="space-y-2">
-                            <Label>Salario Mensual Bruto ({currency}) *</Label>
-                            <Input
-                                type="number"
-                                value={salary}
-                                onChange={e => setSalary(e.target.value)}
-                                placeholder="0"
-                            />
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-gray-500">Adicionales válidos</p>
+                            <p className="font-semibold text-gray-900">{validAdditionalMembers.length}</p>
                         </div>
-                    </CardContent>
-                </Card>
-
-                {/* 2. Reality Calculator */}
-                <Card className="bg-blue-50/30 border-blue-100">
-                    <CardContent className="space-y-4 pt-6">
-                        <div className="flex items-center gap-2">
-                            <span className="text-xl">📊</span>
-                            <h3 className="font-semibold text-gray-900">Calculadora de Realidad</h3>
-                        </div>
-
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                                <Label>Horas Totales / Semana</Label>
-                                <InfoTip text="Horas laborales totales semanales de esta persona (facturables + no facturables). Usa el promedio real para mejorar precision del BCR." />
-                            </div>
-                            <Input type="number" value={totalHours} onChange={e => handleTotalHoursChange(e.target.value)} />
-                        </div>
-
-                        <div className="p-3 bg-white rounded border border-blue-200 space-y-2">
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                                    Horas Facturables
-                                    <InfoTip text="Horas que realmente se cobran a clientes cada semana. Menos horas facturables elevan el BCR." />
-                                </span>
-                                <span className="text-lg font-bold text-blue-600">{billableHours}h</span>
-                            </div>
-                            <Input
-                                type="range"
-                                min="0"
-                                max={totalHours}
-                                value={billableHours}
-                                onChange={e => setBillableHours(parseInt(e.target.value))}
-                                className="w-full"
-                            />
-                            <p className="text-xs text-gray-500">
-                                Las {nonBillableHours} horas restantes de la semana se usan en reuniones, admin y capacitación.
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-gray-500">Pendientes por registrar</p>
+                            <p className="font-semibold text-gray-900">
+                                {Math.max(payrollHeadcount - modeledMembers.length, 0)}
                             </p>
                         </div>
+                    </div>
 
-                        <div className="space-y-2 pt-2">
-                            <div className="flex items-center gap-2">
-                                <Label>Días No Productivos / Año</Label>
-                                <InfoTip text="Incluye vacaciones, festivos, enfermedad y otros dias no facturables. Este dato ajusta el calculo anual del BCR." />
-                            </div>
-                            <Input
-                                type="number"
-                                value={vacationDays}
-                                onChange={e => setVacationDays(parseInt(e.target.value))}
-                            />
-                            <p className="text-xs text-gray-500">Vacaciones, enfermedad, festivos (Default: 20 días)</p>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* 3. Social Charges */}
-                <Card>
-                    <CardContent className="space-y-4 pt-6">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xl">🔧</span>
-                                <h3 className="font-semibold text-gray-900">Cargas Sociales</h3>
-                            </div>
-                            <input
-                                type="checkbox"
-                                checked={applySocialCharges}
-                                onChange={e => setApplySocialCharges(e.target.checked)}
-                                className="h-5 w-5 text-blue-600 rounded"
-                            />
-                        </div>
-
-                        {applySocialCharges ? (
-                            <div className="space-y-3 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-600">Salario Base:</span>
-                                    <span>{formatCurrency(salaryNum, currency)}</span>
-                                </div>
-                                <div className="border-t border-dashed my-2"></div>
-                                <div className="space-y-1 text-gray-500 text-xs">
-                                    <div className="flex justify-between"><span>Salud (8.5%)</span><span>+{formatCurrency((salaryNum * 0.085), currency)}</span></div>
-                                    <div className="flex justify-between"><span>Pensión (12%)</span><span>+{formatCurrency((salaryNum * 0.12), currency)}</span></div>
-                                    <div className="flex justify-between"><span>Prestaciones (~21%)</span><span>+{formatCurrency((salaryNum * 0.2185), currency)}</span></div>
-                                </div>
-                                <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-gray-900">
-                                    <span>Total con Cargas:</span>
-                                    <span>{formatCurrency(salaryWithCharges, currency)}</span>
-                                </div>
-                                <Badge variant="info" className="w-full justify-center">Multiplicador: ~1.53x</Badge>
-                            </div>
-                        ) : (
-                            <p className="text-sm text-gray-500 italic">
-                                Habilita esta opción si estás en Colombia para calcular parafiscales y prestaciones de ley automáticamente.
-                            </p>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* 4. True Hourly Cost Summary (NEW) */}
-                <Card className="md:col-span-2 bg-slate-900 text-white border-slate-800">
-                    <CardContent className="space-y-4 pt-6">
-                        <div className="flex items-center gap-2 text-blue-400">
-                            <span className="text-xl">💎</span>
-                            <h3 className="font-semibold">Tu Costo Real por Hora (Calculado Anualmente)</h3>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                            <div className="space-y-1">
-                                <p className="text-slate-400">Costo Total Anual</p>
-                                <p className="text-xl font-bold">{formatCurrency(trueCostAnalysis.annualCost, currency)}</p>
-                                <p className="text-xs text-slate-500">12 meses x {formatCurrency(salaryWithCharges, currency)}</p>
-                            </div>
-
-                            <div className="space-y-1">
-                                <p className="text-slate-400">Horas Facturables/Año</p>
-                                <p className="text-xl font-bold">{trueCostAnalysis.annualBillableHours.toLocaleString()} h</p>
-                                <p className="text-xs text-slate-500">{billableHours}h/sem x {(52 - vacationDays / 5).toFixed(1)} sem. productivas</p>
-                            </div>
-
-                            <div className="space-y-1 bg-white/10 p-3 rounded-lg border border-white/20">
-                                <p className="text-blue-200 font-medium">Costo por Hora (BCR)</p>
-                                <p className="text-2xl font-bold text-white">{formatCurrency(Math.round(displayedBcr), currency)}</p>
-                                <p className="text-xs text-slate-300">
-                                    {backendBcrLoading ? 'Sincronizando con motor central...' : 'Base mínima para no perder dinero'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs text-yellow-200">
-                            ⚠️ Si solo calculáramos mensual ({formatMoneyAmount(salaryWithCharges)} / {formatMoneyAmount((billableHours * 4.33))}h),
-                            tu BCR sería incorrecto (~{formatCurrency(Math.round(salaryWithCharges / (billableHours * 4.33)), currency)}).
-                            El cálculo anual es más preciso.
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* 5. Additional team members (optional) */}
-                <Card className="md:col-span-2">
-                    <CardContent className="space-y-4 pt-6">
+                    <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
                         <div className="flex items-center justify-between gap-3">
-                            <div>
-                                <h3 className="font-semibold text-gray-900">Miembros adicionales del equipo (opcional)</h3>
-                                <p className="text-xs text-gray-500">
-                                    Gestiona los otros miembros de nómina en una vista dedicada para evitar confusiones.
-                                </p>
+                            <p className="text-sm font-semibold text-blue-900">Miembros que se guardarán</p>
+                            <span className="text-xs font-bold text-blue-700 bg-white border border-blue-200 rounded-full px-2 py-0.5">
+                                {modeledMembers.length} miembro(s)
+                            </span>
+                        </div>
+                        {modeledMembers.length === 0 ? (
+                            <p className="text-sm text-blue-700 mt-2">
+                                Agrega al menos un miembro válido (nombre, rol, salario y horas facturables) para continuar.
+                            </p>
+                        ) : (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {modeledMembers.map((member, index) => (
+                                    <span
+                                        key={`${member.name}-${index}`}
+                                        className="text-xs font-medium text-blue-800 bg-white border border-blue-200 rounded-full px-3 py-1"
+                                    >
+                                        {member.name} - {member.role}
+                                    </span>
+                                ))}
                             </div>
-                            <Button type="button" variant="secondary" onClick={() => setIsTeamModalOpen(true)}>
-                                Gestionar miembros
-                            </Button>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900 text-white border-slate-800">
+                <CardContent className="space-y-4 pt-6">
+                    <div className="flex items-center gap-2 text-blue-400">
+                        <span className="text-xl">💎</span>
+                        <h3 className="font-semibold">Costo real por hora (BCR)</h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                        <div className="space-y-1">
+                            <p className="text-slate-400">Costo Total Anual</p>
+                            <p className="text-xl font-bold">{formatCurrency(trueCostAnalysis.annualCost, currency)}</p>
+                            <p className="text-xs text-slate-500">Incluye miembros modelados y cargas sociales</p>
                         </div>
 
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                                <div>
-                                    <p className="text-xs uppercase tracking-wide text-gray-500">Registrados</p>
-                                    <p className="font-semibold text-gray-900">{validAdditionalMembers.length}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs uppercase tracking-wide text-gray-500">Borradores</p>
-                                    <p className="font-semibold text-gray-900">{additionalMembers.length - validAdditionalMembers.length}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs uppercase tracking-wide text-gray-500">Objetivo nómina</p>
-                                    <p className="font-semibold text-gray-900">{Math.max(payrollHeadcount - 1, 0)} adicionales</p>
-                                </div>
-                            </div>
-                            {additionalMembers.length === 0 && (
-                                <p className="text-sm text-gray-500 italic mt-3">
-                                    Aún no agregas miembros adicionales. Usa "Gestionar miembros" para cargarlos.
-                                </p>
-                            )}
+                        <div className="space-y-1">
+                            <p className="text-slate-400">Horas Facturables/Año</p>
+                            <p className="text-xl font-bold">{trueCostAnalysis.annualBillableHours.toLocaleString()} h</p>
+                            <p className="text-xs text-slate-500">Basado en horas facturables y días no productivos</p>
                         </div>
 
-                        <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
-                            <div className="flex items-center justify-between gap-3">
-                                <p className="text-sm font-semibold text-blue-900">Lista que se guardará en dashboard</p>
-                                <span className="text-xs font-bold text-blue-700 bg-white border border-blue-200 rounded-full px-2 py-0.5">
-                                    {modeledMembers.length} miembro(s)
-                                </span>
-                            </div>
-                            {modeledMembers.length === 0 ? (
-                                <p className="text-sm text-blue-700 mt-2">
-                                    Agrega al menos un miembro válido (nombre, rol, salario y horas facturables) para continuar.
-                                </p>
-                            ) : (
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                    {modeledMembers.map((member, index) => (
-                                        <span
-                                            key={`${member.name}-${index}`}
-                                            className="text-xs font-medium text-blue-800 bg-white border border-blue-200 rounded-full px-3 py-1"
-                                        >
-                                            {member.name} - {member.role}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
+                        <div className="space-y-1 bg-white/10 p-3 rounded-lg border border-white/20">
+                            <p className="text-blue-200 font-medium">Costo por Hora (BCR)</p>
+                            <p className="text-2xl font-bold text-white">{formatCurrency(Math.round(displayedBcr), currency)}</p>
+                            <p className="text-xs text-slate-300">
+                                {backendBcrLoading ? 'Sincronizando con motor central...' : 'Base mínima para no perder dinero'}
+                            </p>
                         </div>
-                    </CardContent>
-                </Card>
-
-            </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             <div className="flex justify-between mt-6">
                 <Button variant="secondary" onClick={onBack}>← Atrás</Button>
@@ -507,17 +329,17 @@ export function StepMyTeam({
             </div>
 
             <Dialog open={isTeamModalOpen} onOpenChange={setIsTeamModalOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+                <DialogContent className="max-w-4xl w-[95vw] h-[90vh] p-0 flex flex-col">
                     <div className="p-6 border-b border-gray-100">
                         <DialogHeader>
                             <DialogTitle>Miembros adicionales del equipo</DialogTitle>
                             <DialogDescription>
-                                Agrega y edita aquí los miembros adicionales para mejorar la precisión del BCR sin saturar el flujo principal.
+                                Agrega y edita aquí todos los miembros de nómina para mejorar la precisión del BCR.
                             </DialogDescription>
                         </DialogHeader>
                     </div>
 
-                    <div className="p-6 overflow-y-auto space-y-4">
+                    <div className="p-6 min-h-0 flex-1 overflow-y-auto space-y-4">
                         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
                             <div className="flex items-center justify-between">
                                 <p className="text-sm font-semibold text-blue-900">Miembro principal (tú)</p>
@@ -526,12 +348,17 @@ export function StepMyTeam({
                                 </span>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <Input
-                                    placeholder="Nombre"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                />
-                                <div className="space-y-2">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-blue-900">Nombre</Label>
+                                    <Input
+                                        placeholder="Ej: Juan Pérez"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                    />
+                                    <p className="text-[11px] text-blue-800">Nombre completo del miembro de nómina.</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-blue-900">Rol / Cargo</Label>
                                     <select
                                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                                         value={isCustomRole ? '__custom__' : role}
@@ -556,51 +383,76 @@ export function StepMyTeam({
                                             placeholder="Rol personalizado"
                                         />
                                     )}
+                                    <p className="text-[11px] text-blue-800">Función principal en el equipo (ej. PM, diseñador, dev).</p>
                                 </div>
-                                <select
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                    value={level}
-                                    onChange={(e) => setLevel(e.target.value as Step3MyTeamData['level'])}
-                                >
-                                    <option value="">Nivel</option>
-                                    {LEVELS.map((lvl) => <option key={lvl} value={lvl}>{lvl}</option>)}
-                                </select>
-                                <Input
-                                    type="number"
-                                    placeholder={`Salario mensual (${currency})`}
-                                    value={salary}
-                                    onChange={(e) => setSalary(e.target.value)}
-                                />
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    placeholder="Horas totales/semana"
-                                    value={totalHours}
-                                    onChange={(e) => handleTotalHoursChange(e.target.value)}
-                                />
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    placeholder="Horas facturables/semana"
-                                    value={billableHours}
-                                    onChange={(e) => setBillableHours(Math.max(1, parseInt(e.target.value || '1', 10)))}
-                                />
-                                <Input
-                                    type="number"
-                                    min={0}
-                                    placeholder="Días no productivos/año"
-                                    value={vacationDays}
-                                    onChange={(e) => setVacationDays(Math.max(0, parseInt(e.target.value || '0', 10)))}
-                                />
-                                <label className="flex items-center gap-2 text-sm text-gray-700">
-                                    <input
-                                        type="checkbox"
-                                        checked={applySocialCharges}
-                                        onChange={(e) => setApplySocialCharges(e.target.checked)}
-                                        className="h-4 w-4 rounded"
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-blue-900">Nivel</Label>
+                                    <select
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                        value={level}
+                                        onChange={(e) => setLevel(e.target.value as Step3MyTeamData['level'])}
+                                    >
+                                        <option value="">Nivel</option>
+                                        {LEVELS.map((lvl) => <option key={lvl} value={lvl}>{lvl}</option>)}
+                                    </select>
+                                    <p className="text-[11px] text-blue-800">Senioridad para contextualizar capacidades del perfil.</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-blue-900">Salario mensual ({currency})</Label>
+                                    <Input
+                                        type="number"
+                                        placeholder={`Salario mensual (${currency})`}
+                                        value={salary}
+                                        onChange={(e) => setSalary(e.target.value)}
                                     />
-                                    Aplicar cargas sociales
-                                </label>
+                                    <p className="text-[11px] text-blue-800">Costo mensual bruto antes de dividir por horas productivas.</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-blue-900">Horas totales por semana</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        placeholder="Horas totales/semana"
+                                        value={totalHours}
+                                        onChange={(e) => handleTotalHoursChange(e.target.value)}
+                                    />
+                                    <p className="text-[11px] text-blue-800">Horas laborales semanales (facturables + no facturables).</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-blue-900">Horas facturables por semana</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        placeholder="Horas facturables/semana"
+                                        value={billableHours}
+                                        onChange={(e) => setBillableHours(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                                    />
+                                    <p className="text-[11px] text-blue-800">Horas que realmente se pueden cobrar a clientes.</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-blue-900">Días no productivos al año</Label>
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        placeholder="Días no productivos/año"
+                                        value={vacationDays}
+                                        onChange={(e) => setVacationDays(Math.max(0, parseInt(e.target.value || '0', 10)))}
+                                    />
+                                    <p className="text-[11px] text-blue-800">Vacaciones, festivos, incapacidad u otros días sin facturación.</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-blue-900">Cargas sociales</Label>
+                                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                                        <input
+                                            type="checkbox"
+                                            checked={applySocialCharges}
+                                            onChange={(e) => setApplySocialCharges(e.target.checked)}
+                                            className="h-4 w-4 rounded"
+                                        />
+                                        Aplicar cargas sociales
+                                    </label>
+                                    <p className="text-[11px] text-blue-800">Suma parafiscales y prestaciones para un costo real más preciso.</p>
+                                </div>
                             </div>
                         </div>
 
@@ -635,43 +487,110 @@ export function StepMyTeam({
                                         </Button>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <Input
-                                            placeholder="Nombre"
-                                            value={member.name}
-                                            onChange={(e) => updateAdditionalMember(member.id, { name: e.target.value })}
-                                        />
-                                        <Input
-                                            placeholder="Rol/Cargo"
-                                            value={member.role}
-                                            onChange={(e) => updateAdditionalMember(member.id, { role: e.target.value })}
-                                        />
-                                        <select
-                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                            value={member.level}
-                                            onChange={(e) => updateAdditionalMember(member.id, { level: e.target.value as TeamMemberDraft['level'] })}
-                                        >
-                                            <option value="">Nivel</option>
-                                            {LEVELS.map((lvl) => (
-                                                <option key={lvl} value={lvl}>{lvl}</option>
-                                            ))}
-                                        </select>
-                                        <Input
-                                            type="number"
-                                            placeholder={`Salario mensual (${currency})`}
-                                            value={member.salary}
-                                            onChange={(e) => updateAdditionalMember(member.id, { salary: e.target.value })}
-                                        />
-                                        <Input
-                                            type="number"
-                                            min={1}
-                                            placeholder="Horas facturables/semana"
-                                            value={member.billableHours}
-                                            onChange={(e) =>
-                                                updateAdditionalMember(member.id, {
-                                                    billableHours: Math.max(1, parseInt(e.target.value || '1', 10)),
-                                                })
-                                            }
-                                        />
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Nombre</Label>
+                                            <Input
+                                                placeholder="Ej: Ana Torres"
+                                                value={member.name}
+                                                onChange={(e) => updateAdditionalMember(member.id, { name: e.target.value })}
+                                            />
+                                            <p className="text-[11px] text-gray-500">Nombre completo del miembro.</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Rol / Cargo</Label>
+                                            <Input
+                                                placeholder="Ej: Diseñador UI/UX"
+                                                value={member.role}
+                                                onChange={(e) => updateAdditionalMember(member.id, { role: e.target.value })}
+                                            />
+                                            <p className="text-[11px] text-gray-500">Responsabilidad principal del perfil.</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Nivel</Label>
+                                            <select
+                                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                value={member.level}
+                                                onChange={(e) => updateAdditionalMember(member.id, { level: e.target.value as TeamMemberDraft['level'] })}
+                                            >
+                                                <option value="">Nivel</option>
+                                                {LEVELS.map((lvl) => (
+                                                    <option key={lvl} value={lvl}>{lvl}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-[11px] text-gray-500">Senioridad del miembro.</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Salario mensual ({currency})</Label>
+                                            <Input
+                                                type="number"
+                                                placeholder={`Salario mensual (${currency})`}
+                                                value={member.salary}
+                                                onChange={(e) => updateAdditionalMember(member.id, { salary: e.target.value })}
+                                            />
+                                            <p className="text-[11px] text-gray-500">Costo mensual bruto del perfil.</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Horas totales por semana</Label>
+                                            <Input
+                                                type="number"
+                                                min={1}
+                                                placeholder="Horas totales/semana"
+                                                value={member.totalHours}
+                                                onChange={(e) =>
+                                                    updateAdditionalMember(member.id, {
+                                                        totalHours: Math.max(1, parseInt(e.target.value || '1', 10)),
+                                                    })
+                                                }
+                                            />
+                                            <p className="text-[11px] text-gray-500">Horas laborales semanales totales.</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Horas facturables por semana</Label>
+                                            <Input
+                                                type="number"
+                                                min={1}
+                                                placeholder="Horas facturables/semana"
+                                                value={member.billableHours}
+                                                onChange={(e) =>
+                                                    updateAdditionalMember(member.id, {
+                                                        billableHours: Math.max(1, parseInt(e.target.value || '1', 10)),
+                                                    })
+                                                }
+                                            />
+                                            <p className="text-[11px] text-gray-500">Horas que sí se cobran a cliente.</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Días no productivos al año</Label>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                placeholder="Días no productivos/año"
+                                                value={member.vacationDays}
+                                                onChange={(e) =>
+                                                    updateAdditionalMember(member.id, {
+                                                        vacationDays: Math.max(0, parseInt(e.target.value || '0', 10)),
+                                                    })
+                                                }
+                                            />
+                                            <p className="text-[11px] text-gray-500">Vacaciones/festivos/ausencias sin facturar.</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Cargas sociales</Label>
+                                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={member.applySocialCharges}
+                                                    onChange={(e) =>
+                                                        updateAdditionalMember(member.id, {
+                                                            applySocialCharges: e.target.checked,
+                                                        })
+                                                    }
+                                                    className="h-4 w-4 rounded"
+                                                />
+                                                Aplicar cargas sociales
+                                            </label>
+                                            <p className="text-[11px] text-gray-500">Incluye prestaciones y parafiscales en el costo.</p>
+                                        </div>
                                     </div>
                                 </div>
                             ))}

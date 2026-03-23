@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { onboardingService } from '@/services/onboardingService';
 import { OnboardingData, FixedCostTemplate } from '@/types/onboarding';
 import { normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
+import { isAuthenticated } from '@/lib/auth';
 
 // Initial onboarding state
 const INITIAL_DATA: OnboardingData = {
@@ -53,6 +54,11 @@ export function useOnboarding() {
     useEffect(() => {
         const loadInitialState = async () => {
             setIsLoading(true);
+            if (!isAuthenticated()) {
+                setIsHydrated(true);
+                setIsLoading(false);
+                return;
+            }
             const temps = await onboardingService.getTemplates();
             setAvailableTemplates(temps);
             const draft = await onboardingService.getDraft<OnboardingData>();
@@ -92,6 +98,7 @@ export function useOnboarding() {
 
     useEffect(() => {
         if (!isHydrated) return;
+        if (!isAuthenticated()) return;
         const timer = setTimeout(() => {
             void (async () => {
                 setIsSaving(true);

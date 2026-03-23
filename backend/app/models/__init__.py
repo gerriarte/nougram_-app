@@ -11,6 +11,7 @@ from app.models.settings import AgencySettings
 from app.models.tax import Tax
 from app.models.organization import Organization
 from app.models.subscription import Subscription
+from app.models.billing_request import BillingRequest
 from app.models.template import IndustryTemplate
 from app.models.audit_log import AuditLog
 from app.models.credit_account import CreditAccount
@@ -41,6 +42,7 @@ __all__ = [
     "Tax",
     "Organization",
     "Subscription",
+    "BillingRequest",
     "IndustryTemplate",
     "AuditLog",
     "CreditAccount",

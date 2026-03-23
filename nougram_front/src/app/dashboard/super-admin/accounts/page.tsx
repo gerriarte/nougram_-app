@@ -170,6 +170,28 @@ type PaidAccountItem = {
     current_period_end: string | null;
 };
 
+type BillingRequestItem = {
+    id: number;
+    organization_id: number;
+    organization_name: string | null;
+    requested_by_user_id: number;
+    requested_by_email: string | null;
+    requested_by_name: string | null;
+    request_type: string;
+    target_plan: string | null;
+    target_interval: string | null;
+    notes: string | null;
+    status: string;
+    created_at: string | null;
+};
+
+type BillingRequestsResponse = {
+    items: BillingRequestItem[];
+    total: number;
+    limit: number;
+    offset: number;
+};
+
 const PLAN_OPTIONS = ['free', 'starter', 'professional', 'enterprise'];
 const STATUS_OPTIONS = ['active', 'trialing', 'past_due', 'cancelled'];
 const TENANT_ROLE_OPTIONS = ['owner', 'admin_financiero', 'product_manager', 'collaborator'];
@@ -288,6 +310,7 @@ export default function SuperAdminAccountsPage() {
     const [proposalStats, setProposalStats] = useState<ProposalConsumptionItem | null>(null);
     const [aiUsageStats, setAiUsageStats] = useState<AIUsageItem | null>(null);
     const [paidAccountInfo, setPaidAccountInfo] = useState<PaidAccountItem | null>(null);
+    const [billingRequests, setBillingRequests] = useState<BillingRequestItem[]>([]);
 
     const [plan, setPlan] = useState('free');
     const [status, setStatus] = useState('active');
@@ -430,8 +453,17 @@ export default function SuperAdminAccountsPage() {
                 severity: 'critical'
             });
         }
+        const pendingBillingRequests = billingRequests.filter((item) => item.status === 'pending').length;
+        if (pendingBillingRequests > 0) {
+            alerts.push({
+                id: 'manual_billing_queue',
+                title: 'Solicitudes manuales pendientes',
+                description: `Hay ${pendingBillingRequests} solicitud(es) de billing pendientes para revisión de Super Admin.`,
+                severity: 'info'
+            });
+        }
         return alerts;
-    }, [balance?.credits_available, currentSnapshot, financialLedger, proposalStats, selectedOrg?.subscription_status, tenantUsers]);
+    }, [balance?.credits_available, billingRequests, currentSnapshot, financialLedger, proposalStats, selectedOrg?.subscription_status, tenantUsers]);
 
     const loadFinancialLedger = React.useCallback(async (organizationId: number) => {
         const params = new URLSearchParams();
@@ -465,6 +497,15 @@ export default function SuperAdminAccountsPage() {
             setSubscriptionHistory(historyResponse.data.items);
         }
     }, [historyFromDate, historyToDate]);
+
+    const loadBillingRequests = React.useCallback(async (organizationId: number) => {
+        const response = await supportRequest<BillingRequestsResponse>(
+            `/billing-requests?organization_id=${organizationId}&status=pending&limit=50&offset=0`
+        );
+        if (!response.error && response.data?.items) {
+            setBillingRequests(response.data.items);
+        }
+    }, []);
 
     const loadComparativeAnalytics = React.useCallback(async (organizationId: number) => {
         const days = Math.max(1, Number(analyticsRangeDays || 30));
@@ -620,6 +661,7 @@ export default function SuperAdminAccountsPage() {
         setTenantUsers(usersResponse.data?.items || []);
         setFinancialLedger([]);
         setSubscriptionHistory([]);
+        setBillingRequests([]);
 
         if (!proposalsResponse.error && proposalsResponse.data?.items?.length) {
             setProposalStats(proposalsResponse.data.items[0]);
@@ -632,6 +674,7 @@ export default function SuperAdminAccountsPage() {
         }
         await loadFinancialLedger(organizationId);
         await loadSubscriptionHistory(organizationId);
+        await loadBillingRequests(organizationId);
         await loadComparativeAnalytics(organizationId);
 
         setDetailLoading(false);
@@ -677,6 +720,7 @@ export default function SuperAdminAccountsPage() {
             setTenantUsers([]);
             setFinancialLedger([]);
             setSubscriptionHistory([]);
+            setBillingRequests([]);
             setCurrentSnapshot(null);
             setPreviousSnapshot(null);
             setProposalStats(null);
@@ -1603,6 +1647,46 @@ export default function SuperAdminAccountsPage() {
                                                     Δ {comparativeDeltas ? `${comparativeDeltas.ledgerAmount >= 0 ? '+' : ''}${comparativeDeltas.ledgerAmount.toFixed(1)}%` : '-'}
                                                 </p>
                                             </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-xl flex items-center gap-2">
+                                            <FileText size={18} />
+                                            Fallback Super Admin: solicitudes manuales
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Cola operativa de solicitudes de billing del tenant (visible aunque falle email).
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                                            {detailLoading && (
+                                                <div className="text-sm text-system-gray">Cargando solicitudes...</div>
+                                            )}
+                                            {!detailLoading && billingRequests.length === 0 && (
+                                                <div className="text-sm text-system-gray">Sin solicitudes manuales pendientes.</div>
+                                            )}
+                                            {!detailLoading && billingRequests.map((item) => (
+                                                <div key={item.id} className="rounded-xl border border-gray-100 bg-white p-3">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <p className="text-sm font-bold text-gray-900">#{item.id} · {item.request_type}</p>
+                                                        <Badge variant={item.status === 'pending' ? 'warning' : 'default'}>
+                                                            {item.status}
+                                                        </Badge>
+                                                    </div>
+                                                    <p className="text-xs text-system-gray mt-1">
+                                                        Solicitante: {item.requested_by_name || 'N/A'} ({item.requested_by_email || 'sin email'})
+                                                    </p>
+                                                    <p className="text-xs text-system-gray mt-1">
+                                                        Plan destino: {item.target_plan || '-'} · Intervalo: {item.target_interval || '-'}
+                                                    </p>
+                                                    <p className="text-xs text-system-gray mt-1">Notas: {item.notes || 'Sin notas'}</p>
+                                                    <p className="text-[11px] text-system-gray mt-1">{formatDate(item.created_at || undefined)}</p>
+                                                </div>
+                                            ))}
                                         </div>
                                     </CardContent>
                                 </Card>

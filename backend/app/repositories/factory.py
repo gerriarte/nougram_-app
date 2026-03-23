@@ -26,6 +26,7 @@ from app.repositories.credit_transaction_repository import CreditTransactionRepo
 from app.repositories.invitation_repository import InvitationRepository
 from app.repositories.team_cell_repository import TeamCellRepository
 from app.repositories.capacity_repository import CapacityRepository
+from app.repositories.billing_request_repository import BillingRequestRepository
 from app.core.tenant import TenantContext
 
 T = TypeVar('T', bound=BaseRepository)
@@ -157,6 +158,13 @@ class RepositoryFactory:
     def create_capacity_repository(db: AsyncSession, tenant_id: int) -> CapacityRepository:
         """Create CapacityRepository with tenant context"""
         return CapacityRepository(db, tenant_id=tenant_id)
+
+    @staticmethod
+    def create_billing_request_repository(
+        db: AsyncSession, tenant_id: Optional[int] = None
+    ) -> BillingRequestRepository:
+        """Create BillingRequestRepository with optional tenant context"""
+        return BillingRequestRepository(db, tenant_id=tenant_id)
 
     @staticmethod
     def create_ai_usage_repository(db: AsyncSession) -> AIUsageRepository:

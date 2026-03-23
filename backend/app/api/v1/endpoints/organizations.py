@@ -855,7 +855,8 @@ async def get_organization_usage_stats(
     from app.models.team import TeamMember
     team_count_result = await db.execute(
         select(func.count(TeamMember.id)).where(
-            TeamMember.organization_id == organization_id
+            TeamMember.organization_id == organization_id,
+            TeamMember.is_active == True
         )
     )
     team_count = team_count_result.scalar() or 0

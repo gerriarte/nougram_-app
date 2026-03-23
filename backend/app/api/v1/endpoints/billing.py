@@ -12,23 +12,34 @@ from app.core.security import get_current_user
 from app.core.tenant import get_tenant_context, TenantContext
 from app.core.permission_middleware import require_manage_subscription
 from app.core.billing_gateway import get_billing_gateway, BillingGatewayError
+from app.core.audit import AuditAction, AuditService
+from app.core.exceptions import BusinessLogicError
 from app.core.logging import get_logger
 from app.models.user import User
 from app.models.subscription import Subscription
 from app.repositories.factory import RepositoryFactory
 from app.repositories.organization_repository import OrganizationRepository
+from app.services.super_admin_notification_service import SuperAdminNotificationService
 from app.schemas.billing import (
     CheckoutSessionCreate,
     CheckoutSessionResponse,
     SubscriptionResponse,
     SubscriptionUpdate,
     SubscriptionCancel,
+    ManualBillingRequestCreate,
+    ManualBillingRequestResponse,
     PlansListResponse,
     PlanInfo,
 )
 
 logger = get_logger(__name__)
 router = APIRouter()
+ALLOWED_MANUAL_REQUEST_TYPES = {
+    "change_plan",
+    "cancel_subscription",
+    "update_payment_method",
+    "account_action",
+}
 
 
 @router.post("/checkout-session", response_model=CheckoutSessionResponse, status_code=status.HTTP_201_CREATED)
@@ -102,6 +113,30 @@ async def create_checkout_session(
             f"Created checkout session {session.session_id} for organization {tenant.organization_id}",
             extra={"organization_id": tenant.organization_id, "plan": checkout_data.plan}
         )
+
+        notification_details = {
+            "event": "checkout_session_created",
+            "plan": checkout_data.plan,
+            "interval": checkout_data.interval,
+            "session_id": session.session_id,
+            "billing_provider": gateway.provider_name,
+        }
+        notified_count = await SuperAdminNotificationService.notify_super_admins(
+            db=db,
+            organization=organization,
+            actor=current_user,
+            action_label="checkout_session_created",
+            details=notification_details,
+        )
+        await AuditService.log_action(
+            db=db,
+            action=AuditAction.CHECKOUT_SESSION_CREATE,
+            user_id=current_user.id,
+            organization_id=tenant.organization_id,
+            resource_type="subscription",
+            details={**notification_details, "super_admin_notified_count": notified_count},
+            status="success",
+        )
         
         return CheckoutSessionResponse(
             session_id=session.session_id,
@@ -129,6 +164,7 @@ async def get_subscription(
     """
     Get current subscription for the organization
     """
+    gateway = get_billing_gateway()
     org_repo = RepositoryFactory.create_organization_repository(db)
     organization = await org_repo.get_by_id(tenant.organization_id)
     if not organization:
@@ -158,11 +194,18 @@ async def get_subscription(
             trial_end=None,
             latest_invoice_id=None,
             default_payment_method=None,
+            billing_provider=gateway.provider_name,
+            manual_mode=gateway.provider_name == "manual",
             created_at=organization.created_at or datetime.utcnow(),
             updated_at=organization.updated_at,
         )
-    
-    return SubscriptionResponse.model_validate(subscription)
+
+    subscription_response = SubscriptionResponse.model_validate(subscription)
+    return SubscriptionResponse(
+        **subscription_response.model_dump(),
+        billing_provider=gateway.provider_name,
+        manual_mode=gateway.provider_name == "manual",
+    )
 
 
 @router.put("/subscription", response_model=SubscriptionResponse)
@@ -179,6 +222,13 @@ async def update_subscription(
     """
     gateway = get_billing_gateway()
     subscription_repo = RepositoryFactory.create_subscription_repository(db)
+    org_repo = RepositoryFactory.create_organization_repository(db)
+    organization = await org_repo.get_by_id(tenant.organization_id)
+    if not organization:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
     subscription = await subscription_repo.get_active_subscription(tenant.organization_id)
     
     if not subscription:
@@ -217,7 +267,33 @@ async def update_subscription(
             f"Updated subscription {subscription.id} for organization {tenant.organization_id}",
             extra={"organization_id": tenant.organization_id, "plan": subscription.plan}
         )
-        
+
+        notification_details = {
+            "event": "subscription_updated",
+            "subscription_id": subscription.id,
+            "plan": subscription.plan,
+            "interval": subscription_data.interval,
+            "cancel_at_period_end": subscription.cancel_at_period_end,
+            "billing_provider": gateway.provider_name,
+        }
+        notified_count = await SuperAdminNotificationService.notify_super_admins(
+            db=db,
+            organization=organization,
+            actor=current_user,
+            action_label="subscription_updated",
+            details=notification_details,
+        )
+        await AuditService.log_action(
+            db=db,
+            action=AuditAction.SUBSCRIPTION_UPDATE,
+            user_id=current_user.id,
+            organization_id=tenant.organization_id,
+            resource_type="subscription",
+            resource_id=subscription.id,
+            details={**notification_details, "super_admin_notified_count": notified_count},
+            status="success",
+        )
+
         return SubscriptionResponse.model_validate(subscription)
         
     except (HTTPException, BillingGatewayError):
@@ -245,6 +321,13 @@ async def cancel_subscription(
     """
     gateway = get_billing_gateway()
     subscription_repo = RepositoryFactory.create_subscription_repository(db)
+    org_repo = RepositoryFactory.create_organization_repository(db)
+    organization = await org_repo.get_by_id(tenant.organization_id)
+    if not organization:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
     subscription = await subscription_repo.get_active_subscription(tenant.organization_id)
     
     if not subscription:
@@ -278,7 +361,33 @@ async def cancel_subscription(
             f"Cancelled subscription {subscription.id} for organization {tenant.organization_id}",
             extra={"organization_id": tenant.organization_id, "immediate": cancel_data.cancel_immediately}
         )
-        
+
+        notification_details = {
+            "event": "subscription_cancelled",
+            "subscription_id": subscription.id,
+            "cancel_immediately": cancel_data.cancel_immediately,
+            "status": subscription.status,
+            "cancel_at_period_end": subscription.cancel_at_period_end,
+            "billing_provider": gateway.provider_name,
+        }
+        notified_count = await SuperAdminNotificationService.notify_super_admins(
+            db=db,
+            organization=organization,
+            actor=current_user,
+            action_label="subscription_cancelled",
+            details=notification_details,
+        )
+        await AuditService.log_action(
+            db=db,
+            action=AuditAction.SUBSCRIPTION_CANCEL,
+            user_id=current_user.id,
+            organization_id=tenant.organization_id,
+            resource_type="subscription",
+            resource_id=subscription.id,
+            details={**notification_details, "super_admin_notified_count": notified_count},
+            status="success",
+        )
+
         return SubscriptionResponse.model_validate(subscription)
         
     except BillingGatewayError as e:
@@ -318,5 +427,78 @@ async def list_plans(
         ))
     
     return PlansListResponse(plans=plans)
+
+
+@router.post(
+    "/manual-requests",
+    response_model=ManualBillingRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_manual_billing_request(
+    request_data: ManualBillingRequestCreate,
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(require_manage_subscription),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a manual billing/account request and notify super admins.
+    """
+    request_type = (request_data.request_type or "").strip().lower()
+    if request_type not in ALLOWED_MANUAL_REQUEST_TYPES:
+        raise BusinessLogicError(
+            "request_type inválido. Usa: change_plan, cancel_subscription, update_payment_method, account_action"
+        )
+    if request_type == "change_plan" and not request_data.target_plan:
+        raise BusinessLogicError("target_plan es obligatorio para request_type=change_plan")
+
+    org_repo = RepositoryFactory.create_organization_repository(db)
+    organization = await org_repo.get_by_id(tenant.organization_id)
+    if not organization:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found",
+        )
+
+    billing_request_repo = RepositoryFactory.create_billing_request_repository(db)
+    created = await billing_request_repo.create_request(
+        organization_id=tenant.organization_id,
+        requested_by_user_id=current_user.id,
+        request_type=request_type,
+        target_plan=request_data.target_plan,
+        target_interval=request_data.target_interval,
+        notes=request_data.notes,
+        status="pending",
+        auto_commit=True,
+    )
+
+    notification_details = {
+        "event": "manual_billing_request_created",
+        "billing_request_id": created.id,
+        "request_type": created.request_type,
+        "target_plan": created.target_plan,
+        "target_interval": created.target_interval,
+        "notes": created.notes,
+        "status": created.status,
+    }
+    notified_count = await SuperAdminNotificationService.notify_super_admins(
+        db=db,
+        organization=organization,
+        actor=current_user,
+        action_label="manual_billing_request_created",
+        details=notification_details,
+    )
+
+    await AuditService.log_action(
+        db=db,
+        action=AuditAction.BILLING_MANUAL_REQUEST_CREATE,
+        user_id=current_user.id,
+        organization_id=tenant.organization_id,
+        resource_type="billing_request",
+        resource_id=created.id,
+        details={**notification_details, "super_admin_notified_count": notified_count},
+        status="success",
+    )
+
+    return ManualBillingRequestResponse.model_validate(created)
 
 

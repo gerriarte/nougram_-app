@@ -32,6 +32,7 @@ export function SubscriptionStatus({
             case 'past_due':
                 return <span className={`${baseClass} bg-yellow-50 text-[#FF9500]`}>Pago Pendiente</span>;
             case 'canceled':
+            case 'cancelled':
                 return <span className={`${baseClass} bg-gray-100 text-gray-500`}>Cancelada</span>;
             default:
                 return <span className={`${baseClass} bg-red-50 text-[#FF3B30]`}>Error</span>;

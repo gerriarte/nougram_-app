@@ -31,6 +31,7 @@ from app.models.user import User
 from app.models.ai_usage import AIUsageEvent
 from app.models.audit_log import AuditLog
 from app.repositories.organization_repository import OrganizationRepository
+from app.repositories.factory import RepositoryFactory
 from app.repositories.ai_usage_repository import AIUsageRepository
 from app.repositories.financial_ledger_repository import FinancialLedgerRepository
 from app.services.credit_service import CreditService
@@ -579,3 +580,55 @@ async def get_support_analytics_financial_ledger(
         for e in events
     ]
     return {"items": items}
+
+
+@router.get(
+    "/billing-requests",
+    summary="Manual billing requests queue (super_admin only)",
+)
+async def get_support_billing_requests(
+    organization_id: Optional[int] = Query(None),
+    status_filter: Optional[str] = Query(
+        None,
+        alias="status",
+        description="Filter by status (pending, processed, dismissed)",
+    ),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Fallback queue for super admins when email notifications fail.
+    """
+    billing_request_repo = RepositoryFactory.create_billing_request_repository(db)
+    items, total = await billing_request_repo.list_requests(
+        organization_id=organization_id,
+        status=status_filter,
+        limit=limit,
+        offset=offset,
+    )
+
+    payload = [
+        {
+            "id": req.id,
+            "organization_id": req.organization_id,
+            "organization_name": req.organization.name if req.organization else None,
+            "requested_by_user_id": req.requested_by_user_id,
+            "requested_by_email": req.requested_by_user.email if req.requested_by_user else None,
+            "requested_by_name": req.requested_by_user.full_name if req.requested_by_user else None,
+            "request_type": req.request_type,
+            "target_plan": req.target_plan,
+            "target_interval": req.target_interval,
+            "notes": req.notes,
+            "status": req.status,
+            "created_at": req.created_at.isoformat() if req.created_at else None,
+        }
+        for req in items
+    ]
+    return {
+        "items": payload,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }

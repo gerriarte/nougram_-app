@@ -1,12 +1,31 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Star, Zap, Shield, HelpCircle, ArrowRight } from 'lucide-react';
 import { Plan, PlanTier, BillingInterval } from '@/types/billing';
 import { Button } from '@/components/ui/Button';
 import { formatMoneyAmount } from '@/lib/utils';
+import { apiRequest } from '@/lib/api-client';
 
-// Mock Plans Data based on requirements
-const PLANS: Plan[] = [
+type BackendPlanInfo = {
+    name: string;
+    display_name: string;
+    description: string;
+    monthly_price: string | null;
+    yearly_price: string | null;
+    limits: Record<string, number>;
+};
+
+const PLAN_ORDER: PlanTier[] = ['free', 'starter', 'professional', 'enterprise'];
+
+const SUPPORT_LEVEL_BY_PLAN: Record<PlanTier, Plan['features']['supportLevel']> = {
+    free: 'community',
+    starter: 'email',
+    professional: 'priority',
+    enterprise: 'dedicated',
+};
+
+// Fallback data in case billing/plans is unavailable.
+const FALLBACK_PLANS: Plan[] = [
     {
         id: 'free',
         name: 'Free',
@@ -33,7 +52,7 @@ const PLANS: Plan[] = [
         features: {
             creditsPerMonth: 100,
             maxUsers: 5,
-            maxProjects: 25,
+            maxProjects: 10,
             maxServices: 50,
             maxTeamMembers: 10,
             supportLevel: 'email'
@@ -50,7 +69,7 @@ const PLANS: Plan[] = [
         features: {
             creditsPerMonth: 500,
             maxUsers: 20,
-            maxProjects: 100,
+            maxProjects: 20,
             maxServices: 200,
             maxTeamMembers: 50,
             supportLevel: 'priority'
@@ -77,10 +96,61 @@ const PLANS: Plan[] = [
 interface PricingTableProps {
     currentPlanId?: PlanTier;
     onSelectPlan?: (planId: PlanTier, interval: BillingInterval) => void;
+    manualMode?: boolean;
 }
 
-export function PricingTable({ currentPlanId = 'free', onSelectPlan }: PricingTableProps) {
+export function PricingTable({ currentPlanId = 'free', onSelectPlan, manualMode = false }: PricingTableProps) {
     const [interval, setInterval] = useState<BillingInterval>('monthly');
+    const [plans, setPlans] = useState<Plan[]>(FALLBACK_PLANS);
+
+    useEffect(() => {
+        const loadPlans = async () => {
+            const response = await apiRequest<{ plans: BackendPlanInfo[] }>('/billing/plans');
+            if (response.error || !response.data?.plans) {
+                return;
+            }
+
+            const mapped = response.data.plans
+                .filter((item): item is BackendPlanInfo & { name: PlanTier } =>
+                    PLAN_ORDER.includes(item.name as PlanTier)
+                )
+                .map((item) => {
+                    const planId = item.name as PlanTier;
+                    const limits = item.limits || {};
+                    const toLimit = (value: unknown): number | 'unlimited' =>
+                        typeof value === 'number' && value >= 0 ? value : 'unlimited';
+                    const monthly = item.monthly_price ? Number(item.monthly_price) : 0;
+                    const yearly = item.yearly_price ? Number(item.yearly_price) : 0;
+
+                    return {
+                        id: planId,
+                        name: item.display_name || planId,
+                        description: item.description || '',
+                        priceMonthly: Number.isFinite(monthly) ? monthly : 0,
+                        priceYearly: Number.isFinite(yearly) ? yearly : 0,
+                        currency: 'USD',
+                        isPopular: planId === 'professional',
+                        features: {
+                            creditsPerMonth: toLimit(limits.credits_per_month),
+                            maxUsers: toLimit(limits.max_users),
+                            maxProjects: toLimit(limits.max_projects),
+                            maxServices: toLimit(limits.max_services),
+                            maxTeamMembers: toLimit(limits.max_team_members),
+                            supportLevel: SUPPORT_LEVEL_BY_PLAN[planId],
+                        },
+                    } satisfies Plan;
+                })
+                .sort((a, b) => PLAN_ORDER.indexOf(a.id) - PLAN_ORDER.indexOf(b.id));
+
+            if (mapped.length > 0) {
+                setPlans(mapped);
+            }
+        };
+
+        void loadPlans();
+    }, []);
+
+    const visiblePlans = useMemo(() => plans, [plans]);
 
     const handleSelect = (planId: PlanTier) => {
         if (onSelectPlan) {
@@ -117,7 +187,7 @@ export function PricingTable({ currentPlanId = 'free', onSelectPlan }: PricingTa
             </div>
 
             <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-                {PLANS.map((plan) => {
+                {visiblePlans.map((plan) => {
                     const isCurrent = currentPlanId === plan.id;
                     const price = interval === 'monthly' ? plan.priceMonthly : plan.priceYearly;
                     const isEnterprise = plan.id === 'enterprise';
@@ -173,7 +243,11 @@ export function PricingTable({ currentPlanId = 'free', onSelectPlan }: PricingTa
                                                     : 'bg-[#1D1D1F] hover:bg-black text-white'
                                             }`}
                                     >
-                                        {isCurrent ? 'Plan Actual' : (isEnterprise ? 'Contactar' : (currentPlanId !== 'free' ? 'Actualizar' : 'Elegir Plan'))}
+                                        {isCurrent
+                                            ? 'Plan Actual'
+                                            : manualMode
+                                                ? 'Solicitar activación'
+                                                : (isEnterprise ? 'Contactar' : (currentPlanId !== 'free' ? 'Actualizar' : 'Elegir Plan'))}
                                     </Button>
                                 </div>
                             </div>

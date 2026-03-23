@@ -4,38 +4,11 @@ import { Transaction } from '@/types/billing';
 import { Button } from '@/components/ui/Button';
 import { Download, ExternalLink, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 
-const MOCK_TRANSACTIONS: Transaction[] = [
-    {
-        id: '1',
-        invoiceNumber: 'INV-2026-001',
-        amount: 99.99,
-        currency: 'USD',
-        status: 'paid',
-        date: '2026-01-15',
-        planName: 'Professional',
-        periodStart: '2026-01-15',
-        periodEnd: '2026-02-15',
-        pdfUrl: '#'
-    },
-    {
-        id: '2',
-        invoiceNumber: 'INV-2025-012',
-        amount: 29.99,
-        currency: 'USD',
-        status: 'paid',
-        date: '2025-12-15',
-        planName: 'Starter',
-        periodStart: '2025-12-15',
-        periodEnd: '2026-01-15',
-        pdfUrl: '#'
-    }
-];
-
 interface TransactionHistoryProps {
     transactions?: Transaction[];
 }
 
-export function TransactionHistory({ transactions = MOCK_TRANSACTIONS }: TransactionHistoryProps) {
+export function TransactionHistory({ transactions = [] }: TransactionHistoryProps) {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
