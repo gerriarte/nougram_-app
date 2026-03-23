@@ -1,7 +1,7 @@
 
 export type PlanTier = 'free' | 'starter' | 'professional' | 'enterprise';
 export type BillingInterval = 'monthly' | 'yearly';
-export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'incomplete' | 'incomplete_expired';
+export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'cancelled' | 'canceled' | 'incomplete' | 'incomplete_expired';
 export type InvoiceStatus = 'paid' | 'pending' | 'failed' | 'void';
 
 export interface Plan {
@@ -49,6 +49,8 @@ export interface Subscription {
     cancelAtPeriodEnd: boolean;
     paymentMethod?: PaymentMethod;
     trialEndsAt?: string | null;
+    billingProvider?: string;
+    manualMode?: boolean;
 }
 
 export interface Transaction {

@@ -2,11 +2,13 @@
 AI-powered financial analysis endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from starlette.requests import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional
 from datetime import datetime, timedelta
+from collections import defaultdict, deque
+from asyncio import Lock
+import time
 
 from app.core.database import get_db
 from app.core.config import settings
@@ -15,7 +17,7 @@ from app.core.tenant import get_tenant_context, TenantContext
 from app.core.logging import get_logger
 from app.core.error_codes import ErrorCode
 from app.core.translations import translate_error
-from app.core.rate_limiting import limiter, get_tenant_identifier
+from app.core.rate_limiting import limiter, get_tenant_identifier, get_rate_limit_for_plan
 from app.models.user import User
 from app.services.ai_service import ai_service
 from app.schemas.ai import (
@@ -33,11 +35,36 @@ from pydantic import BaseModel
 logger = get_logger(__name__)
 router = APIRouter()
 
-# Rate limits for AI endpoints (requests per minute)
-# These are conservative limits to control API costs
-# Free: 5/min, Starter: 10/min, Professional: 30/min, Enterprise: 100/min
-# Using fixed conservative limit for now (can be made dynamic later)
-AI_RATE_LIMIT = "10/minute"  # Conservative limit for all plans (can be adjusted per plan later)
+# Coarse safety guard at gateway level; plan-specific limits are enforced below.
+AI_RATE_LIMIT = "200/minute"
+AI_WINDOW_SECONDS = 60
+_ai_requests_by_tenant: dict[int, deque[float]] = defaultdict(deque)
+_ai_rate_lock = Lock()
+
+
+async def _enforce_ai_rate_limit_by_plan(tenant: TenantContext) -> None:
+    """Apply per-plan AI rate limits per tenant within a 60-second window."""
+    plan = (tenant.subscription_plan or "free").strip().lower()
+    limit = get_rate_limit_for_plan(plan, "ai")
+    now = time.time()
+    cutoff = now - AI_WINDOW_SECONDS
+    tenant_id = tenant.organization_id
+
+    async with _ai_rate_lock:
+        bucket = _ai_requests_by_tenant[tenant_id]
+        while bucket and bucket[0] <= cutoff:
+            bucket.popleft()
+
+        if len(bucket) >= limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    f"AI rate limit exceeded for plan '{plan}'. "
+                    f"Limit: {limit} requests/minute."
+                ),
+            )
+
+        bucket.append(now)
 
 
 class AIAnalysisRequest(BaseModel):
@@ -67,6 +94,8 @@ async def analyze_financial_data(
     This is the main endpoint for AI-powered financial analysis.
     """
     
+    await _enforce_ai_rate_limit_by_plan(tenant)
+
     # Check if AI service is available
     if not ai_service.is_available():
         raise HTTPException(
@@ -162,6 +191,8 @@ async def suggest_onboarding_config(
     - `confidence_scores`: Confidence scores for each category
     - `reasoning`: AI reasoning for the suggestions
     """
+    await _enforce_ai_rate_limit_by_plan(tenant)
+
     if not ai_service.is_available():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -271,6 +302,8 @@ async def parse_document(
     - Confidence scores help identify which data is most reliable
     - Warnings indicate potential issues with the extraction
     """
+    await _enforce_ai_rate_limit_by_plan(tenant)
+
     if not ai_service.is_available():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -430,6 +463,8 @@ async def process_command(
     - Low confidence scores indicate ambiguous commands
     - The endpoint only parses the command; actual execution must be done separately
     """
+    await _enforce_ai_rate_limit_by_plan(tenant)
+
     if not ai_service.is_available():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -610,6 +645,8 @@ async def generate_executive_summary(
     }
     ```
     """
+    await _enforce_ai_rate_limit_by_plan(tenant)
+
     if not ai_service.is_available():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

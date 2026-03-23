@@ -129,6 +129,7 @@ async def get_subscription(
     """
     Get current subscription for the organization
     """
+    gateway = get_billing_gateway()
     org_repo = RepositoryFactory.create_organization_repository(db)
     organization = await org_repo.get_by_id(tenant.organization_id)
     if not organization:
@@ -158,11 +159,18 @@ async def get_subscription(
             trial_end=None,
             latest_invoice_id=None,
             default_payment_method=None,
+            billing_provider=gateway.provider_name,
+            manual_mode=gateway.provider_name == "manual",
             created_at=organization.created_at or datetime.utcnow(),
             updated_at=organization.updated_at,
         )
-    
-    return SubscriptionResponse.model_validate(subscription)
+
+    subscription_response = SubscriptionResponse.model_validate(subscription)
+    return SubscriptionResponse(
+        **subscription_response.model_dump(),
+        billing_provider=gateway.provider_name,
+        manual_mode=gateway.provider_name == "manual",
+    )
 
 
 @router.put("/subscription", response_model=SubscriptionResponse)

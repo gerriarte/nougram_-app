@@ -43,6 +43,8 @@ class SubscriptionResponse(BaseModel):
     trial_end: Optional[datetime] = None
     latest_invoice_id: Optional[str] = None
     default_payment_method: Optional[str] = None
+    billing_provider: Optional[str] = None
+    manual_mode: bool = False
     created_at: datetime
     updated_at: Optional[datetime] = None
     

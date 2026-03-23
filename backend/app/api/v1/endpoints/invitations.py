@@ -19,6 +19,7 @@ from app.models.organization import Organization
 from app.models.invitation import Invitation
 from app.repositories.invitation_repository import InvitationRepository
 from app.repositories.organization_repository import OrganizationRepository
+from app.core.plan_limits import validate_user_limit
 from app.schemas.invitation import (
     InvitationCreate,
     InvitationResponse,
@@ -463,6 +464,13 @@ async def accept_invitation(
     
     # Use invitation's organization_id (more secure than URL parameter)
     actual_org_id = invitation.organization_id
+    org_repo = OrganizationRepository(db)
+    org = await org_repo.get_by_id(actual_org_id)
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
     
     # Validate organization matches URL parameter (if provided)
     if organization_id and actual_org_id != organization_id:
@@ -485,6 +493,9 @@ async def accept_invitation(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This invitation has expired"
         )
+
+    # Enforce plan user limits before assigning/creating membership.
+    await validate_user_limit(actual_org_id, org.subscription_plan, db)
     
     # Get or create user
     existing_user = await db.execute(
@@ -563,9 +574,8 @@ async def accept_invitation(
         organization_id=actual_org_id
     )
     
-    # Get organization name for response (use actual org_id from invitation)
-    org = await org_repo.get_by_id(actual_org_id)
-    org_name = org.name if org else "the organization"
+    # Get organization name for response (already loaded above).
+    org_name = org.name
     
     return InvitationAcceptResponse(
         success=True,

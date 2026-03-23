@@ -1,64 +1,292 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PricingTable } from './PricingTable';
 import { CreditTracker } from './CreditTracker';
 import { SubscriptionStatus } from './SubscriptionStatus';
 import { TransactionHistory } from './TransactionHistory';
-import { Plan, Subscription, CreditUsage } from '@/types/billing';
+import { Plan, Subscription, CreditUsage, CreditTransaction, Transaction, PlanTier } from '@/types/billing';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'; // Assuming standard Shadcn-like tabs
 import { Wallet, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { apiRequest } from '@/lib/api-client';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 
-// --- MOCK DATA ---
-const MOCK_CURRENT_PLAN: Plan = {
-    id: 'starter',
-    name: 'Starter',
-    description: 'Ideal para equipos pequeños',
-    priceMonthly: 29.99,
-    priceYearly: 299.99,
-    currency: 'USD',
-    features: {
-        creditsPerMonth: 100,
-        maxUsers: 5,
-        maxProjects: 25,
-        maxServices: 50,
-        maxTeamMembers: 10,
-        supportLevel: 'email'
-    }
+type BackendPlanInfo = {
+    name: string;
+    display_name: string;
+    description: string;
+    monthly_price: string | null;
+    yearly_price: string | null;
+    limits: Record<string, number>;
 };
 
-const MOCK_SUBSCRIPTION: Subscription = {
-    id: 'sub_123',
-    planId: 'starter',
-    status: 'active',
-    interval: 'monthly',
-    currentPeriodStart: '2026-01-15',
-    currentPeriodEnd: '2026-02-15',
-    cancelAtPeriodEnd: false,
-    paymentMethod: {
-        id: 'pm_123',
-        type: 'card',
-        brand: 'visa',
-        last4: '4242',
-        expiryMonth: 12,
-        expiryYear: 2025
-    }
+type BackendSubscription = {
+    id: number;
+    plan: PlanTier;
+    status: string;
+    current_period_start: string | null;
+    current_period_end: string | null;
+    cancel_at_period_end: boolean;
+    billing_provider?: string | null;
+    manual_mode?: boolean;
 };
 
-const MOCK_USAGE: CreditUsage = {
-    available: 20,
-    usedThisMonth: 80,
-    usedTotal: 450,
-    limitMonthly: 100,
-    nextResetDate: '2026-02-15'
+type BackendCreditBalance = {
+    credits_available: number;
+    credits_used_total: number;
+    credits_used_this_month: number;
+    credits_per_month: number | null;
+    next_reset_at: string | null;
+};
+
+type BackendCreditTx = {
+    id: number;
+    transaction_type: string;
+    amount: number;
+    reason?: string | null;
+    created_at: string;
+};
+
+const SUPPORT_LEVEL_BY_PLAN: Record<PlanTier, Plan['features']['supportLevel']> = {
+    free: 'community',
+    starter: 'email',
+    professional: 'priority',
+    enterprise: 'dedicated',
 };
 
 export function BillingDashboard() {
     const [activeTab, setActiveTab] = useState('overview');
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
+    const [plans, setPlans] = useState<Plan[]>([]);
+    const [subscription, setSubscription] = useState<Subscription | null>(null);
+    const [manualBillingMode, setManualBillingMode] = useState(false);
+    const [usage, setUsage] = useState<CreditUsage | null>(null);
+    const [creditActivity, setCreditActivity] = useState<CreditTransaction[]>([]);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+    const toPlan = (item: BackendPlanInfo): Plan => {
+        const toLimit = (value: unknown): number | 'unlimited' =>
+            typeof value === 'number' && value >= 0 ? value : 'unlimited';
+        const planId = item.name as PlanTier;
+        const monthly = item.monthly_price ? Number(item.monthly_price) : 0;
+        const yearly = item.yearly_price ? Number(item.yearly_price) : 0;
+        const limits = item.limits || {};
+        return {
+            id: planId,
+            name: item.display_name || item.name,
+            description: item.description || '',
+            priceMonthly: Number.isFinite(monthly) ? monthly : 0,
+            priceYearly: Number.isFinite(yearly) ? yearly : 0,
+            currency: 'USD',
+            isPopular: planId === 'professional',
+            features: {
+                creditsPerMonth: toLimit(limits.credits_per_month),
+                maxUsers: toLimit(limits.max_users),
+                maxProjects: toLimit(limits.max_projects),
+                maxServices: toLimit(limits.max_services),
+                maxTeamMembers: toLimit(limits.max_team_members),
+                supportLevel: SUPPORT_LEVEL_BY_PLAN[planId] || 'community',
+            },
+        };
+    };
+
+    const loadBillingData = async (showSpinner: boolean = true) => {
+        if (showSpinner) {
+            setLoading(true);
+        }
+        setError(null);
+
+        const [plansRes, subRes, balanceRes, historyRes] = await Promise.all([
+            apiRequest<{ plans: BackendPlanInfo[] }>('/billing/plans'),
+            apiRequest<BackendSubscription>('/billing/subscription'),
+            apiRequest<BackendCreditBalance>('/credits/me/balance'),
+            apiRequest<{ items: BackendCreditTx[] }>('/credits/me/history?page=1&page_size=20'),
+        ]);
+
+        if (plansRes.error || subRes.error || balanceRes.error || historyRes.error) {
+            setError(
+                plansRes.error ||
+                subRes.error ||
+                balanceRes.error ||
+                historyRes.error ||
+                'No se pudo cargar la información de facturación.'
+            );
+            setLoading(false);
+            return;
+        }
+
+        const mappedPlans = (plansRes.data?.plans || [])
+            .filter((item) => ['free', 'starter', 'professional', 'enterprise'].includes(item.name))
+            .map(toPlan);
+        setPlans(mappedPlans);
+
+        if (subRes.data) {
+            const isManualMode = Boolean(subRes.data.manual_mode) || (subRes.data.billing_provider === 'manual');
+            setManualBillingMode(isManualMode);
+            setSubscription({
+                id: String(subRes.data.id),
+                planId: subRes.data.plan,
+                status: subRes.data.status === 'cancelled' ? 'cancelled' : (subRes.data.status as Subscription['status']),
+                interval: 'monthly',
+                currentPeriodStart: subRes.data.current_period_start || new Date().toISOString(),
+                currentPeriodEnd: subRes.data.current_period_end || new Date().toISOString(),
+                cancelAtPeriodEnd: subRes.data.cancel_at_period_end,
+                billingProvider: subRes.data.billing_provider || undefined,
+                manualMode: isManualMode,
+            });
+        }
+
+        if (balanceRes.data) {
+            setUsage({
+                available: balanceRes.data.credits_available,
+                usedThisMonth: balanceRes.data.credits_used_this_month,
+                usedTotal: balanceRes.data.credits_used_total,
+                limitMonthly: balanceRes.data.credits_per_month,
+                nextResetDate: balanceRes.data.next_reset_at || new Date().toISOString(),
+            });
+        }
+
+        const historyItems = historyRes.data?.items || [];
+        setCreditActivity(
+            historyItems.slice(0, 6).map((item) => ({
+                id: String(item.id),
+                action: item.reason || item.transaction_type,
+                credits: item.amount,
+                timestamp: new Date(item.created_at).toLocaleString(),
+            }))
+        );
+
+        setTransactions(
+            historyItems.map((item) => ({
+                id: String(item.id),
+                invoiceNumber: `CR-${item.id}`,
+                amount: Math.abs(item.amount),
+                currency: 'CR',
+                status: 'paid',
+                date: item.created_at,
+                planName: item.transaction_type,
+                periodStart: item.created_at,
+                periodEnd: item.created_at,
+            }))
+        );
+
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        void loadBillingData();
+    }, []);
+
+    const currentPlan = useMemo(() => {
+        if (!subscription) return null;
+        return plans.find((item) => item.id === subscription.planId) || null;
+    }, [plans, subscription]);
 
     const handleUpgrade = () => {
         setActiveTab('plans');
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleSelectPlan = async (planId: PlanTier, interval: 'monthly' | 'yearly') => {
+        if (!subscription) return;
+        if (manualBillingMode) {
+            setError(null);
+            setSuccess(`Solicitud recibida: cambio al plan '${planId}'. Activación manual pendiente por soporte.`);
+            return;
+        }
+        if (planId === 'enterprise') {
+            setError('Para Enterprise, contacta a soporte para activación personalizada.');
+            return;
+        }
+
+        setActionLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        const intervalForApi = interval === 'yearly' ? 'year' : 'month';
+        const samePlan = subscription.planId === planId;
+        const hasExternalSubscription = subscription.id !== '0';
+
+        if (hasExternalSubscription && !samePlan) {
+            const response = await apiRequest<BackendSubscription>('/billing/subscription', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    plan: planId,
+                    interval: intervalForApi,
+                }),
+            });
+            if (response.error) {
+                setError(response.error);
+                setActionLoading(false);
+                return;
+            }
+            setSuccess('Plan actualizado correctamente.');
+            await loadBillingData(false);
+            setActionLoading(false);
+            return;
+        }
+
+        const currentUrl = typeof window !== 'undefined' ? window.location.origin + '/billing' : '';
+        const checkoutResponse = await apiRequest<{ url: string }>('/billing/checkout-session', {
+            method: 'POST',
+            body: JSON.stringify({
+                plan: planId,
+                interval: intervalForApi,
+                success_url: `${currentUrl}?billing=success`,
+                cancel_url: `${currentUrl}?billing=cancelled`,
+            }),
+        });
+        if (checkoutResponse.error) {
+            setError(checkoutResponse.error);
+            setActionLoading(false);
+            return;
+        }
+        if (checkoutResponse.data?.url && typeof window !== 'undefined') {
+            window.location.href = checkoutResponse.data.url;
+            return;
+        }
+        setActionLoading(false);
+    };
+
+    const handleCancelSubscription = async () => {
+        if (manualBillingMode) {
+            setError(null);
+            setSuccess('Solicitud recibida: cancelación manual pendiente por soporte.');
+            return;
+        }
+        if (!window.confirm('¿Quieres cancelar la suscripción al final del periodo actual?')) return;
+        setActionLoading(true);
+        setError(null);
+        setSuccess(null);
+        const response = await apiRequest<BackendSubscription>('/billing/subscription/cancel', {
+            method: 'POST',
+            body: JSON.stringify({ cancel_immediately: false }),
+        });
+        if (response.error) {
+            setError(response.error);
+            setActionLoading(false);
+            return;
+        }
+        setSuccess('Cancelación programada al final del periodo.');
+        await loadBillingData(false);
+        setActionLoading(false);
+    };
+
+    const handleUpdatePayment = async () => {
+        if (!subscription) return;
+        if (manualBillingMode) {
+            setError(null);
+            setSuccess('Modo manual activo: la actualización de pago se gestiona directamente con soporte.');
+            return;
+        }
+        await handleSelectPlan(subscription.planId, subscription.interval);
+    };
+
+    const handleTopUp = () => {
+        handleUpgrade();
     };
 
     return (
@@ -98,31 +326,69 @@ export function BillingDashboard() {
                         </TabsList>
                     </div>
 
+                    {error && (
+                        <Alert variant="critical">
+                            <div>
+                                <AlertTitle>Error de facturación</AlertTitle>
+                                <AlertDescription>{error}</AlertDescription>
+                            </div>
+                        </Alert>
+                    )}
+                    {success && (
+                        <Alert variant="success">
+                            <div>
+                                <AlertTitle>Operación completada</AlertTitle>
+                                <AlertDescription>{success}</AlertDescription>
+                            </div>
+                        </Alert>
+                    )}
+                    {manualBillingMode && (
+                        <Alert variant="info">
+                            <div>
+                                <AlertTitle>Facturación en modo manual</AlertTitle>
+                                <AlertDescription>
+                                    La activación/cambio/cancelación de planes se realiza manualmente por soporte.
+                                </AlertDescription>
+                            </div>
+                        </Alert>
+                    )}
+                    {actionLoading && (
+                        <p className="text-sm text-system-gray">Procesando acción de facturación...</p>
+                    )}
+
                     <TabsContent value="overview" className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
                         {/* 1. Credit Tracker */}
-                        <CreditTracker
-                            usage={MOCK_USAGE}
-                            onUpgrade={handleUpgrade}
-                            onTopUp={() => alert('Top-up coming soon!')}
-                        />
+                        {!loading && usage && (
+                            <CreditTracker
+                                usage={usage}
+                                recentActivity={creditActivity}
+                                onUpgrade={handleUpgrade}
+                                onTopUp={handleTopUp}
+                            />
+                        )}
 
                         {/* 2. Subscription Details */}
-                        <SubscriptionStatus
-                            subscription={MOCK_SUBSCRIPTION}
-                            currentPlan={MOCK_CURRENT_PLAN}
-                            onChangePlan={handleUpgrade}
-                        />
+                        {!loading && subscription && currentPlan && (
+                            <SubscriptionStatus
+                                subscription={subscription}
+                                currentPlan={currentPlan}
+                                onChangePlan={handleUpgrade}
+                                onUpdatePayment={() => void handleUpdatePayment()}
+                                onCancel={() => void handleCancelSubscription()}
+                            />
+                        )}
                     </TabsContent>
 
                     <TabsContent value="plans" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <PricingTable
-                            currentPlanId={MOCK_CURRENT_PLAN.id}
-                            onSelectPlan={(id) => alert(`Selected plan: ${id}`)}
+                            currentPlanId={currentPlan?.id || 'free'}
+                            manualMode={manualBillingMode}
+                            onSelectPlan={(planId, interval) => void handleSelectPlan(planId, interval)}
                         />
                     </TabsContent>
 
                     <TabsContent value="invoices" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <TransactionHistory />
+                        <TransactionHistory transactions={transactions} />
                     </TabsContent>
                 </Tabs>
             </div>
