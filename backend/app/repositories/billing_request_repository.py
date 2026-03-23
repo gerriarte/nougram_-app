@@ -3,8 +3,9 @@ Repository for BillingRequest model.
 """
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.billing_request import BillingRequest
 from app.repositories.base import BaseRepository
@@ -56,3 +57,39 @@ class BillingRequestRepository(BaseRepository[BillingRequest]):
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
+
+    async def list_requests(
+        self,
+        organization_id: Optional[int] = None,
+        status: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[BillingRequest], int]:
+        filters = []
+        if organization_id is not None:
+            filters.append(BillingRequest.organization_id == organization_id)
+        if status:
+            filters.append(BillingRequest.status == status)
+
+        base_query = (
+            select(BillingRequest)
+            .options(
+                selectinload(BillingRequest.organization),
+                selectinload(BillingRequest.requested_by_user),
+            )
+            .order_by(BillingRequest.created_at.desc())
+        )
+        count_query = select(func.count(BillingRequest.id))
+
+        if filters:
+            for clause in filters:
+                base_query = base_query.where(clause)
+                count_query = count_query.where(clause)
+
+        base_query = base_query.limit(limit).offset(offset)
+        items_result = await self.db.execute(base_query)
+        items = list(items_result.scalars().all())
+
+        count_result = await self.db.execute(count_query)
+        total = int(count_result.scalar() or 0)
+        return items, total
