@@ -1290,6 +1290,7 @@ async def remove_user_from_organization(
 async def update_subscription_plan(
     organization_id: int,
     subscription_data: UpdateSubscriptionPlanRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),  # Permission check inside due to multi-tenant logic
     db: AsyncSession = Depends(get_db)
 ):
@@ -1326,21 +1327,42 @@ async def update_subscription_plan(
         )
     
     org_repo = OrganizationRepository(db)
+    previous_org = await org_repo.get_by_id(organization_id)
+    if not previous_org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
+    previous_plan = previous_org.subscription_plan
+    previous_status = previous_org.subscription_status
+
     org = await org_repo.update_subscription(
         organization_id,
         plan=subscription_data.plan,
         status=subscription_data.status
     )
     
-    if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
-        )
-    
     user_count = await org_repo.get_user_count(organization_id)
     
     logger.info(f"Subscription updated for organization {organization_id} to {subscription_data.plan} by user {current_user.id}")
+
+    from app.core.audit import AuditService, AuditAction
+    await AuditService.log_action(
+        db=db,
+        action=AuditAction.SUBSCRIPTION_UPDATE,
+        user_id=current_user.id,
+        organization_id=organization_id,
+        resource_type="subscription",
+        resource_id=organization_id,
+        request=request,
+        details={
+            "previous_plan": previous_plan,
+            "new_plan": org.subscription_plan,
+            "previous_status": previous_status,
+            "new_status": org.subscription_status,
+        },
+        status="success",
+    )
     
     # Grant subscription credits when plan is updated
     if subscription_data.plan:
