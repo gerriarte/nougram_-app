@@ -8,6 +8,7 @@ see raw values. This module centralizes those read-only helper APIs.
 from __future__ import annotations
 
 import csv
+import json
 from datetime import datetime, timezone, timedelta
 from io import StringIO
 from typing import Any, Dict, List, Optional
@@ -28,6 +29,7 @@ from app.models.subscription import Subscription
 from app.models.team import TeamMember
 from app.models.user import User
 from app.models.ai_usage import AIUsageEvent
+from app.models.audit_log import AuditLog
 from app.repositories.organization_repository import OrganizationRepository
 from app.repositories.ai_usage_repository import AIUsageRepository
 from app.repositories.financial_ledger_repository import FinancialLedgerRepository
@@ -77,9 +79,9 @@ async def _load_projects(
 async def _load_quotes(
     db: AsyncSession, organization_ids: Optional[List[int]] = None
 ) -> List[Quote]:
-    stmt = select(Quote)
+    stmt = select(Quote).join(Project, Quote.project_id == Project.id)
     if organization_ids:
-        stmt = stmt.where(Quote.organization_id.in_(organization_ids))
+        stmt = stmt.where(Project.organization_id.in_(organization_ids))
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
@@ -308,12 +310,15 @@ async def export_anonymized_dataset(
         ..., description="organizations, projects, quotes or team_members"
     ),
     export_format: str = Query("json", description="json or csv"),
+    organization_id: Optional[int] = Query(
+        None, description="Optional organization filter"
+    ),
     current_user: User = Depends(require_support_user),
     db: AsyncSession = Depends(get_db),
 ):
     dataset = await get_anonymized_datasets(
         dataset_type=dataset_type,
-        organization_id=None,
+        organization_id=organization_id,
         current_user=current_user,
         db=db,
     )
@@ -366,6 +371,8 @@ PAID_STATUSES = ("active", "trialing", "past_due")
 )
 async def get_support_analytics_proposals(
     organization_id: Optional[int] = Query(None),
+    since: Optional[datetime] = Query(None),
+    until: Optional[datetime] = Query(None),
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -381,6 +388,10 @@ async def get_support_analytics_proposals(
     ).group_by(ProposalClientLink.organization_id)
     if organization_id is not None:
         base = base.where(ProposalClientLink.organization_id == organization_id)
+    if since is not None:
+        base = base.where(ProposalClientLink.created_at >= since)
+    if until is not None:
+        base = base.where(ProposalClientLink.created_at <= until)
     result = await db.execute(base)
     rows = result.all()
     items = [
@@ -395,6 +406,55 @@ async def get_support_analytics_proposals(
         }
         for r in rows
     ]
+    return {"items": items}
+
+
+@router.get(
+    "/analytics/subscription-history",
+    summary="Subscription change history by tenant (super_admin only)",
+)
+async def get_support_analytics_subscription_history(
+    organization_id: Optional[int] = Query(None),
+    since: Optional[datetime] = Query(None),
+    until: Optional[datetime] = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    base = select(AuditLog).where(AuditLog.action == "subscription.update")
+    if organization_id is not None:
+        base = base.where(AuditLog.organization_id == organization_id)
+    if since is not None:
+        base = base.where(AuditLog.created_at >= since)
+    if until is not None:
+        base = base.where(AuditLog.created_at <= until)
+    base = base.order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(base)
+    logs = result.scalars().all()
+
+    items: list[dict[str, Any]] = []
+    for log in logs:
+        details: dict[str, Any] = {}
+        if log.details:
+            try:
+                details = json.loads(log.details)
+            except json.JSONDecodeError:
+                details = {"raw": log.details}
+        items.append(
+            {
+                "id": log.id,
+                "organization_id": log.organization_id,
+                "user_id": log.user_id,
+                "status": log.status,
+                "previous_plan": details.get("previous_plan"),
+                "new_plan": details.get("new_plan"),
+                "previous_status": details.get("previous_status"),
+                "new_status": details.get("new_status"),
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+            }
+        )
+
     return {"items": items}
 
 

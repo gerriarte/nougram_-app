@@ -114,6 +114,7 @@ class AuditAction:
     USER_CREATE = "user.create"
     USER_UPDATE = "user.update"
     USER_DELETE = "user.delete"
+    USER_SWITCH_ORGANIZATION = "user.switch_organization"
     
     # Project management
     PROJECT_CREATE = "project.create"
