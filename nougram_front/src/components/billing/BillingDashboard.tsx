@@ -47,6 +47,12 @@ type BackendCreditTx = {
     created_at: string;
 };
 
+type BackendManualBillingRequest = {
+    id: number;
+    request_type: string;
+    status: string;
+};
+
 const SUPPORT_LEVEL_BY_PLAN: Record<PlanTier, Plan['features']['supportLevel']> = {
     free: 'community',
     starter: 'email',
@@ -193,8 +199,26 @@ export function BillingDashboard() {
     const handleSelectPlan = async (planId: PlanTier, interval: 'monthly' | 'yearly') => {
         if (!subscription) return;
         if (manualBillingMode) {
+            setActionLoading(true);
             setError(null);
-            setSuccess(`Solicitud recibida: cambio al plan '${planId}'. Activación manual pendiente por soporte.`);
+            setSuccess(null);
+            const intervalForApi = interval === 'yearly' ? 'year' : 'month';
+            const response = await apiRequest<BackendManualBillingRequest>('/billing/manual-requests', {
+                method: 'POST',
+                body: JSON.stringify({
+                    request_type: 'change_plan',
+                    target_plan: planId,
+                    target_interval: intervalForApi,
+                    notes: `Solicitud de cambio desde Billing Dashboard. Plan actual: ${subscription.planId}`,
+                }),
+            });
+            if (response.error) {
+                setError(response.error);
+                setActionLoading(false);
+                return;
+            }
+            setSuccess(`Solicitud #${response.data?.id ?? ''} enviada: cambio al plan '${planId}'. Soporte/Super Admin fue notificado.`);
+            setActionLoading(false);
             return;
         }
         if (planId === 'enterprise') {
@@ -253,8 +277,23 @@ export function BillingDashboard() {
 
     const handleCancelSubscription = async () => {
         if (manualBillingMode) {
+            setActionLoading(true);
             setError(null);
-            setSuccess('Solicitud recibida: cancelación manual pendiente por soporte.');
+            setSuccess(null);
+            const response = await apiRequest<BackendManualBillingRequest>('/billing/manual-requests', {
+                method: 'POST',
+                body: JSON.stringify({
+                    request_type: 'cancel_subscription',
+                    notes: 'Solicitud de cancelación manual al final del periodo',
+                }),
+            });
+            if (response.error) {
+                setError(response.error);
+                setActionLoading(false);
+                return;
+            }
+            setSuccess(`Solicitud #${response.data?.id ?? ''} enviada: cancelación manual pendiente por soporte.`);
+            setActionLoading(false);
             return;
         }
         if (!window.confirm('¿Quieres cancelar la suscripción al final del periodo actual?')) return;
@@ -278,8 +317,25 @@ export function BillingDashboard() {
     const handleUpdatePayment = async () => {
         if (!subscription) return;
         if (manualBillingMode) {
+            setActionLoading(true);
             setError(null);
-            setSuccess('Modo manual activo: la actualización de pago se gestiona directamente con soporte.');
+            setSuccess(null);
+            const response = await apiRequest<BackendManualBillingRequest>('/billing/manual-requests', {
+                method: 'POST',
+                body: JSON.stringify({
+                    request_type: 'update_payment_method',
+                    notes: 'Solicitud de actualización de método de pago en modo manual',
+                }),
+            });
+            if (response.error) {
+                setError(response.error);
+                setActionLoading(false);
+                return;
+            }
+            setSuccess(
+                `Solicitud #${response.data?.id ?? ''} enviada: actualización de pago será gestionada por soporte/super admin.`
+            );
+            setActionLoading(false);
             return;
         }
         await handleSelectPlan(subscription.planId, subscription.interval);

@@ -140,6 +140,7 @@ class AuditAction:
     SUBSCRIPTION_CREATE = "subscription.create"
     SUBSCRIPTION_UPDATE = "subscription.update"
     SUBSCRIPTION_CANCEL = "subscription.cancel"
+    BILLING_MANUAL_REQUEST_CREATE = "billing.manual_request_create"
     CHECKOUT_SESSION_CREATE = "checkout_session.create"
     
     # Security

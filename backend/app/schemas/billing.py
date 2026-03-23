@@ -64,6 +64,35 @@ class SubscriptionCancel(BaseModel):
     cancel_immediately: bool = Field(False, description="Cancel immediately instead of at period end")
 
 
+class ManualBillingRequestCreate(BaseModel):
+    """Request payload for manual billing/account action."""
+
+    request_type: str = Field(
+        ...,
+        description="Action type: change_plan, cancel_subscription, update_payment_method, account_action",
+    )
+    target_plan: Optional[str] = Field(None, description="Target plan when request_type is change_plan")
+    target_interval: Optional[str] = Field(None, description="Target interval (month/year)")
+    notes: Optional[str] = Field(None, description="Additional details for support/super admin")
+
+
+class ManualBillingRequestResponse(BaseModel):
+    """Created manual billing request."""
+
+    id: int
+    organization_id: int
+    requested_by_user_id: int
+    request_type: str
+    target_plan: Optional[str] = None
+    target_interval: Optional[str] = None
+    notes: Optional[str] = None
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class PlanInfo(BaseModel):
     """Plan information
     ESTÁNDAR NOUGRAM: Campos monetarios usan Decimal para precisión
