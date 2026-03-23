@@ -338,6 +338,11 @@ export default function SuperAdminAccountsPage() {
         });
     }, [organizations, search]);
 
+    const tenantSelectorOptions = useMemo(() => {
+        if (filteredOrganizations.length > 0) return filteredOrganizations;
+        return organizations;
+    }, [filteredOrganizations, organizations]);
+
     const filteredTransactions = useMemo(() => {
         const fromDate = txFromDate ? new Date(`${txFromDate}T00:00:00`) : null;
         const toDate = txToDate ? new Date(`${txToDate}T23:59:59`) : null;
@@ -883,6 +888,7 @@ export default function SuperAdminAccountsPage() {
                 }
                 const url = `${apiBase}${prefix}/datasets/export?${params.toString()}`;
                 const candidate = await fetch(url, {
+                    method: 'POST',
                     headers: {
                         Authorization: `Bearer ${token}`
                     }
@@ -1134,6 +1140,37 @@ export default function SuperAdminAccountsPage() {
                         </Button>
                     </div>
                 </div>
+
+                <Card>
+                    <CardContent>
+                        <div className="flex flex-col md:flex-row md:items-end gap-3">
+                            <div className="min-w-0 flex-1">
+                                <label className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
+                                    Selector rapido de tenant
+                                </label>
+                                <select
+                                    className="mt-2 h-11 w-full rounded-xl bg-white px-3 text-sm font-medium text-gray-900 border border-gray-200"
+                                    value={selectedOrgId ?? ''}
+                                    onChange={(event) => {
+                                        const next = event.target.value;
+                                        setSelectedOrgId(next ? Number(next) : null);
+                                    }}
+                                    disabled={listLoading || organizations.length === 0}
+                                >
+                                    <option value="">Selecciona un tenant...</option>
+                                    {tenantSelectorOptions.map((org) => (
+                                        <option key={org.id} value={org.id}>
+                                            {org.name} ({org.slug}) - {org.subscription_status}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <p className="text-xs text-system-gray md:pb-2">
+                                Usa este desplegable para cambiar de tenant sin navegar la lista.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {error && (
                     <Alert variant="critical">

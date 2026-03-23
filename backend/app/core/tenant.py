@@ -61,9 +61,10 @@ async def get_tenant_context(
     # Get role_type
     role_type = get_user_role_type(current_user)
     
-    # Support users can have NULL organization_id
-    # Tenant users must have organization_id
-    organization_id = getattr(current_user, 'organization_id', None)
+    # Support users can carry active org context in a transient attribute from JWT.
+    # Tenant users must use their persisted organization_id.
+    active_org_id = getattr(current_user, "active_organization_id", None)
+    organization_id = active_org_id if active_org_id is not None else getattr(current_user, "organization_id", None)
     
     if role_type == "tenant" and organization_id is None:
         logger.error(f"Tenant user {current_user.id} has no organization_id")

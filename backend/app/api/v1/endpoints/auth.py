@@ -547,7 +547,7 @@ async def switch_organization(
     # Log organization switch
     await AuditService.log_action(
         db=db,
-        action=AuditAction.USER_ACTION,
+        action=AuditAction.USER_SWITCH_ORGANIZATION,
         user_id=current_user.id,
         organization_id=organization_id,
         request=request,

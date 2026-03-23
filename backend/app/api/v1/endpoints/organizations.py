@@ -79,14 +79,17 @@ async def get_my_organization(
     - `200 OK`: Organization found and returned
     - `404 Not Found`: User has no associated organization
     """
-    if not current_user.organization_id:
+    active_org_id = getattr(current_user, "active_organization_id", None)
+    organization_id = active_org_id if active_org_id is not None else current_user.organization_id
+
+    if not organization_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User is not associated with any organization"
         )
     
     org_repo = OrganizationRepository(db)
-    org = await org_repo.get_with_user_count(current_user.organization_id)
+    org = await org_repo.get_with_user_count(organization_id)
     
     if not org:
         raise HTTPException(

@@ -135,8 +135,9 @@ async def get_current_user(
                 from app.core.permissions import get_user_role_type
                 role_type = get_user_role_type(user)
             if role_type == "support":
-                # Support users can operate on multiple tenants; use token tenant as active context.
-                setattr(user, "organization_id", token_org_id_int)
+                # Support users can operate on multiple tenants. Store active tenant context
+                # in a transient attribute to avoid mutating the ORM-mapped organization_id.
+                setattr(user, "active_organization_id", token_org_id_int)
             else:
                 # Tenant users must remain pinned to their own persisted organization.
                 if user.organization_id is None or user.organization_id != token_org_id_int:

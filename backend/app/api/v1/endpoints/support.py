@@ -79,9 +79,9 @@ async def _load_projects(
 async def _load_quotes(
     db: AsyncSession, organization_ids: Optional[List[int]] = None
 ) -> List[Quote]:
-    stmt = select(Quote)
+    stmt = select(Quote).join(Project, Quote.project_id == Project.id)
     if organization_ids:
-        stmt = stmt.where(Quote.organization_id.in_(organization_ids))
+        stmt = stmt.where(Project.organization_id.in_(organization_ids))
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
