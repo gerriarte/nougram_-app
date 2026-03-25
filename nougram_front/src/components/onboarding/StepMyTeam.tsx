@@ -200,10 +200,10 @@ export function StepMyTeam({
     );
 
     return (
-        <div className="space-y-6 max-w-3xl mx-auto">
+        <div className="space-y-6 max-w-3xl mx-auto px-1">
             <div className="text-center space-y-2">
-                <h1 className="text-2xl font-bold text-gray-900">Configura tu propio costo</h1>
-                <p className="text-gray-600">Gestiona toda la nómina desde un solo modal y calcula el BCR en tiempo real.</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Configura tu propio costo</h1>
+                <p className="text-sm sm:text-base text-gray-600">Gestiona toda la nómina desde un solo modal y calcula el BCR en tiempo real.</p>
             </div>
 
             <Card className="bg-amber-50 border-amber-200">
@@ -323,9 +323,17 @@ export function StepMyTeam({
                 </CardContent>
             </Card>
 
-            <div className="flex justify-between mt-6">
-                <Button variant="secondary" onClick={onBack}>← Atrás</Button>
-                <Button onClick={handleNext}>Siguiente →</Button>
+            <div className="pb-24 md:pb-0">
+                <div className="fixed inset-x-0 bottom-0 z-40 md:static md:z-auto border-t border-gray-200 bg-white/95 backdrop-blur-md px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:border-0 md:bg-transparent md:backdrop-blur-none md:p-0 shadow-[0_-6px_24px_rgba(15,23,42,0.06)] md:shadow-none">
+                    <div className="max-w-5xl mx-auto flex gap-3 justify-between mt-0 md:mt-6">
+                        <Button variant="secondary" onClick={onBack} className="flex-1 sm:flex-none h-12 rounded-2xl font-bold md:h-10 md:rounded-md">
+                            ← Atrás
+                        </Button>
+                        <Button onClick={handleNext} className="flex-1 sm:flex-none h-12 rounded-2xl font-bold md:h-10 md:rounded-md">
+                            Siguiente →
+                        </Button>
+                    </div>
+                </div>
             </div>
 
             <Dialog open={isTeamModalOpen} onOpenChange={setIsTeamModalOpen}>

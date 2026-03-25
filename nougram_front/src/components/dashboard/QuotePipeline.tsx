@@ -146,20 +146,20 @@ export function QuotePipeline() {
             {/* 1. KPIs */}
             <div className="space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
+                    <div className="min-w-0">
                         <h2 className="text-lg font-bold text-gray-900 tracking-tight">Indicadores (KPI)</h2>
                         <p className="text-sm text-gray-500 mt-1 max-w-xl">
                             Última cotización por proyecto, sin borradores. Filtro por fecha de actualización de la cotización.
                         </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-xs font-semibold text-gray-500 bg-gray-100/70 px-3 py-1.5 rounded-full">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full md:w-auto">
+                        <span className="text-xs font-semibold text-gray-500 bg-gray-100/70 px-3 py-1.5 rounded-full w-fit">
                             {kpiFilterLabel}
                         </span>
                         <Button
                             type="button"
                             variant="secondary"
-                            className="h-11 rounded-xl px-4"
+                            className="h-11 rounded-xl px-4 w-full sm:w-auto justify-center"
                             onClick={openKpiFilterModal}
                         >
                             <SlidersHorizontal size={15} className="mr-2" />
@@ -189,9 +189,9 @@ export function QuotePipeline() {
                         <p className="text-sm text-system-gray font-medium mt-1">Monitorea el flujo de tus propuestas comerciales.</p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full md:w-auto">
                         {/* Search */}
-                        <div className="relative group flex-1 min-w-[200px] md:w-80">
+                        <div className="relative group flex-1 min-w-0 w-full md:w-80">
                             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" strokeWidth={1.5} />
                             <input
                                 type="text"
@@ -206,7 +206,7 @@ export function QuotePipeline() {
                         <select
                             value={filters.clientId === '' ? '' : String(filters.clientId)}
                             onChange={(e) => updateFilter('clientId', e.target.value === '' ? '' : Number(e.target.value))}
-                            className="h-12 px-4 rounded-2xl border-0 bg-gray-200/50 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500/50 focus:bg-white outline-none min-w-[180px]"
+                            className="h-12 px-4 rounded-2xl border-0 bg-gray-200/50 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500/50 focus:bg-white outline-none min-w-0 w-full sm:min-w-[180px] sm:w-auto"
                         >
                             <option value="">Todos los clientes</option>
                             {clients.map((c) => (
@@ -217,7 +217,7 @@ export function QuotePipeline() {
                         </select>
 
                         {/* View Switcher */}
-                        <div className="bg-gray-200/50 p-1 rounded-xl flex gap-1 h-12">
+                        <div className="bg-gray-200/50 p-1 rounded-xl flex gap-1 h-12 w-full sm:w-auto justify-center sm:justify-start">
                             <button
                                 onClick={() => setViewMode('board')}
                                 className={cn(
@@ -255,7 +255,7 @@ export function QuotePipeline() {
                                 return (
                                     <div
                                         key={col.id}
-                                        className="min-w-[340px] flex flex-col gap-4 snap-start"
+                                        className="min-w-[min(90vw,320px)] sm:min-w-[340px] flex flex-col gap-4 snap-start"
                                         onDragOver={(e) => e.preventDefault()}
                                         onDrop={(e) => {
                                             e.preventDefault();

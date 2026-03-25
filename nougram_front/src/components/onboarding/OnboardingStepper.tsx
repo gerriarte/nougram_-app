@@ -16,8 +16,8 @@ export function OnboardingStepper({ currentStep }: OnboardingStepperProps) {
     const progress = ((currentStep - 1) / (steps.length - 1)) * 100;
 
     return (
-        <div className="w-full py-6">
-            <div className="max-w-4xl mx-auto space-y-4">
+        <div className="w-full py-4 md:py-6">
+            <div className="max-w-4xl mx-auto space-y-3 md:space-y-4 px-1">
                 <div className="relative h-2 w-full rounded-full bg-gray-200 overflow-hidden">
                     <div
                         className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 ease-out"
@@ -25,13 +25,16 @@ export function OnboardingStepper({ currentStep }: OnboardingStepperProps) {
                     />
                 </div>
 
-                <div className="grid grid-cols-4 gap-2">
+                <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory md:grid md:grid-cols-4 md:overflow-visible scrollbar-hide">
                     {steps.map((step) => {
                         const isCompleted = currentStep > step.id;
                         const isActive = currentStep === step.id;
 
                         return (
-                            <div key={step.id} className="flex flex-col items-center text-center">
+                            <div
+                                key={step.id}
+                                className="flex flex-col items-center text-center min-w-[4.5rem] snap-center shrink-0 md:min-w-0"
+                            >
                                 <div
                                     className={`flex items-center justify-center w-9 h-9 rounded-full border-2 shadow-sm transition-all duration-300 ${
                                         isCompleted
@@ -50,7 +53,7 @@ export function OnboardingStepper({ currentStep }: OnboardingStepperProps) {
                                     )}
                                 </div>
                                 <span
-                                    className={`mt-2 text-xs font-medium ${
+                                    className={`mt-1.5 text-[10px] md:text-xs font-semibold max-w-[5.5rem] leading-tight ${
                                         isCompleted || isActive ? 'text-blue-700' : 'text-gray-500'
                                     }`}
                                 >

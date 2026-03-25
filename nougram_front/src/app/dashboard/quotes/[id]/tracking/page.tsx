@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { QuoteTrackingView } from '@/components/quotes/QuoteTrackingView';
 import { quoteService } from '@/services/quoteService';
 import { Quote } from '@/components/dashboard/QuoteCard';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 
 export default function TrackingQuotePage() {
     const router = useRouter();
@@ -33,9 +34,13 @@ export default function TrackingQuotePage() {
     }
 
     return (
-        <QuoteTrackingView
-            quote={quote}
-            onBack={() => router.back()}
-        />
+        <AdminLayout hideRightPanel>
+            <div className="max-w-[960px] mx-auto w-full px-1 sm:px-0 pb-24 md:pb-8">
+                <QuoteTrackingView
+                    quote={quote}
+                    onBack={() => router.back()}
+                />
+            </div>
+        </AdminLayout>
     );
 }

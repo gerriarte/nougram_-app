@@ -6,7 +6,7 @@ import { VersionSelector } from './VersionSelector';
 
 export function QuoteBuilderLayout() {
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 pb-4 md:pb-0">
             {/* Toolbar / Header Extensions could go here */}
             <div className="flex justify-end lg:hidden">
                 <VersionSelector currentVersion="v1" />
@@ -22,7 +22,7 @@ export function QuoteBuilderLayout() {
                 </div>
 
                 {/* Right: Sticky Financial Summary */}
-                <div className="w-full lg:w-[420px] flex-shrink-0" id="quote-final-proposal-summary">
+                <div className="w-full lg:w-[420px] flex-shrink-0 lg:sticky lg:top-24" id="quote-final-proposal-summary">
                     <QuoteFinancialSummary />
                 </div>
             </div>

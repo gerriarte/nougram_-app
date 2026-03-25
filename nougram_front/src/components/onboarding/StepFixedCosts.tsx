@@ -213,10 +213,10 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
     );
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto">
-            <div className="text-center space-y-2">
-                <h1 className="text-2xl font-bold text-gray-900">Define tu inventario operativo</h1>
-                <p className="text-gray-600">Selecciona items y completa los datos. Los costos amortizables se configuran con datos de amortizacion, no con valor mensual.</p>
+        <div className="space-y-6 max-w-5xl mx-auto pb-32 md:pb-0">
+            <div className="text-center space-y-2 px-1">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Define tu inventario operativo</h1>
+                <p className="text-sm sm:text-base text-gray-600">Selecciona items y completa los datos. Los costos amortizables se configuran con datos de amortizacion, no con valor mensual.</p>
                 <p className="text-xs text-blue-600">Todos los valores se muestran y editan en {primaryCurrency}.</p>
             </div>
 
@@ -399,18 +399,18 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                 </Card>
             ))}
 
-            <Card className="bg-gray-50 sticky bottom-4 shadow-lg border-t border-gray-200">
-                <CardContent className="flex flex-col sm:flex-row items-center justify-between p-4">
-                    <div>
-                        <p className="text-sm text-gray-500">Impacto mensual estimado (incluye amortizacion)</p>
-                        <p className="text-2xl font-bold text-gray-900">{formatCurrency(calculateTotal(), primaryCurrency)}</p>
+            <Card className="bg-gray-50 border-t border-gray-200 shadow-[0_-8px_28px_rgba(15,23,42,0.08)] rounded-t-2xl md:rounded-xl fixed inset-x-0 bottom-0 z-40 md:static md:inset-auto md:shadow-lg md:sticky md:bottom-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:pb-0">
+                <CardContent className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-4 gap-4">
+                    <div className="min-w-0 text-center sm:text-left">
+                        <p className="text-xs sm:text-sm text-gray-500">Impacto mensual estimado (incluye amortizacion)</p>
+                        <p className="text-xl sm:text-2xl font-bold text-gray-900">{formatCurrency(calculateTotal(), primaryCurrency)}</p>
                         <p className="text-xs text-gray-400">{selectedCosts.length} items seleccionados</p>
                     </div>
-                    <div className="flex gap-3 mt-4 sm:mt-0 w-full sm:w-auto">
-                        <Button variant="secondary" onClick={onBack} className="flex-1 sm:flex-none">
+                    <div className="flex gap-3 w-full sm:w-auto">
+                        <Button variant="secondary" onClick={onBack} className="flex-1 sm:flex-none h-12 rounded-2xl font-bold md:h-10 md:rounded-md">
                             ← Atras
                         </Button>
-                        <Button onClick={() => onNext({ selectedTemplates: selectedCosts, totalMonthly: calculateTotal() })} className="flex-1 sm:flex-none">
+                        <Button onClick={() => onNext({ selectedTemplates: selectedCosts, totalMonthly: calculateTotal() })} className="flex-1 sm:flex-none h-12 rounded-2xl font-bold md:h-10 md:rounded-md">
                             Siguiente →
                         </Button>
                     </div>
