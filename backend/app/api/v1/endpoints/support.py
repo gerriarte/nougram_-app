@@ -22,6 +22,7 @@ from sqlalchemy.exc import ProgrammingError
 
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.core.plan_limits import PLAN_LIMITS
 from app.core.permission_middleware import require_support_role_decorator, require_role_decorator
 from app.core.permissions import get_user_role
 from app.models.project import Project, Quote
@@ -172,6 +173,15 @@ async def get_support_organization_usage(
     project_count = await repo.get_project_count(organization_id)
     quote_count = await _count_quotes(db, organization_id)
     balance = await CreditService.get_credit_balance(organization_id, db)
+    plan_key = (organization.subscription_plan or "free").lower()
+    plan_limits = PLAN_LIMITS.get(plan_key, PLAN_LIMITS["free"])
+    max_users = int(plan_limits.get("max_users", 0))
+    max_projects = int(plan_limits.get("max_projects", 0))
+    credits_per_month = int(plan_limits.get("credits_per_month", 0))
+    users_remaining = -1 if max_users == -1 else max(0, max_users - user_count)
+    projects_remaining = -1 if max_projects == -1 else max(0, max_projects - project_count)
+    credits_available = balance.get("credits_available")
+    credits_used_this_month = balance.get("credits_used_this_month")
 
     if _is_super_admin(current_user):
         return {
@@ -182,8 +192,24 @@ async def get_support_organization_usage(
                 "user_count": user_count,
                 "project_count": project_count,
                 "quote_count": quote_count,
-                "credits_available": balance.get("credits_available"),
-                "credits_used_this_month": balance.get("credits_used_this_month"),
+                "credits_available": credits_available,
+                "credits_used_this_month": credits_used_this_month,
+                "plan_limits": {
+                    "max_users": max_users,
+                    "max_projects": max_projects,
+                    "max_services": int(plan_limits.get("max_services", 0)),
+                    "max_team_members": int(plan_limits.get("max_team_members", 0)),
+                    "credits_per_month": credits_per_month,
+                },
+                "remaining_capacity": {
+                    "users_remaining": users_remaining,
+                    "projects_remaining": projects_remaining,
+                },
+                "quote_policy": {
+                    "is_credit_based": True,
+                    "scope": "organization",
+                    "message": "Las cotizaciones consumen creditos a nivel empresa (tenant), no por usuario.",
+                },
             },
         }
 

@@ -629,7 +629,11 @@ async def list_organization_users(
             full_name=user.full_name,
             role=user.role,
             organization_id=user.organization_id,
-            created_at=getattr(user, 'created_at', None)  # Handle missing created_at field
+            created_at=getattr(user, 'created_at', None),  # Handle missing created_at field
+            email_verified=getattr(user, "email_verified", None),
+            email_verified_at=getattr(user, "email_verified_at", None),
+            job_title=getattr(user, "job_title", None),
+            specialty=getattr(user, "specialty", None),
         )
         for user in users
     ]
