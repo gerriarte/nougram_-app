@@ -20,23 +20,9 @@ const QUOTE_FLOW_STEPS = [
 ];
 
 export function QuoteBuilderForm() {
-    const { state, services, updateProjectInfo, addItem, isValid, errors, saveQuote, paywall, clearPaywall } = useQuoteBuilder();
+    const { state, services, updateProjectInfo, addItem, errors, paywall, clearPaywall } = useQuoteBuilder();
     const router = useRouter();
     const [selectedBillingType, setSelectedBillingType] = React.useState<'' | 'hourly' | 'fixed' | 'recurring'>('');
-
-    const handleSave = async (options?: { goToProposal?: boolean; goToDashboard?: boolean }) => {
-        try {
-            const projectId = await saveQuote();
-            if (options?.goToProposal && projectId) {
-                router.push(`/dashboard/quotes/${projectId}/proposal`);
-            } else if (options?.goToDashboard) {
-                router.push('/dashboard');
-            }
-        } catch (e) {
-            const message = e instanceof Error ? e.message : 'Error guardando cotización';
-            alert(message);
-        }
-    };
 
     const activeServices = React.useMemo(
         () => services.filter((service) => service.isActive),
@@ -98,7 +84,8 @@ export function QuoteBuilderForm() {
     const stepSectionById: Record<number, string> = {
         1: 'quote-step-project-info',
         2: 'quote-step-estimation',
-        3: 'quote-final-proposal-section',
+        // Paso 3: ancla al resumen de rentabilidad (las acciones van después en móvil)
+        3: 'quote-final-proposal-summary',
     };
 
     const handleStepNavigation = (stepId: number) => {
@@ -111,7 +98,7 @@ export function QuoteBuilderForm() {
 
     return (
         <>
-        <div className="space-y-8 pb-[14rem] md:pb-12 max-w-5xl mx-auto">
+        <div className="space-y-8 pb-6 lg:pb-12 max-w-5xl mx-auto">
             <QuoteFlowStepper
                 className="sticky top-2 z-20 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur p-3 shadow-sm"
                 label="Flujo de cotización"
@@ -271,31 +258,6 @@ export function QuoteBuilderForm() {
                 </div>
             )}
 
-            {/* 4. Actions — fixed bar on mobile (above app bottom nav), sticky on desktop */}
-            <div
-                className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 md:static md:inset-x-auto md:bottom-auto pb-0 md:pb-0"
-                id="quote-final-proposal-section"
-            >
-                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-end rounded-none md:rounded-2xl border-t md:border border-gray-200 bg-white/95 backdrop-blur-xl shadow-[0_-8px_28px_rgba(15,23,42,0.08)] md:shadow-lg p-3 px-4 md:px-3">
-                    <Button variant="secondary" onClick={() => handleSave({ goToDashboard: true })} className="w-full sm:w-auto h-11 rounded-xl font-bold md:h-10 md:rounded-md md:font-medium">
-                        Guardar
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        onClick={() => (state.id ? router.push('/dashboard') : router.back())}
-                        className="w-full sm:w-auto h-11 rounded-xl font-bold md:h-10 md:rounded-md md:font-medium"
-                    >
-                        Cancelar
-                    </Button>
-                    <Button
-                        className={`w-full sm:w-auto h-11 rounded-xl font-bold md:h-10 md:rounded-md md:font-medium ${isValid ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-                        disabled={!isValid}
-                        onClick={() => handleSave({ goToProposal: true })}
-                    >
-                        Crear propuesta
-                    </Button>
-                </div>
-            </div>
         </div>
 
         <PaywallModal
