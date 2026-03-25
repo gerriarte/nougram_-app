@@ -15,9 +15,10 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import ProgrammingError
 
 from app.core.database import get_db
 from app.core.logging import get_logger
@@ -514,25 +515,68 @@ async def get_support_analytics_paid_accounts(
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
     """List organizations with paid plans (starter/professional/enterprise) and status active/trialing/past_due."""
-    base = select(Subscription).where(
-        Subscription.plan.in_(PAID_PLANS),
-        Subscription.status.in_(PAID_STATUSES),
+    subscriptions_table_exists = True
+    try:
+        table_check = await db.execute(
+            text(
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = 'public' AND table_name = 'subscriptions'"
+                ") AS exists"
+            )
+        )
+        subscriptions_table_exists = bool(table_check.scalar())
+    except Exception:
+        subscriptions_table_exists = False
+
+    if subscriptions_table_exists:
+        try:
+            base = select(Subscription).where(
+                Subscription.plan.in_(PAID_PLANS),
+                Subscription.status.in_(PAID_STATUSES),
+            )
+            if organization_id is not None:
+                base = base.where(Subscription.organization_id == organization_id)
+            result = await db.execute(base)
+            subs = result.scalars().unique().all()
+            items = [
+                {
+                    "organization_id": s.organization_id,
+                    "plan": s.plan,
+                    "status": s.status,
+                    "current_period_start": s.current_period_start.isoformat() if s.current_period_start else None,
+                    "current_period_end": s.current_period_end.isoformat() if s.current_period_end else None,
+                }
+                for s in subs
+            ]
+            return {"items": items}
+        except ProgrammingError:
+            # Safety fallback for legacy envs where metadata exists but table does not.
+            pass
+
+    # Legacy fallback: use organization-level subscription fields.
+    from app.models.organization import Organization
+
+    org_query = select(Organization).where(
+        Organization.subscription_plan.in_(PAID_PLANS),
+        Organization.subscription_status.in_(PAID_STATUSES),
     )
     if organization_id is not None:
-        base = base.where(Subscription.organization_id == organization_id)
-    result = await db.execute(base)
-    subs = result.scalars().unique().all()
-    items = [
-        {
-            "organization_id": s.organization_id,
-            "plan": s.plan,
-            "status": s.status,
-            "current_period_start": s.current_period_start.isoformat() if s.current_period_start else None,
-            "current_period_end": s.current_period_end.isoformat() if s.current_period_end else None,
-        }
-        for s in subs
-    ]
-    return {"items": items}
+        org_query = org_query.where(Organization.id == organization_id)
+    org_result = await db.execute(org_query)
+    orgs = org_result.scalars().all()
+    return {
+        "items": [
+            {
+                "organization_id": org.id,
+                "plan": org.subscription_plan,
+                "status": org.subscription_status,
+                "current_period_start": None,
+                "current_period_end": None,
+            }
+            for org in orgs
+        ]
+    }
 
 
 @router.get(
