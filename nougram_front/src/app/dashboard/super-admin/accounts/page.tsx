@@ -55,6 +55,22 @@ type UsageMetricsResponse = {
         quote_count: number;
         credits_available: number | string | null;
         credits_used_this_month: number | string | null;
+        plan_limits?: {
+            max_users: number;
+            max_projects: number;
+            max_services: number;
+            max_team_members: number;
+            credits_per_month: number;
+        };
+        remaining_capacity?: {
+            users_remaining: number;
+            projects_remaining: number;
+        };
+        quote_policy?: {
+            is_credit_based: boolean;
+            scope: string;
+            message: string;
+        };
     };
 };
 
@@ -101,6 +117,11 @@ type OrganizationUser = {
     email: string;
     full_name: string;
     role: string;
+    created_at?: string | null;
+    email_verified?: boolean | null;
+    email_verified_at?: string | null;
+    job_title?: string | null;
+    specialty?: string | null;
 };
 
 type OrganizationUsersResponse = {
@@ -211,6 +232,20 @@ function getStatusVariant(status: string): 'success' | 'warning' | 'critical' | 
         return 'critical';
     }
     return 'default';
+}
+
+function getRoleLabel(role: string): string {
+    const normalized = (role || '').toLowerCase();
+    if (normalized === 'owner') return 'Owner';
+    if (normalized === 'admin_financiero') return 'Usuario financiero';
+    if (normalized === 'product_manager') return 'Project manager';
+    if (normalized === 'collaborator') return 'Colaborador';
+    return role;
+}
+
+function formatLimit(limit: number | undefined): string {
+    if (typeof limit !== 'number') return '-';
+    return limit === -1 ? 'Ilimitado' : String(limit);
 }
 
 function toNumber(value: number | string | null | undefined): number {
@@ -344,6 +379,26 @@ export default function SuperAdminAccountsPage() {
     const selectedOrg = useMemo(
         () => organizations.find((org) => org.id === selectedOrgId) || null,
         [organizations, selectedOrgId]
+    );
+    const ownerUser = useMemo(
+        () => tenantUsers.find((member) => member.role === 'owner') || tenantUsers[0] || null,
+        [tenantUsers]
+    );
+    const financialUsersCount = useMemo(
+        () => tenantUsers.filter((member) => member.role === 'admin_financiero').length,
+        [tenantUsers]
+    );
+    const projectManagerUsersCount = useMemo(
+        () => tenantUsers.filter((member) => member.role === 'product_manager').length,
+        [tenantUsers]
+    );
+    const ownersCount = useMemo(
+        () => tenantUsers.filter((member) => member.role === 'owner').length,
+        [tenantUsers]
+    );
+    const extraUsersCount = useMemo(
+        () => Math.max(0, tenantUsers.length - ownersCount),
+        [tenantUsers.length, ownersCount]
     );
 
     const filteredOrganizations = useMemo(() => {
@@ -1414,6 +1469,62 @@ export default function SuperAdminAccountsPage() {
                                         </div>
                                     </CardHeader>
                                     <CardContent>
+                                        <div className="grid grid-cols-1 xl:grid-cols-4 gap-3 mb-4">
+                                            <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
+                                                    Datos del usuario
+                                                </p>
+                                                <p className="text-sm font-bold text-gray-900 mt-1">
+                                                    {ownerUser?.full_name || 'Sin owner asignado'}
+                                                </p>
+                                                <p className="text-xs text-system-gray">{ownerUser?.email || '-'}</p>
+                                                <p className="text-xs text-system-gray mt-1">
+                                                    Rol: {ownerUser ? getRoleLabel(ownerUser.role) : '-'}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
+                                                    Datos personales
+                                                </p>
+                                                <p className="text-xs text-system-gray mt-1">
+                                                    Cargo: {ownerUser?.job_title || '-'}
+                                                </p>
+                                                <p className="text-xs text-system-gray">
+                                                    Especialidad: {ownerUser?.specialty || '-'}
+                                                </p>
+                                                <p className="text-xs text-system-gray">
+                                                    Verificado: {ownerUser?.email_verified ? 'Si' : 'No'}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
+                                                    Datos de la empresa
+                                                </p>
+                                                <p className="text-sm font-bold text-gray-900 mt-1">{selectedOrg?.name || '-'}</p>
+                                                <p className="text-xs text-system-gray">Slug: {selectedOrg?.slug || '-'}</p>
+                                                <p className="text-xs text-system-gray">
+                                                    Registro empresa: {formatDate(selectedOrg?.created_at)}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
+                                                    Usuarios y registro
+                                                </p>
+                                                <p className="text-xs text-system-gray mt-1">
+                                                    Usuarios extras: {extraUsersCount}
+                                                </p>
+                                                <p className="text-xs text-system-gray">
+                                                    Usuario financiero: {financialUsersCount}
+                                                </p>
+                                                <p className="text-xs text-system-gray">
+                                                    Project manager: {projectManagerUsersCount}
+                                                </p>
+                                                <p className="text-xs text-system-gray">
+                                                    Fecha registro usuario: {formatDate(ownerUser?.created_at || ownerUser?.email_verified_at)}
+                                                </p>
+                                            </div>
+                                        </div>
+
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="space-y-2">
                                                 <label className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
@@ -1492,18 +1603,24 @@ export default function SuperAdminAccountsPage() {
                                             <p className="text-xs text-system-gray">
                                                 Usados mes: {balance ? balance.credits_used_this_month : '-'}
                                             </p>
+                                            <p className="text-[11px] text-system-gray">
+                                                A nivel empresa (tenant), no por usuario.
+                                            </p>
                                         </CardContent>
                                     </Card>
                                     <Card>
                                         <CardContent className="space-y-2">
                                             <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
-                                                Actividad comercial
+                                                Cotizaciones y cupo
                                             </p>
                                             <p className="text-3xl font-black text-gray-900">
                                                 {usage ? usage.metrics.quote_count : '-'}
                                             </p>
                                             <p className="text-xs text-system-gray">
-                                                Proyectos: {usage ? usage.metrics.project_count : '-'}
+                                                Proyectos: {usage ? usage.metrics.project_count : '-'} / {formatLimit(usage?.metrics.plan_limits?.max_projects)}
+                                            </p>
+                                            <p className="text-[11px] text-system-gray">
+                                                {usage?.metrics.quote_policy?.message || 'Las cotizaciones se controlan por créditos del tenant.'}
                                             </p>
                                         </CardContent>
                                     </Card>
@@ -1516,12 +1633,67 @@ export default function SuperAdminAccountsPage() {
                                                 {usage ? usage.metrics.user_count : '-'}
                                             </p>
                                             <p className="text-xs text-system-gray">
-                                                Owners en cuenta:{' '}
-                                                {tenantUsers.filter((member) => member.role === 'owner').length}
+                                                Owners: {ownersCount} · Financieros: {financialUsersCount} · PM: {projectManagerUsersCount}
+                                            </p>
+                                            <p className="text-[11px] text-system-gray">
+                                                Limite plan: {formatLimit(usage?.metrics.plan_limits?.max_users)}
                                             </p>
                                         </CardContent>
                                     </Card>
                                 </div>
+
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-lg flex items-center gap-2">
+                                            <Coins size={16} />
+                                            Limites del plan y disponibilidad
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Todos los tenants inician en free. La disponibilidad se controla por empresa.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-system-gray">Usuarios</p>
+                                            <p className="text-sm font-bold text-gray-900">
+                                                {usage?.metrics.user_count ?? '-'} / {formatLimit(usage?.metrics.plan_limits?.max_users)}
+                                            </p>
+                                            <p className="text-[11px] text-system-gray">
+                                                Disponibles: {formatLimit(usage?.metrics.remaining_capacity?.users_remaining)}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-system-gray">Proyectos</p>
+                                            <p className="text-sm font-bold text-gray-900">
+                                                {usage?.metrics.project_count ?? '-'} / {formatLimit(usage?.metrics.plan_limits?.max_projects)}
+                                            </p>
+                                            <p className="text-[11px] text-system-gray">
+                                                Disponibles: {formatLimit(usage?.metrics.remaining_capacity?.projects_remaining)}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-system-gray">Servicios</p>
+                                            <p className="text-sm font-bold text-gray-900">
+                                                Limite: {formatLimit(usage?.metrics.plan_limits?.max_services)}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-system-gray">Team members</p>
+                                            <p className="text-sm font-bold text-gray-900">
+                                                Limite: {formatLimit(usage?.metrics.plan_limits?.max_team_members)}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-blue-700">Creditos mensuales</p>
+                                            <p className="text-sm font-bold text-blue-900">
+                                                {formatLimit(usage?.metrics.plan_limits?.credits_per_month)}
+                                            </p>
+                                            <p className="text-[11px] text-blue-700">
+                                                Disponibles ahora: {balance ? balance.credits_available : '-'}
+                                            </p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                                     <Card>
@@ -1914,9 +2086,12 @@ export default function SuperAdminAccountsPage() {
                                                                 <p className="text-xs text-system-gray truncate">{member.email}</p>
                                                             </div>
                                                             <Badge variant={member.role === 'owner' ? 'info' : 'default'}>
-                                                                {member.role}
+                                                                {getRoleLabel(member.role)}
                                                             </Badge>
                                                         </div>
+                                                        <p className="text-[11px] text-system-gray mb-2">
+                                                            Cargo: {member.job_title || '-'} · Especialidad: {member.specialty || '-'} · Registro: {formatDate(member.created_at || member.email_verified_at)}
+                                                        </p>
                                                         <div className="flex items-center gap-2">
                                                             <select
                                                                 className="h-8 rounded-lg bg-white px-2 text-xs font-medium text-gray-900 border border-gray-200"

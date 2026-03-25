@@ -133,6 +133,10 @@ class OrganizationUserResponse(BaseModel):
     role: str
     organization_id: int
     created_at: Optional[datetime] = None  # Optional since User model doesn't have created_at yet
+    email_verified: Optional[bool] = None
+    email_verified_at: Optional[datetime] = None
+    job_title: Optional[str] = None
+    specialty: Optional[str] = None
 
     class Config:
         from_attributes = True
