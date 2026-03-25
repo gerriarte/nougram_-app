@@ -66,7 +66,82 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Mobile: card list */}
+            <div className="md:hidden divide-y divide-gray-100">
+                {quotes.map((quote) => (
+                    <div key={quote.id} className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="font-bold text-gray-900 leading-tight">{quote.project}</p>
+                                <p className="text-xs text-gray-500 mt-1">{quote.client}</p>
+                                <div className="flex flex-wrap items-center gap-2 mt-2">
+                                    <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md font-bold">
+                                        V{quote.version}
+                                    </span>
+                                    <span className="text-[10px] text-gray-400">#{quote.id.substring(0, 6)}</span>
+                                    <span className="text-[10px] text-gray-400">{formatDate(quote.sentAt)}</span>
+                                </div>
+                            </div>
+                            <select
+                                value={quote.status}
+                                onChange={(e) => onStatusChange(quote.id, e.target.value as Quote['status'])}
+                                className={`text-[11px] font-bold uppercase tracking-wide border-none rounded-full px-2 py-1 cursor-pointer focus:ring-2 focus:ring-blue-500 shrink-0 ${getStatusColor(quote.status)}`}
+                            >
+                                <option value="draft">Borrador</option>
+                                <option value="sent">Enviada</option>
+                                <option value="viewed">Visto</option>
+                                <option value="accepted">Aceptada</option>
+                                <option value="rejected">Rechazada</option>
+                            </select>
+                        </div>
+                        <p className="text-[11px] text-gray-500">{getFollowUpHint(quote)}</p>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <p className="text-xs text-gray-500">Total factura</p>
+                                <p className="text-sm font-bold text-gray-900">
+                                    ${formatMoneyAmount(quote.totalWithTaxes)}{' '}
+                                    <span className="text-xs font-normal text-gray-400">{displayCurrency}</span>
+                                </p>
+                            </div>
+                            <div className={`font-bold ${getMarginColor(quote.margin)} text-sm px-3 py-1 rounded-full bg-opacity-10`}>
+                                {quote.margin.toFixed(2)}% margen
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-2 pt-1">
+                            <Button
+                                variant="outline"
+                                className="w-full h-11 rounded-2xl font-bold justify-center"
+                                onClick={() => router.push(`/dashboard/quotes/${quote.id}/edit`)}
+                            >
+                                <Edit size={16} className="mr-2" />
+                                Editar cotización
+                            </Button>
+                            <Button
+                                className="w-full h-11 rounded-2xl font-bold bg-blue-600 text-white hover:bg-blue-700"
+                                onClick={() => router.push(`/dashboard/quotes/${quote.id}/tracking`)}
+                            >
+                                Ver trazabilidad
+                                <ArrowUpRight size={16} className="ml-2" strokeWidth={2.5} />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                className="w-full h-10 rounded-xl text-sm font-semibold text-gray-600"
+                                onClick={() => onOpenPublicAccess?.(quote)}
+                                disabled={publicAccessLoadingQuoteId === quote.id}
+                            >
+                                {publicAccessLoadingQuoteId === quote.id ? (
+                                    <Loader2 size={16} className="animate-spin mr-2 inline" />
+                                ) : (
+                                    <LinkIcon size={16} className="mr-2 inline" />
+                                )}
+                                Acceso público
+                            </Button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm text-left">
                     <thead className="text-xs text-gray-500 uppercase bg-gray-50/50 border-b border-gray-100">
                         <tr>

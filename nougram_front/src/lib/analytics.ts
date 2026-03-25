@@ -130,6 +130,44 @@ export function trackOnboardingComplete(params: { organization_id?: string }): v
   });
 }
 
+export function trackOnboardingStarted(params: { organization_id?: string }): void {
+  pushToDataLayer(
+    {
+      event: "onboarding_started",
+      organization_id:
+        params.organization_id != null ? String(params.organization_id) : undefined,
+    },
+    { skipDedupe: true }
+  );
+}
+
+export function trackOnboardingStepViewed(params: {
+  step: string;
+  organization_id?: string;
+}): void {
+  pushToDataLayer(
+    {
+      event: "onboarding_step_viewed",
+      step: params.step,
+      organization_id:
+        params.organization_id != null ? String(params.organization_id) : undefined,
+    },
+    { skipDedupe: true }
+  );
+}
+
+export function trackOnboardingAbandoned(params: {
+  step: string;
+  organization_id?: string;
+}): void {
+  pushToDataLayer({
+    event: "onboarding_abandoned",
+    step: params.step,
+    organization_id:
+      params.organization_id != null ? String(params.organization_id) : undefined,
+  });
+}
+
 // --- Quote lifecycle ---
 export function trackQuoteCreated(params: {
   project_id?: string;

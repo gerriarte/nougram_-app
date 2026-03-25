@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, LogOut, ChevronDown, Building2, CreditCard } from 'lucide-react';
+import { Users, LogOut, ChevronDown, Building2, CreditCard, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api-client';
@@ -13,7 +13,11 @@ type OrganizationResponse = {
     name: string;
 };
 
-export function AdminHeader() {
+type AdminHeaderProps = {
+    onOpenMobileNav?: () => void;
+};
+
+export function AdminHeader({ onOpenMobileNav }: AdminHeaderProps) {
     const { user, logout } = useAuth();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [workspaceName, setWorkspaceName] = useState('Workspace');
@@ -57,11 +61,23 @@ export function AdminHeader() {
     };
 
     return (
-        <header className="bg-white/60 backdrop-blur-md border-b border-white/20 h-20 px-10 flex items-center justify-between sticky top-0 z-30">
+        <header className="bg-white/60 backdrop-blur-md border-b border-white/20 h-16 md:h-20 px-4 sm:px-6 md:px-10 flex items-center justify-between sticky top-0 z-30">
             {/* Left: Context */}
-            <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <h2 className="text-system-gray text-xs font-black uppercase tracking-[0.2em]">{workspaceName} Workspace</h2>
+            <div className="flex items-center gap-3 min-w-0">
+                {onOpenMobileNav ? (
+                    <button
+                        type="button"
+                        onClick={onOpenMobileNav}
+                        className="md:hidden h-11 w-11 rounded-2xl border border-gray-200 bg-white flex items-center justify-center text-gray-700 hover:bg-gray-50 shrink-0"
+                        aria-label="Abrir menú de navegación"
+                    >
+                        <Menu size={22} strokeWidth={2} />
+                    </button>
+                ) : null}
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0 hidden sm:block" />
+                <h2 className="text-system-gray text-[10px] sm:text-xs font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] truncate">
+                    {workspaceName} Workspace
+                </h2>
             </div>
 
             {/* Right: User Menu */}

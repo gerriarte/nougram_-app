@@ -8,6 +8,7 @@ import { proposalService, ProposalBody, ProposalDocument } from '@/services/prop
 import { Quote } from '@/components/dashboard/QuoteCard';
 import { getQuoteEditorMeta } from '@/lib/quote-editor-meta';
 import { trackProposalGeneratedWithAI } from '@/lib/analytics';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 
 export default function ProposalBuilderPage() {
     const router = useRouter();
@@ -120,17 +121,21 @@ export default function ProposalBuilderPage() {
     );
 
     return (
-        <ProposalBuilderHybrid
-            projectId={id}
-            projectName={quote.project}
-            initialTitle={proposal?.title ?? `Propuesta comercial - ${quote.project}`}
-            initialBody={initialProposalBody}
-            initialProposalId={proposal?.id}
-            onSave={handleSave}
-            onGenerateAI={handleGenerateAI}
-            onContinueToSend={() => router.push(`/dashboard/quotes/${id}/send`)}
-            onCancel={() => router.push(`/dashboard/quotes/${id}/next-step`)}
-            suggestedServicesText={suggestedServicesText}
-        />
+        <AdminLayout hideRightPanel>
+            <div className="max-w-[1200px] mx-auto w-full px-1 sm:px-0 pb-6">
+                <ProposalBuilderHybrid
+                    projectId={id}
+                    projectName={quote.project}
+                    initialTitle={proposal?.title ?? `Propuesta comercial - ${quote.project}`}
+                    initialBody={initialProposalBody}
+                    initialProposalId={proposal?.id}
+                    onSave={handleSave}
+                    onGenerateAI={handleGenerateAI}
+                    onContinueToSend={() => router.push(`/dashboard/quotes/${id}/send`)}
+                    onCancel={() => router.push(`/dashboard/quotes/${id}/next-step`)}
+                    suggestedServicesText={suggestedServicesText}
+                />
+            </div>
+        </AdminLayout>
     );
 }

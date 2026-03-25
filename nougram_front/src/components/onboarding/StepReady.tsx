@@ -73,19 +73,19 @@ export function StepReady({
     const bcrColor = billableHoursPerWeek < 20 ? 'text-orange-600' : 'text-blue-700';
 
     return (
-        <div className="space-y-8 max-w-3xl mx-auto text-center">
+        <div className="space-y-8 max-w-3xl mx-auto text-center px-2 pb-8">
 
             <div className="space-y-2">
                 <span className="text-4xl">🎉</span>
-                <h1 className="text-3xl font-bold text-gray-900">¡Listo! Tu estructura de costos está configurada</h1>
-                <p className="text-gray-600">Este es el mínimo que debes cobrar por hora para ser rentable.</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">¡Listo! Tu estructura de costos está configurada</h1>
+                <p className="text-sm sm:text-base text-gray-600">Este es el mínimo que debes cobrar por hora para ser rentable.</p>
             </div>
 
             {/* Main BCR Result */}
             <Card className="bg-blue-50 border-blue-200 shadow-md transform hover:scale-105 transition-transform duration-300">
                 <CardContent className="py-10">
                     <p className="text-sm font-semibold text-blue-800 uppercase tracking-widest mb-2">Tu Costo por Hora Real (BCR)</p>
-                    <h2 className={`text-6xl font-extrabold ${bcrColor} mb-2`}>
+                    <h2 className={`text-4xl sm:text-6xl font-extrabold ${bcrColor} mb-2 break-words`}>
                         {formatCurrency(Math.round(bcr), currency)} <span className="text-2xl font-normal text-gray-500">{currency}</span>
                     </h2>
                     <p className="text-xs text-blue-600/80 font-medium">
@@ -166,11 +166,11 @@ export function StepReady({
                     No se pudo guardar el onboarding en backend: {persistError}
                 </div>
             )}
-            <div className="flex flex-col sm:flex-row gap-4 pt-4 justify-center">
-                <Button variant="secondary" onClick={onGoToDashboard} className="w-full sm:w-auto" disabled={isPersisting}>
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 justify-center max-w-md sm:max-w-none mx-auto">
+                <Button variant="secondary" onClick={onGoToDashboard} className="w-full h-12 rounded-2xl font-bold sm:h-auto sm:rounded-md" disabled={isPersisting}>
                     Ir al Dashboard
                 </Button>
-                <Button size="lg" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={onCreateQuote} disabled={isPersisting}>
+                <Button size="lg" className="w-full h-12 rounded-2xl font-bold sm:h-auto bg-blue-600 hover:bg-blue-700 shadow-lg sm:rounded-md" onClick={onCreateQuote} disabled={isPersisting}>
                     {isPersisting ? 'Guardando onboarding...' : 'Crear mi Primera Cotización →'}
                 </Button>
             </div>

@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { OnboardingStickyActions } from '@/components/onboarding/OnboardingStickyActions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -38,10 +39,10 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
     };
 
     return (
-        <div className="space-y-6 max-w-2xl mx-auto">
-            <div className="text-center space-y-2">
-                <h1 className="text-3xl font-bold text-gray-900">¡Bienvenido a Nougram!</h1>
-                <p className="text-gray-600">Vamos a configurar tu estructura de costos en menos de 10 minutos.</p>
+        <div className="space-y-6 max-w-2xl mx-auto pb-24 md:pb-6">
+            <div className="text-center space-y-2 px-1">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">¡Bienvenido a Nougram!</h1>
+                <p className="text-sm sm:text-base text-gray-600">Vamos a configurar tu estructura de costos en menos de 10 minutos.</p>
             </div>
 
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
@@ -106,11 +107,13 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
                 </CardContent>
             </Card>
 
-            <div className="flex justify-end">
-                <Button onClick={handleNext} className="w-full sm:w-auto">
-                    Siguiente →
-                </Button>
-            </div>
+            <OnboardingStickyActions>
+                <div className="flex justify-stretch md:justify-end">
+                    <Button onClick={handleNext} className="w-full h-12 rounded-2xl text-base font-bold md:w-auto md:h-10">
+                        Siguiente →
+                    </Button>
+                </div>
+            </OnboardingStickyActions>
         </div>
     );
 }

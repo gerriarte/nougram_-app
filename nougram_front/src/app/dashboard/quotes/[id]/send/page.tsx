@@ -9,6 +9,7 @@ import { quoteService } from '@/services/quoteService';
 import { Quote } from '@/components/dashboard/QuoteCard';
 import { proposalService, ProposalBody, ProposalDocument } from '@/services/proposalService';
 import { trackProposalShared } from '@/lib/analytics';
+import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 
 /** Renders hybrid proposal body (guided sections + free_text) for preview and email. */
 function proposalBodyToText(body: ProposalBody): string {
@@ -206,20 +207,24 @@ export default function SendQuotePage() {
     };
 
     return (
-        <QuoteSendView
-            quote={quote}
-            initialToEmail={clientEmail}
-            initialProposalTitle={proposal?.title}
-            initialProposalText={proposal ? proposalBodyToText(proposal.body_json || {}) : ''}
-            proposalVersion={proposal?.version}
-            initialProposalId={proposal?.id}
-            onSend={handleSend}
-            onGenerateAccessLink={handleGenerateAccessLink}
-            onSaveProposal={handleSaveProposal}
-            onGenerateProposalAI={handleGenerateProposalAI}
-            onOpenStructuredBuilder={() => router.push(`/dashboard/quotes/${id}/proposal`)}
-            onGoToDashboard={() => router.push('/dashboard')}
-            onCancel={() => router.back()}
-        />
+        <AdminLayout hideRightPanel>
+            <div className="max-w-[960px] mx-auto w-full px-1 sm:px-0 pb-24 md:pb-8">
+                <QuoteSendView
+                    quote={quote}
+                    initialToEmail={clientEmail}
+                    initialProposalTitle={proposal?.title}
+                    initialProposalText={proposal ? proposalBodyToText(proposal.body_json || {}) : ''}
+                    proposalVersion={proposal?.version}
+                    initialProposalId={proposal?.id}
+                    onSend={handleSend}
+                    onGenerateAccessLink={handleGenerateAccessLink}
+                    onSaveProposal={handleSaveProposal}
+                    onGenerateProposalAI={handleGenerateProposalAI}
+                    onOpenStructuredBuilder={() => router.push(`/dashboard/quotes/${id}/proposal`)}
+                    onGoToDashboard={() => router.push('/dashboard')}
+                    onCancel={() => router.back()}
+                />
+            </div>
+        </AdminLayout>
     );
 }

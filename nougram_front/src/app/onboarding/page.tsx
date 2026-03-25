@@ -21,7 +21,11 @@ import {
     trackOnboardingImportStarted,
     trackOnboardingImportApplied,
     trackOnboardingComplete,
+    trackOnboardingStarted,
+    trackOnboardingStepViewed,
+    trackOnboardingAbandoned,
 } from '@/lib/analytics';
+import { CANONICAL_NEW_QUOTE_PATH } from '@/lib/mobile-routes';
 import { FixedCostTemplate } from '@/types/onboarding';
 import { normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
 import { Step3MyTeamData } from '@/types/onboarding';
@@ -90,6 +94,8 @@ export default function OnboardingPage() {
         updateProgress
     } = useOnboarding();
 
+    const stepNames: Record<number, string> = { 1: 'identity', 2: 'fixed_costs', 3: 'team', 4: 'ready' };
+
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
             router.push('/login');
@@ -103,11 +109,37 @@ export default function OnboardingPage() {
         }
     }, [isLoading, onboardingData.lastStep, currentStep]);
 
-    const stepNames: Record<number, string> = { 1: 'identity', 2: 'fixed_costs', 3: 'team', 4: 'ready' };
+    const onboardingStartedRef = React.useRef(false);
+    useEffect(() => {
+        if (authLoading || !isAuthenticated || isLoading) return;
+        if (onboardingStartedRef.current) return;
+        onboardingStartedRef.current = true;
+        trackOnboardingStarted({});
+    }, [authLoading, isAuthenticated, isLoading]);
+
+    useEffect(() => {
+        if (authLoading || !isAuthenticated) return;
+        const key = stepNames[currentStep];
+        if (key) trackOnboardingStepViewed({ step: key });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- funnel: log per step index
+    }, [currentStep, authLoading, isAuthenticated]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const onLeave = () => {
+            if (currentStep >= 4) return;
+            const key = stepNames[currentStep];
+            trackOnboardingAbandoned({ step: key ?? String(currentStep) });
+        };
+        window.addEventListener('beforeunload', onLeave);
+        return () => window.removeEventListener('beforeunload', onLeave);
+    }, [currentStep]);
     const handleNext = () => {
-        const next = currentStep + 1;
-        trackOnboardingStepCompleted({ step: stepNames[next] ?? String(next) });
-        setCurrentStep(next);
+        const completedKey = stepNames[currentStep];
+        if (completedKey) {
+            trackOnboardingStepCompleted({ step: completedKey });
+        }
+        setCurrentStep((prev) => prev + 1);
         window.scrollTo(0, 0);
     };
 
@@ -435,7 +467,7 @@ export default function OnboardingPage() {
         const ok = await persistOnboardingInBackend();
         if (!ok) return;
         trackOnboardingComplete({});
-        router.push('/projects/new');
+        router.push(CANONICAL_NEW_QUOTE_PATH);
     };
 
     if (authLoading || !isAuthenticated) {
@@ -450,7 +482,7 @@ export default function OnboardingPage() {
     }
 
     return (
-        <main className="min-h-screen bg-gray-50 pb-20">
+        <main className="min-h-screen bg-gray-50 pb-28 md:pb-20">
             {/* Header / Nav */}
             <div className="bg-white border-b border-gray-200 px-4 py-4">
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -500,11 +532,11 @@ export default function OnboardingPage() {
                             <p className="text-sm font-semibold text-gray-900">Importación rápida desde Excel</p>
                             <p className="text-xs text-gray-500">Descarga plantilla, cárgala y aplica el preview sin guardar automáticamente.</p>
                         </div>
-                        <div className="flex gap-2">
-                            <Button variant="secondary" onClick={handleDownloadTemplate}>
+                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                            <Button variant="secondary" onClick={handleDownloadTemplate} className="w-full sm:w-auto h-11 rounded-xl font-semibold">
                                 Descargar plantilla
                             </Button>
-                            <label className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-white hover:bg-primary-600 cursor-pointer">
+                            <label className="inline-flex items-center justify-center px-4 py-2.5 text-sm font-bold rounded-xl bg-primary text-white hover:opacity-95 cursor-pointer w-full sm:w-auto min-h-11">
                                 {importLoading ? 'Procesando...' : 'Cargar Excel'}
                                 <input
                                     type="file"
