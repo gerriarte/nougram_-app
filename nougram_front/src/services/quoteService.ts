@@ -394,7 +394,7 @@ export const quoteService = {
             Lost: 'rejected',
         };
 
-        const mapped = await Promise.all(
+        const mappedChunks = await Promise.all(
             projectResponse.data.items.map(async (project) => {
                 const projectDetailResponse = await apiRequest<ProjectResponse>(`/projects/${project.id}`);
                 const projectDetail = projectDetailResponse.data || project;
@@ -408,7 +408,7 @@ export const quoteService = {
                 const latestQuote =
                     quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0] || null;
                 if (!latestQuote) {
-                    return null;
+                    return [] as Quote[];
                 }
                 const detailedQuote = await getQuoteDetailForProject(project.id, latestQuote?.id);
                 const baseQuote = detailedQuote || latestQuote;
@@ -416,7 +416,7 @@ export const quoteService = {
                 const breakdown = buildFinancialBreakdown(baseQuote, projectTaxes);
                 const version = Number(latestQuote?.version || 1);
 
-                return {
+                return [{
                     id: String(project.id),
                     project: projectDetail.name || project.name,
                     client: projectDetail.client_name || project.client_name,
@@ -434,11 +434,11 @@ export const quoteService = {
                     status: statusMap[project.status] || 'draft',
                     viewedCount: 0,
                     downloadCount: 0,
-                } satisfies Quote;
+                } satisfies Quote];
             })
         );
 
-        return mapped.filter((item): item is Quote => item !== null);
+        return mappedChunks.flat();
     },
 
     getById: async (id: string): Promise<Quote | null> => {
