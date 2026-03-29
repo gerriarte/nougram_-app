@@ -32,6 +32,9 @@ export interface Quote {
     publicToken?: string;
     tokenExpiresAt?: string;
     lastViewedAt?: string;
+    isActive?: boolean;
+    deletionRequestedAt?: string;
+    deletionRequestReason?: string;
 }
 
 interface QuoteCardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -77,9 +80,16 @@ export function QuoteCard({ quote, onStatusChange, onOpenPublicAccess, isPublicA
 
             {/* Header */}
             <div className="flex justify-between items-start mb-4">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${statusStyle.bg} ${statusStyle.text}`}>
-                    <StatusIcon size={12} strokeWidth={2.5} /> {statusStyle.label}
-                </span>
+                <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${statusStyle.bg} ${statusStyle.text}`}>
+                        <StatusIcon size={12} strokeWidth={2.5} /> {statusStyle.label}
+                    </span>
+                    {quote.isActive === false ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700">
+                            Inactiva (PM)
+                        </span>
+                    ) : null}
+                </div>
                 <button className="text-gray-400 hover:text-gray-900 transition-colors">
                     <MoreHorizontal size={20} />
                 </button>

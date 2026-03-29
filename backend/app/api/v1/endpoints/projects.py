@@ -871,6 +871,7 @@ async def get_quote(
 @router.get("/{project_id}/quotes", response_model=list[QuoteResponse])
 async def list_project_quotes(
     project_id: int,
+    include_inactive: bool = Query(False, description="Include inactive quotes for audit views"),
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -887,12 +888,10 @@ async def list_project_quotes(
     if not project:
         raise ResourceNotFoundError("Project", project_id)
     
-    # Use only active quotes for commercial flows and dashboard calculations.
-    quotes = sorted(
-        [q for q in (project.quotes or []) if _quote_is_active(q)],
-        key=lambda q: q.version,
-        reverse=True,
-    )
+    quotes_source = project.quotes or []
+    if not include_inactive:
+        quotes_source = [q for q in quotes_source if _quote_is_active(q)]
+    quotes = sorted(quotes_source, key=lambda q: q.version, reverse=True)
     
     response_quotes: list[QuoteResponse] = []
     for quote in quotes:

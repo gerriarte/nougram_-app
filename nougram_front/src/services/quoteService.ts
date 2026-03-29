@@ -378,7 +378,7 @@ async function getQuoteDetailForProject(projectId: number, quoteId?: number): Pr
 }
 
 export const quoteService = {
-    getAll: async (): Promise<Quote[]> => {
+    getAll: async (options?: { includeInactive?: boolean }): Promise<Quote[]> => {
         const projectResponse = await apiRequest<ProjectListResponse>('/projects/');
         if (projectResponse.error) {
             throw new Error(projectResponse.error);
@@ -399,7 +399,7 @@ export const quoteService = {
                 const projectDetailResponse = await apiRequest<ProjectResponse>(`/projects/${project.id}`);
                 const projectDetail = projectDetailResponse.data || project;
                 const quotesResponse = await apiRequest<ProjectQuoteResponse[]>(
-                    `/projects/${project.id}/quotes`
+                    `/projects/${project.id}/quotes${options?.includeInactive ? '?include_inactive=true' : ''}`
                 );
                 if (quotesResponse.error) {
                     throw new Error(quotesResponse.error);
@@ -430,6 +430,9 @@ export const quoteService = {
                     currency: projectDetail.currency || project.currency || 'USD',
                     margin: breakdown.margin,
                     quoteId: latestQuote?.id,
+                    isActive: latestQuote?.is_active !== false,
+                    deletionRequestedAt: latestQuote?.deletion_requested_at || undefined,
+                    deletionRequestReason: latestQuote?.deletion_request_reason || undefined,
                     version,
                     status: statusMap[project.status] || 'draft',
                     viewedCount: 0,

@@ -101,6 +101,11 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                     <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md font-bold">
                                         V{quote.version}
                                     </span>
+                                    {quote.isActive === false ? (
+                                        <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md font-bold">
+                                            Inactiva (PM)
+                                        </span>
+                                    ) : null}
                                     <span className="text-[10px] text-gray-400">#{quote.id.substring(0, 6)}</span>
                                     <span className="text-[10px] text-gray-400">{formatDate(quote.sentAt)}</span>
                                 </div>
@@ -203,6 +208,11 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                             <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md font-medium">
                                                 V{quote.version}
                                             </span>
+                                            {quote.isActive === false ? (
+                                                <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md font-bold">
+                                                    Inactiva (PM)
+                                                </span>
+                                            ) : null}
                                             <span className="text-xs text-gray-400">#{quote.id.substring(0, 6)}</span>
                                         </div>
                                     </div>
