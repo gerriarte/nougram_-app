@@ -64,13 +64,17 @@ export function QuoteBuilderForm() {
         }),
         [activeServices, selectedBillingType]
     );
-    const canAddByBillingType = selectedBillingType !== '' && servicesByBilling.length > 0;
+    const canAddByBillingType = selectedBillingType !== '' && activeServices.length > 0;
 
     const addItemForBillingType = () => {
         if (!canAddByBillingType) return;
-        const [candidateService] = servicesByBilling;
+        const candidateService = servicesByBilling[0] || activeServices[0];
         if (!candidateService) return;
-        addItem(candidateService.id, serviceNameDraft);
+        const selectedTypeLabel = selectedBillingType ? getBillingLabel(selectedBillingType) : "Servicio";
+        const sameTypeCount = state.items.filter((item) => item.pricingType === selectedBillingType).length;
+        const fallbackName = `${selectedTypeLabel} ${sameTypeCount + 1}`;
+        const displayName = serviceNameDraft.trim() || fallbackName;
+        addItem(candidateService.id, displayName, selectedBillingType);
         setServiceNameDraft('');
     };
 
@@ -204,21 +208,21 @@ export function QuoteBuilderForm() {
                 </div>
                 <div className="rounded-xl border border-dashed border-gray-200 bg-white/70 p-3">
                     {!selectedBillingType ? (
-                        <p className="text-xs text-gray-500">Primero elige el tipo de cotización para habilitar la creación del ítem.</p>
-                    ) : servicesByBilling.length === 0 ? (
-                        <p className="text-xs text-gray-500">No hay servicios configurados para este tipo de cotización.</p>
+                        <p className="text-xs text-gray-500">El tipo de cobro es mandatorio para crear un ítem.</p>
+                    ) : activeServices.length === 0 ? (
+                        <p className="text-xs text-gray-500">No hay servicios activos en el catálogo. Configura al menos uno para crear cotizaciones.</p>
                     ) : (
                         <div className="flex items-center justify-between gap-3">
                             <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-between">
                                 <p className="text-xs text-gray-500">
                                     Tipo seleccionado: <span className="font-semibold text-gray-700">{getBillingLabel(selectedBillingType)}</span>.
-                                    Puedes asignar un nombre al servicio antes de crear el ítem.
+                                    Puedes asignar un nombre de identificación antes de crear el ítem.
                                 </p>
                                 <div className="flex w-full gap-2 md:w-auto">
                                     <Input
                                         value={serviceNameDraft}
                                         onChange={(e) => setServiceNameDraft(e.target.value)}
-                                        placeholder="Ej: Desarrollo de Ecommerce"
+                                        placeholder="Nombre identificador (opcional)"
                                         className="h-8 text-xs md:min-w-[220px]"
                                     />
                                     <Button

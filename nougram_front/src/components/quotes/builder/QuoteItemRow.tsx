@@ -111,7 +111,7 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                     </div>
                 </div>
                 <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-gray-500">Nombre del servicio</label>
+                    <label className="text-[11px] font-semibold text-gray-500">Nombre identificador del servicio (editable)</label>
                     <Input
                         value={item.serviceName || ''}
                         onChange={(e) => updateItem(item.id, { serviceName: e.target.value })}

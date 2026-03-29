@@ -62,7 +62,7 @@ interface QuoteBuilderContextType {
     // Actions
     updateProjectInfo: (info: Partial<QuoteBuilderState>) => void;
 
-    addItem: (serviceId: number, serviceNameOverride?: string) => void;
+    addItem: (serviceId: number, serviceNameOverride?: string, pricingTypeOverride?: PricingType) => void;
     updateItem: (itemId: string, updates: Partial<QuoteItem>) => void;
     removeItem: (itemId: string) => void;
 
@@ -194,22 +194,23 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             currency: (coreState.identity.primaryCurrency || prev.currency) as QuoteBuilderState['currency'],
         }));
 
-    const addItem = (serviceId: number, serviceNameOverride?: string) => {
+    const addItem = (serviceId: number, serviceNameOverride?: string, pricingTypeOverride?: PricingType) => {
         const service = services.find(s => s.id === serviceId);
         if (!service) return;
         const normalizedServiceName = normalizeOptionalText(serviceNameOverride) || service.name;
+        const effectivePricingType: PricingType = pricingTypeOverride || service.pricingType;
 
         const newItem: QuoteItem = {
             id: crypto.randomUUID(),
             serviceId: service.id,
             serviceName: normalizedServiceName,
-            pricingType: service.pricingType,
+            pricingType: effectivePricingType,
             quantity: 1,
-            estimatedHours: service.pricingType === 'hourly' ? 10 : undefined,
-            fixedPrice: service.pricingType === 'fixed' ? 1000000 : undefined,
-            projectValue: service.pricingType === 'project_value' ? 5000000 : undefined,
-            recurringPrice: service.pricingType === 'recurring' ? 0 : undefined,
-            durationMonths: service.pricingType === 'recurring' ? 1 : undefined, // Default 1 month
+            estimatedHours: effectivePricingType === 'hourly' ? 10 : undefined,
+            fixedPrice: effectivePricingType === 'fixed' ? 1000000 : undefined,
+            projectValue: effectivePricingType === 'project_value' ? 5000000 : undefined,
+            recurringPrice: effectivePricingType === 'recurring' ? 0 : undefined,
+            durationMonths: effectivePricingType === 'recurring' ? 1 : undefined, // Default 1 month
             allocations: [], // Start empty as per unified logic
 
             // Initial placeholders
