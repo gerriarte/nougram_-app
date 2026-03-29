@@ -57,6 +57,7 @@ class DashboardKpiRepository:
                 Quote.id.label("qid"),
                 Quote.project_id.label("proj_id"),
                 Quote.updated_at.label("qu_updated_at"),
+                Quote.created_at.label("qu_created_at"),
                 Quote.total_client_price.label("client_price"),
                 Quote.total_internal_cost.label("internal_cost"),
                 Project.status.label("proj_status"),
@@ -102,8 +103,8 @@ class DashboardKpiRepository:
             )
             .where(
                 candidates_sq.c.proj_status != "Draft",
-                candidates_sq.c.qu_updated_at >= range_start_utc,
-                candidates_sq.c.qu_updated_at <= range_end_utc,
+                func.coalesce(candidates_sq.c.qu_updated_at, candidates_sq.c.qu_created_at) >= range_start_utc,
+                func.coalesce(candidates_sq.c.qu_updated_at, candidates_sq.c.qu_created_at) <= range_end_utc,
             )
             .subquery()
         )
