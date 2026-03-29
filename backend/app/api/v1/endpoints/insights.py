@@ -43,7 +43,7 @@ def _resolve_dashboard_kpi_range(
     timezone_name: str,
 ) -> tuple[datetime, datetime, dict]:
     """
-    Build inclusive UTC window for Quote.updated_at filtering.
+    Build inclusive UTC window for quote activity date filtering.
 
     relative: from first day of (current local month - (months_back - 1)) through now (local).
     custom: local start 00:00 through local end 23:59:59.999999.
@@ -106,7 +106,7 @@ async def get_dashboard_kpi_summary(
 ):
     """
     Unified dashboard KPIs: latest quote per project, exclude Draft projects,
-    filter by Quote.updated_at in the requested window.
+    filter by quote activity date in requested window (updated_at, fallback created_at).
     """
     start_utc, end_utc, range_meta = _resolve_dashboard_kpi_range(
         range_mode=range_mode,
@@ -136,7 +136,7 @@ async def get_dashboard_kpi_summary(
         custom_end_date=range_meta["custom_end_date"],
         latest_quote_only=True,
         exclude_draft=True,
-        date_field="quote.updated_at",
+        date_field="quote.coalesce(updated_at,created_at)",
     )
 
     kpis = DashboardKpiNumbers(
