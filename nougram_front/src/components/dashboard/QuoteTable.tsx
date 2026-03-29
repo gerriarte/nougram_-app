@@ -3,10 +3,11 @@
 import React from 'react';
 import { Quote } from './QuoteCard';
 import { useRouter } from 'next/navigation';
-import { Edit, ArrowUpRight, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { Edit, ArrowUpRight, Link as LinkIcon, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useNougram } from '@/context/NougramCoreContext';
 import { formatMoneyAmount } from '@/lib/utils';
+import { quoteService } from '@/services/quoteService';
 
 interface QuoteTableProps {
     quotes: Quote[];
@@ -19,6 +20,28 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
     const router = useRouter();
     const { state } = useNougram();
     const displayCurrency = state.identity.primaryCurrency || 'COP';
+    const [deletingQuoteId, setDeletingQuoteId] = React.useState<string | null>(null);
+
+    const handleDeleteQuote = async (quote: Quote) => {
+        if (!quote.quoteId) {
+            alert('No se encontro el identificador de cotizacion para esta fila.');
+            return;
+        }
+        const confirmed = window.confirm(
+            'Estas seguro de procesar la eliminacion de esta cotizacion?\n\nProject Manager: se desactiva.\nAdmin financiero / Owner / Super Admin: se elimina.'
+        );
+        if (!confirmed) return;
+        try {
+            setDeletingQuoteId(quote.id);
+            const result = await quoteService.deleteOrRequestQuoteDeletion(quote.id, quote.quoteId);
+            alert(result.message);
+            window.location.reload();
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'No se pudo procesar la eliminacion.');
+        } finally {
+            setDeletingQuoteId(null);
+        }
+    };
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -136,6 +159,19 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                 )}
                                 Acceso público
                             </Button>
+                            <Button
+                                variant="ghost"
+                                className="w-full h-10 rounded-xl text-sm font-semibold text-red-600"
+                                onClick={() => void handleDeleteQuote(quote)}
+                                disabled={deletingQuoteId === quote.id}
+                            >
+                                {deletingQuoteId === quote.id ? (
+                                    <Loader2 size={16} className="animate-spin mr-2 inline" />
+                                ) : (
+                                    <Trash2 size={16} className="mr-2 inline" />
+                                )}
+                                Eliminar cotización
+                            </Button>
                         </div>
                     </div>
                 ))}
@@ -235,6 +271,21 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                         >
                                             Ver Trazabilidad
                                             <ArrowUpRight size={14} strokeWidth={2.5} />
+                                        </Button>
+
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 px-2 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50"
+                                            onClick={() => void handleDeleteQuote(quote)}
+                                            disabled={deletingQuoteId === quote.id}
+                                        >
+                                            {deletingQuoteId === quote.id ? (
+                                                <Loader2 size={14} className="animate-spin mr-1.5" />
+                                            ) : (
+                                                <Trash2 size={14} className="mr-1.5" />
+                                            )}
+                                            Eliminar
                                         </Button>
                                     </div>
                                 </td>

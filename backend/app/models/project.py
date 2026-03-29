@@ -79,11 +79,16 @@ class Quote(Base):
     contingency_description = Column(String, nullable=True)
     contingency_type = Column(String, nullable=True)  # fixed | percentage
     contingency_value = Column(Numeric(precision=19, scale=4), nullable=True)
+    is_active = Column(Integer, nullable=False, default=1, server_default="1", index=True)
+    deletion_requested_at = Column(DateTime(timezone=True), nullable=True)
+    deletion_requested_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    deletion_request_reason = Column(String, nullable=True)
     
     # Relationships
     project = relationship("Project", back_populates="quotes")
     items = relationship("QuoteItem", back_populates="quote", cascade="all, delete-orphan")
     expenses = relationship("QuoteExpense", back_populates="quote", cascade="all, delete-orphan")
+    deletion_requested_by = relationship("User", foreign_keys=[deletion_requested_by_id])
 
 
 class QuoteItem(Base):

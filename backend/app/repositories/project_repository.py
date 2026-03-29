@@ -124,7 +124,7 @@ class ProjectRepository(BaseRepository[Project]):
         Returns:
             Latest Quote instance or None
         """
-        query = select(Quote).where(Quote.project_id == project_id)
+        query = select(Quote).where(Quote.project_id == project_id, Quote.is_active == 1)
         
         # Apply tenant filter via project
         if self.tenant_id is not None:
