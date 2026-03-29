@@ -21,11 +21,7 @@ export async function apiRequest<T>(
   }
   const normalizedBase = API_URL.replace(/\/+$/, "");
   const normalizeEndpoint = (rawEndpoint: string): string => {
-    const withLeadingSlash = rawEndpoint.startsWith("/") ? rawEndpoint : `/${rawEndpoint}`;
-    if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")) {
-      return withLeadingSlash.replace(/\/+$/, "");
-    }
-    return withLeadingSlash;
+    return rawEndpoint.startsWith("/") ? rawEndpoint : `/${rawEndpoint}`;
   };
 
   const withTrailingSlash = (value: string): string =>
@@ -52,12 +48,13 @@ export async function apiRequest<T>(
   try {
     const normalizedEndpoint = normalizeEndpoint(endpoint);
     let response = await requestOnce(normalizedEndpoint);
-    if (
-      response.status === 404 &&
-      endpoint.endsWith("/") &&
-      normalizedEndpoint !== withTrailingSlash(normalizedEndpoint)
-    ) {
-      response = await requestOnce(withTrailingSlash(normalizedEndpoint));
+    if (response.status === 404) {
+      const alternateEndpoint = normalizedEndpoint.endsWith("/")
+        ? normalizedEndpoint.replace(/\/+$/, "")
+        : withTrailingSlash(normalizedEndpoint);
+      if (alternateEndpoint !== normalizedEndpoint) {
+        response = await requestOnce(alternateEndpoint);
+      }
     }
 
     if (!response.ok) {
