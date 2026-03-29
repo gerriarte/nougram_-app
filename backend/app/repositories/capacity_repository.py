@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -45,8 +46,52 @@ class CapacityRepository:
         )
 
     async def add_commitments(self, commitments: list[CapacityCommitment]) -> None:
-        if commitments:
-            self.db.add_all(commitments)
+        if not commitments:
+            return
+
+        bind = self.db.get_bind()
+        dialect_name = bind.dialect.name if bind is not None else None
+
+        # PostgreSQL path: upsert to be resilient to retries/concurrency.
+        if dialect_name == "postgresql":
+            rows: list[dict] = []
+            for commitment in commitments:
+                rows.append(
+                    {
+                        "organization_id": commitment.organization_id,
+                        "team_member_id": commitment.team_member_id,
+                        "cell_id": commitment.cell_id,
+                        "source_type": commitment.source_type,
+                        "source_id": commitment.source_id,
+                        "state": commitment.state,
+                        "period_start": commitment.period_start,
+                        "period_end": commitment.period_end,
+                        "hours": commitment.hours,
+                    }
+                )
+
+            stmt = pg_insert(CapacityCommitment).values(rows)
+            upsert_stmt = stmt.on_conflict_do_update(
+                index_elements=[
+                    CapacityCommitment.organization_id,
+                    CapacityCommitment.team_member_id,
+                    CapacityCommitment.source_type,
+                    CapacityCommitment.source_id,
+                    CapacityCommitment.state,
+                    CapacityCommitment.period_start,
+                    CapacityCommitment.period_end,
+                ],
+                set_={
+                    "hours": stmt.excluded.hours,
+                    "cell_id": func.coalesce(stmt.excluded.cell_id, CapacityCommitment.cell_id),
+                    "updated_at": func.now(),
+                },
+            )
+            await self.db.execute(upsert_stmt)
+            return
+
+        # SQLite/tests fallback
+        self.db.add_all(commitments)
 
     async def add_event(
         self,
