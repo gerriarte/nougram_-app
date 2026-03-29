@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { User, Building2, Briefcase, Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { apiRequest } from '@/lib/api-client';
 
 interface StepBusinessProfileProps {
@@ -149,7 +149,9 @@ export function StepBusinessProfile({ onNext, onBack, initialType }: StepBusines
                                     {profileBenchmarks.avgMonthlyIncome !== undefined && (
                                         <div className="flex justify-between">
                                             <span>Ingreso:</span>
-                                            <span className="font-medium text-[#1d1d1f]">${profileBenchmarks.avgMonthlyIncome}</span>
+                                            <span className="font-medium text-[#1d1d1f]">
+                                                {formatCurrency(profileBenchmarks.avgMonthlyIncome, 'COP')}
+                                            </span>
                                         </div>
                                     )}
                                     {profileBenchmarks.avgTeamSize !== undefined && (

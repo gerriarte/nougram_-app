@@ -110,6 +110,15 @@ export function QuoteItemRow({ item }: QuoteItemRowProps) {
                         </span>
                     </div>
                 </div>
+                <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-gray-500">Nombre del servicio</label>
+                    <Input
+                        value={item.serviceName || ''}
+                        onChange={(e) => updateItem(item.id, { serviceName: e.target.value })}
+                        placeholder="Ej: Desarrollo de Ecommerce"
+                        className="h-9 bg-white"
+                    />
+                </div>
 
                 {/* Inputs Row */}
                 <div className="grid grid-cols-12 gap-6 items-start">

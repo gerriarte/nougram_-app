@@ -47,6 +47,7 @@ type ProjectQuoteResponse = {
         id?: number;
         service_id: number;
         service_name?: string;
+        custom_service_name?: string;
         estimated_hours?: number;
         pricing_type?: string;
         fixed_price?: string | number;
@@ -253,9 +254,11 @@ function resolveRecurringPrice(item: QuoteItem): number | undefined {
 }
 
 function mapQuoteItemToApi(item: QuoteItem) {
+    const customServiceName = typeof item.serviceName === 'string' ? item.serviceName.trim() : '';
     const assignment = item.teamAssignment;
     return {
         service_id: item.serviceId,
+        custom_service_name: customServiceName || undefined,
         estimated_hours: resolveEstimatedHours(item),
         pricing_type: item.pricingType,
         fixed_price: item.fixedPrice,
@@ -762,7 +765,7 @@ export const quoteService = {
             return {
                 id: String(item.id),
                 serviceId: item.service_id,
-                serviceName: item.service_name || service?.name || `Servicio ${item.service_id}`,
+                serviceName: item.custom_service_name || item.service_name || service?.name || `Servicio ${item.service_id}`,
                 pricingType: resolvedPricingType,
                 estimatedHours: Number(item.estimated_hours || 0),
                 fixedPrice: resolvedPricingType === 'fixed' ? fixedPrice : undefined,

@@ -195,7 +195,7 @@ async def generate_proposal_with_ai(
     latest_quote = sorted(project.quotes, key=lambda q: q.version, reverse=True)[0]
     services_payload = []
     for idx, item in enumerate(latest_quote.items or []):
-        service_name = item.service.name if item.service else f"Servicio {idx + 1}"
+        service_name = item.custom_service_name or (item.service.name if item.service else f"Servicio {idx + 1}")
         services_payload.append(
             ExecutiveSummaryService(
                 service_id=item.service_id,

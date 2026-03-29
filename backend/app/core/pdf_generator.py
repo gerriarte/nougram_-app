@@ -77,7 +77,7 @@ def generate_quote_pdf(
     quote_items = []
     if hasattr(quote, 'items') and quote.items:
         for item in quote.items:
-            service_name = item.service.name if item.service else 'Unknown Service'
+            service_name = item.custom_service_name or (item.service.name if item.service else 'Unknown Service')
             hours = item.estimated_hours or 0
             client_price = item.client_price or 0
             

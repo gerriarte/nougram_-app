@@ -23,6 +23,7 @@ export function QuoteBuilderForm() {
     const { state, services, updateProjectInfo, addItem, errors, paywall, clearPaywall } = useQuoteBuilder();
     const router = useRouter();
     const [selectedBillingType, setSelectedBillingType] = React.useState<'' | 'hourly' | 'fixed' | 'recurring'>('');
+    const [serviceNameDraft, setServiceNameDraft] = React.useState('');
 
     const activeServices = React.useMemo(
         () => services.filter((service) => service.isActive),
@@ -69,7 +70,8 @@ export function QuoteBuilderForm() {
         if (!canAddByBillingType) return;
         const [candidateService] = servicesByBilling;
         if (!candidateService) return;
-        addItem(candidateService.id);
+        addItem(candidateService.id, serviceNameDraft);
+        setServiceNameDraft('');
     };
 
     const hasProjectName = typeof state.projectName === 'string' && state.projectName.trim().length > 0;
@@ -207,20 +209,30 @@ export function QuoteBuilderForm() {
                         <p className="text-xs text-gray-500">No hay servicios configurados para este tipo de cotización.</p>
                     ) : (
                         <div className="flex items-center justify-between gap-3">
-                            <p className="text-xs text-gray-500">
-                                Tipo seleccionado: <span className="font-semibold text-gray-700">{getBillingLabel(selectedBillingType)}</span>.
-                                El ítem se crea directamente sin elegir servicio.
-                            </p>
-                            <Button
-                                size="sm"
-                                type="button"
-                                variant="secondary"
-                                disabled={!canAddByBillingType}
-                                onClick={addItemForBillingType}
-                                className="bg-white shadow-sm border-gray-200 hover:bg-gray-50 whitespace-nowrap"
-                            >
-                                + Agregar ítem
-                            </Button>
+                            <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                <p className="text-xs text-gray-500">
+                                    Tipo seleccionado: <span className="font-semibold text-gray-700">{getBillingLabel(selectedBillingType)}</span>.
+                                    Puedes asignar un nombre al servicio antes de crear el ítem.
+                                </p>
+                                <div className="flex w-full gap-2 md:w-auto">
+                                    <Input
+                                        value={serviceNameDraft}
+                                        onChange={(e) => setServiceNameDraft(e.target.value)}
+                                        placeholder="Ej: Desarrollo de Ecommerce"
+                                        className="h-8 text-xs md:min-w-[220px]"
+                                    />
+                                    <Button
+                                        size="sm"
+                                        type="button"
+                                        variant="secondary"
+                                        disabled={!canAddByBillingType}
+                                        onClick={addItemForBillingType}
+                                        className="bg-white shadow-sm border-gray-200 hover:bg-gray-50 whitespace-nowrap"
+                                    >
+                                        + Agregar ítem
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

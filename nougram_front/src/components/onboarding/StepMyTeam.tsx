@@ -7,7 +7,7 @@ import { Label } from '../ui/Label';
 import { Alert } from '../ui/Alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
 import { Step3MyTeamData } from '@/types/onboarding';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatLocalizedNumberInput, parseLocalizedNumberInput } from '@/lib/utils';
 
 interface StepMyTeamProps {
     onNext: (data: Step3MyTeamData) => void;
@@ -49,6 +49,12 @@ export function StepMyTeam({
     backendBcr,
     backendBcrLoading
 }: StepMyTeamProps) {
+    const isCopCurrency = String(currency || '').toUpperCase() === 'COP';
+    const moneyInputMode: 'numeric' | 'decimal' = isCopCurrency ? 'numeric' : 'decimal';
+    const parseMoneyInput = (raw: string) => parseLocalizedNumberInput(raw, { allowDecimal: !isCopCurrency });
+    const formatMoneyInput = (value: number | string | null | undefined) =>
+        formatLocalizedNumberInput(value, { currencyCode: currency, maximumFractionDigits: isCopCurrency ? 0 : 2 });
+
     const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
     const [payrollHeadcount, setPayrollHeadcount] = useState<number>(initialData?.payrollHeadcount || 1);
     // Member Info
@@ -61,7 +67,9 @@ export function StepMyTeam({
         Boolean(initialData?.role && !ROLES.includes(initialData.role))
     );
     const [level, setLevel] = useState<Step3MyTeamData['level']>(initialData?.level || '');
-    const [salary, setSalary] = useState<string>(initialData?.salary?.toString() || '');
+    const [salary, setSalary] = useState<string>(() =>
+        initialData?.salary != null ? formatMoneyInput(initialData.salary) : ''
+    );
 
     // Reality Calculator
     const [totalHours, setTotalHours] = useState<number>(initialData?.totalHours || 40);
@@ -78,7 +86,7 @@ export function StepMyTeam({
             name: member.name,
             role: member.role,
             level: member.level,
-            salary: String(member.salary || ''),
+            salary: member.salary != null ? formatMoneyInput(member.salary) : '',
             totalHours: member.totalHours || 40,
             billableHours: member.billableHours || 28,
             vacationDays: member.vacationDays || 20,
@@ -87,7 +95,7 @@ export function StepMyTeam({
     );
 
     // Calculations
-    const salaryNum = parseFloat(salary) || 0;
+    const salaryNum = parseMoneyInput(salary);
 
     // Social Charges Math (Colombia Defaults)
     const SOCIAL_CHARGES_RATE = 0.52852; // ~52.8%
@@ -108,7 +116,7 @@ export function StepMyTeam({
             name: member.name,
             role: member.role,
             level: member.level,
-            salary: parseFloat(member.salary) || 0,
+            salary: parseMoneyInput(member.salary),
             totalHours: member.totalHours,
             billableHours: member.billableHours,
             vacationDays: member.vacationDays,
@@ -195,7 +203,7 @@ export function StepMyTeam({
         (member) =>
             member.name.trim() &&
             member.role.trim() &&
-            (parseFloat(member.salary) || 0) > 0 &&
+            parseMoneyInput(member.salary) > 0 &&
             member.billableHours > 0
     );
 
@@ -408,10 +416,19 @@ export function StepMyTeam({
                                 <div className="space-y-1">
                                     <Label className="text-xs font-semibold text-blue-900">Salario mensual ({currency})</Label>
                                     <Input
-                                        type="number"
+                                        type="text"
+                                        inputMode={moneyInputMode}
                                         placeholder={`Salario mensual (${currency})`}
                                         value={salary}
-                                        onChange={(e) => setSalary(e.target.value)}
+                                        onChange={(e) => {
+                                            const next = e.target.value;
+                                            if (!next.trim()) {
+                                                setSalary('');
+                                                return;
+                                            }
+                                            const parsed = parseMoneyInput(next);
+                                            setSalary(formatMoneyInput(parsed));
+                                        }}
                                     />
                                     <p className="text-[11px] text-blue-800">Costo mensual bruto antes de dividir por horas productivas.</p>
                                 </div>
@@ -530,10 +547,21 @@ export function StepMyTeam({
                                         <div className="space-y-1">
                                             <Label className="text-xs">Salario mensual ({currency})</Label>
                                             <Input
-                                                type="number"
+                                                type="text"
+                                                inputMode={moneyInputMode}
                                                 placeholder={`Salario mensual (${currency})`}
                                                 value={member.salary}
-                                                onChange={(e) => updateAdditionalMember(member.id, { salary: e.target.value })}
+                                                onChange={(e) => {
+                                                    const next = e.target.value;
+                                                    if (!next.trim()) {
+                                                        updateAdditionalMember(member.id, { salary: '' });
+                                                        return;
+                                                    }
+                                                    const parsed = parseMoneyInput(next);
+                                                    updateAdditionalMember(member.id, {
+                                                        salary: formatMoneyInput(parsed),
+                                                    });
+                                                }}
                                             />
                                             <p className="text-[11px] text-gray-500">Costo mensual bruto del perfil.</p>
                                         </div>

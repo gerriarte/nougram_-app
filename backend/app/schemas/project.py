@@ -99,6 +99,7 @@ class QuoteItemCreate(BaseModel):
     ESTÁNDAR NOUGRAM: Campos monetarios usan Decimal serializado como string
     """
     service_id: int = Field(..., description="Service ID", gt=0)
+    custom_service_name: Optional[str] = Field(None, description="User-defined service label for this quote item")
     estimated_hours: Optional[float] = Field(None, description="Estimated hours (required for hourly pricing)", ge=0)
     pricing_type: Optional[str] = Field(None, description="Pricing type: 'hourly', 'fixed', 'recurring', 'project_value' (overrides service default)")
     fixed_price: Optional[Decimal] = Field(None, description="Fixed price (required for fixed pricing)", ge=0)
@@ -128,6 +129,7 @@ class QuoteItemResponse(BaseModel):
     id: int
     service_id: int
     service_name: Optional[str] = None
+    custom_service_name: Optional[str] = None
     estimated_hours: Optional[float] = None
     internal_cost: Optional[Decimal] = None
     client_price: Optional[Decimal] = None

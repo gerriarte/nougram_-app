@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { onboardingService } from '@/services/onboardingService';
 import { FixedCostTemplate } from '@/types/onboarding';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatLocalizedNumberInput, parseLocalizedNumberInput } from '@/lib/utils';
 
 interface StepFixedCostsProps {
     onNext: (data: { selectedTemplates: FixedCostTemplate[]; totalMonthly: number }) => void;
@@ -25,26 +25,15 @@ const getDefaultUsefulLife = (item: FixedCostTemplate): number => (
     item.category === 'Software' ? 24 : 36
 );
 
-const priceFormatter = new Intl.NumberFormat('es-CO', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-});
-
-const formatPriceInput = (value: number | null | undefined): string => {
+const formatPriceInput = (value: number | null | undefined, currencyCode: string): string => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed <= 0) return '0';
-    return priceFormatter.format(parsed);
+    return formatLocalizedNumberInput(parsed, { currencyCode });
 };
 
-const parsePriceInput = (raw: string): number => {
-    const normalized = (raw || '')
-        .trim()
-        .replace(/\./g, '')
-        .replace(',', '.')
-        .replace(/[^\d.]/g, '');
-    if (!normalized) return 0;
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : 0;
+const parsePriceInput = (raw: string, currencyCode: string): number => {
+    const isCopCurrency = String(currencyCode || '').toUpperCase() === 'COP';
+    return parseLocalizedNumberInput(raw, { allowDecimal: !isCopCurrency });
 };
 
 const isAmortizableCategory = (category: FixedCostTemplate['category']): boolean => category === 'Tools';
@@ -301,6 +290,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                         const currentPrice = isAmortizable
                                             ? (selected?.purchasePrice ?? Number(defaultValue.toFixed(2)))
                                             : (selected?.amount ?? Number(defaultValue.toFixed(2)));
+                                        const moneyInputMode: 'numeric' | 'decimal' = String(primaryCurrency || '').toUpperCase() === 'COP' ? 'numeric' : 'decimal';
 
                                         return (
                                             <tr key={template.id} className={`border-b last:border-b-0 ${isSelected ? 'bg-blue-50/40' : ''}`}>
@@ -338,12 +328,12 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                                 <td className="py-2 pr-2 align-top min-w-[140px]">
                                                     <Input
                                                         type="text"
-                                                        inputMode="decimal"
+                                                        inputMode={moneyInputMode}
                                                         disabled={!isSelected}
-                                                        value={formatPriceInput(currentPrice)}
+                                                        value={formatPriceInput(currentPrice, primaryCurrency)}
                                                         onChange={(e) => updateSelectedCost(template.id, isAmortizable
-                                                            ? { purchasePrice: Math.max(0, parsePriceInput(e.target.value)), currency: primaryCurrency }
-                                                            : { amount: Math.max(0, parsePriceInput(e.target.value)), currency: primaryCurrency })}
+                                                            ? { purchasePrice: Math.max(0, parsePriceInput(e.target.value, primaryCurrency)), currency: primaryCurrency }
+                                                            : { amount: Math.max(0, parsePriceInput(e.target.value, primaryCurrency)), currency: primaryCurrency })}
                                                     />
                                                 </td>
                                                 <td className="py-2 pr-2 align-top min-w-[100px]">
@@ -368,11 +358,16 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                                         </td>
                                                         <td className="py-2 align-top min-w-[130px]">
                                                             <Input
-                                                                type="number"
+                                                                type="text"
+                                                                inputMode={moneyInputMode}
                                                                 min={0}
                                                                 disabled={!isSelected || !isAmortizable}
-                                                                value={selected?.salvageValue ?? 0}
-                                                                onChange={(e) => updateSelectedCost(template.id, { salvageValue: Math.max(0, Number(e.target.value) || 0) })}
+                                                                value={formatPriceInput(selected?.salvageValue ?? 0, primaryCurrency)}
+                                                                onChange={(e) =>
+                                                                    updateSelectedCost(template.id, {
+                                                                        salvageValue: Math.max(0, parsePriceInput(e.target.value, primaryCurrency)),
+                                                                    })
+                                                                }
                                                             />
                                                         </td>
                                                     </>

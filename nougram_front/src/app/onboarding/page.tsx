@@ -29,6 +29,7 @@ import { CANONICAL_NEW_QUOTE_PATH } from '@/lib/mobile-routes';
 import { FixedCostTemplate } from '@/types/onboarding';
 import { normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
 import { Step3MyTeamData } from '@/types/onboarding';
+import { formatCurrency } from '@/lib/utils';
 
 type TemporaryBcrResponse = {
     blended_cost_rate: string;
@@ -664,12 +665,14 @@ export default function OnboardingPage() {
                                                     <span>{item.name}</span>
                                                     {item.amortizable ? (
                                                         <span>
-                                                            - compra {item.purchase_price ?? item.amount_monthly} {importPreview.payload?.currency}
+                                                            - compra {formatCurrency(item.purchase_price ?? item.amount_monthly ?? 0, importPreview.payload?.currency || 'COP')}
                                                             {' / '}
                                                             vida util {item.useful_life_months ?? 36} meses
                                                         </span>
                                                     ) : (
-                                                        <span>- mensual {item.amount_monthly} {importPreview.payload?.currency}</span>
+                                                        <span>
+                                                            - mensual {formatCurrency(item.amount_monthly ?? 0, importPreview.payload?.currency || 'COP')}
+                                                        </span>
                                                     )}
                                                     {item.amortizable && (
                                                         <span className="inline-flex text-[10px] font-semibold uppercase tracking-wide text-indigo-700 bg-indigo-100 border border-indigo-200 rounded px-2 py-0.5">
@@ -691,7 +694,7 @@ export default function OnboardingPage() {
                                         <div className="mt-2 space-y-1 text-xs text-gray-700">
                                             {importPreview.payload.team_members.slice(0, 8).map((member, idx) => (
                                                 <p key={`${member.name}-${idx}`}>
-                                                    {member.name} - {member.role} - {member.salary_monthly_brute} {importPreview.payload?.currency}
+                                                    {member.name} - {member.role} - {formatCurrency(member.salary_monthly_brute, importPreview.payload?.currency || 'COP')}
                                                 </p>
                                             ))}
                                             {importPreview.payload.team_members.length > 8 && (
