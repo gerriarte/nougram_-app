@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { useNougram } from '@/context/NougramCoreContext';
 import { formatMoneyAmount } from '@/lib/utils';
 import { quoteService } from '@/services/quoteService';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
+import { toast } from 'sonner';
 
 interface QuoteTableProps {
     quotes: Quote[];
@@ -21,23 +23,27 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
     const { state } = useNougram();
     const displayCurrency = state.identity.primaryCurrency || 'COP';
     const [deletingQuoteId, setDeletingQuoteId] = React.useState<string | null>(null);
+    const [quoteToConfirmDelete, setQuoteToConfirmDelete] = React.useState<Quote | null>(null);
 
-    const handleDeleteQuote = async (quote: Quote) => {
+    const requestDeleteQuote = (quote: Quote) => {
+        setQuoteToConfirmDelete(quote);
+    };
+
+    const handleDeleteQuote = async () => {
+        if (!quoteToConfirmDelete) return;
+        const quote = quoteToConfirmDelete;
         if (!quote.quoteId) {
-            alert('No se encontro el identificador de cotizacion para esta fila.');
+            toast.error('No se encontro el identificador de cotizacion para esta fila.');
             return;
         }
-        const confirmed = window.confirm(
-            'Estas seguro de procesar la eliminacion de esta cotizacion?\n\nProject Manager: se desactiva.\nAdmin financiero / Owner / Super Admin: se elimina.'
-        );
-        if (!confirmed) return;
         try {
             setDeletingQuoteId(quote.id);
             const result = await quoteService.deleteOrRequestQuoteDeletion(quote.id, quote.quoteId);
-            alert(result.message);
+            toast.success(result.message);
+            setQuoteToConfirmDelete(null);
             window.location.reload();
         } catch (error) {
-            alert(error instanceof Error ? error.message : 'No se pudo procesar la eliminacion.');
+            toast.error(error instanceof Error ? error.message : 'No se pudo procesar la eliminacion.');
         } finally {
             setDeletingQuoteId(null);
         }
@@ -167,7 +173,7 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                             <Button
                                 variant="ghost"
                                 className="w-full h-10 rounded-xl text-sm font-semibold text-red-600"
-                                onClick={() => void handleDeleteQuote(quote)}
+                                onClick={() => requestDeleteQuote(quote)}
                                 disabled={deletingQuoteId === quote.id}
                             >
                                 {deletingQuoteId === quote.id ? (
@@ -287,7 +293,7 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                             variant="ghost"
                                             size="sm"
                                             className="h-8 px-2 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50"
-                                            onClick={() => void handleDeleteQuote(quote)}
+                                            onClick={() => requestDeleteQuote(quote)}
                                             disabled={deletingQuoteId === quote.id}
                                         >
                                             {deletingQuoteId === quote.id ? (
@@ -304,6 +310,44 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                     </tbody>
                 </table>
             </div>
+            <Dialog open={Boolean(quoteToConfirmDelete)} onOpenChange={(open) => !open && setQuoteToConfirmDelete(null)}>
+                <DialogContent className="sm:max-w-[520px]">
+                    <DialogHeader>
+                        <DialogTitle>Confirmar eliminación de cotización</DialogTitle>
+                        <DialogDescription>
+                            Esta acción aplica según rol:
+                            <br />- Project Manager: desactiva la cotización para que no sume en dashboard.
+                            <br />- Admin Financiero / Owner / Super Admin: elimina la cotización.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {quoteToConfirmDelete ? (
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                            Proyecto: <span className="font-semibold text-gray-800">{quoteToConfirmDelete.project}</span>
+                            <br />
+                            Cliente: <span className="font-semibold text-gray-800">{quoteToConfirmDelete.client}</span>
+                            <br />
+                            Version: <span className="font-semibold text-gray-800">V{quoteToConfirmDelete.version}</span>
+                        </div>
+                    ) : null}
+                    <DialogFooter>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setQuoteToConfirmDelete(null)}
+                            disabled={Boolean(deletingQuoteId)}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => void handleDeleteQuote()}
+                            disabled={Boolean(deletingQuoteId)}
+                        >
+                            {deletingQuoteId ? <Loader2 size={14} className="animate-spin mr-2" /> : null}
+                            Confirmar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
