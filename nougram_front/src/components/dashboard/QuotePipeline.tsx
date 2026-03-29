@@ -18,6 +18,9 @@ import { toast } from 'sonner';
 export function QuotePipeline() {
     const {
         quotes: filteredQuotes,
+        allQuotes,
+        showInactiveQuotes,
+        setShowInactiveQuotes,
         clients,
         error,
         search,
@@ -49,6 +52,7 @@ export function QuotePipeline() {
     const [kpiFilterModalOpen, setKpiFilterModalOpen] = useState(false);
     const [kpiDraftFilter, setKpiDraftFilter] = useState(kpiFilter);
     const [isApplyingKpiFilter, setIsApplyingKpiFilter] = useState(false);
+    const inactiveCount = allQuotes.filter((q) => q.isActive === false).length;
 
     const openKpiFilterModal = () => {
         setKpiDraftFilter(kpiFilter);
@@ -237,6 +241,15 @@ export function QuotePipeline() {
                                 <List size={20} strokeWidth={2} />
                             </button>
                         </div>
+                        <Button
+                            type="button"
+                            variant={showInactiveQuotes ? 'default' : 'secondary'}
+                            className="h-12 rounded-xl px-4 w-full sm:w-auto justify-center"
+                            onClick={() => setShowInactiveQuotes((prev) => !prev)}
+                        >
+                            {showInactiveQuotes ? 'Ocultar inactivas' : 'Mostrar inactivas (PM)'}
+                            {inactiveCount > 0 ? ` (${inactiveCount})` : ''}
+                        </Button>
                     </div>
                 </div>
 

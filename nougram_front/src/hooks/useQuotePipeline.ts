@@ -56,6 +56,7 @@ export function useQuotePipeline() {
     const [kpiSummary, setKpiSummary] = useState<DashboardKpiSummaryResponse | null>(null);
     const [kpiLoading, setKpiLoading] = useState(true);
     const [kpiError, setKpiError] = useState<string | null>(null);
+    const [showInactiveQuotes, setShowInactiveQuotes] = useState(false);
 
     // Advanced Filters State
     const [filters, setFilters] = useState<QuoteFilters>({
@@ -125,7 +126,7 @@ export function useQuotePipeline() {
             setLoading(true);
             setError(null);
             try {
-                const data = await quoteService.getAll();
+                const data = await quoteService.getAll({ includeInactive: showInactiveQuotes });
                 setQuotes(data);
             } catch (err) {
                 console.error("Failed to load quotes", err);
@@ -136,7 +137,7 @@ export function useQuotePipeline() {
             }
         };
         loadQuotes();
-    }, []);
+    }, [showInactiveQuotes]);
 
     const updateKpiFilter = useCallback((patch: Partial<KpiDateFilterState>) => {
         setKpiFilter((prev) => ({ ...prev, ...patch }));
@@ -263,6 +264,8 @@ export function useQuotePipeline() {
     return {
         quotes: filteredQuotes,
         allQuotes: quotes,
+        showInactiveQuotes,
+        setShowInactiveQuotes,
         clients,
         error,
         search,
