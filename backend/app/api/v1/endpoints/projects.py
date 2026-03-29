@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from io import BytesIO
@@ -31,7 +32,8 @@ from app.models.team import TeamMember
 from app.models.team_cells import TeamCellVersion
 from app.models.tax import Tax
 from app.models.user import User
-from sqlalchemy import insert, delete as sql_delete
+from app.models.proposal import ProposalClientLink
+from sqlalchemy import insert, delete as sql_delete, update as sql_update
 from app.schemas.project import (
     ProjectCreate,
     ProjectCreateWithQuote,
@@ -945,60 +947,89 @@ async def delete_or_request_quote_deletion(
     - super_admin / owner / admin_financiero: hard delete
     - product_manager: request deletion (deactivate quote)
     """
-    project_repo = RepositoryFactory.create_project_repository(db, tenant.organization_id)
+    try:
+        project_repo = RepositoryFactory.create_project_repository(db, tenant.organization_id)
 
-    project = await project_repo.get_by_id_with_quotes(project_id, include_deleted=False)
-    if not project:
-        raise ResourceNotFoundError("Project", project_id)
+        project = await project_repo.get_by_id_with_quotes(project_id, include_deleted=False)
+        if not project:
+            raise ResourceNotFoundError("Project", project_id)
 
-    quote = await project_repo.get_quote_by_id(quote_id)
-    if not quote or quote.project_id != project_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Quote with id {quote_id} not found for project {project_id}",
-        )
+        quote = await project_repo.get_quote_by_id(quote_id)
+        if not quote or quote.project_id != project_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Quote with id {quote_id} not found for project {project_id}",
+            )
 
-    role = get_user_role(current_user) or ""
-    direct_delete_roles = {"super_admin", "owner", "admin_financiero"}
+        role = get_user_role(current_user) or ""
+        direct_delete_roles = {"super_admin", "owner", "admin_financiero"}
 
-    # Always clear tentative capacity for this quote when it is removed/deactivated.
-    capacity_repo = RepositoryFactory.create_capacity_repository(db, tenant.organization_id)
-    await capacity_repo.delete_commitments_by_source(source_type="quote", source_id=quote.id)
+        # Always clear tentative capacity for this quote when it is removed/deactivated.
+        capacity_repo = RepositoryFactory.create_capacity_repository(db, tenant.organization_id)
+        await capacity_repo.delete_commitments_by_source(source_type="quote", source_id=quote.id)
 
-    if role in direct_delete_roles:
-        await db.execute(sql_delete(Quote).where(Quote.id == quote.id, Quote.project_id == project_id))
-        await db.commit()
-        return {
-            "success": True,
-            "action": "deleted",
-            "message": "Cotizacion eliminada permanentemente.",
-        }
-
-    if role == "product_manager":
-        if not _quote_is_active(quote):
+        if role in direct_delete_roles:
+            # Detach shared proposal links from this quote before hard-delete.
+            await db.execute(
+                sql_update(ProposalClientLink)
+                .where(
+                    ProposalClientLink.organization_id == tenant.organization_id,
+                    ProposalClientLink.project_id == project_id,
+                    ProposalClientLink.quote_id == quote.id,
+                )
+                .values(quote_id=None)
+            )
+            # ORM delete keeps relationship cascades for quote items/expenses.
+            await db.delete(quote)
             await db.commit()
             return {
                 "success": True,
-                "action": "already_inactive",
-                "message": "La cotizacion ya estaba desactivada.",
+                "action": "deleted",
+                "message": "Cotizacion eliminada permanentemente.",
             }
 
-        quote.is_active = 0
-        quote.deletion_requested_at = datetime.utcnow()
-        quote.deletion_requested_by_id = current_user.id
-        quote.deletion_request_reason = "Solicitud de Project Manager"
-        await db.commit()
-        await db.refresh(quote)
-        return {
-            "success": True,
-            "action": "deactivated",
-            "message": "Solicitud registrada. La cotizacion fue desactivada y ya no impacta el dashboard.",
-        }
+        if role == "product_manager":
+            if not _quote_is_active(quote):
+                await db.commit()
+                return {
+                    "success": True,
+                    "action": "already_inactive",
+                    "message": "La cotizacion ya estaba desactivada.",
+                }
 
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="No tienes permisos para eliminar cotizaciones.",
-    )
+            quote.is_active = 0
+            quote.deletion_requested_at = datetime.utcnow()
+            quote.deletion_requested_by_id = current_user.id
+            quote.deletion_request_reason = "Solicitud de Project Manager"
+            await db.commit()
+            await db.refresh(quote)
+            return {
+                "success": True,
+                "action": "deactivated",
+                "message": "Solicitud registrada. La cotizacion fue desactivada y ya no impacta el dashboard.",
+            }
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para eliminar cotizaciones.",
+        )
+    except HTTPException:
+        await db.rollback()
+        raise
+    except IntegrityError as exc:
+        await db.rollback()
+        logger.error(f"Integrity error deleting quote {quote_id}: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se pudo eliminar la cotizacion por referencias activas. Intenta desactivarla primero.",
+        )
+    except Exception as exc:
+        await db.rollback()
+        logger.error(f"Unexpected error deleting quote {quote_id}: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno al eliminar cotizacion",
+        )
 
 
 @router.put("/{project_id}/quotes/{quote_id}", response_model=QuoteResponseWithItems)
