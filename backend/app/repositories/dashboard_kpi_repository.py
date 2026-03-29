@@ -46,6 +46,7 @@ class DashboardKpiRepository:
             .where(
                 Project.organization_id == organization_id,
                 Project.deleted_at.is_(None),
+                Quote.is_active == 1,
             )
             .group_by(Quote.project_id)
             .subquery()
@@ -71,6 +72,7 @@ class DashboardKpiRepository:
             .where(
                 Project.organization_id == organization_id,
                 Project.deleted_at.is_(None),
+                Quote.is_active == 1,
             )
             .subquery()
         )

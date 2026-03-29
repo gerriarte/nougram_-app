@@ -175,6 +175,10 @@ def _safe_ratio(numerator: Decimal, denominator: Decimal) -> Decimal:
     return numerator / denominator
 
 
+def _quote_is_active(quote: Quote) -> bool:
+    return bool(getattr(quote, "is_active", 1))
+
+
 def _build_margin_summary(
     total_client_price: Optional[Decimal],
     total_internal_cost: Optional[Decimal],
@@ -784,6 +788,11 @@ async def get_quote(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Quote with id {quote_id} for project {project_id} not found"
         )
+    if not _quote_is_active(quote):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Quote with id {quote_id} for project {project_id} is inactive"
+        )
     
     # Build items response with service names
     items_response = []
@@ -849,6 +858,10 @@ async def get_quote(
         contingency_type=getattr(quote, "contingency_type", None),
         contingency_value=getattr(quote, "contingency_value", None),
         notes=quote.notes,
+        is_active=bool(getattr(quote, "is_active", 1)),
+        deletion_requested_at=getattr(quote, "deletion_requested_at", None),
+        deletion_requested_by_id=getattr(quote, "deletion_requested_by_id", None),
+        deletion_request_reason=getattr(quote, "deletion_request_reason", None),
         created_at=quote.created_at,
         updated_at=quote.updated_at,
         items=items_response
@@ -874,9 +887,12 @@ async def list_project_quotes(
     if not project:
         raise ResourceNotFoundError("Project", project_id)
     
-    # Get quotes from project relationship (already loaded with get_by_id_with_quotes)
-    # Sort by version descending
-    quotes = sorted(project.quotes, key=lambda q: q.version, reverse=True)
+    # Use only active quotes for commercial flows and dashboard calculations.
+    quotes = sorted(
+        [q for q in (project.quotes or []) if _quote_is_active(q)],
+        key=lambda q: q.version,
+        reverse=True,
+    )
     
     response_quotes: list[QuoteResponse] = []
     for quote in quotes:
@@ -903,6 +919,10 @@ async def list_project_quotes(
                 contingency_type=getattr(quote, "contingency_type", None),
                 contingency_value=getattr(quote, "contingency_value", None),
                 notes=quote.notes,
+                is_active=bool(getattr(quote, "is_active", 1)),
+                deletion_requested_at=getattr(quote, "deletion_requested_at", None),
+                deletion_requested_by_id=getattr(quote, "deletion_requested_by_id", None),
+                deletion_request_reason=getattr(quote, "deletion_request_reason", None),
                 revisions_included=getattr(quote, "revisions_included", 2),
                 revision_cost_per_additional=getattr(quote, "revision_cost_per_additional", None),
                 created_at=quote.created_at,
@@ -911,6 +931,75 @@ async def list_project_quotes(
         )
 
     return response_quotes
+
+
+@router.delete("/{project_id}/quotes/{quote_id}")
+async def delete_or_request_quote_deletion(
+    project_id: int,
+    quote_id: int,
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete quote by role policy:
+    - super_admin / owner / admin_financiero: hard delete
+    - product_manager: request deletion (deactivate quote)
+    """
+    project_repo = RepositoryFactory.create_project_repository(db, tenant.organization_id)
+
+    project = await project_repo.get_by_id_with_quotes(project_id, include_deleted=False)
+    if not project:
+        raise ResourceNotFoundError("Project", project_id)
+
+    quote = await project_repo.get_quote_by_id(quote_id)
+    if not quote or quote.project_id != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Quote with id {quote_id} not found for project {project_id}",
+        )
+
+    role = get_user_role(current_user) or ""
+    direct_delete_roles = {"super_admin", "owner", "admin_financiero"}
+
+    # Always clear tentative capacity for this quote when it is removed/deactivated.
+    capacity_repo = RepositoryFactory.create_capacity_repository(db, tenant.organization_id)
+    await capacity_repo.delete_commitments_by_source(source_type="quote", source_id=quote.id)
+
+    if role in direct_delete_roles:
+        await db.execute(sql_delete(Quote).where(Quote.id == quote.id, Quote.project_id == project_id))
+        await db.commit()
+        return {
+            "success": True,
+            "action": "deleted",
+            "message": "Cotizacion eliminada permanentemente.",
+        }
+
+    if role == "product_manager":
+        if not _quote_is_active(quote):
+            await db.commit()
+            return {
+                "success": True,
+                "action": "already_inactive",
+                "message": "La cotizacion ya estaba desactivada.",
+            }
+
+        quote.is_active = 0
+        quote.deletion_requested_at = datetime.utcnow()
+        quote.deletion_requested_by_id = current_user.id
+        quote.deletion_request_reason = "Solicitud de Project Manager"
+        await db.commit()
+        await db.refresh(quote)
+        return {
+            "success": True,
+            "action": "deactivated",
+            "message": "Solicitud registrada. La cotizacion fue desactivada y ya no impacta el dashboard.",
+        }
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No tienes permisos para eliminar cotizaciones.",
+    )
 
 
 @router.put("/{project_id}/quotes/{quote_id}", response_model=QuoteResponseWithItems)
@@ -944,6 +1033,11 @@ async def update_quote(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Quote with id {quote_id} not found"
+            )
+        if not _quote_is_active(quote):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This quote is inactive and cannot be updated"
             )
         
         # Validate services using repository (with tenant scoping)
@@ -1236,6 +1330,10 @@ async def update_quote(
             contingency_type=getattr(updated_quote, "contingency_type", None),
             contingency_value=getattr(updated_quote, "contingency_value", None),
             notes=updated_quote.notes,
+            is_active=bool(getattr(updated_quote, "is_active", 1)),
+            deletion_requested_at=getattr(updated_quote, "deletion_requested_at", None),
+            deletion_requested_by_id=getattr(updated_quote, "deletion_requested_by_id", None),
+            deletion_request_reason=getattr(updated_quote, "deletion_request_reason", None),
             revisions_included=updated_quote.revisions_included if hasattr(updated_quote, 'revisions_included') else 2,
             revision_cost_per_additional=updated_quote.revision_cost_per_additional if hasattr(updated_quote, 'revision_cost_per_additional') else None,
             created_at=updated_quote.created_at,
@@ -1273,6 +1371,19 @@ async def create_new_quote_version(
     from app.services.project_service import ProjectService
     
     try:
+        project_repo = RepositoryFactory.create_project_repository(db, tenant.organization_id)
+        quote = await project_repo.get_quote_by_id(quote_id)
+        if not quote or quote.project_id != project_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Quote with id {quote_id} not found for project {project_id}",
+            )
+        if not _quote_is_active(quote):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot create a new version from an inactive quote",
+            )
+
         project_service = ProjectService(db, tenant.organization_id)
         return await project_service.create_new_quote_version(
             project_id=project_id,
@@ -1315,7 +1426,7 @@ async def download_quote_pdf(
     # Get quote with all relationships (including expenses - Sprint 15)
     result = await db.execute(
         select(Quote)
-        .where(Quote.id == quote_id, Quote.project_id == project_id)
+        .where(Quote.id == quote_id, Quote.project_id == project_id, Quote.is_active == 1)
         .options(
             selectinload(Quote.items).selectinload(QuoteItem.service),
             selectinload(Quote.expenses),  # Sprint 15: Load expenses
@@ -1390,7 +1501,7 @@ async def download_quote_docx(
     # Get quote with all relationships (including expenses - Sprint 15)
     result = await db.execute(
         select(Quote)
-        .where(Quote.id == quote_id, Quote.project_id == project_id)
+        .where(Quote.id == quote_id, Quote.project_id == project_id, Quote.is_active == 1)
         .options(
             selectinload(Quote.items).selectinload(QuoteItem.service),
             selectinload(Quote.expenses),  # Sprint 15: Load expenses
@@ -1485,7 +1596,7 @@ async def send_quote_email(
     # Get quote with all relationships (including expenses - Sprint 15)
     result = await db.execute(
         select(Quote)
-        .where(Quote.id == quote_id, Quote.project_id == project_id)
+        .where(Quote.id == quote_id, Quote.project_id == project_id, Quote.is_active == 1)
         .options(
             selectinload(Quote.items).selectinload(QuoteItem.service),
             selectinload(Quote.expenses),  # Sprint 15: Load expenses

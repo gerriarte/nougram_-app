@@ -189,10 +189,11 @@ async def generate_proposal_with_ai(
     project = await project_repo.get_by_id_with_quotes(project_id, include_deleted=False)
     if not project:
         raise ResourceNotFoundError("Project", project_id)
-    if not project.quotes:
+    active_quotes = [q for q in (project.quotes or []) if bool(getattr(q, "is_active", 1))]
+    if not active_quotes:
         raise HTTPException(status_code=400, detail="Cannot generate proposal without quote")
 
-    latest_quote = sorted(project.quotes, key=lambda q: q.version, reverse=True)[0]
+    latest_quote = sorted(active_quotes, key=lambda q: q.version, reverse=True)[0]
     services_payload = []
     for idx, item in enumerate(latest_quote.items or []):
         service_name = item.custom_service_name or (item.service.name if item.service else f"Servicio {idx + 1}")
@@ -390,12 +391,13 @@ async def share_proposal_with_client(
 
     quote_id = payload.quote_id
     selected_quote = None
+    active_quotes = [q for q in (project.quotes or []) if bool(getattr(q, "is_active", 1))]
     if quote_id is not None:
-        selected_quote = next((q for q in (project.quotes or []) if q.id == quote_id), None)
+        selected_quote = next((q for q in active_quotes if q.id == quote_id), None)
         if not selected_quote:
             raise HTTPException(status_code=404, detail=f"Quote with id {quote_id} not found for project {project_id}")
-    elif project.quotes:
-        selected_quote = sorted(project.quotes, key=lambda q: q.version, reverse=True)[0]
+    elif active_quotes:
+        selected_quote = sorted(active_quotes, key=lambda q: q.version, reverse=True)[0]
         quote_id = selected_quote.id
 
     now = datetime.now(timezone.utc)

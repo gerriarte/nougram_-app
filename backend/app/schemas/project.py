@@ -70,6 +70,10 @@ class QuoteResponse(BaseModel):
     contingency_type: Optional[str] = Field(None, description="Contingency type: fixed|percentage")
     contingency_value: Optional[Decimal] = Field(None, description="Contingency value")
     notes: Optional[str] = None
+    is_active: bool = True
+    deletion_requested_at: Optional[datetime] = None
+    deletion_requested_by_id: Optional[int] = None
+    deletion_request_reason: Optional[str] = None
     revisions_included: int = Field(default=2, description="Number of included revisions")
     revision_cost_per_additional: Optional[Decimal] = Field(None, description="Cost per additional revision", ge=0)
     created_at: Optional[datetime] = None

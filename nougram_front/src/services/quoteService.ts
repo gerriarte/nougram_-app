@@ -26,6 +26,10 @@ type ProjectListResponse = {
 type ProjectQuoteResponse = {
     id: number;
     version?: number;
+    is_active?: boolean;
+    deletion_requested_at?: string | null;
+    deletion_requested_by_id?: number | null;
+    deletion_request_reason?: string | null;
     notes?: string;
     total_internal_cost?: string | number;
     total_client_price?: string | number;
@@ -115,6 +119,12 @@ type SendEmailPayload = {
 
 type QuoteEmailApiResponse = {
     success: boolean;
+    message: string;
+};
+
+type QuoteDeletionApiResponse = {
+    success: boolean;
+    action: 'deleted' | 'deactivated' | 'already_inactive';
     message: string;
 };
 
@@ -397,6 +407,9 @@ export const quoteService = {
                 const quotes = quotesResponse.data || [];
                 const latestQuote =
                     quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0] || null;
+                if (!latestQuote) {
+                    return null;
+                }
                 const detailedQuote = await getQuoteDetailForProject(project.id, latestQuote?.id);
                 const baseQuote = detailedQuote || latestQuote;
                 const projectTaxes = resolveProjectTaxes(projectDetail, project);
@@ -416,6 +429,7 @@ export const quoteService = {
                     profitAmount: breakdown.profitAmount,
                     currency: projectDetail.currency || project.currency || 'USD',
                     margin: breakdown.margin,
+                    quoteId: latestQuote?.id,
                     version,
                     status: statusMap[project.status] || 'draft',
                     viewedCount: 0,
@@ -424,7 +438,7 @@ export const quoteService = {
             })
         );
 
-        return mapped;
+        return mapped.filter((item): item is Quote => item !== null);
     },
 
     getById: async (id: string): Promise<Quote | null> => {
@@ -664,6 +678,15 @@ export const quoteService = {
         const quotes = quotesResponse.data || [];
         if (!quotes.length) return null;
         return quotes.sort((a, b) => (b.version || 0) - (a.version || 0))[0];
+    },
+    deleteOrRequestQuoteDeletion: async (projectId: string, quoteId: number): Promise<QuoteDeletionApiResponse> => {
+        const response = await apiRequest<QuoteDeletionApiResponse>(`/projects/${projectId}/quotes/${quoteId}`, {
+            method: 'DELETE',
+        });
+        if (response.error || !response.data) {
+            throw new Error(response.error || 'No se pudo procesar la eliminacion de la cotizacion');
+        }
+        return response.data;
     },
     getAvailableServices: async (forceRefresh = false): Promise<Service[]> => {
         if (!forceRefresh && servicesCache && servicesCache.length > 0) {
