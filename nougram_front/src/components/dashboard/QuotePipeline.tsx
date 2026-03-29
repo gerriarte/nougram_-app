@@ -243,7 +243,7 @@ export function QuotePipeline() {
                         </div>
                         <Button
                             type="button"
-                            variant={showInactiveQuotes ? 'default' : 'secondary'}
+                            variant={showInactiveQuotes ? 'primary' : 'secondary'}
                             className="h-12 rounded-xl px-4 w-full sm:w-auto justify-center"
                             onClick={() => setShowInactiveQuotes((prev) => !prev)}
                         >
