@@ -189,7 +189,11 @@ export function useAuth() {
     notifySubscribers(null);
     setUser(null);
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("nougram:auth-expired"));
+      window.dispatchEvent(
+        new CustomEvent("nougram:auth-expired", {
+          detail: { reason: "logout" },
+        })
+      );
     }
   }, []);
 

@@ -4,6 +4,7 @@ import { NougramCoreProvider } from '@/context/NougramCoreContext';
 import { Toaster } from '@/components/ui/Toaster';
 import { GoogleTagManager } from '@/components/analytics/GoogleTagManager';
 import { RouteTrackerClient } from '@/components/analytics/RouteTrackerClient';
+import { AuthSessionExpiredDialog } from '@/components/auth/AuthSessionExpiredDialog';
 
 export const metadata: Metadata = {
   title: "Nougram Cotizador",
@@ -26,6 +27,7 @@ export default function RootLayout({
         <NougramCoreProvider>
           <RouteTrackerClient />
           {children}
+          <AuthSessionExpiredDialog />
           <Toaster />
         </NougramCoreProvider>
       </body>

@@ -61,7 +61,15 @@ export async function apiRequest<T>(
       if (response.status === 401) {
         removeAuthToken();
         if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("nougram:auth-expired"));
+          window.dispatchEvent(
+            new CustomEvent("nougram:auth-expired", {
+              detail: {
+                reason: "unauthorized",
+                statusCode: 401,
+                endpoint: normalizedEndpoint,
+              },
+            })
+          );
         }
         return { error: "No autorizado. Inicia sesión nuevamente.", statusCode: 401 };
       }
