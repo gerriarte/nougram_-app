@@ -62,7 +62,7 @@ interface QuoteBuilderContextType {
     // Actions
     updateProjectInfo: (info: Partial<QuoteBuilderState>) => void;
 
-    addItem: (serviceId: number) => void;
+    addItem: (serviceId: number, serviceNameOverride?: string) => void;
     updateItem: (itemId: string, updates: Partial<QuoteItem>) => void;
     removeItem: (itemId: string) => void;
 
@@ -194,14 +194,15 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             currency: (coreState.identity.primaryCurrency || prev.currency) as QuoteBuilderState['currency'],
         }));
 
-    const addItem = (serviceId: number) => {
+    const addItem = (serviceId: number, serviceNameOverride?: string) => {
         const service = services.find(s => s.id === serviceId);
         if (!service) return;
+        const normalizedServiceName = normalizeOptionalText(serviceNameOverride) || service.name;
 
         const newItem: QuoteItem = {
             id: crypto.randomUUID(),
             serviceId: service.id,
-            serviceName: service.name,
+            serviceName: normalizedServiceName,
             pricingType: service.pricingType,
             quantity: 1,
             estimatedHours: service.pricingType === 'hourly' ? 10 : undefined,

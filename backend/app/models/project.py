@@ -102,6 +102,7 @@ class QuoteItem(Base):
     
     # Pricing type fields (Sprint 14) - Can override service pricing_type
     pricing_type = Column(String, nullable=True)  # Overrides service pricing_type: "hourly", "fixed", "recurring", "project_value"
+    custom_service_name = Column(String, nullable=True)  # User-defined service label persisted with the quote item
     fixed_price = Column(Numeric(precision=19, scale=4), nullable=True)  # If pricing_type = "fixed" - ESTÁNDAR NOUGRAM: Numeric
     quantity = Column(Numeric(precision=10, scale=4), default=1.0)  # ESTÁNDAR NOUGRAM: Numeric - For modules/milestones (fixed pricing)
     recurring_price = Column(Numeric(precision=19, scale=4), nullable=True)  # If pricing_type = "recurring"

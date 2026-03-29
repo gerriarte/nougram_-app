@@ -3,7 +3,33 @@ const LEGACY_AUTH_KEYS = ["nougram_token", "token", "access_token"];
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(AUTH_TOKEN_KEY);
+  const currentToken = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (currentToken) return currentToken;
+
+  for (const key of LEGACY_AUTH_KEYS) {
+    const legacyToken = localStorage.getItem(key);
+    if (legacyToken) {
+      // Migrate legacy token key transparently to avoid forced re-login after deploys.
+      localStorage.setItem(AUTH_TOKEN_KEY, legacyToken);
+      return legacyToken;
+    }
+  }
+
+  const sessionToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
+  if (sessionToken) {
+    localStorage.setItem(AUTH_TOKEN_KEY, sessionToken);
+    return sessionToken;
+  }
+
+  for (const key of LEGACY_AUTH_KEYS) {
+    const legacySessionToken = sessionStorage.getItem(key);
+    if (legacySessionToken) {
+      localStorage.setItem(AUTH_TOKEN_KEY, legacySessionToken);
+      return legacySessionToken;
+    }
+  }
+
+  return null;
 }
 
 export function setAuthToken(token: string): void {

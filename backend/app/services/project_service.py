@@ -243,8 +243,9 @@ class ProjectService:
         services = {service.id: service for service in all_services if service.is_active}
         logger.info(f"Found {len(services)} valid services out of {len(service_ids)} requested")
         
-        if len(services) != len(service_ids):
-            missing = set(service_ids) - set(services.keys())
+        requested_service_ids = set(service_ids)
+        if len(services) != len(requested_service_ids):
+            missing = requested_service_ids - set(services.keys())
             logger.warning(f"Missing services: {list(missing)}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -478,8 +479,9 @@ class ProjectService:
         )
         services = {service.id: service for service in all_services if service.is_active}
         
-        if len(services) != len(service_ids):
-            missing = set(service_ids) - set(services.keys())
+        requested_service_ids = set(service_ids)
+        if len(services) != len(requested_service_ids):
+            missing = requested_service_ids - set(services.keys())
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Services with ids {list(missing)} not found or inactive"
@@ -929,6 +931,7 @@ class ProjectService:
             quote_item = QuoteItem(
                 quote_id=quote_id,
                 service_id=item_data.service_id,
+                custom_service_name=(str(getattr(item_data, "custom_service_name", "")).strip() or None),
                 estimated_hours=getattr(item_data, 'estimated_hours', None),
                 internal_cost=internal_cost,
                 client_price=client_price,
@@ -1006,7 +1009,8 @@ class ProjectService:
             items_response.append(QuoteItemResponse(
                 id=item.id,
                 service_id=item.service_id,
-                service_name=item.service.name if item.service else None,
+                service_name=item.custom_service_name or (item.service.name if item.service else None),
+                custom_service_name=item.custom_service_name,
                 estimated_hours=item.estimated_hours,
                 pricing_type=getattr(item, 'pricing_type', None),
                 fixed_price=getattr(item, 'fixed_price', None),

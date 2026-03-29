@@ -20,8 +20,18 @@ export async function apiRequest<T>(
     };
   }
   const normalizedBase = API_URL.replace(/\/+$/, "");
-  try {
-    const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const normalizeEndpoint = (rawEndpoint: string): string => {
+    const withLeadingSlash = rawEndpoint.startsWith("/") ? rawEndpoint : `/${rawEndpoint}`;
+    if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")) {
+      return withLeadingSlash.replace(/\/+$/, "");
+    }
+    return withLeadingSlash;
+  };
+
+  const withTrailingSlash = (value: string): string =>
+    value.endsWith("/") ? value : `${value}/`;
+
+  const requestOnce = async (normalizedEndpoint: string): Promise<Response> => {
     const url = `${normalizedBase}${normalizedEndpoint}`;
     const token = getAuthToken();
     const headers: Record<string, string> = {
@@ -33,10 +43,22 @@ export async function apiRequest<T>(
       headers.Authorization = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
+    return fetch(url, {
       ...options,
       headers,
     });
+  };
+
+  try {
+    const normalizedEndpoint = normalizeEndpoint(endpoint);
+    let response = await requestOnce(normalizedEndpoint);
+    if (
+      response.status === 404 &&
+      endpoint.endsWith("/") &&
+      normalizedEndpoint !== withTrailingSlash(normalizedEndpoint)
+    ) {
+      response = await requestOnce(withTrailingSlash(normalizedEndpoint));
+    }
 
     if (!response.ok) {
       if (response.status === 401) {
