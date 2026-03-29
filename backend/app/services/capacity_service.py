@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 import calendar
+from collections import defaultdict
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +40,48 @@ class CapacityService:
         end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
         return start, end
 
+    @staticmethod
+    def _merge_commitments_by_unique_key(
+        *,
+        organization_id: int,
+        source_type: str,
+        source_id: int,
+        state: str,
+        raw_entries: list[tuple[int, int | None, datetime, datetime, Decimal]],
+    ) -> list[CapacityCommitment]:
+        """
+        Merge hours by the same DB unique key to avoid duplicate inserts.
+        Unique key in DB excludes cell_id, so we aggregate per member+period.
+        """
+        aggregated: dict[tuple[int, datetime, datetime], Decimal] = defaultdict(lambda: Decimal("0"))
+        preferred_cell: dict[tuple[int, datetime, datetime], int | None] = {}
+
+        for team_member_id, cell_id, period_start, period_end, hours in raw_entries:
+            if hours <= 0:
+                continue
+            dedup_key = (team_member_id, period_start, period_end)
+            aggregated[dedup_key] += hours
+            # Preserve first non-null cell for traceability when available.
+            if dedup_key not in preferred_cell or preferred_cell[dedup_key] is None:
+                preferred_cell[dedup_key] = cell_id
+
+        commitments: list[CapacityCommitment] = []
+        for (team_member_id, period_start, period_end), hours in aggregated.items():
+            commitments.append(
+                CapacityCommitment(
+                    organization_id=organization_id,
+                    team_member_id=team_member_id,
+                    cell_id=preferred_cell.get((team_member_id, period_start, period_end)),
+                    source_type=source_type,
+                    source_id=source_id,
+                    state=state,
+                    period_start=period_start,
+                    period_end=period_end,
+                    hours=hours,
+                )
+            )
+        return commitments
+
     async def sync_tentative_from_quote(
         self,
         *,
@@ -62,7 +105,7 @@ class CapacityService:
             return CapacitySyncResult(commitments_count=0, total_hours=Decimal("0"))
 
         ref_date = reference_date or datetime.now(timezone.utc)
-        commitments: list[CapacityCommitment] = []
+        raw_entries: list[tuple[int, int | None, datetime, datetime, Decimal]] = []
         total_hours = Decimal("0")
 
         for item in (quote.items or []):
@@ -79,21 +122,18 @@ class CapacityService:
                 hours_per_month = alloc_hours / Decimal(str(months))
                 for offset in range(months):
                     period_start, period_end = self._month_range(ref_date, offset)
-                    commitments.append(
-                        CapacityCommitment(
-                            organization_id=self.organization_id,
-                            team_member_id=alloc.team_member_id,
-                            cell_id=item_cell_id,
-                            source_type="quote",
-                            source_id=quote_id,
-                            state="tentative",
-                            period_start=period_start,
-                            period_end=period_end,
-                            hours=hours_per_month,
-                        )
+                    raw_entries.append(
+                        (alloc.team_member_id, item_cell_id, period_start, period_end, hours_per_month)
                     )
                     total_hours += hours_per_month
 
+        commitments = self._merge_commitments_by_unique_key(
+            organization_id=self.organization_id,
+            source_type="quote",
+            source_id=quote_id,
+            state="tentative",
+            raw_entries=raw_entries,
+        )
         await self.repo.add_commitments(commitments)
         await self.repo.add_event(
             event_type="capacity_commitments_synced",
@@ -153,7 +193,7 @@ class CapacityService:
             return CapacitySyncResult(commitments_count=0, total_hours=Decimal("0"))
 
         ref_date = reference_date or datetime.now(timezone.utc)
-        commitments: list[CapacityCommitment] = []
+        raw_entries: list[tuple[int, int | None, datetime, datetime, Decimal]] = []
         total_hours = Decimal("0")
 
         for item in (quote.items or []):
@@ -170,21 +210,18 @@ class CapacityService:
                 hours_per_month = alloc_hours / Decimal(str(months))
                 for offset in range(months):
                     period_start, period_end = self._month_range(ref_date, offset)
-                    commitments.append(
-                        CapacityCommitment(
-                            organization_id=self.organization_id,
-                            team_member_id=alloc.team_member_id,
-                            cell_id=item_cell_id,
-                            source_type="proposal_link",
-                            source_id=link.id,
-                            state="committed",
-                            period_start=period_start,
-                            period_end=period_end,
-                            hours=hours_per_month,
-                        )
+                    raw_entries.append(
+                        (alloc.team_member_id, item_cell_id, period_start, period_end, hours_per_month)
                     )
                     total_hours += hours_per_month
 
+        commitments = self._merge_commitments_by_unique_key(
+            organization_id=self.organization_id,
+            source_type="proposal_link",
+            source_id=link.id,
+            state="committed",
+            raw_entries=raw_entries,
+        )
         await self.repo.add_commitments(commitments)
         await self.repo.add_event(
             event_type="capacity_commitments_synced",
