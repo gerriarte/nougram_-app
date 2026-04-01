@@ -16,6 +16,11 @@ export function AuthSessionExpiredDialog() {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
+  const isOpenRef = React.useRef(false);
+
+  React.useEffect(() => {
+    isOpenRef.current = open;
+  }, [open]);
 
   React.useEffect(() => {
     const onAuthExpired = (event: Event) => {
@@ -24,6 +29,7 @@ export function AuthSessionExpiredDialog() {
       // Show modal only for backend 401 flows, not explicit logout actions.
       if (reason && reason !== 'unauthorized') return;
       if (pathname?.startsWith('/login')) return;
+      if (isOpenRef.current) return;
       setOpen(true);
     };
 
