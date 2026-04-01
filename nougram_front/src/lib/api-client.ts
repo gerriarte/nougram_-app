@@ -1,6 +1,25 @@
 import { getAuthToken, removeAuthToken } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
+let lastExpiredTokenNotified: string | null = null;
+
+function shouldNotifyAuthExpired(endpoint: string, token: string | null): boolean {
+  if (!token) return false;
+
+  // Do not emit global "session expired" events for auth endpoints
+  // (e.g. wrong credentials on login should not open the expired-session modal).
+  const normalizedEndpoint = endpoint.toLowerCase();
+  if (normalizedEndpoint.startsWith("/auth/login")) return false;
+  if (normalizedEndpoint.startsWith("/auth/register")) return false;
+  if (normalizedEndpoint.startsWith("/auth/forgot-password")) return false;
+  if (normalizedEndpoint.startsWith("/auth/reset-password")) return false;
+  if (normalizedEndpoint.startsWith("/auth/verify-email")) return false;
+
+  // Avoid firing multiple times for the same expired token when many requests fail together.
+  if (lastExpiredTokenNotified === token) return false;
+  lastExpiredTokenNotified = token;
+  return true;
+}
 
 export type ApiResponse<T> = {
   data?: T;
@@ -47,6 +66,11 @@ export async function apiRequest<T>(
 
   try {
     const normalizedEndpoint = normalizeEndpoint(endpoint);
+    const tokenAtRequestStart = getAuthToken();
+    if (tokenAtRequestStart && lastExpiredTokenNotified !== tokenAtRequestStart) {
+      // A new token replaced the previous one; clear stale dedupe state.
+      lastExpiredTokenNotified = null;
+    }
     let response = await requestOnce(normalizedEndpoint);
     if (response.status === 404) {
       const alternateEndpoint = normalizedEndpoint.endsWith("/")
@@ -60,7 +84,10 @@ export async function apiRequest<T>(
     if (!response.ok) {
       if (response.status === 401) {
         removeAuthToken();
-        if (typeof window !== "undefined") {
+        if (
+          typeof window !== "undefined" &&
+          shouldNotifyAuthExpired(normalizedEndpoint, tokenAtRequestStart)
+        ) {
           window.dispatchEvent(
             new CustomEvent("nougram:auth-expired", {
               detail: {
