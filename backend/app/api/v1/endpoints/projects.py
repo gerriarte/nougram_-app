@@ -543,8 +543,9 @@ async def update_project(
         result = await db.execute(
             select(Tax).where(
                 Tax.id.in_(tax_ids),
+                Tax.organization_id == tenant.organization_id,
                 Tax.is_active == True,
-                Tax.deleted_at.is_(None)
+                Tax.deleted_at.is_(None),
             )
         )
         taxes = result.scalars().all()
@@ -1139,16 +1140,17 @@ async def update_quote(
         contingency_value = getattr(quote_data, 'contingency_value', None)
         
         totals = await calculate_quote_totals_enhanced(
-            db, 
-            items_dict, 
-            blended_rate, 
+            db,
+            items_dict,
+            blended_rate,
             tax_ids,
             expenses=None,  # Expenses are managed separately
             target_margin_percentage=target_margin_percentage,
             revisions_included=revisions_included,
             revision_cost_per_additional=revision_cost_per_additional,
             revisions_count=None,
-            currency=primary_currency
+            currency=primary_currency,
+            organization_id=tenant.organization_id,
         )
         totals = _apply_contingency_to_totals(totals, contingency_type, contingency_value)
         

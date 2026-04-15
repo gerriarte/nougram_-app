@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.tenant import get_tenant_context, TenantContext
 from app.core.calculations import (
     calculate_blended_cost_rate, 
     calculate_quote_totals, 
@@ -32,8 +33,9 @@ def _safe_ratio(numerator: Decimal, denominator: Decimal) -> Decimal:
 @router.post("/calculate", response_model=QuoteCalculateResponse, summary="Calculate quote totals")
 async def calculate_quote(
     request: QuoteCalculateRequest,
+    tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(require_create_quotes),  # Require permission to create quotes (calculation is part of quote creation)
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Calculate quote totals (internal cost, client price, margin)
@@ -153,16 +155,17 @@ async def calculate_quote(
     # Calculate quote totals using enhanced function (with taxes, expenses, and revisions if provided)
     tax_ids = request.tax_ids or []
     totals = await calculate_quote_totals_enhanced(
-        db, 
-        items_dict, 
-        blended_rate, 
-        tax_ids, 
+        db,
+        items_dict,
+        blended_rate,
+        tax_ids,
         expenses_dict,
         target_margin_percentage=request.target_margin_percentage,
         revisions_included=request.revisions_included or 2,
         revision_cost_per_additional=request.revision_cost_per_additional,
         revisions_count=request.revisions_count,
-        currency=primary_currency  # ESTÁNDAR NOUGRAM: Pasar moneda para precisión
+        currency=primary_currency,  # ESTÁNDAR NOUGRAM: Pasar moneda para precisión
+        organization_id=tenant.organization_id,
     )
     
     # ESTÁNDAR NOUGRAM: Convertir valores float a Decimal para el schema
