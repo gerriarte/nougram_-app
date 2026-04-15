@@ -19,7 +19,7 @@ class TestAuthEndpoints:
         response = await async_client.post(
             "/api/v1/auth/login",
             json={
-                "email": "test@example.com",
+                "email": test_user.email,
                 "password": "testpassword123"
             }
         )
@@ -29,7 +29,7 @@ class TestAuthEndpoints:
         assert "access_token" in data
         assert data["token_type"] == "bearer"
         assert "user" in data
-        assert data["user"]["email"] == "test@example.com"
+        assert data["user"]["email"] == test_user.email
         assert data["user"]["full_name"] == "Test User"
     
     async def test_login_invalid_email(self, async_client: AsyncClient):
@@ -52,7 +52,7 @@ class TestAuthEndpoints:
         response = await async_client.post(
             "/api/v1/auth/login",
             json={
-                "email": "test@example.com",
+                "email": test_user.email,
                 "password": "wrongpassword"
             }
         )
