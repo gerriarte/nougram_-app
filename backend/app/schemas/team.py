@@ -21,6 +21,10 @@ class TeamMemberBase(BaseModel):
     currency: CurrencyCode = Field("USD", description="Currency code (USD, COP, ARS, EUR, PEN, MXN)")
     billable_hours_per_week: int = Field(32, description="Billable hours per week", ge=0, le=80)
     non_billable_hours_percentage: Decimal = Field(0, description="Non-billable hours percentage (0-1)", ge=0, le=1)
+    apply_social_charges: bool = Field(
+        True,
+        description="Apply organization social charges multiplier to this member's salary in cost calculations",
+    )
     is_active: Optional[bool] = Field(True, description="Whether the team member is active")
     user_id: Optional[int] = Field(None, description="Associated user ID")
     
@@ -53,6 +57,7 @@ class TeamMemberUpdate(BaseModel):
     currency: Optional[CurrencyCode] = None
     billable_hours_per_week: Optional[int] = Field(None, ge=0, le=80)
     non_billable_hours_percentage: Optional[Decimal] = Field(None, ge=0, le=1)
+    apply_social_charges: Optional[bool] = None
     is_active: Optional[bool] = None
     user_id: Optional[int] = None
     

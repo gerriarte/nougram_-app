@@ -6,6 +6,7 @@ import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { BarChart3, Calendar, Filter, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { capacityService, type CapacityState } from '@/services/capacityService';
+import { formatDisplayNumber } from '@/lib/utils';
 
 const ALL_STATES: CapacityState[] = ['tentative', 'committed', 'actual'];
 
@@ -20,7 +21,7 @@ function currentMonthRange(): { start: string; end: string } {
 }
 
 function formatHours(value: number): string {
-    return `${value.toFixed(1)}h`;
+    return `${formatDisplayNumber(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h`;
 }
 
 function toISODate(d: Date): string {
@@ -329,7 +330,7 @@ export default function AvailabilityPage() {
                                                 <td className="px-4 py-3 text-right text-gray-600">{formatHours(member.committedHours)}</td>
                                                 <td className="px-4 py-3 text-right text-gray-600">{formatHours(member.actualHours)}</td>
                                                 <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                                                    {(member.utilizationRatio * 100).toFixed(1)}%
+                                                    {formatDisplayNumber(member.utilizationRatio * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                                                 </td>
                                             </tr>
                                         ))

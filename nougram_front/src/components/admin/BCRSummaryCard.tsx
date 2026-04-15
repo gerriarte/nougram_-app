@@ -2,7 +2,7 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { BCRSummary } from "@/types/admin";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDisplayNumber } from "@/lib/utils";
 import { AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 
 interface BCRSummaryCardProps {
@@ -65,7 +65,7 @@ export function BCRSummaryCard({ summary, isLoading }: BCRSummaryCardProps) {
                     </div>
                     <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Horas Facturables</span>
-                        <span className="font-medium">{summary.total_monthly_hours.toFixed(1)} hrs</span>
+                        <span className="font-medium">{formatDisplayNumber(summary.total_monthly_hours, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} hrs</span>
                     </div>
                 </div>
 

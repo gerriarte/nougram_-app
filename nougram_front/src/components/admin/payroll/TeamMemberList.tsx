@@ -7,16 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
-import { TeamMemberForm } from './TeamMemberForm';
+import { TeamMemberForm, type TeamMemberFormSavePayload } from './TeamMemberForm';
 import { TeamMember } from '@/types/admin';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDisplayNumber } from '@/lib/utils';
+import { getTeamMemberSalaryWithCharges } from '@/lib/team-member-cost';
 import { TeamSummary, TeamVersion, workTeamsService } from '@/services/workTeamsService';
 
-type TeamMemberInput = Omit<TeamMember, 'id' | 'salaryWithCharges' | 'isActive'>;
 type MemberTeamAssignment = { teamName: string; percentage: number };
 
 export function TeamMemberList() {
-    const { teamMembers, deleteTeamMember, updateTeamMember, addTeamMember } = useAdmin();
+    const { teamMembers, deleteTeamMember, updateTeamMember, addTeamMember, socialCharges } = useAdmin();
     const loadSequenceRef = useRef(0);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | undefined>(undefined);
@@ -117,7 +117,7 @@ export function TeamMemberList() {
 
         const total = mergedMembers.reduce((acc, item) => acc + item.allocation_percentage, 0);
         if (Math.abs(total - 100) > 0.05) {
-            setAssignError(`La suma de porcentajes del equipo debe ser 100%. Actual: ${total.toFixed(2)}%.`);
+            setAssignError(`La suma de porcentajes del equipo debe ser 100%. Actual: ${formatDisplayNumber(total, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%.`);
             return;
         }
 
@@ -151,17 +151,15 @@ export function TeamMemberList() {
         setIsFormOpen(true);
     };
 
-    const handleSave = (data: TeamMemberInput) => {
+    const handleSave = async (data: TeamMemberFormSavePayload) => {
         if (editingMember) {
-            updateTeamMember(editingMember.id, data);
-        } else {
-            addTeamMember({
-                ...data,
-                id: crypto.randomUUID(), // In real app, backend generates ID
-                salaryWithCharges: 0, // Context will recalc this
-                isActive: true
-            });
+            return updateTeamMember(editingMember.id, data);
         }
+        return addTeamMember({
+            ...data,
+            id: crypto.randomUUID(),
+            salaryWithCharges: 0,
+        });
     };
 
     const handleDelete = (id: string) => {
@@ -218,7 +216,7 @@ export function TeamMemberList() {
                                                         key={`${member.id}-${assignment.teamName}`}
                                                         className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
                                                     >
-                                                        {assignment.teamName} ({assignment.percentage.toFixed(1)}%)
+                                                        {assignment.teamName} ({formatDisplayNumber(assignment.percentage, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
                                                     </span>
                                                 ))}
                                             </div>
@@ -268,12 +266,11 @@ export function TeamMemberList() {
                                         {formatCurrency(member.salaryMonthlyBrute, member.currency)}
                                     </td>
                                     <td className="px-4 py-3 font-medium text-blue-600">
-                                        {/* Simple display logic, precise calculation is in context */}
-                                        {formatCurrency((member.salaryWithCharges || member.salaryMonthlyBrute), member.currency)}
+                                        {formatCurrency(getTeamMemberSalaryWithCharges(member, socialCharges), member.currency)}
                                     </td>
                                     <td className="px-4 py-3">
                                         {member.billableHoursPerWeek} hrs
-                                        <div className="text-xs text-gray-500">{(member.nonBillablePercentage * 100).toFixed(0)}% Admin</div>
+                                        <div className="text-xs text-gray-500">{formatDisplayNumber(member.nonBillablePercentage * 100, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}% Admin</div>
                                     </td>
                                     <td className="px-4 py-3">
                                         <Badge variant={member.isActive ? 'success' : 'default'}>

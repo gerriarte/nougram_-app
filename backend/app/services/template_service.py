@@ -141,6 +141,7 @@ async def apply_industry_template(
                 currency=currency,
                 billable_hours_per_week=billable_hours_per_week,
                 non_billable_hours_percentage=non_billable_hours_percentage,
+                apply_social_charges=True,
                 is_active=True,
                 organization_id=organization_id
             )

@@ -75,3 +75,20 @@ export const formatLocalizedNumberInput = (
         maximumFractionDigits: forceInteger ? 0 : (options?.maximumFractionDigits ?? 2),
     }).format(numericValue);
 };
+
+/** Plain number for tables, labels, and inline text (thousands `.`, decimals `,`). */
+export const formatDisplayNumber = (
+    value: number | string | null | undefined,
+    options?: {
+        minimumFractionDigits?: number;
+        maximumFractionDigits?: number;
+    }
+): string => {
+    if (value === null || value === undefined || value === "") return "";
+    const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
+    if (!Number.isFinite(n)) return "";
+    return new Intl.NumberFormat("es-CO", {
+        minimumFractionDigits: options?.minimumFractionDigits ?? 0,
+        maximumFractionDigits: options?.maximumFractionDigits ?? 2,
+    }).format(n);
+};

@@ -9,7 +9,14 @@ from jose import JWTError, jwt
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token, get_current_user, verify_password, get_password_hash
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    get_current_user,
+    verify_password,
+    get_password_hash,
+)
 from app.core.rate_limiting import limiter, get_rate_limit_for_plan
 from app.core.email import (
     send_email,
@@ -32,6 +39,7 @@ from app.schemas.auth import (
     VerifyEmailResponse,
     ChangePasswordRequest,
     ChangePasswordResponse,
+    RefreshTokenRequest,
 )
 
 router = APIRouter()
@@ -109,6 +117,7 @@ async def email_password_login(
         "role_type": role_type,  # Include role_type in JWT
     }
     access_token = create_access_token(token_data_jwt)
+    refresh_token = create_refresh_token(token_data_jwt)
 
     user_role = get_user_role(user)
 
@@ -126,6 +135,7 @@ async def email_password_login(
 
     return TokenResponse(
         access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         user={
@@ -134,6 +144,80 @@ async def email_password_login(
             "full_name": user.full_name,
             "role": user_role,
             "organization_id": user.organization_id,  # Multi-tenant: include in response
+            "email_verified": bool(getattr(user, "email_verified", True)),
+        },
+    )
+
+
+@router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("30/minute")
+async def refresh_session_token(
+    request: Request,
+    payload: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Refresh access token and rotate refresh token."""
+    refresh_payload = decode_refresh_token(payload.refresh_token)
+    if refresh_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+
+    user_id_str = refresh_payload.get("sub")
+    if not user_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token payload",
+        )
+
+    try:
+        user_id = int(user_id_str)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token payload",
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+
+    from app.core.permissions import get_user_role, get_user_role_type
+
+    role_type = get_user_role_type(user)
+    if role_type == "tenant" and user.organization_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuario no pertenece a ninguna organización",
+        )
+
+    token_data_jwt = {
+        "sub": str(user.id),
+        "email": user.email,
+        "name": user.full_name,
+        "organization_id": user.organization_id,
+        "role_type": role_type,
+    }
+    access_token = create_access_token(token_data_jwt)
+    refresh_token = create_refresh_token(token_data_jwt)
+    user_role = get_user_role(user)
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user={
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user_role,
+            "organization_id": user.organization_id,
             "email_verified": bool(getattr(user, "email_verified", True)),
         },
     )

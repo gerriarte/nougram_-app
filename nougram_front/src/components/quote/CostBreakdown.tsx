@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { QuoteCalculationResponse } from "@/types/quote";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDisplayNumber } from "@/lib/utils";
 
 interface CostBreakdownProps {
     calculation: QuoteCalculationResponse;
@@ -41,7 +41,7 @@ export function CostBreakdown({ calculation }: CostBreakdownProps) {
                         <h4 className="text-sm font-semibold text-gray-900 mb-2">Impuestos</h4>
                         {calculation.taxes.map((tax) => (
                             <div key={tax.id} className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                                <div>{tax.name} ({parseFloat(tax.percentage).toFixed(2)}%)</div>
+                                <div>{tax.name} ({formatDisplayNumber(parseFloat(tax.percentage), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)</div>
                                 <div className="text-right">{formatCurrency(tax.amount)}</div>
                             </div>
                         ))}

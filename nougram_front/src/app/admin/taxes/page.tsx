@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { taxService } from '@/services/taxService';
 import { TaxConfig } from '@/types/quote-builder';
 import { SocialChargesConfig } from '@/components/admin/payroll/SocialChargesConfig';
+import { formatDisplayNumber } from '@/lib/utils';
 
 type TaxFormState = {
     name: string;
@@ -237,7 +238,7 @@ export default function TaxesAdminPage() {
                                         <td className="py-2 font-medium text-gray-900">{tax.name}</td>
                                         <td className="py-2">{tax.code || '-'}</td>
                                         <td className="py-2">{tax.country || 'Global'}</td>
-                                        <td className="py-2">{Number(tax.percentage || 0).toFixed(2)}%</td>
+                                        <td className="py-2">{formatDisplayNumber(Number(tax.percentage || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
                                         <td className="py-2">{tax.isActive ? 'Activo' : 'Inactivo'}</td>
                                         <td className="py-2 text-right space-x-2">
                                             <Button type="button" variant="secondary" size="sm" onClick={() => handleEdit(tax)}>

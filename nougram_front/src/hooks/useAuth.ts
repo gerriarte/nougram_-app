@@ -7,11 +7,21 @@ import {
   canViewFinancials,
 } from "@/types/user";
 import { apiRequest } from "@/lib/api-client";
-import { isAuthenticated, removeAuthToken, setAuthToken } from "@/lib/auth";
+import {
+  getRefreshToken,
+  isAuthenticated,
+  isSessionInactive,
+  markUserActivity,
+  removeAuthToken,
+  setAuthToken,
+  setRefreshToken,
+  shouldRefreshAccessToken,
+} from "@/lib/auth";
 import { trackLogout } from "@/lib/analytics";
 
 type LoginResponse = {
   access_token: string;
+  refresh_token?: string;
   token_type?: string;
 };
 
@@ -146,10 +156,79 @@ export function useAuth() {
       window.addEventListener("nougram:auth-expired", onAuthExpired as EventListener);
     }
 
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "click",
+      "keydown",
+      "mousemove",
+      "scroll",
+      "touchstart",
+    ];
+    const onUserActivity = () => {
+      if (!isAuthenticated()) return;
+      markUserActivity();
+    };
+
+    const inactivityInterval = window.setInterval(() => {
+      if (!isAuthenticated()) return;
+      if (isSessionInactive()) {
+        removeAuthToken();
+        authUserPromise = null;
+        authUserCache = null;
+        setUser(null);
+        window.dispatchEvent(
+          new CustomEvent("nougram:auth-expired", {
+            detail: { reason: "inactivity" },
+          })
+        );
+      }
+    }, 30_000);
+
+    const tokenRefreshInterval = window.setInterval(async () => {
+      if (!isAuthenticated()) return;
+      if (isSessionInactive()) return;
+      if (!shouldRefreshAccessToken()) return;
+
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) return;
+
+      const refreshResponse = await apiRequest<LoginResponse>("/auth/refresh", {
+        method: "POST",
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (refreshResponse.error || !refreshResponse.data?.access_token) {
+        removeAuthToken();
+        authUserPromise = null;
+        authUserCache = null;
+        setUser(null);
+        window.dispatchEvent(
+          new CustomEvent("nougram:auth-expired", {
+            detail: { reason: "unauthorized", statusCode: 401, endpoint: "/auth/refresh" },
+          })
+        );
+        return;
+      }
+
+      setAuthToken(refreshResponse.data.access_token);
+      if (refreshResponse.data.refresh_token) {
+        setRefreshToken(refreshResponse.data.refresh_token);
+      }
+      markUserActivity();
+    }, 60_000);
+
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, onUserActivity, { passive: true });
+    });
+
     return () => {
       authSubscribers.delete(subscriber);
       if (typeof window !== "undefined") {
         window.removeEventListener("nougram:auth-expired", onAuthExpired as EventListener);
+        activityEvents.forEach((eventName) => {
+          window.removeEventListener(eventName, onUserActivity);
+        });
+        window.clearInterval(inactivityInterval);
+        window.clearInterval(tokenRefreshInterval);
       }
     };
   }, []);
@@ -167,6 +246,10 @@ export function useAuth() {
     }
 
     setAuthToken(response.data.access_token);
+    if (response.data.refresh_token) {
+      setRefreshToken(response.data.refresh_token);
+    }
+    markUserActivity();
     authUserCache = undefined;
     const currentUser = await fetchCurrentUserShared(true);
     setUser(currentUser);

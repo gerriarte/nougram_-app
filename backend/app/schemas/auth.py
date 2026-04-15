@@ -38,6 +38,7 @@ class GoogleConnectRequest(BaseModel):
 class TokenResponse(BaseModel):
     """Schema for token response"""
     access_token: str = Field(..., description="JWT access token")
+    refresh_token: Optional[str] = Field(None, description="JWT refresh token")
     token_type: str = Field("bearer", description="Token type")
     expires_in: int = Field(..., description="Token expiration time in seconds")
     user: dict = Field(..., description="User information")
@@ -133,3 +134,8 @@ class ChangePasswordRequest(BaseModel):
 class ChangePasswordResponse(BaseModel):
     """Response after successful password change."""
     message: str
+
+
+class RefreshTokenRequest(BaseModel):
+    """Schema for refresh token request."""
+    refresh_token: str = Field(..., min_length=16, description="JWT refresh token")

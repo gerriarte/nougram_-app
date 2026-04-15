@@ -30,8 +30,8 @@ interface AdminContextType {
     bcr: BCRCalculation;
 
     // Actions
-    addTeamMember: (member: TeamMember) => void;
-    updateTeamMember: (id: string, member: Partial<TeamMember>) => void;
+    addTeamMember: (member: TeamMember) => Promise<{ success: boolean; error?: string }>;
+    updateTeamMember: (id: string, member: Partial<TeamMember>) => Promise<{ success: boolean; error?: string }>;
     deleteTeamMember: (id: string) => void;
 
     addFixedCost: (cost: FixedCost) => void;
@@ -147,22 +147,26 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }, [bcr.totalMonthlyCosts, bcr.totalBillableHours]);
 
     // 3. Actions
-    const addTeamMember = (member: TeamMember) => {
-        void (async () => {
-            const created = await teamService.create(member);
-            if (!created) return;
-            setTeamMembers(prev => [created, ...prev]);
-        })();
+    const addTeamMember = async (member: TeamMember) => {
+        const result = await teamService.create(member);
+        if (!result.ok) {
+            return { success: false, error: result.error };
+        }
+        setTeamMembers((prev) => [result.member, ...prev]);
+        return { success: true };
     };
-    const updateTeamMember = (id: string, updates: Partial<TeamMember>) => {
+    const updateTeamMember = async (id: string, updates: Partial<TeamMember>) => {
         const current = teamMembers.find((member) => member.id === id);
-        if (!current) return;
+        if (!current) {
+            return { success: false, error: 'Miembro no encontrado.' };
+        }
         const merged = { ...current, ...updates };
-        void (async () => {
-            const updated = await teamService.update(merged);
-            if (!updated) return;
-            setTeamMembers(prev => prev.map(member => member.id === id ? updated : member));
-        })();
+        const result = await teamService.update(merged);
+        if (!result.ok) {
+            return { success: false, error: result.error };
+        }
+        setTeamMembers((prev) => prev.map((member) => (member.id === id ? result.member : member)));
+        return { success: true };
     };
     const deleteTeamMember = (id: string) => {
         void (async () => {

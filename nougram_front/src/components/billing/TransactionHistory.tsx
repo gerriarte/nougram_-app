@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Transaction } from '@/types/billing';
+import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Download, ExternalLink, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 
@@ -60,7 +61,7 @@ export function TransactionHistory({ transactions = [] }: TransactionHistoryProp
                                 <td className="px-8 py-5 font-semibold text-[#1D1D1F] text-[14px]">{tx.invoiceNumber}</td>
                                 <td className="px-6 py-5 text-[#86868B] text-[13px]">{new Date(tx.date).toLocaleDateString()}</td>
                                 <td className="px-6 py-5 font-semibold text-[#1D1D1F] text-[14px]">
-                                    ${tx.amount.toFixed(2)} {tx.currency}
+                                    {formatCurrency(tx.amount, tx.currency)}
                                 </td>
                                 <td className="px-6 py-5 text-[#424245] text-[13px]">
                                     {tx.planName}

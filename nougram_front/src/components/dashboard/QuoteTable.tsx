@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Edit, ArrowUpRight, Link as LinkIcon, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useNougram } from '@/context/NougramCoreContext';
-import { formatMoneyAmount } from '@/lib/utils';
+import { formatDisplayNumber, formatMoneyAmount } from '@/lib/utils';
 import { quoteService } from '@/services/quoteService';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { toast } from 'sonner';
@@ -138,7 +138,7 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                 </p>
                             </div>
                             <div className={`font-bold ${getMarginColor(quote.margin)} text-sm px-3 py-1 rounded-full bg-opacity-10`}>
-                                {quote.margin.toFixed(2)}% margen
+                                {formatDisplayNumber(quote.margin, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% margen
                             </div>
                         </div>
                         <div className="flex flex-col gap-2 pt-1">
@@ -235,7 +235,7 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <div className={`font-bold ${getMarginColor(quote.margin)} text-xs px-2 py-1 rounded-full bg-opacity-10 inline-block`}>
-                                        {quote.margin.toFixed(2)}%
+                                        {formatDisplayNumber(quote.margin, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
                                     </div>
                                 </td>
                                 <td className="px-6 py-4">

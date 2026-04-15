@@ -12,6 +12,7 @@ import {
     TeamGroup,
     workTeamsService
 } from '@/services/workTeamsService';
+import { formatDisplayNumber } from '@/lib/utils';
 
 type VersionMemberDraft = {
     team_member_id: number;
@@ -133,7 +134,7 @@ export function TeamCellsManager() {
 
         const percentageTotal = normalizedMembers.reduce((acc, item) => acc + item.allocation_percentage, 0);
         if (Math.abs(percentageTotal - 100) > 0.05) {
-            throw new Error(`El total de porcentajes debe sumar 100%. Actualmente: ${percentageTotal.toFixed(2)}%.`);
+            throw new Error(`El total de porcentajes debe sumar 100%. Actualmente: ${formatDisplayNumber(percentageTotal, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%.`);
         }
 
         return normalizedMembers.map((item) => ({
@@ -390,7 +391,7 @@ export function TeamCellsManager() {
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                             : 'border-amber-200 bg-amber-50 text-amber-700'
                     }`}>
-                        Total participación: {totalPercentage.toFixed(2)}% {Math.abs(totalPercentage - 100) <= 0.05 ? '(OK)' : '(debe ser 100%)'}
+                        Total participación: {formatDisplayNumber(totalPercentage, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% {Math.abs(totalPercentage - 100) <= 0.05 ? '(OK)' : '(debe ser 100%)'}
                     </div>
 
                     <div className="space-y-2">

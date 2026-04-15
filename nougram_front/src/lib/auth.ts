@@ -1,5 +1,8 @@
 const AUTH_TOKEN_KEY = "auth_token";
+const REFRESH_TOKEN_KEY = "refresh_token";
 const LEGACY_AUTH_KEYS = ["nougram_token", "token", "access_token"];
+const LAST_ACTIVITY_KEY = "nougram_last_activity_at";
+const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -39,9 +42,61 @@ export function setAuthToken(token: string): void {
   localStorage.setItem("nougram_token", token);
 }
 
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function setRefreshToken(token: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(REFRESH_TOKEN_KEY, token);
+}
+
+export function removeRefreshToken(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+export function markUserActivity(): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+}
+
+export function getLastUserActivityAt(): number {
+  if (typeof window === "undefined") return 0;
+  const raw = localStorage.getItem(LAST_ACTIVITY_KEY);
+  const parsed = raw ? Number(raw) : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function isSessionInactive(): boolean {
+  const lastActivityAt = getLastUserActivityAt();
+  if (!lastActivityAt) return false;
+  return Date.now() - lastActivityAt >= INACTIVITY_TIMEOUT_MS;
+}
+
+export function shouldRefreshAccessToken(bufferMs = 2 * 60 * 1000): boolean {
+  const token = getAuthToken();
+  if (!token) return false;
+
+  try {
+    const payloadBase64 = token.split(".")[1];
+    if (!payloadBase64) return true;
+    const payloadJson = atob(payloadBase64.replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(payloadJson) as { exp?: number };
+    if (!payload.exp) return true;
+    const expiresAtMs = payload.exp * 1000;
+    return expiresAtMs - Date.now() <= bufferMs;
+  } catch {
+    return true;
+  }
+}
+
 export function removeAuthToken(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(LAST_ACTIVITY_KEY);
   LEGACY_AUTH_KEYS.forEach((key) => localStorage.removeItem(key));
   sessionStorage.removeItem(AUTH_TOKEN_KEY);
   LEGACY_AUTH_KEYS.forEach((key) => sessionStorage.removeItem(key));

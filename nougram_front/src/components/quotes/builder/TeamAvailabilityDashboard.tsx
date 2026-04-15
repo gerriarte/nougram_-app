@@ -5,6 +5,7 @@ import React from 'react';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { Card, CardContent } from '@/components/ui/Card';
 import { User, Activity, AlertCircle, CheckCircle2, TrendingUp } from 'lucide-react';
+import { formatDisplayNumber } from '@/lib/utils';
 
 interface TeamAvailabilityDashboardProps {
     membersOverride?: import('@/types/quote-builder').TeamMemberMock[];
@@ -91,7 +92,7 @@ export function TeamAvailabilityDashboard({ membersOverride, utilizationCalcOver
                                         <div className="flex flex-col">
                                             <span className="text-[9px] text-gray-400 font-bold uppercase mb-0.5">Uso de Capacidad</span>
                                             <span className={`text-lg font-black leading-none ${statusText}`}>
-                                                {percentage.toFixed(0)}%
+                                                {formatDisplayNumber(percentage, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%
                                             </span>
                                         </div>
                                         <div className="text-right">

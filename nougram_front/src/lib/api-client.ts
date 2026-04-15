@@ -1,7 +1,20 @@
-import { getAuthToken, removeAuthToken } from "@/lib/auth";
+import {
+  getAuthToken,
+  getRefreshToken,
+  markUserActivity,
+  removeAuthToken,
+  setAuthToken,
+  setRefreshToken,
+} from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 let lastExpiredTokenNotified: string | null = null;
+let refreshPromise: Promise<boolean> | null = null;
+
+type RefreshResponse = {
+  access_token: string;
+  refresh_token?: string;
+};
 
 function shouldNotifyAuthExpired(endpoint: string, token: string | null): boolean {
   if (!token) return false;
@@ -64,6 +77,54 @@ export async function apiRequest<T>(
     });
   };
 
+  const shouldSkipRefresh = (normalizedEndpoint: string): boolean => {
+    const endpointLower = normalizedEndpoint.toLowerCase();
+    return (
+      endpointLower.startsWith("/auth/login") ||
+      endpointLower.startsWith("/auth/register") ||
+      endpointLower.startsWith("/auth/forgot-password") ||
+      endpointLower.startsWith("/auth/reset-password") ||
+      endpointLower.startsWith("/auth/verify-email") ||
+      endpointLower.startsWith("/auth/refresh")
+    );
+  };
+
+  const refreshAccessToken = async (): Promise<boolean> => {
+    if (refreshPromise) return refreshPromise;
+
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+
+    refreshPromise = (async () => {
+      try {
+        const refreshResponse = await fetch(`${normalizedBase}/auth/refresh`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+
+        if (!refreshResponse.ok) return false;
+        const payload = (await refreshResponse.json()) as RefreshResponse;
+        if (!payload.access_token) return false;
+
+        setAuthToken(payload.access_token);
+        if (payload.refresh_token) {
+          setRefreshToken(payload.refresh_token);
+        }
+        markUserActivity();
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+
+    return refreshPromise;
+  };
+
   try {
     const normalizedEndpoint = normalizeEndpoint(endpoint);
     const tokenAtRequestStart = getAuthToken();
@@ -83,6 +144,19 @@ export async function apiRequest<T>(
 
     if (!response.ok) {
       if (response.status === 401) {
+        const canRefresh = !shouldSkipRefresh(normalizedEndpoint);
+        if (canRefresh) {
+          const refreshed = await refreshAccessToken();
+          if (refreshed) {
+            response = await requestOnce(normalizedEndpoint);
+            if (response.ok) {
+              if (response.status === 204) return {};
+              const retriedData = (await response.json()) as T;
+              return { data: retriedData };
+            }
+          }
+        }
+
         removeAuthToken();
         if (
           typeof window !== "undefined" &&
@@ -117,10 +191,16 @@ export async function apiRequest<T>(
     }
 
     if (response.status === 204) {
+      if (tokenAtRequestStart) {
+        markUserActivity();
+      }
       return {};
     }
 
     const data = (await response.json()) as T;
+    if (tokenAtRequestStart) {
+      markUserActivity();
+    }
     return { data };
   } catch (error) {
     if (error instanceof TypeError && error.message === "Failed to fetch") {

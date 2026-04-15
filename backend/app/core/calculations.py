@@ -127,8 +127,13 @@ async def calculate_blended_cost_rate(
             primary_currency
         )
         salary_money = Money(normalized, primary_currency)
-        # Apply social charges multiplier (Sprint 18)
-        salary_with_charges = salary_money.multiply(social_charges_multiplier)
+        # Per-member: skip org multiplier when member opted out of social charges
+        effective_mult = (
+            social_charges_multiplier
+            if getattr(member, "apply_social_charges", True)
+            else Decimal("1")
+        )
+        salary_with_charges = salary_money.multiply(effective_mult)
         salary_amounts.append(salary_with_charges)
         
         # #region agent log
@@ -745,7 +750,12 @@ async def get_organization_cost_breakdown(db: AsyncSession, organization_id: int
         )
         # Convertir a float para compatibilidad con código legacy
         normalized_float = float(normalized) if isinstance(normalized, Money) else normalized
-        total_salaries += normalized_float * social_charges_multiplier
+        member_mult = (
+            social_charges_multiplier
+            if getattr(member, "apply_social_charges", True)
+            else 1.0
+        )
+        total_salaries += normalized_float * member_mult
     
     total_costs = total_fixed + total_salaries
     
