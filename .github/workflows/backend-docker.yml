@@ -1,5 +1,12 @@
 name: Backend Docker Build
 
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [ main, develop ]

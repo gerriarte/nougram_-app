@@ -1,5 +1,12 @@
 name: Backend Lint
 
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [ main, develop ]
