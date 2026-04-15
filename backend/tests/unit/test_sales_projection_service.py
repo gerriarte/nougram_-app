@@ -1,24 +1,28 @@
 """
 Unit tests for sales projection service
 """
+
 import pytest
 
-from app.services.sales_projection_service import calculate_sales_projection
 from app.models.service import Service
+from app.services.sales_projection_service import calculate_sales_projection
 
 
 @pytest.mark.unit
 class TestSalesProjectionService:
     """Tests for sales projection service"""
-    
-    async def test_calculate_sales_projection_basic(self, db_session, test_organization, test_service):
+
+    async def test_calculate_sales_projection_basic(
+        self, db_session, test_organization, test_service
+    ):
         """Test basic sales projection calculation"""
         test_service.default_margin_target = 0.30
         db_session.add(test_service)
         await db_session.commit()
-        
+
         # Create team member for BCR calculation
         from app.models.team import TeamMember
+
         member = TeamMember(
             name="Test Member",
             role="Developer",
@@ -26,11 +30,11 @@ class TestSalesProjectionService:
             billable_hours_per_week=40,
             currency="USD",
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(member)
         await db_session.commit()
-        
+
         result = await calculate_sales_projection(
             db_session,
             test_organization.id,
@@ -39,9 +43,9 @@ class TestSalesProjectionService:
             win_rate=0.85,
             scenario="realistic",
             period_months=12,
-            currency="USD"
+            currency="USD",
         )
-        
+
         assert result["scenario"] == "realistic"
         assert result["period_months"] == 12
         # Effective win rate: 0.85 * 0.85 = 0.7225 for realistic scenario
@@ -55,14 +59,17 @@ class TestSalesProjectionService:
         assert result["summary"]["total_revenue"] > 0
         assert result["summary"]["total_costs"] > 0
         assert result["summary"]["total_profit"] > 0
-    
-    async def test_calculate_sales_projection_conservative(self, db_session, test_organization, test_service):
+
+    async def test_calculate_sales_projection_conservative(
+        self, db_session, test_organization, test_service
+    ):
         """Test conservative scenario"""
         test_service.default_margin_target = 0.30
         db_session.add(test_service)
         await db_session.commit()
-        
+
         from app.models.team import TeamMember
+
         member = TeamMember(
             name="Test Member",
             role="Developer",
@@ -70,11 +77,11 @@ class TestSalesProjectionService:
             billable_hours_per_week=40,
             currency="USD",
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(member)
         await db_session.commit()
-        
+
         result = await calculate_sales_projection(
             db_session,
             test_organization.id,
@@ -83,20 +90,23 @@ class TestSalesProjectionService:
             win_rate=0.85,
             scenario="conservative",
             period_months=12,
-            currency="USD"
+            currency="USD",
         )
-        
+
         # Conservative should have lower win rate
         assert result["scenario"] == "conservative"
         assert result["win_rate"] < 0.85  # Reduced by scenario multiplier
-    
-    async def test_calculate_sales_projection_optimistic(self, db_session, test_organization, test_service):
+
+    async def test_calculate_sales_projection_optimistic(
+        self, db_session, test_organization, test_service
+    ):
         """Test optimistic scenario"""
         test_service.default_margin_target = 0.30
         db_session.add(test_service)
         await db_session.commit()
-        
+
         from app.models.team import TeamMember
+
         member = TeamMember(
             name="Test Member",
             role="Developer",
@@ -104,11 +114,11 @@ class TestSalesProjectionService:
             billable_hours_per_week=40,
             currency="USD",
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(member)
         await db_session.commit()
-        
+
         result = await calculate_sales_projection(
             db_session,
             test_organization.id,
@@ -117,13 +127,13 @@ class TestSalesProjectionService:
             win_rate=0.85,
             scenario="optimistic",
             period_months=12,
-            currency="USD"
+            currency="USD",
         )
-        
+
         # Optimistic should have higher win rate
         assert result["scenario"] == "optimistic"
         assert result["win_rate"] == 0.85  # Full win rate
-    
+
     async def test_calculate_sales_projection_no_services(self, db_session, test_organization):
         """Test projection with no valid services"""
         with pytest.raises(ValueError, match="No valid services found"):
@@ -135,10 +145,12 @@ class TestSalesProjectionService:
                 win_rate=0.85,
                 scenario="realistic",
                 period_months=12,
-                currency="USD"
+                currency="USD",
             )
-    
-    async def test_calculate_sales_projection_multiple_services(self, db_session, test_organization):
+
+    async def test_calculate_sales_projection_multiple_services(
+        self, db_session, test_organization
+    ):
         """Test projection with multiple services"""
         # Create multiple services
         service1 = Service(
@@ -146,20 +158,21 @@ class TestSalesProjectionService:
             pricing_type="hourly",
             default_margin_target=0.30,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         service2 = Service(
             name="Service 2",
             pricing_type="hourly",
             default_margin_target=0.40,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(service1)
         db_session.add(service2)
         await db_session.commit()
-        
+
         from app.models.team import TeamMember
+
         member = TeamMember(
             name="Test Member",
             role="Developer",
@@ -167,11 +180,11 @@ class TestSalesProjectionService:
             billable_hours_per_week=40,
             currency="USD",
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(member)
         await db_session.commit()
-        
+
         result = await calculate_sales_projection(
             db_session,
             test_organization.id,
@@ -180,20 +193,23 @@ class TestSalesProjectionService:
             win_rate=0.85,
             scenario="realistic",
             period_months=12,
-            currency="USD"
+            currency="USD",
         )
-        
+
         assert len(result["service_projections"]) == 2
         assert result["summary"]["total_revenue"] > 0
         assert result["summary"]["total_estimated_hours"] == 125.0  # 50 + 75
-    
-    async def test_calculate_sales_projection_monthly_breakdown(self, db_session, test_organization, test_service):
+
+    async def test_calculate_sales_projection_monthly_breakdown(
+        self, db_session, test_organization, test_service
+    ):
         """Test monthly breakdown calculation"""
         test_service.default_margin_target = 0.30
         db_session.add(test_service)
         await db_session.commit()
-        
+
         from app.models.team import TeamMember
+
         member = TeamMember(
             name="Test Member",
             role="Developer",
@@ -201,11 +217,11 @@ class TestSalesProjectionService:
             billable_hours_per_week=40,
             currency="USD",
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(member)
         await db_session.commit()
-        
+
         result = await calculate_sales_projection(
             db_session,
             test_organization.id,
@@ -214,12 +230,12 @@ class TestSalesProjectionService:
             win_rate=0.85,
             scenario="realistic",
             period_months=12,
-            currency="USD"
+            currency="USD",
         )
-        
+
         # Should have 12 months
         assert len(result["monthly_projections"]) == 12
-        
+
         # Each month should have revenue, costs, profit, margin
         for month_data in result["monthly_projections"]:
             assert "month" in month_data
@@ -230,7 +246,6 @@ class TestSalesProjectionService:
             assert month_data["revenue"] > 0
             assert month_data["costs"] > 0
             assert month_data["profit"] == month_data["revenue"] - month_data["costs"]
-        
+
         # Hours per month should be 120 / 12 = 10
         assert result["summary"]["hours_per_month"] == 10.0
-

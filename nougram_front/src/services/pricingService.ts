@@ -1,5 +1,5 @@
 
-import { QuoteItem, TaxConfig, CalculationSummary, ResourceAllocation } from '@/types/quote-builder';
+import { QuoteItem, TaxConfig, CalculationSummary } from '@/types/quote-builder';
 
 // Interface for calculation results per item
 export interface ItemCalculationResult {
@@ -9,8 +9,8 @@ export interface ItemCalculationResult {
     marginAmount: number;
 }
 
-// Interface for total calculation results (maps to CalculationSummary)
-export interface QuoteCalculationResult extends CalculationSummary { }
+/** Total calculation results (alias of CalculationSummary). */
+export type QuoteCalculationResult = CalculationSummary;
 
 export const pricingService = {
 
