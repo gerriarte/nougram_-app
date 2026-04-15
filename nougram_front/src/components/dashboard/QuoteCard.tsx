@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Eye, Clock, CheckCircle2, XCircle, MoreHorizontal, ArrowUpRight, Send, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useNougram } from '@/context/NougramCoreContext';
-import { formatMoneyAmount } from '@/lib/utils';
+import { formatDisplayNumber, formatMoneyAmount } from '@/lib/utils';
 
 export interface Quote {
     id: string;
@@ -114,14 +114,14 @@ export function QuoteCard({ quote, onStatusChange, onOpenPublicAccess, isPublicA
                     </p>
                     <p>
                         Impuestos: <span className="font-semibold text-[#374151]">${formatMoneyAmount(taxAmount)}</span>
-                        {taxRate > 0 ? <span className="ml-1 text-[#9AA0A6]">({taxRate.toFixed(2)}%)</span> : null}
+                        {taxRate > 0 ? <span className="ml-1 text-[#9AA0A6]">({formatDisplayNumber(taxRate, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)</span> : null}
                     </p>
                 </div>
 
                 <div className="flex items-center gap-2 mt-1">
                     <div className={`h-2 w-2 rounded-full ${getMarginColor(quote.margin).replace('text', 'bg')}`} />
                     <span className={`text-xs font-medium ${getMarginColor(quote.margin)}`}>
-                        {quote.margin.toFixed(2)}% Margen
+                        {formatDisplayNumber(quote.margin, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% Margen
                     </span>
                     <span className="text-xs text-gray-300 mx-1">•</span>
                     <span className="text-[11px] font-medium text-[#86868B] bg-gray-100 px-2 py-0.5 rounded-full">

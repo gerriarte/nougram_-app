@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { Info, ArrowUpRight, Percent, Users, Receipt } from 'lucide-react';
 import Link from 'next/link';
-import { formatMoneyAmount } from '@/lib/utils';
+import { formatDisplayNumber, formatMoneyAmount } from '@/lib/utils';
 
 export function QuoteFinancialSummary() {
     const { summary, state, toggleTax, taxes, setTargetMargin, teamMembers } = useQuoteBuilder();
@@ -21,9 +21,9 @@ export function QuoteFinancialSummary() {
 
     const objectiveDisplay = React.useMemo(() => {
         if (objectiveMode === 'markup') {
-            return `${(markupRatioFromMargin * 100).toFixed(0)}%`;
+            return `${formatDisplayNumber(markupRatioFromMargin * 100, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%`;
         }
-        return `${(state.targetMargin * 100).toFixed(0)}%`;
+        return `${formatDisplayNumber(state.targetMargin * 100, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%`;
     }, [objectiveMode, markupRatioFromMargin, state.targetMargin]);
 
     const updateFromMarkupPercent = (markupPercent: number) => {
@@ -210,7 +210,7 @@ export function QuoteFinancialSummary() {
                             </div>
                             {objectiveMode === 'markup' && (
                                 <p className="mt-2 text-[10px] text-gray-500 font-medium">
-                                    150% de markup equivale aproximadamente a {(state.targetMargin * 100).toFixed(1)}% de margen.
+                                    150% de markup equivale aproximadamente a {formatDisplayNumber(state.targetMargin * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% de margen.
                                 </p>
                             )}
                         </div>
@@ -252,7 +252,7 @@ export function QuoteFinancialSummary() {
                                 <div className="space-y-1">
                                     <p className={`text-[10px] font-black uppercase tracking-widest ${marginColor}`}>Utilidad Neta ({marginLabel})</p>
                                     <p className={`text-3xl font-black ${marginColor} tracking-tighter`}>
-                                        {summary.netMarginPercent.toFixed(1)}%
+                                        {formatDisplayNumber(summary.netMarginPercent, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                                     </p>
                                 </div>
                                 <div className={`p-2 rounded-xl bg-white shadow-sm border border-gray-100 ${marginColor}`}>

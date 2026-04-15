@@ -142,11 +142,15 @@ async def calculate_projection_summary(
             primary_currency
         )
         # normalize_to_primary_currency retorna Money si input es Money
+        effective_mult = (
+            social_charges_multiplier
+            if getattr(member, "apply_social_charges", True)
+            else Decimal("1")
+        )
         if isinstance(normalized, Money):
-            salary_with_charges = normalized.multiply(social_charges_multiplier)
+            salary_with_charges = normalized.multiply(effective_mult)
         else:
-            # Compatibilidad hacia atrás: convertir float a Money
-            salary_with_charges = Money(normalized, primary_currency).multiply(social_charges_multiplier)
+            salary_with_charges = Money(normalized, primary_currency).multiply(effective_mult)
         total_monthly_cost_money = total_monthly_cost_money.add(salary_with_charges)
     
     break_even_monthly_cost = total_monthly_cost_money.amount

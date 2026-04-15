@@ -15,6 +15,7 @@ import { CreditsRequiredError } from '@/lib/errors';
 import type { PaywallReason } from '@/components/billing/PaywallModal';
 import { getQuoteEditorMeta, saveQuoteEditorMeta } from '@/lib/quote-editor-meta';
 import { trackQuoteCreated, trackQuoteSaved } from '@/lib/analytics';
+import { formatDisplayNumber } from '@/lib/utils';
 
 // --- INITIAL STATE ---
 const INITIAL_STATE: QuoteBuilderState = {
@@ -309,7 +310,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 // Note: getMemberUtilization calculates TOTAL used including this one.
                 // We check if utilization > 100
                 if (util.percentage > 100) {
-                    errors.push(`Error: ${member.name} allocated > 100% capacity (${util.percentage.toFixed(1)}%)`);
+                    errors.push(`Error: ${member.name} allocated > 100% capacity (${formatDisplayNumber(util.percentage, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)`);
                 }
             }
         });

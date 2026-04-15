@@ -25,6 +25,7 @@ class TeamMember(Base):
     currency = Column(String, default="USD", nullable=False)  # USD, COP, ARS, EUR
     billable_hours_per_week = Column(Integer, default=32)
     non_billable_hours_percentage = Column(Numeric(precision=10, scale=4), default=0.0)  # ESTÁNDAR NOUGRAM: Numeric - Percentage of time for admin/compliance (e.g., 0.20 = 20%)
+    apply_social_charges = Column(Boolean, default=True, nullable=False)  # When True and org social charges enabled, salary includes charge multiplier
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

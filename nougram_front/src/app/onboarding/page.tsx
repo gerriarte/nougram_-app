@@ -29,7 +29,7 @@ import { CANONICAL_NEW_QUOTE_PATH } from '@/lib/mobile-routes';
 import { FixedCostTemplate } from '@/types/onboarding';
 import { normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
 import { Step3MyTeamData } from '@/types/onboarding';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDisplayNumber } from '@/lib/utils';
 
 type TemporaryBcrResponse = {
     blended_cost_rate: string;
@@ -559,7 +559,7 @@ export default function OnboardingPage() {
                             </p>
                             {importPreview.temporary_bcr?.blended_cost_rate && (
                                 <p className="text-xs text-gray-600 mt-1">
-                                    BCR estimado del import: {Number(importPreview.temporary_bcr.blended_cost_rate).toFixed(2)}
+                                    BCR estimado del import: {formatDisplayNumber(Number(importPreview.temporary_bcr.blended_cost_rate), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </p>
                             )}
                             {importPreview.issues.length > 0 && (

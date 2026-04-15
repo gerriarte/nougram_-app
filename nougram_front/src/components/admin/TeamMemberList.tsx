@@ -1,7 +1,7 @@
 import * as React from "react";
 import { TeamMemberDisplay } from "@/types/admin";
 import { Button } from "@/components/ui/Button";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDisplayNumber } from "@/lib/utils";
 import { Edit2, Trash2, UserPlus, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 
@@ -68,7 +68,7 @@ export function TeamMemberList({ members, onAdd, onEdit, onDelete }: TeamMemberL
                                     <div className="text-xs text-gray-500">Base: {formatCurrency(member.salary_monthly_brute)}</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                                    <div className="text-sm text-gray-900">{member.billable_hours_per_month.toFixed(1)}</div>
+                                    <div className="text-sm text-gray-900">{formatDisplayNumber(member.billable_hours_per_month, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
                                     <div className="text-xs text-gray-400">Facturables</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right">

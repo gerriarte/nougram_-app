@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { SocialChargesConfig } from "@/types/admin";
 import { calculateSocialChargesMult } from "@/lib/admin-logic";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { formatDisplayNumber } from "@/lib/utils";
 
 interface SocialChargesFormProps {
     config: SocialChargesConfig;
@@ -33,7 +34,7 @@ export function SocialChargesForm({ config, onChange }: SocialChargesFormProps) 
                 <div className="flex flex-col">
                     <CardTitle className="text-base">Configuración de Cargas Sociales</CardTitle>
                     <span className="text-sm text-gray-500 font-normal">
-                        {config.enable_social_charges ? `Activo (${totalPercentage.toFixed(3)}%)` : "Inactivo"}
+                        {config.enable_social_charges ? `Activo (${formatDisplayNumber(totalPercentage, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}%)` : "Inactivo"}
                     </span>
                 </div>
                 <div className="flex items-center gap-4">
@@ -166,8 +167,8 @@ export function SocialChargesForm({ config, onChange }: SocialChargesFormProps) 
                     <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-100 flex justify-between items-center">
                         <span className="text-sm font-medium text-gray-500">Total Factor Prestacional (Multiplicador)</span>
                         <div className="text-2xl font-bold text-gray-900">
-                            x{multiplier.toFixed(5)}
-                            <span className="text-sm font-normal text-gray-400 ml-2">({totalPercentage.toFixed(3)}%)</span>
+                            x{formatDisplayNumber(multiplier, { minimumFractionDigits: 5, maximumFractionDigits: 5 })}
+                            <span className="text-sm font-normal text-gray-400 ml-2">({formatDisplayNumber(totalPercentage, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}%)</span>
                         </div>
                     </div>
                 </CardContent>

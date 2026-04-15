@@ -4,6 +4,7 @@ import { CreditUsage, CreditTransaction } from '@/types/billing';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Zap, ArrowRight, BatteryCharging, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { formatDisplayNumber } from '@/lib/utils';
 
 // Mock Recent Activity
 const DEFAULT_ACTIVITY: CreditTransaction[] = [
@@ -119,7 +120,7 @@ export function CreditTracker({
                 {!isUnlimited && (
                     <div className="relative z-10">
                         <div className="flex justify-between items-center mb-2">
-                            <span className="text-[13px] font-medium text-[#86868B]">{percentage.toFixed(0)}% Utilizado</span>
+                            <span className="text-[13px] font-medium text-[#86868B]">{formatDisplayNumber(percentage, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}% Utilizado</span>
                             <span className="text-[13px] font-semibold text-[#1D1D1F]">{usage.available} disponibles</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">

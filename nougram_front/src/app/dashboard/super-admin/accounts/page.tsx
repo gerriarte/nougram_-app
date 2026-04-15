@@ -28,6 +28,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api-client';
 import { getAuthToken, setAuthToken } from '@/lib/auth';
 import { trackOrganizationSwitched } from '@/lib/analytics';
+import { formatDisplayNumber } from '@/lib/utils';
 
 type OrganizationItem = {
     id: number;
@@ -478,7 +479,7 @@ export default function SuperAdminAccountsPage() {
                 alerts.push({
                     id: 'high_rejection',
                     title: 'Alta tasa de rechazo en propuestas',
-                    description: `Rechazo ${(rejectionRatio * 100).toFixed(1)}% en propuestas del periodo.`,
+                    description: `Rechazo ${formatDisplayNumber(rejectionRatio * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% en propuestas del periodo.`,
                     severity: 'warning'
                 });
             }
@@ -487,7 +488,7 @@ export default function SuperAdminAccountsPage() {
             alerts.push({
                 id: 'high_ai_cost',
                 title: 'Costo IA alto en el periodo',
-                description: `Costo estimado de IA: USD ${currentSnapshot.ai_total_cost_usd.toFixed(2)}.`,
+                description: `Costo estimado de IA: USD ${formatDisplayNumber(currentSnapshot.ai_total_cost_usd, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`,
                 severity: 'info'
             });
         }
@@ -1731,10 +1732,10 @@ export default function SuperAdminAccountsPage() {
                                             {!detailLoading && aiUsageStats && (
                                                 <>
                                                     <p className="text-2xl font-black text-gray-900">
-                                                        {aiUsageStats.total_tokens.toLocaleString('es-CO')} tokens
+                                                        {formatDisplayNumber(aiUsageStats.total_tokens, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} tokens
                                                     </p>
                                                     <p className="text-xs text-system-gray">
-                                                        {aiUsageStats.event_count} eventos · ~${aiUsageStats.total_estimated_cost_usd.toFixed(4)} USD
+                                                        {aiUsageStats.event_count} eventos · ~USD {formatDisplayNumber(aiUsageStats.total_estimated_cost_usd, { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
                                                     </p>
                                                 </>
                                             )}
@@ -1795,28 +1796,28 @@ export default function SuperAdminAccountsPage() {
                                                 <p className="text-[11px] font-black uppercase tracking-[0.15em] text-system-gray">Propuestas</p>
                                                 <p className="text-2xl font-black text-gray-900">{currentSnapshot?.proposal_total_links ?? '-'}</p>
                                                 <p className="text-xs text-system-gray">
-                                                    Δ {comparativeDeltas ? `${comparativeDeltas.proposals >= 0 ? '+' : ''}${comparativeDeltas.proposals.toFixed(1)}%` : '-'}
+                                                    Δ {comparativeDeltas ? `${comparativeDeltas.proposals >= 0 ? '+' : ''}${formatDisplayNumber(comparativeDeltas.proposals, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '-'}
                                                 </p>
                                             </div>
                                             <div className="rounded-xl border border-gray-100 bg-white p-3">
                                                 <p className="text-[11px] font-black uppercase tracking-[0.15em] text-system-gray">Tokens IA</p>
-                                                <p className="text-2xl font-black text-gray-900">{currentSnapshot ? currentSnapshot.ai_total_tokens.toLocaleString('es-CO') : '-'}</p>
+                                                <p className="text-2xl font-black text-gray-900">{currentSnapshot ? formatDisplayNumber(currentSnapshot.ai_total_tokens, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '-'}</p>
                                                 <p className="text-xs text-system-gray">
-                                                    Δ {comparativeDeltas ? `${comparativeDeltas.aiTokens >= 0 ? '+' : ''}${comparativeDeltas.aiTokens.toFixed(1)}%` : '-'}
+                                                    Δ {comparativeDeltas ? `${comparativeDeltas.aiTokens >= 0 ? '+' : ''}${formatDisplayNumber(comparativeDeltas.aiTokens, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '-'}
                                                 </p>
                                             </div>
                                             <div className="rounded-xl border border-gray-100 bg-white p-3">
                                                 <p className="text-[11px] font-black uppercase tracking-[0.15em] text-system-gray">Costo IA (USD)</p>
-                                                <p className="text-2xl font-black text-gray-900">{currentSnapshot ? currentSnapshot.ai_total_cost_usd.toFixed(2) : '-'}</p>
+                                                <p className="text-2xl font-black text-gray-900">{currentSnapshot ? formatDisplayNumber(currentSnapshot.ai_total_cost_usd, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}</p>
                                                 <p className="text-xs text-system-gray">
-                                                    Δ {comparativeDeltas ? `${comparativeDeltas.aiCost >= 0 ? '+' : ''}${comparativeDeltas.aiCost.toFixed(1)}%` : '-'}
+                                                    Δ {comparativeDeltas ? `${comparativeDeltas.aiCost >= 0 ? '+' : ''}${formatDisplayNumber(comparativeDeltas.aiCost, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '-'}
                                                 </p>
                                             </div>
                                             <div className="rounded-xl border border-gray-100 bg-white p-3">
                                                 <p className="text-[11px] font-black uppercase tracking-[0.15em] text-system-gray">Monto ledger</p>
-                                                <p className="text-2xl font-black text-gray-900">{currentSnapshot ? currentSnapshot.ledger_total_amount.toFixed(2) : '-'}</p>
+                                                <p className="text-2xl font-black text-gray-900">{currentSnapshot ? formatDisplayNumber(currentSnapshot.ledger_total_amount, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}</p>
                                                 <p className="text-xs text-system-gray">
-                                                    Δ {comparativeDeltas ? `${comparativeDeltas.ledgerAmount >= 0 ? '+' : ''}${comparativeDeltas.ledgerAmount.toFixed(1)}%` : '-'}
+                                                    Δ {comparativeDeltas ? `${comparativeDeltas.ledgerAmount >= 0 ? '+' : ''}${formatDisplayNumber(comparativeDeltas.ledgerAmount, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '-'}
                                                 </p>
                                             </div>
                                         </div>

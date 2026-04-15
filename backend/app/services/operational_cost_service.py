@@ -203,7 +203,8 @@ async def _compute_resource_costs(
             dec = norm.amount
         else:
             dec = Decimal(str(norm))
-        total += (dec * multiplier).quantize(Decimal("0.0001"))
+        effective = multiplier if getattr(member, "apply_social_charges", True) else Decimal("1")
+        total += (dec * effective).quantize(Decimal("0.0001"))
     return total
 
 

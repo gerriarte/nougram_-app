@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { fetchOperationalCosts, type OperationalCostPayload } from '@/lib/operational-costs-api';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDisplayNumber } from '@/lib/utils';
 import { useNougram } from '@/context/NougramCoreContext';
 import { apiRequest } from '@/lib/api-client';
 import {
@@ -25,7 +25,7 @@ function parseDecimal(s: string | null | undefined): number {
 
 function formatPercent(value: string | null | undefined): string {
   const n = parseDecimal(value);
-  return `${(n * 100).toFixed(1)}%`;
+  return `${formatDisplayNumber(n * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
 export default function OperationalCostsPage() {

@@ -9,6 +9,7 @@ type TeamApiMember = {
     currency: TeamMember['currency'];
     billable_hours_per_week: number;
     non_billable_hours_percentage?: string | number;
+    apply_social_charges?: boolean;
     is_active?: boolean;
 };
 
@@ -27,8 +28,13 @@ type TeamCreatePayload = {
     currency: TeamMember['currency'];
     billable_hours_per_week: number;
     non_billable_hours_percentage: number;
+    apply_social_charges: boolean;
     is_active: boolean;
 };
+
+export type TeamMemberSaveResult =
+    | { ok: true; member: TeamMember }
+    | { ok: false; error: string };
 
 function toNumber(value: string | number | undefined, fallback = 0): number {
     const parsed = Number(value);
@@ -42,7 +48,7 @@ function mapApiToUi(member: TeamApiMember): TeamMember {
         role: member.role,
         salaryMonthlyBrute: toNumber(member.salary_monthly_brute),
         currency: member.currency || 'COP',
-        applySocialCharges: true,
+        applySocialCharges: member.apply_social_charges ?? true,
         salaryWithCharges: 0,
         billableHoursPerWeek: member.billable_hours_per_week || 0,
         nonBillablePercentage: toNumber(member.non_billable_hours_percentage, 0),
@@ -59,6 +65,7 @@ function mapUiToApi(member: TeamMember): TeamCreatePayload {
         currency: member.currency,
         billable_hours_per_week: member.billableHoursPerWeek,
         non_billable_hours_percentage: member.nonBillablePercentage,
+        apply_social_charges: member.applySocialCharges,
         is_active: member.isActive
     };
 }
@@ -70,24 +77,30 @@ export const teamService = {
         return response.data.items.map(mapApiToUi);
     },
 
-    async create(member: TeamMember): Promise<TeamMember | null> {
+    async create(member: TeamMember): Promise<TeamMemberSaveResult> {
         const response = await apiRequest<TeamApiMember>('/settings/team', {
             method: 'POST',
             body: JSON.stringify(mapUiToApi(member))
         });
-        if (response.error || !response.data) return null;
-        return mapApiToUi(response.data);
+        if (response.error || !response.data) {
+            return { ok: false, error: response.error ?? 'No se pudo crear el miembro.' };
+        }
+        return { ok: true, member: mapApiToUi(response.data) };
     },
 
-    async update(member: TeamMember): Promise<TeamMember | null> {
+    async update(member: TeamMember): Promise<TeamMemberSaveResult> {
         const memberId = Number(member.id);
-        if (!Number.isFinite(memberId)) return null;
+        if (!Number.isFinite(memberId)) {
+            return { ok: false, error: 'Identificador de miembro inválido.' };
+        }
         const response = await apiRequest<TeamApiMember>(`/settings/team/${memberId}`, {
             method: 'PUT',
             body: JSON.stringify(mapUiToApi(member))
         });
-        if (response.error || !response.data) return null;
-        return mapApiToUi(response.data);
+        if (response.error || !response.data) {
+            return { ok: false, error: response.error ?? 'No se pudo actualizar el miembro.' };
+        }
+        return { ok: true, member: mapApiToUi(response.data) };
     },
 
     async remove(memberId: string): Promise<boolean> {
@@ -97,4 +110,3 @@ export const teamService = {
         return !response.error;
     }
 };
-

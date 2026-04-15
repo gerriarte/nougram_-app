@@ -507,8 +507,12 @@ async def calculate_agency_cost_hour(
             else:
                 normalized_decimal = Decimal(str(normalized))
             
-            # Apply social charges multiplier after normalization
-            real_monthly_cost = normalized_decimal * social_charges_multiplier
+            member_mult = (
+                social_charges_multiplier
+                if getattr(member, "apply_social_charges", True)
+                else Decimal("1")
+            )
+            real_monthly_cost = normalized_decimal * member_mult
             total_salaries += real_monthly_cost
         
         # Calculate total billable hours per month across all members

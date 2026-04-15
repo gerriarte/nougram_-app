@@ -151,6 +151,7 @@ async def sync_google_sheets_data(
                             salary_monthly_brute=float(row.get("salary_monthly_brute", 0)),
                             billable_hours_per_week=float(row.get("billable_hours_per_week", 40)),
                             role=row.get("role", ""),
+                            apply_social_charges=True,
                             is_active=row.get("is_active", True),
                             organization_id=organization_id,  # Multi-tenant: assign to organization
                             currency=row.get("currency", "USD")

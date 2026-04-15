@@ -4,45 +4,52 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { TeamMember } from '@/types/admin';
 import { useNougram } from '@/context/NougramCoreContext';
 
-type TeamMemberInput = Omit<TeamMember, 'id' | 'salaryWithCharges' | 'isActive'>;
+export type TeamMemberFormSavePayload = Omit<TeamMember, 'id' | 'salaryWithCharges'>;
 
 interface TeamMemberFormProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     initialData?: TeamMember;
-    onSave: (data: TeamMemberInput) => void;
+    onSave: (data: TeamMemberFormSavePayload) => Promise<{ success: boolean; error?: string }>;
 }
 
-const DEFAULT_FORM: TeamMemberInput = {
+const DEFAULT_FORM: TeamMemberFormSavePayload = {
     name: '',
     role: '',
     salaryMonthlyBrute: 0,
     currency: 'COP',
     applySocialCharges: true,
     billableHoursPerWeek: 32,
-    nonBillablePercentage: 0.2, // 20%
-    vacationDaysPerYear: 15
+    nonBillablePercentage: 0.2,
+    vacationDaysPerYear: 15,
+    isActive: true,
 };
 
 export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: TeamMemberFormProps) {
     const { state } = useNougram();
     const primaryCurrency = state.identity.primaryCurrency || 'COP';
-    const [formData, setFormData] = useState<TeamMemberInput>(DEFAULT_FORM);
+    const [formData, setFormData] = useState<TeamMemberFormSavePayload>(DEFAULT_FORM);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
+        if (!open) return;
+        setSaveError(null);
         if (initialData) {
-            // Destructure to remove extra fields if passed
-            const { id, salaryWithCharges, isActive, ...rest } = initialData;
-            setFormData({ ...rest, currency: primaryCurrency as TeamMemberInput['currency'] });
+            const { id: _id, salaryWithCharges: _salaryWithCharges, ...rest } = initialData;
+            void _id;
+            void _salaryWithCharges;
+            setFormData({ ...rest, currency: primaryCurrency as TeamMemberFormSavePayload['currency'] });
         } else {
-            setFormData({ ...DEFAULT_FORM, currency: primaryCurrency as TeamMemberInput['currency'] });
+            setFormData({ ...DEFAULT_FORM, currency: primaryCurrency as TeamMemberFormSavePayload['currency'] });
         }
     }, [initialData, open, primaryCurrency]);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!formData.name || !formData.role || formData.salaryMonthlyBrute <= 0) {
             alert('Por favor completa los campos requeridos correctamente.');
             return;
@@ -51,8 +58,22 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
             alert('Las horas facturables deben estar entre 0 y 80.');
             return;
         }
-        onSave({ ...formData, currency: primaryCurrency as TeamMemberInput['currency'] });
-        onOpenChange(false);
+        setSaveError(null);
+        setIsSaving(true);
+        try {
+            const payload: TeamMemberFormSavePayload = {
+                ...formData,
+                currency: primaryCurrency as TeamMemberFormSavePayload['currency'],
+            };
+            const result = await onSave(payload);
+            if (!result.success) {
+                setSaveError(result.error ?? 'No se pudo guardar el miembro.');
+                return;
+            }
+            onOpenChange(false);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -65,6 +86,12 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
+                    {saveError && (
+                        <Alert variant="critical">
+                            <AlertTitle>Error al guardar</AlertTitle>
+                            <AlertDescription>{saveError}</AlertDescription>
+                        </Alert>
+                    )}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Nombre Completo *</Label>
@@ -84,6 +111,17 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
                         </div>
                     </div>
 
+                    <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
+                        <input
+                            type="checkbox"
+                            id="member-active"
+                            checked={formData.isActive}
+                            onChange={e => setFormData({ ...formData, isActive: e.target.checked })}
+                            className="h-4 w-4 rounded text-blue-600"
+                        />
+                        <Label htmlFor="member-active" className="font-normal cursor-pointer">Miembro activo</Label>
+                    </div>
+
                     <div className="space-y-2 p-4 bg-gray-50 rounded-lg border">
                         <h4 className="font-medium text-sm text-gray-900 mb-3">Compensación</h4>
                         <div className="grid grid-cols-2 gap-4">
@@ -98,6 +136,9 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
                             <div className="space-y-2">
                                 <Label>Moneda de operación</Label>
                                 <Input value={primaryCurrency} disabled />
+                                <p className="text-xs text-gray-500">
+                                    Coincide con la moneda principal de la organización; el servidor la valida al guardar.
+                                </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2 mt-3">
@@ -141,8 +182,10 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
                 </div>
 
                 <DialogFooter>
-                    <Button variant="secondary" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    <Button onClick={handleSave}>Guardar Miembro</Button>
+                    <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSaving}>Cancelar</Button>
+                    <Button onClick={() => void handleSave()} disabled={isSaving}>
+                        {isSaving ? 'Guardando...' : 'Guardar Miembro'}
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

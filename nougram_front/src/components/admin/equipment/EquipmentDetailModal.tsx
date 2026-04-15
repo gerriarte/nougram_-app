@@ -8,7 +8,7 @@ import { DepreciationScheduleTable } from './DepreciationScheduleTable';
 import { AssetValueChart } from './AssetValueChart';
 import { LifeProgressBar } from './LifeProgressBar';
 import { calculateDepreciation } from '@/lib/depreciation';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDisplayNumber } from '@/lib/utils';
 
 interface EquipmentDetailModalProps {
     equipment: Equipment | null;
@@ -52,7 +52,7 @@ export function EquipmentDetailModal({ equipment, onClose }: EquipmentDetailModa
                             <div className="mt-2">
                                 <LifeProgressBar percentage={stats.percentageDepreciated} />
                             </div>
-                            <p className="text-[10px] text-right mt-1 text-gray-400">{stats.percentageDepreciated.toFixed(1)}%</p>
+                            <p className="text-[10px] text-right mt-1 text-gray-400">{formatDisplayNumber(stats.percentageDepreciated, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</p>
                         </div>
                     </div>
 

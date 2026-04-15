@@ -10,7 +10,7 @@ import { Equipment } from '@/types/equipment';
 import { LifeProgressBar } from './LifeProgressBar';
 import { EquipmentForm } from './EquipmentForm';
 import { EquipmentDetailModal } from './EquipmentDetailModal';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDisplayNumber } from '@/lib/utils';
 
 export function EquipmentList() {
     const { equipment, removeEquipment, updateEquipment, addEquipment, getStats, loading } = useEquipment();
@@ -78,7 +78,7 @@ export function EquipmentList() {
                                         {/* Progress Bar */}
                                         <div className="max-w-md space-y-1">
                                             <div className="flex justify-between text-xs font-medium text-gray-600">
-                                                <span>Vida Útil: {stats.percentageDepreciated.toFixed(0)}% Consumida</span>
+                                                <span>Vida Útil: {formatDisplayNumber(stats.percentageDepreciated, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}% Consumida</span>
                                                 <span>{stats.monthsRemaining} meses restantes</span>
                                             </div>
                                             <LifeProgressBar percentage={stats.percentageDepreciated} />

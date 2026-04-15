@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDisplayNumber } from '@/lib/utils';
 import { ScenarioResult } from '@/types/break-even';
 import { Pencil, Trash2, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -51,7 +52,7 @@ export function ScenarioCard({ scenario, onEdit, onDelete, currency }: ScenarioC
                 {scenario.config.average_margin_adjustment !== 0 && (
                     <div className="flex justify-between">
                         <span>Ajuste Margen:</span>
-                        <span className="font-medium">{scenario.config.average_margin_adjustment > 0 ? '+' : ''}{(scenario.config.average_margin_adjustment * 100).toFixed(0)}%</span>
+                        <span className="font-medium">{scenario.config.average_margin_adjustment > 0 ? '+' : ''}{formatDisplayNumber(scenario.config.average_margin_adjustment * 100, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</span>
                     </div>
                 )}
             </div>

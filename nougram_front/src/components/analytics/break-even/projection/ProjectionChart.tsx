@@ -1,5 +1,6 @@
 import React from 'react';
 import { MonthProjection } from '@/types/break-even';
+import { formatDisplayNumber } from '@/lib/utils';
 
 interface ProjectionChartProps {
     projection: MonthProjection[];
@@ -20,7 +21,7 @@ export function ProjectionChart({ projection, target }: ProjectionChartProps) {
                     className="absolute left-0 w-full border-t-2 border-dashed border-gray-400 z-10 flex items-center pointer-events-none"
                     style={{ bottom: `${(target / maxVal) * 100}%` }}
                 >
-                    <span className="bg-gray-100 text-gray-600 text-xs px-2 rounded ml-2">Meta: {target}h</span>
+                    <span className="bg-gray-100 text-gray-600 text-xs px-2 rounded ml-2">Meta: {formatDisplayNumber(target, { minimumFractionDigits: 0, maximumFractionDigits: 1 })}h</span>
                 </div>
 
                 {projection.map((col, i) => {
@@ -38,7 +39,7 @@ export function ProjectionChart({ projection, target }: ProjectionChartProps) {
                             {/* Tooltip */}
                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-black text-white text-xs p-2 rounded z-20 whitespace-nowrap shadow-lg">
                                 <div className="capitalize">{col.month}</div>
-                                <div className="font-bold">{col.allocated_hours.toLocaleString('es-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h</div>
+                                <div className="font-bold">{formatDisplayNumber(col.allocated_hours, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h</div>
                             </div>
                         </div>
                     );

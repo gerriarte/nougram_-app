@@ -714,6 +714,7 @@ class OnboardingService:
                     salary_monthly_brute=member_data.salary_monthly_brute,
                     currency=getattr(member_data.currency, "value", member_data.currency).upper(),
                     billable_hours_per_week=billable_hours_per_week,
+                    apply_social_charges=True,
                     is_active=True,
                     organization_id=self.organization_id
                 )

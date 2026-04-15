@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/Label';
 import { AlertCircle, Activity, User, Calendar, FileText, Info, CheckCircle2 } from 'lucide-react';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { ResourceAllocation } from '@/types/quote-builder';
+import { formatDisplayNumber } from '@/lib/utils';
 
 interface ResourceAllocationModalProps {
     isOpen: boolean;
@@ -64,7 +65,7 @@ export function ResourceAllocationModal({ isOpen, onClose, allocationToEdit, onS
             const projectedPercent = (projectedUsed / member.availableHours) * 100;
 
             if (projectedPercent > 100) {
-                return `Capacidad excedida: ${member.name} quedaría al ${projectedPercent.toFixed(1)}% de utilización.`;
+                return `Capacidad excedida: ${member.name} quedaría al ${formatDisplayNumber(projectedPercent, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% de utilización.`;
             }
         }
         return null;
@@ -118,7 +119,7 @@ export function ResourceAllocationModal({ isOpen, onClose, allocationToEdit, onS
                 <div className="flex justify-between items-end mb-2">
                     <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Carga Proyectada</span>
-                        <span className={`text-xl font-black ${statusText}`}>{projectedPercent.toFixed(1)}%</span>
+                        <span className={`text-xl font-black ${statusText}`}>{formatDisplayNumber(projectedPercent, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
                     </div>
                     <span className="text-[10px] font-bold text-gray-500">{projectedUsed}h / {selectedMember.availableHours}h total</span>
                 </div>

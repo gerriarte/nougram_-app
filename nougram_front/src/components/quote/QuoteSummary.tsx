@@ -2,7 +2,7 @@ import * as React from "react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { QuoteCalculationResponse } from "@/types/quote";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDisplayNumber } from "@/lib/utils";
 import { Alert } from "@/components/ui/Alert";
 
 interface QuoteSummaryProps {
@@ -50,14 +50,14 @@ export function QuoteSummary({ calculation }: QuoteSummaryProps) {
                         <h2 className="text-lg font-semibold text-gray-700 mb-4">Margen Neto</h2>
                         <div className="flex items-center gap-4">
                             <span className="text-3xl font-bold text-gray-900">
-                                {(margin * 100).toFixed(1)}%
+                                {formatDisplayNumber(margin * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                             </span>
                             <Badge variant={badgeVariant} className="text-sm px-3 py-1">
                                 {marginLabel}
                             </Badge>
                         </div>
                         <p className="text-sm text-gray-500 mt-2">
-                            Objetivo: {targetMargin ? `${(parseFloat(targetMargin) * 100).toFixed(0)}%` : "N/A"}
+                            Objetivo: {targetMargin ? `${formatDisplayNumber(parseFloat(targetMargin) * 100, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%` : "N/A"}
                         </p>
                     </CardContent>
                 </Card>

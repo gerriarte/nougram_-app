@@ -13,6 +13,7 @@ import {
     getSocialChargesPresetMeta,
     listSocialChargesPresetMeta,
 } from '@/lib/social-charges-presets';
+import { formatDisplayNumber } from '@/lib/utils';
 
 // Mock Switch if not available
 function SimpleSwitch({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (c: boolean) => void }) {
@@ -185,19 +186,19 @@ export function SocialChargesConfig() {
                 {!isEditing && (
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
-                            <div><p className="text-xs text-gray-500">Salud</p><p className="font-medium">{socialCharges.health_percentage}%</p></div>
-                            <div><p className="text-xs text-gray-500">Pensión</p><p className="font-medium">{socialCharges.pension_percentage}%</p></div>
-                            <div><p className="text-xs text-gray-500">ARL</p><p className="font-medium">{socialCharges.arl_percentage}%</p></div>
-                            <div><p className="text-xs text-gray-500">Parafiscales</p><p className="font-medium">{socialCharges.parafiscales_percentage}%</p></div>
-                            <div><p className="text-xs text-gray-500">Prima</p><p className="font-medium">{socialCharges.prima_services_percentage}%</p></div>
-                            <div><p className="text-xs text-gray-500">Cesantías</p><p className="font-medium">{socialCharges.cesantias_percentage}%</p></div>
-                            <div><p className="text-xs text-gray-500">Int. Cesantías</p><p className="font-medium">{socialCharges.int_cesantias_percentage}%</p></div>
-                            <div><p className="text-xs text-gray-500">Vacaciones</p><p className="font-medium">{socialCharges.vacations_percentage}%</p></div>
+                            <div><p className="text-xs text-gray-500">Salud</p><p className="font-medium">{formatDisplayNumber(socialCharges.health_percentage, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%</p></div>
+                            <div><p className="text-xs text-gray-500">Pensión</p><p className="font-medium">{formatDisplayNumber(socialCharges.pension_percentage, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%</p></div>
+                            <div><p className="text-xs text-gray-500">ARL</p><p className="font-medium">{formatDisplayNumber(socialCharges.arl_percentage, { minimumFractionDigits: 0, maximumFractionDigits: 3 })}%</p></div>
+                            <div><p className="text-xs text-gray-500">Parafiscales</p><p className="font-medium">{formatDisplayNumber(socialCharges.parafiscales_percentage, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%</p></div>
+                            <div><p className="text-xs text-gray-500">Prima</p><p className="font-medium">{formatDisplayNumber(socialCharges.prima_services_percentage, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%</p></div>
+                            <div><p className="text-xs text-gray-500">Cesantías</p><p className="font-medium">{formatDisplayNumber(socialCharges.cesantias_percentage, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%</p></div>
+                            <div><p className="text-xs text-gray-500">Int. Cesantías</p><p className="font-medium">{formatDisplayNumber(socialCharges.int_cesantias_percentage, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%</p></div>
+                            <div><p className="text-xs text-gray-500">Vacaciones</p><p className="font-medium">{formatDisplayNumber(socialCharges.vacations_percentage, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%</p></div>
                         </div>
                         <div className="flex justify-between items-center pt-2 border-t">
                             <div>
-                                <p className="text-lg font-bold text-gray-900">Total Carga: {socialCharges.total_percentage?.toFixed(3)}%</p>
-                                <p className="text-xs text-gray-500">Multiplicador: {(1 + (socialCharges.total_percentage || 0) / 100).toFixed(5)}x</p>
+                                <p className="text-lg font-bold text-gray-900">Total Carga: {formatDisplayNumber(socialCharges.total_percentage ?? 0, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}%</p>
+                                <p className="text-xs text-gray-500">Multiplicador: {formatDisplayNumber(1 + (socialCharges.total_percentage || 0) / 100, { minimumFractionDigits: 5, maximumFractionDigits: 5 })}x</p>
                             </div>
                             <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>Editar Porcentajes</Button>
                         </div>

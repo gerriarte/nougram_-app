@@ -1,5 +1,6 @@
 import React from 'react';
 import { MonthProjection } from '@/types/break-even';
+import { formatDisplayNumber } from '@/lib/utils';
 
 interface ProjectionTableProps {
     projection: MonthProjection[];
@@ -27,8 +28,8 @@ export function ProjectionTable({ projection }: ProjectionTableProps) {
                             return (
                                 <tr key={row.month} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="px-6 py-4 font-medium text-gray-900">{row.month}</td>
-                                    <td className="px-6 py-4 text-gray-700">{row.allocated_hours.toFixed(1)}h</td>
-                                    <td className="px-6 py-4 text-gray-500">{row.break_even_hours}h</td>
+                                    <td className="px-6 py-4 text-gray-700">{formatDisplayNumber(row.allocated_hours, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h</td>
+                                    <td className="px-6 py-4 text-gray-500">{formatDisplayNumber(row.break_even_hours, { minimumFractionDigits: 0, maximumFractionDigits: 1 })}h</td>
                                     <td className="px-6 py-4">
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${isBelow ? 'bg-yellow-100 text-yellow-800' :
                                                 isAbove ? 'bg-green-100 text-green-800' :
@@ -38,7 +39,7 @@ export function ProjectionTable({ projection }: ProjectionTableProps) {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 font-medium text-green-600">
-                                        {row.profit_hours ? `+${row.profit_hours.toFixed(1)}h` : '-'}
+                                        {row.profit_hours ? `+${formatDisplayNumber(row.profit_hours, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h` : '-'}
                                     </td>
                                 </tr>
                             );
