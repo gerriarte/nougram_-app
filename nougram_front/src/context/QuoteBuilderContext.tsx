@@ -155,7 +155,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     // --- CALCULATION ENGINE ---
     useEffect(() => {
         calculateTotals();
-    }, [state.items, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency, taxes]);
+    }, [state.items, state.expenses, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency, taxes]);
 
     useEffect(() => {
         if (!state.selectedTaxIds.length) return;
@@ -175,7 +175,8 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             state.items,
             taxes,
             state.selectedTaxIds,
-            state.contingency
+            state.contingency,
+            state.expenses
         );
 
         setSummary(totals);
