@@ -81,7 +81,7 @@ export default function QuoteNextStepPage() {
                     <div className="space-y-2.5">
                         <button
                             type="button"
-                            onClick={() => router.push(`/dashboard/quotes/${id}/proposal`)}
+                            onClick={() => router.push(`/dashboard/quotes/${id}/send`)}
                             className="flex w-full items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 text-left transition-colors hover:border-gray-900 hover:bg-surface-2"
                         >
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-white">

@@ -208,8 +208,7 @@ export default function SendQuotePage() {
 
     return (
         <AdminLayout hideRightPanel>
-            <div className="max-w-[960px] mx-auto w-full px-1 sm:px-0 pb-24 md:pb-8">
-                <QuoteSendView
+            <QuoteSendView
                     quote={quote}
                     initialToEmail={clientEmail}
                     initialProposalTitle={proposal?.title}
@@ -224,7 +223,6 @@ export default function SendQuotePage() {
                     onGoToDashboard={() => router.push('/dashboard')}
                     onCancel={() => router.back()}
                 />
-            </div>
         </AdminLayout>
     );
 }

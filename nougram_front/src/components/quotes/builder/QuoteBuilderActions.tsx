@@ -18,7 +18,7 @@ export function QuoteBuilderActions({ variant }: QuoteBuilderActionsProps) {
       const projectId = await saveQuote();
       if (options?.goToProposal) {
         if (projectId) {
-          router.push(`/dashboard/quotes/${projectId}/proposal`);
+          router.push(`/dashboard/quotes/${projectId}/send`);
         } else if (projectId === null) {
           // Paywall de créditos: QuoteBuilderForm ya abre PaywallModal.
         } else {

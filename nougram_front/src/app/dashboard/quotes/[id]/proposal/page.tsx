@@ -132,7 +132,7 @@ export default function ProposalBuilderPage() {
                     onSave={handleSave}
                     onGenerateAI={handleGenerateAI}
                     onContinueToSend={() => router.push(`/dashboard/quotes/${id}/send`)}
-                    onCancel={() => router.push(`/dashboard/quotes/${id}/next-step`)}
+                    onCancel={() => router.push(`/dashboard/quotes/${id}/send`)}
                     suggestedServicesText={suggestedServicesText}
                 />
             </div>
