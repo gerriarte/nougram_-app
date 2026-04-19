@@ -129,8 +129,9 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
                                 <Label>Salario Mensual Bruto *</Label>
                                 <Input
                                     type="number"
+                                    isInteger
                                     value={formData.salaryMonthlyBrute || ''}
-                                    onChange={e => setFormData({ ...formData, salaryMonthlyBrute: parseFloat(e.target.value) || 0 })}
+                                    onChange={e => setFormData({ ...formData, salaryMonthlyBrute: parseInt(e.target.value, 10) || 0 })}
                                 />
                             </div>
                             <div className="space-y-2">
