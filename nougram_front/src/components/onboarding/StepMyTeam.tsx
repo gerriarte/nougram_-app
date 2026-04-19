@@ -273,15 +273,15 @@ export function StepMyTeam({
                         </div>
                     </div>
 
-                    <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                    <div className="rounded-lg border border-blue-100 bg-primary-soft p-4">
                         <div className="flex items-center justify-between gap-3">
                             <p className="text-sm font-semibold text-blue-900">Miembros que se guardarán</p>
-                            <span className="text-xs font-bold text-blue-700 bg-white border border-blue-200 rounded-full px-2 py-0.5">
+                            <span className="text-xs font-bold text-primary bg-white border border-primary-soft rounded-full px-2 py-0.5">
                                 {modeledMembers.length} miembro(s)
                             </span>
                         </div>
                         {modeledMembers.length === 0 ? (
-                            <p className="text-sm text-blue-700 mt-2">
+                            <p className="text-sm text-primary mt-2">
                                 Agrega al menos un miembro válido (nombre, rol, salario y horas facturables) para continuar.
                             </p>
                         ) : (
@@ -289,7 +289,7 @@ export function StepMyTeam({
                                 {modeledMembers.map((member, index) => (
                                     <span
                                         key={`${member.name}-${index}`}
-                                        className="text-xs font-medium text-blue-800 bg-white border border-blue-200 rounded-full px-3 py-1"
+                                        className="text-xs font-medium text-blue-800 bg-white border border-primary-soft rounded-full px-3 py-1"
                                     >
                                         {member.name} - {member.role}
                                     </span>
@@ -356,10 +356,10 @@ export function StepMyTeam({
                     </div>
 
                     <div className="p-6 min-h-0 flex-1 overflow-y-auto space-y-4">
-                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+                        <div className="rounded-lg border border-primary-soft bg-primary-soft p-4 space-y-3">
                             <div className="flex items-center justify-between">
                                 <p className="text-sm font-semibold text-blue-900">Miembro principal (tú)</p>
-                                <span className="text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-full px-2 py-0.5">
+                                <span className="text-xs font-medium text-primary bg-white border border-primary-soft rounded-full px-2 py-0.5">
                                     Obligatorio
                                 </span>
                             </div>

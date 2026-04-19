@@ -161,16 +161,16 @@ export function PricingTable({ currentPlanId = 'free', onSelectPlan, manualMode 
     return (
         <div className="w-full max-w-[1200px] mx-auto py-12 px-6">
             <div className="text-center mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                <h2 className="text-5xl font-semibold tracking-tight text-[#1D1D1F]">
+                <h2 className="text-5xl font-semibold tracking-tight text-gray-900">
                     Elige el plan perfecto.
                 </h2>
-                <p className="mt-4 text-xl text-[#86868B] max-w-2xl mx-auto font-light">
+                <p className="mt-4 text-xl text-gray-500 max-w-2xl mx-auto font-light">
                     Desbloquea todo el potencial de tu agencia con IA.
                 </p>
 
                 {/* Modern Apple-style Toggle */}
                 <div className="mt-10 flex justify-center items-center gap-6">
-                    <span className={`text-[17px] font-medium transition-colors duration-200 ${interval === 'monthly' ? 'text-black' : 'text-[#86868B]'}`}>Mensual</span>
+                    <span className={`text-[17px] font-medium transition-colors duration-200 ${interval === 'monthly' ? 'text-black' : 'text-gray-500'}`}>Mensual</span>
                     <button
                         onClick={() => setInterval(prev => prev === 'monthly' ? 'yearly' : 'monthly')}
                         className={`relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none ${interval === 'yearly' ? 'bg-[#2997FF]' : 'bg-[#E5E5EA]'}`}
@@ -180,7 +180,7 @@ export function PricingTable({ currentPlanId = 'free', onSelectPlan, manualMode 
                             className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-sm ring-0 transition duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] ${interval === 'yearly' ? 'translate-x-6' : 'translate-x-0'}`}
                         />
                     </button>
-                    <span className={`text-[17px] font-medium transition-colors duration-200 ${interval === 'yearly' ? 'text-black' : 'text-[#86868B]'}`}>
+                    <span className={`text-[17px] font-medium transition-colors duration-200 ${interval === 'yearly' ? 'text-black' : 'text-gray-500'}`}>
                         Anual <span className="text-[#2997FF] text-xs font-semibold ml-1 tracking-wide uppercase">Ahorra 17%</span>
                     </span>
                 </div>
@@ -212,22 +212,22 @@ export function PricingTable({ currentPlanId = 'free', onSelectPlan, manualMode 
                             )}
 
                             <div className="p-8 pb-0 flex-1 flex flex-col items-center text-center">
-                                <h3 className="text-[19px] font-semibold text-[#1D1D1F]">{plan.name}</h3>
-                                <p className="mt-3 text-[13px] leading-relaxed text-[#86868B] min-h-[40px] px-2">{plan.description}</p>
+                                <h3 className="text-[19px] font-semibold text-gray-900">{plan.name}</h3>
+                                <p className="mt-3 text-[13px] leading-relaxed text-gray-500 min-h-[40px] px-2">{plan.description}</p>
 
-                                <div className="mt-6 flex items-baseline text-[#1D1D1F]">
+                                <div className="mt-6 flex items-baseline text-gray-900">
                                     {isEnterprise ? (
                                         <span className="text-3xl font-semibold tracking-tight">Contactar</span>
                                     ) : (
                                         <>
                                             <span className="text-4xl font-semibold tracking-tight">${price}</span>
-                                            <span className="ml-1 text-base text-[#86868B] font-medium">/{interval === 'monthly' ? 'mes' : 'año'}</span>
+                                            <span className="ml-1 text-base text-gray-500 font-medium">/{interval === 'monthly' ? 'mes' : 'año'}</span>
                                         </>
                                     )}
                                 </div>
 
                                 {!isEnterprise && (
-                                    <p className="mt-1 text-[11px] font-medium text-[#86868B]">
+                                    <p className="mt-1 text-[11px] font-medium text-gray-500">
                                         ≈ {formatMoneyAmount(price * 4000)} COP
                                     </p>
                                 )}
@@ -239,8 +239,8 @@ export function PricingTable({ currentPlanId = 'free', onSelectPlan, manualMode 
                                         className={`w-full rounded-full text-[14px] font-medium h-11 transition-all active:scale-95 border-0 ${plan.isPopular
                                                 ? 'bg-[#2997FF] hover:bg-[#0071E3] text-white shadow-lg shadow-blue-500/25'
                                                 : isCurrent
-                                                    ? 'bg-[#F5F5F7] text-[#86868B] cursor-not-allowed'
-                                                    : 'bg-[#1D1D1F] hover:bg-black text-white'
+                                                    ? 'bg-background text-gray-500 cursor-not-allowed'
+                                                    : 'bg-gray-900 hover:bg-gray-700 text-white'
                                             }`}
                                     >
                                         {isCurrent
@@ -263,7 +263,7 @@ export function PricingTable({ currentPlanId = 'free', onSelectPlan, manualMode 
                                     ].map((feature, idx) => (
                                         <li key={idx} className="flex items-start">
                                             <div className="flex-shrink-0">
-                                                <feature.icon size={16} className={`mt-0.5 ${plan.isPopular ? 'text-[#2997FF]' : 'text-[#86868B]'}`} strokeWidth={2.5} />
+                                                <feature.icon size={16} className={`mt-0.5 ${plan.isPopular ? 'text-[#2997FF]' : 'text-gray-500'}`} strokeWidth={2.5} />
                                             </div>
                                             <p className="ml-3 text-[13px] font-medium text-[#424245]">{feature.label}</p>
                                         </li>
@@ -276,7 +276,7 @@ export function PricingTable({ currentPlanId = 'free', onSelectPlan, manualMode 
             </div>
 
             <div className="mt-16 text-center space-y-3 opacity-70">
-                <p className="text-xs text-[#86868B] flex items-center justify-center gap-2">
+                <p className="text-xs text-gray-500 flex items-center justify-center gap-2">
                     <Shield size={12} /> Pagos seguros via Stripe. Encriptación de 256-bit.
                 </p>
             </div>

@@ -15,6 +15,15 @@
   --color-warning: #ff9500;
   --color-critical: #ff3b30;
 
+  /* Soft variants for badges, alerts, and state backgrounds */
+  --color-success-soft: #e7f8ed;
+  --color-warning-soft: #fff4e5;
+  --color-critical-soft: #fff0ef;
+  --color-primary-soft: #fdeee6;
+
+  /* Surface hierarchy */
+  --color-surface-2: #f9fafb;
+
   --color-background: #F5F5F7;
   --color-foreground: #262537;
   --color-system-gray: #424242;

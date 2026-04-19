@@ -18,7 +18,7 @@ export function TeamMemberList({ members, onAdd, onEdit, onDelete }: TeamMemberL
         return (
             <div className="text-center py-12 bg-white rounded-lg border border-dashed border-gray-300">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-                    <UserPlus className="h-6 w-6 text-blue-600" />
+                    <UserPlus className="h-6 w-6 text-primary" />
                 </div>
                 <h3 className="mt-2 text-sm font-semibold text-gray-900">No hay miembros del equipo</h3>
                 <p className="mt-1 text-sm text-gray-500">Comienza agregando los miembros de tu equipo para calcular costos.</p>
@@ -72,13 +72,13 @@ export function TeamMemberList({ members, onAdd, onEdit, onDelete }: TeamMemberL
                                     <div className="text-xs text-gray-400">Facturables</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                                    <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-50 text-blue-700">
+                                    <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-primary-soft text-primary">
                                         {formatCurrency(member.cost_per_hour)}
                                     </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div className="flex justify-end gap-2">
-                                        <button onClick={() => onEdit(member)} className="text-blue-600 hover:text-blue-900 p-1">
+                                        <button onClick={() => onEdit(member)} className="text-primary hover:text-blue-900 p-1">
                                             <Edit2 className="h-4 w-4" />
                                         </button>
                                         <button onClick={() => onDelete(member.id)} className="text-red-400 hover:text-red-600 p-1">
@@ -92,7 +92,7 @@ export function TeamMemberList({ members, onAdd, onEdit, onDelete }: TeamMemberL
                 </table>
             </div>
 
-            <div className="flex items-center gap-2 p-4 bg-blue-50 text-blue-800 rounded-lg text-sm border border-blue-100">
+            <div className="flex items-center gap-2 p-4 bg-primary-soft text-primary rounded-lg text-sm border border-primary-soft">
                 <AlertTriangle className="h-5 w-5 flex-shrink-0" />
                 <p>
                     Recuerda: El costo por hora incluye el impacto de las cargas sociales configuradas.

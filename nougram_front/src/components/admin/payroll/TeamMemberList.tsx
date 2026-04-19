@@ -3,9 +3,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useAdmin } from '@/context/AdminContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+
 import { Input } from '@/components/ui/Input';
 import { TeamMemberForm, type TeamMemberFormSavePayload } from './TeamMemberForm';
 import { TeamMember } from '@/types/admin';
@@ -169,15 +169,15 @@ export function TeamMemberList() {
     };
 
     return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-100">
                 <div>
-                    <CardTitle>Miembros del Equipo</CardTitle>
-                    <p className="text-sm text-gray-500">Gestiona tu nómina y capacidad operativa.</p>
+                    <h3 className="text-[14px] font-bold text-gray-900">Miembros del Equipo</h3>
+                    <p className="text-[12px] text-gray-500">Gestiona tu nómina y capacidad operativa.</p>
                 </div>
                 <Button onClick={handleCreate}>+ Agregar Miembro</Button>
-            </CardHeader>
-            <CardContent>
+            </div>
+            <div className="p-6">
                 {assignError && (
                     <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                         {assignError}
@@ -214,7 +214,7 @@ export function TeamMemberList() {
                                                 {memberTeamsMap[member.id].map((assignment) => (
                                                     <span
                                                         key={`${member.id}-${assignment.teamName}`}
-                                                        className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
+                                                        className="inline-flex items-center rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-semibold text-primary"
                                                     >
                                                         {assignment.teamName} ({formatDisplayNumber(assignment.percentage, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
                                                     </span>
@@ -225,7 +225,7 @@ export function TeamMemberList() {
                                         )}
                                         <div className="mt-2 flex flex-wrap items-center gap-2">
                                             <select
-                                                className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs min-w-[140px]"
+                                                className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs min-w-[140px]"
                                                 value={assignTeamByMember[member.id] || ''}
                                                 onChange={(e) => setAssignTeamByMember((prev) => ({
                                                     ...prev,
@@ -265,7 +265,7 @@ export function TeamMemberList() {
                                     <td className="px-4 py-3">
                                         {formatCurrency(member.salaryMonthlyBrute, member.currency)}
                                     </td>
-                                    <td className="px-4 py-3 font-medium text-blue-600">
+                                    <td className="px-4 py-3 font-medium text-primary">
                                         {formatCurrency(getTeamMemberSalaryWithCharges(member, socialCharges), member.currency)}
                                     </td>
                                     <td className="px-4 py-3">
@@ -299,7 +299,7 @@ export function TeamMemberList() {
                         </tbody>
                     </table>
                 </div>
-            </CardContent>
+            </div>
 
             <TeamMemberForm
                 open={isFormOpen}
@@ -307,6 +307,6 @@ export function TeamMemberList() {
                 initialData={editingMember}
                 onSave={handleSave}
             />
-        </Card>
+        </div>
     );
 }

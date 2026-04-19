@@ -3,7 +3,6 @@
 
 import React, { useState } from 'react';
 import { useAdmin } from '@/context/AdminContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { FixedCostForm } from './FixedCostForm';
@@ -47,15 +46,15 @@ export function FixedCostList() {
     };
 
     return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-100">
                 <div>
-                    <CardTitle>Gastos Fijos</CardTitle>
-                    <p className="text-sm text-gray-500">Costos recurrentes de operación.</p>
+                    <h3 className="text-[14px] font-bold text-gray-900">Gastos Fijos</h3>
+                    <p className="text-[12px] text-gray-500">Costos recurrentes de operación.</p>
                 </div>
                 <Button onClick={handleCreate}>+ Agregar Gasto</Button>
-            </CardHeader>
-            <CardContent>
+            </div>
+            <div className="p-6">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-gray-50 text-gray-700 uppercase text-xs">
@@ -107,7 +106,7 @@ export function FixedCostList() {
                         </tbody>
                     </table>
                 </div>
-            </CardContent>
+            </div>
 
             <FixedCostForm
                 open={isFormOpen}
@@ -115,6 +114,6 @@ export function FixedCostList() {
                 initialData={editingCost}
                 onSave={handleSave}
             />
-        </Card>
+        </div>
     );
 }

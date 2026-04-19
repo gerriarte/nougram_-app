@@ -4,7 +4,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { UserCircle2, Plus, Pencil, Building2, Mail, User } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
-import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
@@ -152,23 +151,23 @@ export default function ClientsPage() {
       >
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+            <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center text-white">
               <UserCircle2 size={20} strokeWidth={1.8} />
             </div>
-            <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] bg-surface-2 px-3 py-1 rounded-full border border-gray-200">
               Catálogo maestro
             </span>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 tracking-tight">Gestión de Clientes</h1>
+              <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Gestión de Clientes</h1>
               <p className="text-system-gray font-medium text-lg mt-1">
                 Listado y edición de clientes para cotizaciones y pipeline.
               </p>
             </div>
             <Button
               onClick={openCreate}
-              className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 flex items-center gap-2"
+              className="bg-gray-900 hover:bg-gray-700 text-white flex items-center gap-2 rounded-xl"
             >
               <Plus size={18} />
               Nuevo cliente
@@ -182,10 +181,10 @@ export default function ClientsPage() {
           </div>
         )}
 
-        <Card>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
           {loading ? (
             <div className="p-10 flex justify-center">
-              <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+              <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin" />
             </div>
           ) : clients.length === 0 ? (
             <div className="p-12 text-center">
@@ -224,7 +223,7 @@ export default function ClientsPage() {
                       <td className="px-6 py-4 text-gray-600">{c.requester_name || '—'}</td>
                       <td className="px-6 py-4 text-gray-600">
                         {c.email ? (
-                          <a href={`mailto:${c.email}`} className="flex items-center gap-1 text-blue-600 hover:underline">
+                          <a href={`mailto:${c.email}`} className="flex items-center gap-1 text-primary hover:underline">
                             <Mail size={14} /> {c.email}
                           </a>
                         ) : (
@@ -247,7 +246,7 @@ export default function ClientsPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => openEdit(c)}
-                          className="text-gray-600 hover:text-blue-600"
+                          className="text-gray-600 hover:text-gray-900"
                         >
                           <Pencil size={16} />
                         </Button>
@@ -283,7 +282,7 @@ export default function ClientsPage() {
               </div>
             </div>
           )}
-        </Card>
+        </div>
       </motion.div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -342,7 +341,7 @@ export default function ClientsPage() {
                 <Label htmlFor="status">Estado</Label>
                 <select
                   id="status"
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-400/20 focus:border-gray-400"
                   value={formStatus}
                   onChange={(e) => setFormStatus(e.target.value)}
                 >
@@ -355,7 +354,7 @@ export default function ClientsPage() {
               <Label htmlFor="notes">Notas</Label>
               <textarea
                 id="notes"
-                className="w-full min-h-[80px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-y"
+                className="w-full min-h-[80px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400/20 focus:border-gray-400 resize-y"
                 placeholder="Notas internas (opcional)"
                 value={formNotes}
                 onChange={(e) => setFormNotes(e.target.value)}
@@ -369,7 +368,7 @@ export default function ClientsPage() {
             <Button
               onClick={handleSave}
               disabled={saving || !formDisplayName.trim()}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-gray-900 hover:bg-gray-700"
             >
               {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Crear cliente'}
             </Button>

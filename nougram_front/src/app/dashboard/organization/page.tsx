@@ -228,11 +228,11 @@ export default function OrganizationPage() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+            <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center text-white">
               <Building2 size={22} strokeWidth={1.5} />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 tracking-tight">Empresa</h1>
+              <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Empresa</h1>
               <p className="text-system-gray font-medium">Ficha general de la empresa</p>
             </div>
           </div>
@@ -269,7 +269,7 @@ export default function OrganizationPage() {
                     value={legalNameDraft}
                     onChange={(event) => setLegalNameDraft(event.target.value)}
                     disabled={!canManageCompanyProfile}
-                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/30 disabled:bg-gray-100 disabled:text-gray-500"
                     placeholder="Razón social"
                   />
                 </label>
@@ -282,7 +282,7 @@ export default function OrganizationPage() {
                     value={nitDraft}
                     onChange={(event) => setNitDraft(event.target.value)}
                     disabled={!canManageCompanyProfile}
-                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/30 disabled:bg-gray-100 disabled:text-gray-500"
                     placeholder="NIT"
                   />
                 </label>
@@ -297,7 +297,7 @@ export default function OrganizationPage() {
                     value={employeeCountDraft}
                     onChange={(event) => setEmployeeCountDraft(event.target.value)}
                     disabled={!canManageCompanyProfile}
-                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/30 disabled:bg-gray-100 disabled:text-gray-500"
                     placeholder="Ej: 25"
                   />
                 </label>
@@ -310,7 +310,7 @@ export default function OrganizationPage() {
                     value={originCountryDraft}
                     onChange={(event) => setOriginCountryDraft(event.target.value)}
                     disabled={!canManageCompanyProfile}
-                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/30 disabled:bg-gray-100 disabled:text-gray-500"
                     placeholder="Ej: Colombia"
                   />
                 </label>
@@ -323,7 +323,7 @@ export default function OrganizationPage() {
                     value={originCityDraft}
                     onChange={(event) => setOriginCityDraft(event.target.value)}
                     disabled={!canManageCompanyProfile}
-                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                    className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/30 disabled:bg-gray-100 disabled:text-gray-500"
                     placeholder="Ej: Bogotá"
                   />
                 </label>
@@ -334,7 +334,7 @@ export default function OrganizationPage() {
                   type="button"
                   onClick={handleSaveCompanyProfile}
                   disabled={savingProfile || !canManageCompanyProfile}
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-gray-700 disabled:opacity-60"
                 >
                   {savingProfile ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
                   Guardar ficha de empresa
@@ -366,7 +366,7 @@ export default function OrganizationPage() {
                       value={planDraft}
                       onChange={(event) => setPlanDraft(event.target.value)}
                       disabled={!canManageSubscription}
-                      className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                      className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/30 disabled:bg-gray-100 disabled:text-gray-500"
                     >
                       {PLAN_OPTIONS.map((plan) => (
                         <option key={plan.value} value={plan.value}>
@@ -378,7 +378,7 @@ export default function OrganizationPage() {
                       type="button"
                       onClick={handleSavePlan}
                       disabled={savingPlan || !canManageSubscription}
-                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white hover:bg-gray-700 disabled:opacity-60"
                     >
                       {savingPlan ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
                       Guardar suscripción
@@ -398,7 +398,7 @@ export default function OrganizationPage() {
                       value={currencyDraft}
                       onChange={(event) => setCurrencyDraft(event.target.value)}
                       disabled={!canManageCurrency}
-                      className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-100 disabled:text-gray-500"
+                      className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/30 disabled:bg-gray-100 disabled:text-gray-500"
                     >
                       {availableCurrencies.map((currencyCode) => (
                         <option key={currencyCode} value={currencyCode}>
@@ -410,7 +410,7 @@ export default function OrganizationPage() {
                       type="button"
                       onClick={handleSaveCurrency}
                       disabled={savingCurrency || !canManageCurrency}
-                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white hover:bg-gray-700 disabled:opacity-60"
                     >
                       {savingCurrency ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
                       Guardar moneda

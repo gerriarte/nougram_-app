@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
@@ -19,19 +19,17 @@ export function GlobalConfigForm({ config, onChange }: GlobalConfigFormProps) {
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <Globe className="h-5 w-5 text-gray-500" />
-                        <CardTitle>Configuración Regional</CardTitle>
-                    </div>
-                </CardHeader>
-                <CardContent>
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                    <Globe className="h-5 w-5 text-gray-500" />
+                    <h3 className="text-[14px] font-bold text-gray-900">Configuración Regional</h3>
+                </div>
+                <div className="p-6">
                     <div className="space-y-4 max-w-md">
                         <div className="space-y-2">
                             <Label>Moneda Primaria</Label>
                             <select
-                                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400/30"
                                 value={config.primary_currency}
                                 onChange={e => handleChange("primary_currency", e.target.value)}
                             >
@@ -44,17 +42,15 @@ export function GlobalConfigForm({ config, onChange }: GlobalConfigFormProps) {
                             </p>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <Clock className="h-5 w-5 text-gray-500" />
-                        <CardTitle>Horas Base por Defecto</CardTitle>
-                    </div>
-                </CardHeader>
-                <CardContent>
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-gray-500" />
+                    <h3 className="text-[14px] font-bold text-gray-900">Horas Base por Defecto</h3>
+                </div>
+                <div className="p-6">
                     <div className="grid md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <Label>Horas Facturables / Semana</Label>
@@ -82,17 +78,15 @@ export function GlobalConfigForm({ config, onChange }: GlobalConfigFormProps) {
                             </p>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <Percent className="h-5 w-5 text-gray-500" />
-                        <CardTitle>Márgenes</CardTitle>
-                    </div>
-                </CardHeader>
-                <CardContent>
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                    <Percent className="h-5 w-5 text-gray-500" />
+                    <h3 className="text-[14px] font-bold text-gray-900">Márgenes</h3>
+                </div>
+                <div className="p-6">
                     <div className="space-y-2 max-w-md">
                         <Label>Margen Objetivo por Defecto</Label>
                         <Input
@@ -105,10 +99,10 @@ export function GlobalConfigForm({ config, onChange }: GlobalConfigFormProps) {
                             Margen neto deseado para nuevos proyectos.
                         </p>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
-            <div className="flex items-center gap-2 p-4 bg-blue-50 text-blue-800 rounded-lg text-sm border border-blue-100">
+            <div className="flex items-center gap-2 p-4 bg-primary-soft text-primary rounded-lg text-sm border border-primary-soft">
                 <AlertCircle className="h-5 w-5 flex-shrink-0" />
                 <p>
                     Los cambios en la configuración global afectan los valores por defecto para nuevos registros, pero no modifican los registros existentes automáticamente.

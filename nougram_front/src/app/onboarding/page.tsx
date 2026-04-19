@@ -627,7 +627,7 @@ export default function OnboardingPage() {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                    <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                                         <p className="font-semibold text-gray-900 mb-2">Identidad</p>
                                         <div className="flex flex-wrap gap-2 mb-2">
                                             <span className="text-[11px] font-bold uppercase tracking-wide text-amber-700 bg-amber-100 border border-amber-200 rounded px-2 py-0.5">
@@ -637,7 +637,7 @@ export default function OnboardingPage() {
                                         <p className="text-gray-700">Organización: {importPreview.payload.organization_name || '(sin nombre)'}</p>
                                         <p className="text-gray-700 mt-1">
                                             País:
-                                            <span className="ml-1 inline-flex text-xs font-semibold text-white bg-blue-700 rounded px-2 py-0.5">
+                                            <span className="ml-1 inline-flex text-xs font-semibold text-white bg-primary rounded px-2 py-0.5">
                                                 {importPreview.payload.country}
                                             </span>
                                         </p>

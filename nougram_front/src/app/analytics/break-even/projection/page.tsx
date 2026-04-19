@@ -95,7 +95,7 @@ export default function BreakEvenProjectionPage() {
 
                 {/* Summary Box */}
                 {projectionData && (
-                    <div className="bg-blue-50/50 border border-blue-100 rounded-[24px] p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="bg-primary-soft border border-primary-soft rounded-[24px] p-6 flex flex-col md:flex-row items-center justify-between gap-6">
                         <div>
                             <h3 className="text-blue-900 font-semibold text-lg mb-1">Resultados de Proyección</h3>
                             {projectionData.break_even_date ? (

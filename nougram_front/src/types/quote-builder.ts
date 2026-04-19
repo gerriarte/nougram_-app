@@ -78,6 +78,17 @@ export interface Contingency {
     value: number;
 }
 
+export interface QuoteExpense {
+    id: string;           // Temporary UI ID
+    name: string;
+    vendorName?: string;
+    cost: number;
+    markupPercentage: number; // 0.10 = 10%
+    quantity: number;
+    category: string;
+    clientPrice: number;  // cost × quantity × (1 + markup) — computed by backend
+}
+
 export interface QuoteBuilderState {
     step: 'editor' | 'preview';
     id?: string; // Track the ID of the quote being edited
@@ -96,6 +107,9 @@ export interface QuoteBuilderState {
 
     // Items
     items: QuoteItem[];
+
+    // Vendor / pass-through expenses
+    expenses: QuoteExpense[];
 
     // Config
     targetMargin: number; // 0.35

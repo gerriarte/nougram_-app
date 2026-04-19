@@ -121,7 +121,7 @@ export function QuickSelectDialog({ open, onOpenChange, initialData, onSave }: Q
                                 <div
                                     key={template.id}
                                     className={`flex items-center p-2 rounded-md border cursor-pointer transition-colors ${formData.templateIds.includes(template.id)
-                                        ? 'bg-blue-50 border-blue-500'
+                                        ? 'bg-primary-soft border-primary'
                                         : 'bg-white border-gray-200 hover:bg-gray-100'
                                         }`}
                                     onClick={() => handleTemplateToggle(template.id)}
@@ -130,7 +130,7 @@ export function QuickSelectDialog({ open, onOpenChange, initialData, onSave }: Q
                                         type="checkbox"
                                         checked={formData.templateIds.includes(template.id)}
                                         onChange={() => { }} // Handled by div click
-                                        className="mr-3 h-4 w-4 text-blue-600 rounded"
+                                        className="mr-3 h-4 w-4 accent-primary rounded"
                                     />
                                     <div className="flex-1">
                                         <p className="text-sm font-medium text-gray-900">{template.name}</p>

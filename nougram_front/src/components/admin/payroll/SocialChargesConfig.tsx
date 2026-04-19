@@ -3,7 +3,6 @@
 
 import React from 'react';
 import { useAdmin } from '@/context/AdminContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
@@ -20,7 +19,7 @@ function SimpleSwitch({ checked, onCheckedChange }: { checked: boolean; onChecke
     return (
         <button
             type="button"
-            className={`w-11 h-6 bg-gray-200 rounded-full relative transition-colors ${checked ? 'bg-blue-600' : ''}`}
+            className={`w-11 h-6 bg-gray-200 rounded-full relative transition-colors ${checked ? 'bg-primary' : ''}`}
             onClick={() => onCheckedChange(!checked)}
         >
             <span className={`block w-5 h-5 bg-white rounded-full shadow transform transition-transform absolute top-0.5 left-0.5 ${checked ? 'translate-x-5' : ''}`} />
@@ -111,26 +110,26 @@ export function SocialChargesConfig() {
     }, [isEditing, socialCharges, accountCountryCode]);
 
     return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-100">
                 <div>
-                    <CardTitle>Cargas Sociales & Prestaciones</CardTitle>
-                    <p className="text-sm text-gray-500">
+                    <h3 className="text-[14px] font-bold text-gray-900">Cargas Sociales & Prestaciones</h3>
+                    <p className="text-[12px] text-gray-500">
                         Configuracion por pais (pais de cuenta: {accountCountryCode}, moneda {currentCurrency}). Desactivado por defecto para cuentas nuevas.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700">Estado:</span>
+                    <span className="text-[12px] font-medium text-gray-700">Estado:</span>
                     <SimpleSwitch
                         checked={socialCharges.enable_social_charges}
                         onCheckedChange={(checked) => updateSocialCharges({ ...socialCharges, enable_social_charges: checked })}
                     />
-                    <span className={`text-sm ${socialCharges.enable_social_charges ? 'text-green-600 font-bold' : 'text-gray-500'}`}>
+                    <span className={`text-[12px] ${socialCharges.enable_social_charges ? 'text-success font-bold' : 'text-gray-500'}`}>
                         {socialCharges.enable_social_charges ? 'ACTIVO' : 'INACTIVO'}
                     </span>
                 </div>
-            </CardHeader>
-            <CardContent>
+            </div>
+            <div className="p-6">
                 <div className="mb-5 rounded-lg border border-gray-200 p-3 bg-gray-50/60">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                         <div className="space-y-1">
@@ -159,7 +158,7 @@ export function SocialChargesConfig() {
                         <div className="space-y-1">
                             <Label>Pais alterno</Label>
                             <select
-                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+                                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
                                 value={countryCode}
                                 onChange={(e) => setCountryCode(e.target.value)}
                                 disabled={useAccountCountry}
@@ -233,7 +232,7 @@ export function SocialChargesConfig() {
                         </div>
                     </div>
                 )}
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }

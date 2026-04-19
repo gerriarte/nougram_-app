@@ -346,7 +346,7 @@ export function BillingDashboard() {
     };
 
     return (
-        <div className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F]">
+        <div className="min-h-screen bg-background text-gray-900">
             {/* Apple-style Blur Header */}
             <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-200/50 transition-all duration-300">
                 <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">

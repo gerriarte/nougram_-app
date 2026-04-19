@@ -69,8 +69,8 @@ export function CreditTracker({
                         <Zap size={20} strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h3 className="text-base font-semibold text-[#1D1D1F]">Créditos de IA</h3>
-                        <p className="text-xs text-[#86868B] font-medium">Ciclo mensual</p>
+                        <h3 className="text-base font-semibold text-gray-900">Créditos de IA</h3>
+                        <p className="text-xs text-gray-500 font-medium">Ciclo mensual</p>
                     </div>
                 </div>
 
@@ -78,7 +78,7 @@ export function CreditTracker({
                     {isUnlimited ? (
                         <div className="flex flex-col items-center gap-4">
                             <span className="text-6xl font-thin text-[#2997FF]">∞</span>
-                            <p className="text-sm font-medium text-[#86868B]">Plan Ilimitado</p>
+                            <p className="text-sm font-medium text-gray-500">Plan Ilimitado</p>
                         </div>
                     ) : (
                         <div className="relative h-60 w-60 flex items-center justify-center">
@@ -108,10 +108,10 @@ export function CreditTracker({
 
                             {/* Centered Text */}
                             <div className="absolute flex flex-col items-center scale-up-center animate-in zoom-in duration-500">
-                                <span className="text-5xl font-semibold tracking-tighter text-[#1D1D1F]">
+                                <span className="text-5xl font-semibold tracking-tighter text-gray-900">
                                     {usage.usedThisMonth}
                                 </span>
-                                <span className="text-sm font-medium text-[#86868B] mt-1">de {limit}</span>
+                                <span className="text-sm font-medium text-gray-500 mt-1">de {limit}</span>
                             </div>
                         </div>
                     )}
@@ -120,8 +120,8 @@ export function CreditTracker({
                 {!isUnlimited && (
                     <div className="relative z-10">
                         <div className="flex justify-between items-center mb-2">
-                            <span className="text-[13px] font-medium text-[#86868B]">{formatDisplayNumber(percentage, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}% Utilizado</span>
-                            <span className="text-[13px] font-semibold text-[#1D1D1F]">{usage.available} disponibles</span>
+                            <span className="text-[13px] font-medium text-gray-500">{formatDisplayNumber(percentage, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}% Utilizado</span>
+                            <span className="text-[13px] font-semibold text-gray-900">{usage.available} disponibles</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                             <div
@@ -140,22 +140,22 @@ export function CreditTracker({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="rounded-[24px] bg-white p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 flex items-start justify-between">
                         <div>
-                            <p className="text-[13px] font-semibold text-[#86868B] uppercase tracking-wide">Recarga Automática</p>
-                            <h4 className="text-2xl font-semibold text-[#1D1D1F] mt-2">{new Date(usage.nextResetDate).toLocaleDateString()}</h4>
-                            <p className="text-xs text-[#86868B] mt-1">Tu cuota se reinicia este día</p>
+                            <p className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Recarga Automática</p>
+                            <h4 className="text-2xl font-semibold text-gray-900 mt-2">{new Date(usage.nextResetDate).toLocaleDateString()}</h4>
+                            <p className="text-xs text-gray-500 mt-1">Tu cuota se reinicia este día</p>
                         </div>
-                        <div className="p-3 bg-gray-50 rounded-full text-[#86868B]">
+                        <div className="p-3 bg-gray-50 rounded-full text-gray-500">
                             <BatteryCharging size={24} strokeWidth={1.5} />
                         </div>
                     </div>
 
                     <div className="rounded-[24px] bg-white p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 flex items-start justify-between">
                         <div>
-                            <p className="text-[13px] font-semibold text-[#86868B] uppercase tracking-wide">Consumo Total</p>
-                            <h4 className="text-2xl font-semibold text-[#1D1D1F] mt-2">{usage.usedTotal}</h4>
-                            <p className="text-xs text-[#86868B] mt-1">Créditos usados históricamente</p>
+                            <p className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Consumo Total</p>
+                            <h4 className="text-2xl font-semibold text-gray-900 mt-2">{usage.usedTotal}</h4>
+                            <p className="text-xs text-gray-500 mt-1">Créditos usados históricamente</p>
                         </div>
-                        <div className="p-3 bg-gray-50 rounded-full text-[#86868B]">
+                        <div className="p-3 bg-gray-50 rounded-full text-gray-500">
                             <TrendingUp size={24} strokeWidth={1.5} />
                         </div>
                     </div>
@@ -164,7 +164,7 @@ export function CreditTracker({
                 {/* Activity List */}
                 <div className="rounded-[28px] bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 overflow-hidden flex-1">
                     <div className="p-6 border-b border-gray-50 flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-[#1D1D1F]">Actividad Reciente</h3>
+                        <h3 className="text-lg font-semibold text-gray-900">Actividad Reciente</h3>
                         <Button variant="ghost" size="sm" className="text-[#0071E3] hover:bg-blue-50 hover:text-[#0077ED] text-[13px] font-medium px-4 rounded-full h-8">
                             Ver todo
                         </Button>
@@ -172,17 +172,17 @@ export function CreditTracker({
 
                     <div className="p-2">
                         {recentActivity.map((activity) => (
-                            <div key={activity.id} className="p-4 rounded-2xl hover:bg-[#F5F5F7] transition-colors flex items-center justify-between group">
+                            <div key={activity.id} className="p-4 rounded-2xl hover:bg-background transition-colors flex items-center justify-between group">
                                 <div className="flex items-center gap-4">
                                     <div className="h-10 w-10 rounded-full bg-blue-50 text-[#0071E3] flex items-center justify-center group-hover:bg-white group-hover:shadow-sm transition-all">
                                         <Zap size={18} fill="currentColor" className="opacity-80" />
                                     </div>
                                     <div>
-                                        <p className="text-[15px] font-medium text-[#1D1D1F]">{activity.action}</p>
-                                        <p className="text-[13px] text-[#86868B] mt-0.5">{activity.timestamp}</p>
+                                        <p className="text-[15px] font-medium text-gray-900">{activity.action}</p>
+                                        <p className="text-[13px] text-gray-500 mt-0.5">{activity.timestamp}</p>
                                     </div>
                                 </div>
-                                <span className={`text-[14px] font-semibold px-3 py-1 rounded-full ${activity.credits < 0 ? 'bg-gray-100 text-[#1D1D1F]' : 'bg-green-100 text-[#34C759]'}`}>
+                                <span className={`text-[14px] font-semibold px-3 py-1 rounded-full ${activity.credits < 0 ? 'bg-gray-100 text-gray-900' : 'bg-green-100 text-[#34C759]'}`}>
                                     {activity.credits}
                                 </span>
                             </div>
@@ -192,17 +192,17 @@ export function CreditTracker({
 
                 {/* Alert/Upgrade CTA */}
                 {!isUnlimited && percentage > 70 && (
-                    <div className="rounded-[24px] bg-[#F5F5F7] p-6 flex flex-col sm:flex-row items-center justify-between gap-6 border border-gray-200">
+                    <div className="rounded-[24px] bg-background p-6 flex flex-col sm:flex-row items-center justify-between gap-6 border border-gray-200">
                         <div className="flex items-center gap-4">
                             <div className={`p-3 rounded-full ${color === 'text-[#FF3B30]' ? 'bg-[#FF3B30] text-white' : 'bg-[#FF9500] text-white'}`}>
                                 <Zap size={20} fill="currentColor" />
                             </div>
                             <div>
-                                <h4 className="text-[15px] font-semibold text-[#1D1D1F]">Considera actualizar tu plan</h4>
-                                <p className="text-[13px] text-[#86868B] max-w-sm">Te quedan pocos créditos. Evita interrupciones actualizando a un plan superior.</p>
+                                <h4 className="text-[15px] font-semibold text-gray-900">Considera actualizar tu plan</h4>
+                                <p className="text-[13px] text-gray-500 max-w-sm">Te quedan pocos créditos. Evita interrupciones actualizando a un plan superior.</p>
                             </div>
                         </div>
-                        <Button onClick={onUpgrade} className="bg-[#1D1D1F] hover:bg-black text-white rounded-full px-6 h-10 text-[13px] font-medium whitespace-nowrap shadow-lg shadow-gray-200">
+                        <Button onClick={onUpgrade} className="bg-gray-900 hover:bg-gray-700 text-white rounded-full px-6 h-10 text-[13px] font-medium whitespace-nowrap shadow-lg shadow-gray-200">
                             Ver Planes
                         </Button>
                     </div>

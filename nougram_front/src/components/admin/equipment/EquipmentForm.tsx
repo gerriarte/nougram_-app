@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Card } from '@/components/ui/Card';
+
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { DepreciationResult, Equipment } from '@/types/equipment';
@@ -72,7 +72,7 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <Card className="w-full max-w-2xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
                     <div className="flex justify-between items-center border-b pb-4">
                         <h2 className="text-xl font-bold">{initialData ? 'Editar Equipo' : 'Registrar Nuevo Equipo'}</h2>
@@ -93,7 +93,7 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Categoría</label>
                             <select
-                                className="w-full p-2 border rounded-md"
+                                className="w-full p-2 border rounded-lg"
                                 value={formData.category}
                                 onChange={e => handleChange('category', e.target.value)}
                             >
@@ -163,15 +163,15 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
 
                     {/* Preview */}
                     {preview && (
-                        <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex justify-between items-center">
+                        <div className="bg-primary-soft border border-primary-soft p-4 rounded-lg flex justify-between items-center">
                             <div>
-                                <p className="text-xs font-bold text-blue-800 uppercase">Impacto en Costos</p>
-                                <p className="text-sm text-blue-600">Base Depreciable: {formatCurrency((preview.currentBookValue + preview.totalDepreciated), primaryCurrency)}</p>
+                                <p className="text-xs font-bold text-primary uppercase">Impacto en Costos</p>
+                                <p className="text-sm text-primary">Base Depreciable: {formatCurrency((preview.currentBookValue + preview.totalDepreciated), primaryCurrency)}</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-2xl font-bold text-blue-900">
+                                <p className="text-2xl font-bold text-gray-900">
                                     {formatCurrency(preview.monthlyDepreciation, primaryCurrency)}
-                                    <span className="text-xs font-normal text-blue-600"> / mes</span>
+                                    <span className="text-xs font-normal text-primary"> / mes</span>
                                 </p>
                             </div>
                         </div>
@@ -182,7 +182,7 @@ export function EquipmentForm({ onClose, initialData, onSave }: EquipmentFormPro
                         <Button type="submit">Guardar Equipo</Button>
                     </div>
                 </form>
-            </Card>
+            </div>
         </div>
     );
 }

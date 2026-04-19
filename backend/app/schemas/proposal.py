@@ -30,6 +30,8 @@ class ProposalGenerateAIRequest(BaseModel):
     payment_conditions: Optional[str] = None
     execution_conditions: Optional[str] = None
     persist_context: bool = Field(default=True)
+    user_api_key: Optional[str] = Field(None, max_length=256)
+    ai_provider: Optional[str] = Field(None, pattern="^(openai|anthropic)$")
 
 
 class ProposalResponse(BaseModel):

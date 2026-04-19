@@ -1,307 +1,301 @@
-
 'use client';
 
 import React from 'react';
-import { Card, CardContent } from '@/components/ui/Card';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
-import { Info, ArrowUpRight, Percent, Users, Receipt } from 'lucide-react';
-import Link from 'next/link';
 import { formatDisplayNumber, formatMoneyAmount } from '@/lib/utils';
+import { AlertTriangle, ArrowUpRight } from 'lucide-react';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
-export function QuoteFinancialSummary() {
-    const { summary, state, toggleTax, taxes, setTargetMargin, teamMembers } = useQuoteBuilder();
-    const [objectiveMode, setObjectiveMode] = React.useState<'margin' | 'markup'>('margin');
+// ── Helpers ────────────────────────────────────────────────────────
+function marginTone(pct: number) {
+    if (pct < 15) return 'danger';
+    if (pct < 25) return 'warn';
+    return 'good';
+}
+const TONE_CLASSES = {
+    danger: { text: 'text-critical', bg: 'bg-critical-soft', badge: 'bg-critical text-white', bar: 'bg-critical' },
+    warn:   { text: 'text-warning',  bg: 'bg-warning-soft',  badge: 'bg-warning text-white',  bar: 'bg-warning' },
+    good:   { text: 'text-success',  bg: 'bg-success-soft',  badge: 'bg-success text-white',  bar: 'bg-success' },
+};
+const TONE_LABELS = { danger: 'BAJO', warn: 'ATENCIÓN', good: 'SALUDABLE' };
 
-    const markupRatioFromMargin = React.useMemo(() => {
-        const margin = Number(state.targetMargin || 0);
-        if (!Number.isFinite(margin) || margin <= 0) return 0;
-        if (margin >= 1) return 0;
-        return margin / (1 - margin);
-    }, [state.targetMargin]);
+function StatRow({ label, hint, value, muted }: { label: string; hint?: string; value: string; muted?: boolean }) {
+    return (
+        <div className="flex items-baseline justify-between gap-3">
+            <div>
+                <span className={cn('text-[11.5px] font-medium', muted ? 'text-gray-400' : 'text-gray-500')}>{label}</span>
+                {hint && <span className="block text-[10.5px] text-gray-400">{hint}</span>}
+            </div>
+            <span className={cn('tabular-nums text-[14.5px] font-semibold', muted ? 'text-gray-400' : 'text-gray-900')}>
+                {value}
+            </span>
+        </div>
+    );
+}
 
-    const objectiveDisplay = React.useMemo(() => {
-        if (objectiveMode === 'markup') {
-            return `${formatDisplayNumber(markupRatioFromMargin * 100, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%`;
+// ── MarginSlider ───────────────────────────────────────────────────
+function MarginSlider({
+    mode, setMode, marginValue, onChangeMargin,
+}: {
+    mode: 'margin' | 'markup';
+    setMode: (m: 'margin' | 'markup') => void;
+    marginValue: number; // 0-1 ratio
+    onChangeMargin: (v: number) => void;
+}) {
+    const isMargin = mode === 'margin';
+    const displayPct = isMargin ? marginValue * 100 : (marginValue / (1 - marginValue)) * 100;
+    const max = isMargin ? 80 : 300;
+    const sliderPct = isMargin ? (marginValue * 100) / max : displayPct / max;
+    const tone = marginTone(marginValue * 100);
+    const barClass = TONE_CLASSES[tone].bar;
+    const textClass = TONE_CLASSES[tone].text;
+    const thumbBorderClass = tone === 'danger' ? 'border-critical' : tone === 'warn' ? 'border-warning' : 'border-success';
+
+    const handleSliderChange = (raw: number) => {
+        if (isMargin) {
+            onChangeMargin(Math.min(raw / 100, 0.95));
+        } else {
+            // markup% → margin ratio
+            const markupRatio = raw / 100;
+            onChangeMargin(Math.min(markupRatio / (1 + markupRatio), 0.95));
         }
-        return `${formatDisplayNumber(state.targetMargin * 100, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%`;
-    }, [objectiveMode, markupRatioFromMargin, state.targetMargin]);
-
-    const updateFromMarkupPercent = (markupPercent: number) => {
-        const safePercent = Math.max(0, Math.min(markupPercent, 300));
-        const markupRatio = safePercent / 100; // 150% => 1.5
-        const marginRatio = markupRatio / (1 + markupRatio); // m = markup/(1+markup)
-        setTargetMargin(Number.isFinite(marginRatio) ? marginRatio : 0);
     };
 
-    // Margin Color Logic
-    let marginColor = 'text-red-500';
-    let marginBg = 'bg-red-50 border-red-100';
-    let marginLabel = 'Bajo';
+    return (
+        <div>
+            {/* Mode tabs */}
+            <div className="mb-3.5 flex gap-1 rounded-lg bg-surface-2 p-1">
+                {(['margin', 'markup'] as const).map(m => (
+                    <button
+                        key={m}
+                        type="button"
+                        onClick={() => setMode(m)}
+                        className={cn(
+                            'flex-1 h-7 rounded-md text-[12px] font-semibold transition-colors',
+                            mode === m ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400 hover:text-gray-600'
+                        )}
+                    >
+                        {m === 'margin' ? 'Margen' : 'Markup'}
+                    </button>
+                ))}
+            </div>
 
-    if (summary.netMarginPercent >= 30) {
-        marginColor = 'text-green-600';
-        marginBg = 'bg-green-50 border-green-100';
-        marginLabel = 'Excelente';
-    } else if (summary.netMarginPercent >= 20) {
-        marginColor = 'text-yellow-600';
-        marginBg = 'bg-yellow-50 border-yellow-100';
-        marginLabel = 'Aceptable';
-    }
+            {/* Value display */}
+            <div className="mb-2.5 flex items-baseline justify-between">
+                <span className="text-[11.5px] font-medium text-gray-500">
+                    {isMargin ? 'Margen sobre venta' : 'Markup sobre costo'}
+                </span>
+                <span className={cn('text-[22px] font-bold tabular-nums leading-none', textClass)}>
+                    {displayPct.toFixed(0)}%
+                </span>
+            </div>
+
+            {/* Slider track */}
+            <div className="relative flex h-6 items-center">
+                <div className="absolute inset-x-0 h-[5px] rounded-full bg-gray-100" />
+                <div
+                    className={cn('absolute left-0 h-[5px] rounded-full transition-colors', barClass)}
+                    style={{ width: `${Math.min(sliderPct * 100, 100)}%` }}
+                />
+                {isMargin && [15, 25].map(m => (
+                    <div
+                        key={m}
+                        className="absolute h-3 w-px bg-gray-300 opacity-60"
+                        style={{ left: `${(m / max) * 100}%`, top: '50%', transform: 'translate(-50%, -50%)' }}
+                    />
+                ))}
+                <input
+                    type="range"
+                    min={0}
+                    max={max}
+                    step={1}
+                    value={Math.round(displayPct)}
+                    onChange={e => handleSliderChange(Number(e.target.value))}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+                <div
+                    className={cn('pointer-events-none absolute h-4 w-4 rounded-full border-2 bg-white shadow-sm transition-colors', thumbBorderClass)}
+                    style={{ left: `${Math.min(sliderPct * 100, 100)}%`, transform: 'translate(-50%, 0)' }}
+                />
+            </div>
+            <div className="mt-2 flex justify-between text-[10px] text-gray-400">
+                <span>0%</span>
+                {isMargin && <><span className="text-warning">15%</span><span>25% obj.</span></>}
+                <span>{max}%</span>
+            </div>
+        </div>
+    );
+}
+
+// ── Main Component ─────────────────────────────────────────────────
+export function QuoteFinancialSummary() {
+    const { summary, state, toggleTax, taxes, setTargetMargin } = useQuoteBuilder();
+    const [sliderMode, setSliderMode] = React.useState<'margin' | 'markup'>('margin');
+
+    const netMarginPct = summary.netMarginPercent || 0;
+    const tone = marginTone(netMarginPct);
+    const tc = TONE_CLASSES[tone];
+
+    const currency = state.currency || 'COP';
+    const fmt = (n: number) => `$${formatMoneyAmount(n)}`;
 
     return (
-        <Card className="h-full bg-white shadow-[0_20px_50px_rgba(0,0,0,0.05)] border-0 ring-1 ring-gray-100 sticky top-4 overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50" />
+        <aside className="sticky top-4 flex flex-col gap-3 self-start max-h-[calc(100vh-6rem)] overflow-y-auto pb-4">
 
-            <CardContent className="p-6 space-y-5 relative">
-                {/* 0. Critical Alerts */}
-                {summary.totalClientPrice < summary.totalInternalCost && (
-                    <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-md flex items-start gap-3">
-                        <div className="text-red-500 mt-0.5"><Info size={16} /></div>
+            {/* ── Card 1: Headline financials ── */}
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 pt-4 pb-0">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.55px] text-gray-400">
+                        Resumen financiero
+                    </span>
+                    <ArrowUpRight size={13} className="text-gray-300" />
+                </div>
+
+                {/* Hero — Net Margin */}
+                <div className={cn('px-4 py-4 border-b border-gray-100', tc.bg)}>
+                    <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.5px] text-gray-500">
+                            Margen neto · Utilidad
+                        </span>
+                        <span className={cn('rounded-full px-2 py-px text-[9.5px] font-bold tracking-wide', tc.badge)}>
+                            {TONE_LABELS[tone]}
+                        </span>
+                    </div>
+                    <div className="flex items-baseline gap-3 mt-1">
+                        <span className={cn('text-[42px] font-bold tabular-nums leading-none tracking-tight', tc.text)}>
+                            {netMarginPct.toFixed(1)}%
+                        </span>
                         <div>
-                            <h4 className="text-xs font-black text-red-700 uppercase tracking-wide">Pérdida Crítica</h4>
-                            <p className="text-xs text-red-600 font-medium">El precio es menor que el costo operativo.</p>
+                            <div className="text-[17px] font-semibold text-gray-900 tabular-nums">
+                                {fmt(summary.netMarginAmount || 0)}
+                            </div>
+                            <div className="text-[10.5px] text-gray-400">
+                                {tone === 'danger' ? 'Bajo mínimo recomendado'
+                                    : tone === 'warn' ? 'Bajo objetivo del 25%'
+                                    : 'Por encima del objetivo'}
+                            </div>
                         </div>
                     </div>
-                )}
-                {summary.totalClientPrice >= summary.totalInternalCost && summary.netMarginPercent < 20 && (
-                    <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-md flex items-start gap-3">
-                        <div className="text-yellow-600 mt-0.5"><Info size={16} /></div>
+                </div>
+
+                {/* Stats */}
+                <div className="px-4 py-3.5 space-y-2.5">
+                    <StatRow
+                        label="Costo de ejecución"
+                        hint="Recursos + gastos"
+                        value={fmt(summary.totalInternalCost)}
+                        muted
+                    />
+                    <StatRow
+                        label="Valor a cobrar"
+                        hint="Sin impuestos"
+                        value={fmt(summary.totalClientPrice)}
+                    />
+                    <div className="my-1 h-px bg-gray-100" />
+                    <div className="flex items-baseline justify-between">
                         <div>
-                            <h4 className="text-xs font-black text-yellow-700 uppercase tracking-wide">Margen Bajo</h4>
-                            <p className="text-xs text-yellow-600 font-medium">El margen es inferior al objetivo del 20%.</p>
+                            <div className="text-[11.5px] font-medium text-gray-700">Total a facturar</div>
+                            <div className="text-[10.5px] text-gray-400">Incluye impuestos</div>
                         </div>
+                        <span className="text-[19px] font-bold tabular-nums text-gray-900 tracking-tight">
+                            {fmt(summary.totalWithTaxes)}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Alerts */}
+                {summary.totalClientPrice < summary.totalInternalCost && summary.totalInternalCost > 0 && (
+                    <div className="mx-3 mb-3 flex items-start gap-2.5 rounded-lg border border-red-100 bg-critical-soft px-3 py-2.5">
+                        <AlertTriangle size={13} className="mt-0.5 shrink-0 text-critical" />
+                        <p className="text-[11.5px] font-medium text-red-700">El precio es menor que el costo operativo.</p>
                     </div>
                 )}
+            </div>
 
-                {/* 1. Header: Primary Metric */}
-                <div>
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Presupuesto para Cliente</p>
-                        <Receipt size={14} className="text-gray-300" />
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-sm font-bold text-gray-400">$</span>
-                        <p className="text-5xl font-black text-gray-900 tracking-tighter">
-                            {formatMoneyAmount(summary.totalClientPrice)}
-                        </p>
-                    </div>
+            {/* ── Card 2: Margin slider ── */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                <MarginSlider
+                    mode={sliderMode}
+                    setMode={setSliderMode}
+                    marginValue={state.targetMargin}
+                    onChangeMargin={setTargetMargin}
+                />
+            </div>
+
+            {/* ── Card 3: Taxes ── */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.5px] text-gray-400">Impuestos</span>
+                    <span className="text-[10.5px] text-gray-400">{state.selectedTaxIds.length} activos</span>
                 </div>
-
-                {/* 2. Interactive Controls Section */}
-                <div className="space-y-6">
-                    {/* Taxes */}
-                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Impuestos</h4>
-                            <span className="text-[10px] bg-white px-2 py-0.5 rounded-full border border-gray-100 font-bold text-gray-400">
-                                {state.selectedTaxIds.length} Activos
-                            </span>
-                        </div>
-
-                        <div className="space-y-2.5">
-                            {taxes.length === 0 && (
-                                <div className="rounded-xl border border-dashed border-gray-200 bg-white p-3 text-xs text-gray-600">
-                                    No tienes impuestos activos configurados para esta organización.
-                                    <Link href="/admin/taxes" className="ml-1 font-semibold text-blue-600 hover:text-blue-700">
-                                        Configurar impuestos
-                                    </Link>
-                                </div>
-                            )}
-                            {taxes.map(tax => {
-                                const isSelected = state.selectedTaxIds.includes(tax.id);
-                                const amount = isSelected ? summary.totalClientPrice * (tax.percentage / 100) : 0;
-
-                                return (
-                                    <div
-                                        key={tax.id}
-                                        className={`flex items-center justify-between p-2 rounded-xl transition-all ${isSelected ? 'bg-white shadow-sm ring-1 ring-gray-100' : 'opacity-60'}`}
-                                    >
-                                        <label className="flex items-center gap-3 cursor-pointer text-xs font-bold text-gray-600">
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                onChange={() => toggleTax(tax.id)}
-                                                className="w-4 h-4 rounded-lg border-gray-200 text-blue-600 focus:ring-blue-500/20"
-                                            />
-                                            {tax.name} <span className="text-[10px] text-gray-400">({tax.percentage}%)</span>
-                                        </label>
-                                        <span className={`text-xs font-black ${isSelected ? 'text-gray-900' : 'text-gray-400'}`}>
-                                            ${formatMoneyAmount(amount)}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                {taxes.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-gray-200 p-3 text-[11.5px] text-gray-500">
+                        Sin impuestos configurados.{' '}
+                        <Link href="/admin/taxes" className="font-semibold text-primary hover:underline">
+                            Configurar
+                        </Link>
                     </div>
-
-                    {/* Margin Control */}
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                {objectiveMode === 'markup' ? 'Objetivo (Markup)' : 'Margen de Ganancia'}
-                            </label>
-                            <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-black">
-                                <Percent size={10} />
-                                {objectiveDisplay}
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setObjectiveMode('margin')}
-                                className={`text-[10px] px-2 py-1 rounded-full font-black transition-colors ${
-                                    objectiveMode === 'margin'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                }`}
-                            >
-                                Margen
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setObjectiveMode('markup')}
-                                className={`text-[10px] px-2 py-1 rounded-full font-black transition-colors ${
-                                    objectiveMode === 'markup'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                }`}
-                            >
-                                Markup
-                            </button>
-                        </div>
-                        <div className="relative pt-1 px-1">
-                            {objectiveMode === 'margin' ? (
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="0.95"
-                                    step="0.01"
-                                    value={state.targetMargin}
-                                    onChange={(e) => setTargetMargin(parseFloat(e.target.value))}
-                                    className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-700 transition-all"
-                                />
-                            ) : (
-                                <div className="flex items-center gap-2">
+                ) : (
+                    <div className="space-y-1.5">
+                        {taxes.map(tax => {
+                            const isSelected = state.selectedTaxIds.includes(tax.id);
+                            const amount = isSelected ? summary.totalClientPrice * (tax.percentage / 100) : 0;
+                            return (
+                                <label
+                                    key={tax.id}
+                                    className={cn(
+                                        'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors',
+                                        isSelected
+                                            ? 'border-gray-200 bg-white shadow-sm'
+                                            : 'border-transparent bg-surface-2 opacity-60'
+                                    )}
+                                >
                                     <input
-                                        type="range"
-                                        min="0"
-                                        max="300"
-                                        step="5"
-                                        value={Math.round(markupRatioFromMargin * 100)}
-                                        onChange={(e) => updateFromMarkupPercent(parseFloat(e.target.value))}
-                                        className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-700 transition-all"
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => toggleTax(tax.id)}
+                                        className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary/20"
                                     />
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        max={300}
-                                        step={5}
-                                        value={Math.round(markupRatioFromMargin * 100)}
-                                        onChange={(e) => updateFromMarkupPercent(parseFloat(e.target.value || '0'))}
-                                        className="w-20 rounded-lg border border-gray-200 px-2 py-1 text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                                    />
-                                    <span className="text-xs font-bold text-gray-500">%</span>
-                                </div>
-                            )}
-                            <div className="flex justify-between text-[8px] font-bold text-gray-300 mt-2 uppercase tracking-tighter">
-                                <span>Volumen</span>
-                                <span>Equilibrio</span>
-                                <span>Alta Rentabilidad</span>
-                            </div>
-                            {objectiveMode === 'markup' && (
-                                <p className="mt-2 text-[10px] text-gray-500 font-medium">
-                                    150% de markup equivale aproximadamente a {formatDisplayNumber(state.targetMargin * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% de margen.
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* 3. Final Total */}
-                <div className="flex justify-between items-center p-5 bg-blue-900 rounded-[1.5rem] text-white shadow-xl shadow-blue-100 ring-4 ring-blue-50">
-                    <div className="space-y-0.5">
-                        <p className="text-[9px] font-black text-blue-300 uppercase tracking-widest">Total Factura</p>
-                        <p className="text-xs text-blue-100 font-medium">Incluye impuestos</p>
-                    </div>
-                        <p className="text-2xl font-black tracking-tighter">
-                        ${formatMoneyAmount(summary.totalWithTaxes)}
-                    </p>
-                </div>
-
-                {/* 4. Business Reality Section */}
-                <div className="pt-2">
-                    <div className="flex items-center gap-2 mb-6">
-                        <div className="h-0.5 w-6 bg-blue-500 rounded-full" />
-                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Realidad Financiera</h3>
-                    </div>
-
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center px-1">
-                            <span className="text-xs font-bold text-gray-500">Ingreso Neto (Excl. Impuestos)</span>
-                            <span className="text-sm font-black text-gray-900">${formatMoneyAmount(summary.realIncome)}</span>
-                        </div>
-
-                        <div className="flex justify-between items-center px-1">
-                            <span className="text-xs font-bold text-gray-500">Costo Operativo (Total BCR)</span>
-                            <span className="text-sm font-black text-red-500">-${formatMoneyAmount(summary.totalInternalCost)}</span>
-                        </div>
-
-                        {/* Resulting Benefit */}
-                        <div className={`relative p-4 rounded-2xl border ${marginBg} transition-all duration-500`}>
-                            <div className="flex justify-between items-start mb-1">
-                                <div className="space-y-1">
-                                    <p className={`text-[10px] font-black uppercase tracking-widest ${marginColor}`}>Utilidad Neta ({marginLabel})</p>
-                                    <p className={`text-3xl font-black ${marginColor} tracking-tighter`}>
-                                        {formatDisplayNumber(summary.netMarginPercent, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
-                                    </p>
-                                </div>
-                                <div className={`p-2 rounded-xl bg-white shadow-sm border border-gray-100 ${marginColor}`}>
-                                    <ArrowUpRight size={20} />
-                                </div>
-                            </div>
-                            <p className={`text-xl font-black ${marginColor} mt-2 opacity-80`}>
-                                ${formatMoneyAmount(summary.netMarginAmount)}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 5. Resource Quickview */}
-                {state.showResourceAllocation && state.resourceAllocations.length > 0 && (
-                    <div className="pt-6 border-t border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Capacidad Asignada</span>
-                                <span className="text-xs font-black text-blue-600">
-                                    {state.resourceAllocations.reduce((sum, a) => sum + a.hours, 0)} Horas Totales
-                                </span>
-                            </div>
-                            <Users size={16} className="text-gray-200" />
-                        </div>
-
-                        <div className="flex -space-x-3 overflow-hidden p-1">
-                            {state.resourceAllocations.slice(0, 5).map((alloc, idx) => {
-                                const member = teamMembers.find(m => m.id === alloc.teamMemberId);
-                                if (!member) return null;
-                                return (
-                                    <div
-                                        key={idx}
-                                        className="inline-flex h-9 w-9 rounded-full ring-4 ring-white bg-gradient-to-br from-blue-50 to-blue-100 items-center justify-center text-[10px] font-black text-blue-700 border border-blue-50 shadow-sm transition-transform hover:scale-110 active:scale-95 cursor-pointer"
-                                        title={`${member.name} (${alloc.hours}h)`}
-                                    >
-                                        {member.name[0]}
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-[12.5px] font-semibold text-gray-700">{tax.name}</span>
+                                        <span className="ml-1.5 text-[10.5px] text-gray-400">{tax.percentage}%</span>
                                     </div>
-                                );
-                            })}
-                            {state.resourceAllocations.length > 5 && (
-                                <div className="inline-flex h-9 w-9 rounded-full ring-4 ring-white bg-gray-50 items-center justify-center text-[10px] font-black text-gray-400 border border-gray-100 shadow-sm">
-                                    +{state.resourceAllocations.length - 5}
-                                </div>
-                            )}
-                        </div>
+                                    <span className={cn('tabular-nums text-[12.5px] font-semibold', isSelected ? 'text-gray-800' : 'text-gray-400')}>
+                                        {fmt(amount)}
+                                    </span>
+                                </label>
+                            );
+                        })}
                     </div>
                 )}
-            </CardContent>
-        </Card>
+            </div>
+
+            {/* ── Card 4: Real income breakdown ── */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-2.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.5px] text-gray-400">Realidad financiera</span>
+                <StatRow
+                    label="Ingreso neto (excl. impuestos)"
+                    value={fmt(summary.realIncome)}
+                />
+                <StatRow
+                    label="Costo operativo (BCR)"
+                    value={`-${fmt(summary.totalInternalCost)}`}
+                    muted
+                />
+                <div className={cn('flex items-center justify-between rounded-xl p-3', tc.bg)}>
+                    <div>
+                        <div className={cn('text-[10px] font-bold uppercase tracking-wide', tc.text)}>Utilidad neta</div>
+                        <div className={cn('text-[26px] font-bold tabular-nums leading-tight tracking-tight', tc.text)}>
+                            {formatDisplayNumber(netMarginPct, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                        </div>
+                    </div>
+                    <span className={cn('text-[19px] font-bold tabular-nums', tc.text)}>
+                        {fmt(summary.netMarginAmount || 0)}
+                    </span>
+                </div>
+            </div>
+        </aside>
     );
 }

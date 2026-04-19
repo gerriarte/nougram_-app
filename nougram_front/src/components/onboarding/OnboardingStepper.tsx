@@ -38,9 +38,9 @@ export function OnboardingStepper({ currentStep }: OnboardingStepperProps) {
                                 <div
                                     className={`flex items-center justify-center w-9 h-9 rounded-full border-2 shadow-sm transition-all duration-300 ${
                                         isCompleted
-                                            ? 'bg-blue-600 border-blue-600 text-white'
+                                            ? 'bg-primary border-primary text-white'
                                             : isActive
-                                                ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                                ? 'bg-primary-soft border-primary text-primary'
                                                 : 'bg-white border-gray-300 text-gray-400'
                                     }`}
                                 >
@@ -54,7 +54,7 @@ export function OnboardingStepper({ currentStep }: OnboardingStepperProps) {
                                 </div>
                                 <span
                                     className={`mt-1.5 text-[10px] md:text-xs font-semibold max-w-[5.5rem] leading-tight ${
-                                        isCompleted || isActive ? 'text-blue-700' : 'text-gray-500'
+                                        isCompleted || isActive ? 'text-primary' : 'text-gray-500'
                                     }`}
                                 >
                                     {step.label}

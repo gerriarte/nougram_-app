@@ -16,7 +16,7 @@ const profileMeta = [
         title: 'Freelance',
         icon: User,
         description: 'Operación individual enfocada en proyectos especializados.',
-        color: 'bg-blue-500',
+        color: 'bg-primary-soft0',
     },
     {
         id: 'company',
@@ -122,13 +122,13 @@ export function StepBusinessProfile({ onNext, onBack, initialType }: StepBusines
                             className={cn(
                                 "cursor-pointer rounded-2xl p-6 border transition-all duration-300 relative overflow-hidden",
                                 isSelected
-                                    ? "bg-white border-blue-500 shadow-xl shadow-blue-500/10 ring-2 ring-blue-500/20"
+                                    ? "bg-white border-primary shadow-xl shadow-primary/10 ring-2 ring-primary/20"
                                     : "bg-white/60 border-white/40 hover:bg-white/80 hover:shadow-lg"
                             )}
                         >
                             <div className={cn(
                                 "w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors",
-                                isSelected ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"
+                                isSelected ? "bg-primary-soft0 text-white" : "bg-gray-100 text-gray-500"
                             )}>
                                 <Icon strokeWidth={2} className="w-6 h-6" />
                             </div>
@@ -165,7 +165,7 @@ export function StepBusinessProfile({ onNext, onBack, initialType }: StepBusines
 
                             {isSelected && (
                                 <div className="absolute top-4 right-4 text-blue-500">
-                                    <div className="bg-blue-50 rounded-full p-1">
+                                    <div className="bg-primary-soft rounded-full p-1">
                                         <Check className="w-4 h-4" />
                                     </div>
                                 </div>

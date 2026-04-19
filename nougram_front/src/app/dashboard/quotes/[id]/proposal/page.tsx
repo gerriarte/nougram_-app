@@ -96,7 +96,7 @@ export default function ProposalBuilderPage() {
 
     if (loading) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-[#F5F5F7]">
+            <div className="flex min-h-screen items-center justify-center bg-background">
                 <p className="text-gray-500">Cargando...</p>
             </div>
         );
@@ -104,9 +104,9 @@ export default function ProposalBuilderPage() {
 
     if (!quote) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-[#F5F5F7]">
+            <div className="flex min-h-screen items-center justify-center bg-background">
                 <p className="text-gray-600">Cotización no encontrada.</p>
-                <button type="button" className="mt-4 text-blue-600" onClick={() => router.push('/dashboard')}>
+                <button type="button" className="mt-4 text-primary" onClick={() => router.push('/dashboard')}>
                     Volver al dashboard
                 </button>
             </div>

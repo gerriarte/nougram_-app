@@ -22,15 +22,15 @@ export default function DashboardPage() {
             >
                 <div className="flex flex-col md:flex-row justify-between items-stretch md:items-end gap-6">
                     <div className="min-w-0">
-                        <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">Dashboard Comercial</h1>
-                        <p className="text-system-gray font-medium text-base sm:text-lg mt-2">Vista general de tus oportunidades de negocio.</p>
+                        <h1 className="text-[22px] sm:text-[28px] font-bold text-gray-900 tracking-tight">Dashboard comercial</h1>
+                        <p className="text-[13.5px] text-gray-500 mt-1">Vista general de tus oportunidades de negocio.</p>
                     </div>
                     <Button
-                        className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl h-12 px-6 font-bold shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center gap-2 w-full md:w-auto shrink-0"
+                        className="bg-gray-900 hover:bg-gray-700 text-white rounded-xl h-11 px-5 font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 w-full md:w-auto shrink-0"
                         onClick={() => router.push(CANONICAL_NEW_QUOTE_PATH)}
                     >
-                        <Plus size={20} strokeWidth={2.5} />
-                        Nueva Cotización
+                        <Plus size={17} strokeWidth={2.5} />
+                        Nueva cotización
                     </Button>
                 </div>
 

@@ -70,7 +70,7 @@ export function QuoteItemsList({ items, onChange }: QuoteItemsListProps) {
                             <div className="space-y-2">
                                 <Label>Servicio</Label>
                                 <select
-                                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400/30"
                                     value={item.pricing_type} // Mocking service name via pricing type selector for UI demo
                                     onChange={(e) => updateItem(index, "pricing_type", e.target.value)}
                                 >

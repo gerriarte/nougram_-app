@@ -48,7 +48,7 @@ export function QuoteTrackingView({ quote, onBack }: QuoteTrackingViewProps) {
     }>;
 
     return (
-        <div className="min-h-screen bg-[#F5F5F7] p-6 lg:p-12">
+        <div className="min-h-screen bg-background p-6 lg:p-12">
             <div className="max-w-5xl mx-auto space-y-6">
 
                 {/* Header */}
@@ -58,7 +58,7 @@ export function QuoteTrackingView({ quote, onBack }: QuoteTrackingViewProps) {
                             <ArrowLeft size={20} />
                         </Button>
                         <div>
-                            <h1 className="text-2xl font-bold text-[#1D1D1F]">Trazabilidad</h1>
+                            <h1 className="text-2xl font-bold text-gray-900">Trazabilidad</h1>
                             <p className="text-gray-500">{quote.project} - {quote.client}</p>
                         </div>
                     </div>

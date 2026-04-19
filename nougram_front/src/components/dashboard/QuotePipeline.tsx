@@ -151,23 +151,23 @@ export function QuotePipeline() {
             <div className="space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="min-w-0">
-                        <h2 className="text-lg font-bold text-gray-900 tracking-tight">Indicadores (KPI)</h2>
-                        <p className="text-sm text-gray-500 mt-1 max-w-xl">
-                            Última cotización por proyecto, sin borradores. Filtro por fecha de actualización de la cotización.
+                        <h2 className="text-[15px] font-semibold text-gray-900">Indicadores (KPI)</h2>
+                        <p className="text-[12.5px] text-gray-500 mt-0.5 max-w-xl">
+                            Última cotización por proyecto, sin borradores. Filtro por fecha de actualización.
                         </p>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full md:w-auto">
-                        <span className="text-xs font-semibold text-gray-500 bg-gray-100/70 px-3 py-1.5 rounded-full w-fit">
+                        <span className="text-[11.5px] font-semibold text-gray-500 bg-surface-2 border border-gray-200 px-3 py-1.5 rounded-full w-fit">
                             {kpiFilterLabel}
                         </span>
                         <Button
                             type="button"
                             variant="secondary"
-                            className="h-11 rounded-xl px-4 w-full sm:w-auto justify-center"
+                            className="h-9 rounded-lg px-3 text-[12.5px] w-full sm:w-auto justify-center"
                             onClick={openKpiFilterModal}
                         >
-                            <SlidersHorizontal size={15} className="mr-2" />
-                            Ajustar rango KPI
+                            <SlidersHorizontal size={13} className="mr-1.5" />
+                            Ajustar rango
                         </Button>
                     </div>
                 </div>
@@ -177,10 +177,10 @@ export function QuotePipeline() {
 
             {/* 2. Pipeline Controls */}
             {loading ? (
-                <div className="flex h-[320px] items-center justify-center rounded-2xl border border-gray-100 bg-gray-50/40">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
-                        <p className="text-sm font-bold text-system-gray uppercase tracking-widest">Sincronizando Pipeline...</p>
+                <div className="flex h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-surface-2">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-[3px] border-gray-200 border-t-gray-500 rounded-full animate-spin" />
+                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Cargando pipeline…</p>
                     </div>
                 </div>
             ) : null}
@@ -189,20 +189,20 @@ export function QuotePipeline() {
             <div className="space-y-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Ventas & Pipeline</h2>
-                        <p className="text-sm text-system-gray font-medium mt-1">Monitorea el flujo de tus propuestas comerciales.</p>
+                        <h2 className="text-[17px] font-semibold text-gray-900 tracking-tight">Ventas & Pipeline</h2>
+                        <p className="text-[12.5px] text-gray-500 mt-0.5">Monitorea el flujo de tus propuestas comerciales.</p>
                     </div>
 
                     <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full md:w-auto">
                         {/* Search */}
-                        <div className="relative group flex-1 min-w-0 w-full md:w-80">
-                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" strokeWidth={1.5} />
+                        <div className="relative group flex-1 min-w-0 w-full md:w-72">
+                            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-gray-600 transition-colors" strokeWidth={1.5} />
                             <input
                                 type="text"
                                 placeholder="Buscar proyecto o cliente..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="w-full h-12 bg-gray-200/50 border-none rounded-2xl pl-12 pr-4 text-sm font-bold text-gray-900 placeholder:text-system-gray focus:ring-2 focus:ring-blue-500/50 focus:bg-white transition-all outline-none"
+                                className="w-full h-9 border border-gray-200 rounded-lg bg-white pl-9 pr-3 text-[13px] text-gray-800 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none transition-colors"
                             />
                         </div>
 
@@ -210,7 +210,7 @@ export function QuotePipeline() {
                         <select
                             value={filters.clientId === '' ? '' : String(filters.clientId)}
                             onChange={(e) => updateFilter('clientId', e.target.value === '' ? '' : Number(e.target.value))}
-                            className="h-12 px-4 rounded-2xl border-0 bg-gray-200/50 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500/50 focus:bg-white outline-none min-w-0 w-full sm:min-w-[180px] sm:w-auto"
+                            className="h-9 px-3 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:border-gray-400 focus:outline-none min-w-0 w-full sm:min-w-[160px] sm:w-auto"
                         >
                             <option value="">Todos los clientes</option>
                             {clients.map((c) => (
@@ -221,33 +221,33 @@ export function QuotePipeline() {
                         </select>
 
                         {/* View Switcher */}
-                        <div className="bg-gray-200/50 p-1 rounded-xl flex gap-1 h-12 w-full sm:w-auto justify-center sm:justify-start">
+                        <div className="bg-surface-2 border border-gray-200 p-0.5 rounded-lg flex gap-0.5 h-9 w-full sm:w-auto justify-center sm:justify-start">
                             <button
                                 onClick={() => setViewMode('board')}
                                 className={cn(
-                                    "px-4 rounded-lg transition-all flex items-center justify-center",
-                                    viewMode === 'board' ? "bg-white text-gray-900 shadow-sm" : "text-system-gray hover:text-gray-900"
+                                    "px-3 rounded-md transition-all flex items-center justify-center",
+                                    viewMode === 'board' ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-700"
                                 )}
                             >
-                                <Layout size={20} strokeWidth={2} />
+                                <Layout size={15} strokeWidth={2} />
                             </button>
                             <button
                                 onClick={() => setViewMode('list')}
                                 className={cn(
-                                    "px-4 rounded-lg transition-all flex items-center justify-center",
-                                    viewMode === 'list' ? "bg-white text-gray-900 shadow-sm" : "text-system-gray hover:text-gray-900"
+                                    "px-3 rounded-md transition-all flex items-center justify-center",
+                                    viewMode === 'list' ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-700"
                                 )}
                             >
-                                <List size={20} strokeWidth={2} />
+                                <List size={15} strokeWidth={2} />
                             </button>
                         </div>
                         <Button
                             type="button"
                             variant={showInactiveQuotes ? 'primary' : 'secondary'}
-                            className="h-12 rounded-xl px-4 w-full sm:w-auto justify-center"
+                            className="h-9 rounded-lg px-3 text-[12.5px] w-full sm:w-auto justify-center"
                             onClick={() => setShowInactiveQuotes((prev) => !prev)}
                         >
-                            {showInactiveQuotes ? 'Ocultar inactivas' : 'Mostrar inactivas (PM)'}
+                            {showInactiveQuotes ? 'Ocultar inactivas' : 'Ver inactivas (PM)'}
                             {inactiveCount > 0 ? ` (${inactiveCount})` : ''}
                         </Button>
                     </div>
@@ -444,7 +444,7 @@ export function QuotePipeline() {
                                     value={kpiDraftFilter.monthsBack}
                                     onChange={(e) => setKpiDraftFilter((prev) => ({ ...prev, monthsBack: Number(e.target.value) }))}
                                     disabled={isApplyingKpiFilter}
-                                    className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                                    className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-400/30"
                                 >
                                     <option value={1}>Último mes</option>
                                     <option value={3}>Últimos 3 meses</option>
@@ -461,7 +461,7 @@ export function QuotePipeline() {
                                         value={kpiDraftFilter.customStart}
                                         onChange={(e) => setKpiDraftFilter((prev) => ({ ...prev, customStart: e.target.value }))}
                                         disabled={isApplyingKpiFilter}
-                                        className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                                        className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-400/30"
                                     />
                                 </div>
                                 <div className="flex flex-col gap-1">
@@ -471,7 +471,7 @@ export function QuotePipeline() {
                                         value={kpiDraftFilter.customEnd}
                                         onChange={(e) => setKpiDraftFilter((prev) => ({ ...prev, customEnd: e.target.value }))}
                                         disabled={isApplyingKpiFilter}
-                                        className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                                        className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-400/30"
                                     />
                                 </div>
                             </div>

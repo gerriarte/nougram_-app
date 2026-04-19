@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { useEquipment } from '@/hooks/useEquipment';
-import { Card } from '@/components/ui/Card';
+
 import { Button } from '@/components/ui/Button';
 import { Equipment } from '@/types/equipment';
 // calculateDepreciation is handled by hook now, but detail modal needs it imported or passed
@@ -61,7 +61,7 @@ export function EquipmentList() {
                         const stats = getStats(eq);
 
                         return (
-                            <Card key={eq.id} className="p-4 hover:shadow-md transition-shadow">
+                            <div key={eq.id} className="p-4 rounded-xl border border-gray-200 bg-white hover:shadow-md transition-shadow">
                                 <div className="flex flex-col md:flex-row justify-between gap-4">
                                     {/* Left: Info */}
                                     <div className="flex-1">
@@ -96,13 +96,13 @@ export function EquipmentList() {
                                         </p>
 
                                         <div className="mt-2 flex justify-end gap-2 text-xs">
-                                            <button onClick={() => setDetailId(eq.id)} className="text-blue-600 hover:underline font-bold">Ver Detalle</button>
+                                            <button onClick={() => setDetailId(eq.id)} className="text-primary hover:underline font-bold">Ver Detalle</button>
                                             <button onClick={() => handleEdit(eq.id)} className="text-gray-500 hover:underline">Editar</button>
                                             <button onClick={() => removeEquipment(eq.id)} className="text-red-500 hover:underline">Eliminar</button>
                                         </div>
                                     </div>
                                 </div>
-                            </Card>
+                            </div>
                         );
                     })}
                 </div>

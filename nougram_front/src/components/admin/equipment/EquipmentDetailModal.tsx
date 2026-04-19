@@ -35,9 +35,9 @@ export function EquipmentDetailModal({ equipment, onClose }: EquipmentDetailModa
                 <div className="space-y-8">
                     {/* 1. Key Metrics */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                            <p className="text-xs text-blue-600 uppercase font-black">Depreciación Mensual</p>
-                            <p className="text-2xl font-bold text-blue-900">{formatCurrency(stats.monthlyDepreciation, equipment.currency)}</p>
+                        <div className="p-4 bg-primary-soft rounded-lg border border-primary-soft">
+                            <p className="text-xs text-primary uppercase font-black">Depreciación Mensual</p>
+                            <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.monthlyDepreciation, equipment.currency)}</p>
                         </div>
                         <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                             <p className="text-xs text-gray-500 uppercase font-black">Valor en Libros</p>

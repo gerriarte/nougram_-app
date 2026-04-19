@@ -18,7 +18,7 @@ export function AdminLayout({ children, activeTab, onTabChange }: AdminLayoutPro
             className={cn(
                 "flex items-center gap-3 w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-colors",
                 activeTab === id
-                    ? "bg-blue-50 text-blue-700"
+                    ? "bg-primary-soft text-primary"
                     : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
             )}
         >
@@ -33,7 +33,7 @@ export function AdminLayout({ children, activeTab, onTabChange }: AdminLayoutPro
             <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
                 <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="bg-blue-600 p-1.5 rounded-md text-white">
+                        <div className="bg-primary p-1.5 rounded-md text-white">
                             <Calculator className="h-5 w-5" />
                         </div>
                         <h1 className="text-xl font-bold text-gray-900">Nougram Admin</h1>

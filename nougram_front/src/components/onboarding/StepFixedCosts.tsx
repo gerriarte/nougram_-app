@@ -206,7 +206,7 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
             <div className="text-center space-y-2 px-1">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Define tu inventario operativo</h1>
                 <p className="text-sm sm:text-base text-gray-600">Selecciona items y completa los datos. Los costos amortizables se configuran con datos de amortizacion, no con valor mensual.</p>
-                <p className="text-xs text-blue-600">Todos los valores se muestran y editan en {primaryCurrency}.</p>
+                <p className="text-xs text-primary">Todos los valores se muestran y editan en {primaryCurrency}.</p>
             </div>
 
             <Card className="border-dashed border-gray-300">
@@ -293,13 +293,13 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                                         const moneyInputMode: 'numeric' | 'decimal' = String(primaryCurrency || '').toUpperCase() === 'COP' ? 'numeric' : 'decimal';
 
                                         return (
-                                            <tr key={template.id} className={`border-b last:border-b-0 ${isSelected ? 'bg-blue-50/40' : ''}`}>
+                                            <tr key={template.id} className={`border-b last:border-b-0 ${isSelected ? 'bg-primary-soft/40' : ''}`}>
                                                 <td className="py-2 pr-2 align-top">
                                                     <input
                                                         type="checkbox"
                                                         checked={isSelected}
                                                         onChange={() => toggleCost(template)}
-                                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                                                     />
                                                 </td>
                                                 <td className="py-2 pr-2 align-top">

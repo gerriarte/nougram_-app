@@ -64,6 +64,8 @@ export type ProposalAIGeneratePayload = {
   payment_conditions?: string;
   execution_conditions?: string;
   persist_context?: boolean;
+  user_api_key?: string;
+  ai_provider?: 'openai' | 'anthropic';
 };
 
 export const proposalService = {

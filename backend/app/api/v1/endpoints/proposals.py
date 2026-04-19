@@ -182,7 +182,8 @@ async def generate_proposal_with_ai(
     current_user: User = Depends(require_send_quotes),
     db: AsyncSession = Depends(get_db),
 ):
-    if not ai_service.is_available():
+    user_key = _normalize_context_text(payload.user_api_key) if payload.user_api_key else None
+    if not user_key and not ai_service.is_available():
         raise HTTPException(status_code=503, detail="AI service unavailable")
 
     project_repo = RepositoryFactory.create_project_repository(db, tenant.organization_id)
@@ -236,18 +237,34 @@ async def generate_proposal_with_ai(
         currency=project.currency or "USD",
         language=payload.language,
     )
-    sections_result = await ai_service.generate_proposal_sections(
-        project_name=project.name,
-        client_name=project.client_name,
-        currency=project.currency or "USD",
-        services=[service.service_name for service in services_payload],
-        objective=context_payload["proposal_objective"],
-        timeline=context_payload["estimated_timeline"],
-        payment_conditions=context_payload["payment_conditions"],
-        execution_conditions=context_payload["execution_conditions"],
-        language=payload.language,
-        extra_instructions=composed_extra_instructions,
-    )
+    if user_key:
+        sections_result = await ai_service.generate_proposal_sections_with_user_key(
+            user_api_key=user_key,
+            ai_provider=_normalize_context_text(payload.ai_provider) or "openai",
+            project_name=project.name,
+            client_name=project.client_name,
+            currency=project.currency or "USD",
+            services=[service.service_name for service in services_payload],
+            objective=context_payload["proposal_objective"],
+            timeline=context_payload["estimated_timeline"],
+            payment_conditions=context_payload["payment_conditions"],
+            execution_conditions=context_payload["execution_conditions"],
+            language=payload.language,
+            extra_instructions=composed_extra_instructions,
+        )
+    else:
+        sections_result = await ai_service.generate_proposal_sections(
+            project_name=project.name,
+            client_name=project.client_name,
+            currency=project.currency or "USD",
+            services=[service.service_name for service in services_payload],
+            objective=context_payload["proposal_objective"],
+            timeline=context_payload["estimated_timeline"],
+            payment_conditions=context_payload["payment_conditions"],
+            execution_conditions=context_payload["execution_conditions"],
+            language=payload.language,
+            extra_instructions=composed_extra_instructions,
+        )
     if not sections_result.get("success"):
         raise HTTPException(status_code=500, detail=sections_result.get("error", "Failed to generate proposal"))
 

@@ -26,48 +26,43 @@ export default function UserManagementPage() {
             <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="max-w-[1200px] mx-auto px-6 py-12"
+                className="max-w-[1200px] mx-auto"
             >
                 {/* Page Header */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10 mb-12">
-                    <div className="space-y-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8">
+                    <div className="space-y-2">
                         <Link
                             href="/dashboard"
-                            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="inline-flex items-center gap-1.5 text-[12px] text-gray-400 hover:text-gray-700 transition-colors"
                         >
-                            <ArrowLeft size={14} />
+                            <ArrowLeft size={12} />
                             Volver al dashboard
                         </Link>
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-                                <ShieldCheck size={22} strokeWidth={1.5} />
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 bg-gray-900 rounded-xl flex items-center justify-center text-white">
+                                <ShieldCheck size={18} strokeWidth={1.5} />
                             </div>
-                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">Administración</span>
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.15em]">Administración</span>
                         </div>
-                        <h1 className="text-4xl md:text-5xl font-bold text-gray-900 tracking-tight">Equipo</h1>
-                        <p className="text-system-gray font-medium text-lg max-w-2xl leading-relaxed">
-                            Gestiona el talento de tu organización, define roles y personaliza tu perfil profesional.
+                        <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Equipo</h1>
+                        <p className="text-[13px] text-gray-500 max-w-xl">
+                            Gestiona el talento de tu organización, define roles y personaliza tu perfil.
                         </p>
                     </div>
 
-                    <div className="w-full md:w-auto">
-                        <div className="bg-gray-200/50 p-1.5 rounded-2xl flex w-full md:w-auto backdrop-blur-sm border border-gray-200/20">
-                            {tabs.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`
-                                        flex-1 md:flex-none flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-xl text-sm font-bold transition-all
-                                        ${activeTab === tab.id
-                                            ? 'bg-white text-gray-900 shadow-[0_4px_12px_rgba(0,0,0,0.08)] scale-100'
-                                            : 'text-system-gray hover:text-gray-900 hover:bg-white/40 scale-95 hover:scale-100'}
-                                    `}
-                                >
-                                    <tab.icon size={16} strokeWidth={2} />
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
+                    <div className="flex items-center gap-1 rounded-lg bg-surface-2 border border-gray-200 p-1 w-full md:w-auto">
+                        {tabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex flex-1 md:flex-none items-center justify-center gap-1.5 px-4 py-1.5 rounded-md text-[12.5px] font-semibold transition-colors ${
+                                    activeTab === tab.id ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                            >
+                                <tab.icon size={13} strokeWidth={2} />
+                                {tab.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
                 {/* Content Area */}

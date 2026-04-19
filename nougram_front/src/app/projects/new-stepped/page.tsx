@@ -65,7 +65,7 @@ function QuoteWizardContent() {
     const progress = (currentStepId / STEPS.length) * 100;
 
     return (
-        <div className="min-h-screen bg-[#F5F5F7] pb-20 font-sans">
+        <div className="min-h-screen bg-background pb-20 font-sans">
             {/* Header / Nav */}
             <header className="bg-white/80 backdrop-blur-md border-b border-gray-200/50 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -85,7 +85,7 @@ function QuoteWizardContent() {
                         currentStepId={currentStepId}
                     />
 
-                    <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full whitespace-nowrap">
+                    <div className="text-sm font-medium text-primary bg-primary-soft px-3 py-1 rounded-full whitespace-nowrap">
                         Total: {formatCurrency(summary.totalClientPrice, state.currency)}
                     </div>
                 </div>
@@ -142,7 +142,7 @@ function QuoteWizardContent() {
                         <Button
                             onClick={handleComplete}
                             disabled={isSaving || !isValid}
-                            className="text-white rounded-xl px-8 shadow-lg transition-colors bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                            className="text-white rounded-xl px-8 shadow-lg transition-colors bg-gray-900 hover:bg-gray-700"
                         >
                             {isSaving ? 'Guardando...' : 'Guardar y pasar a propuesta'}
                         </Button>

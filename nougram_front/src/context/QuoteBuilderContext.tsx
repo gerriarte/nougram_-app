@@ -4,7 +4,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNougram } from '@/context/NougramCoreContext';
 import {
-    QuoteBuilderState, QuoteItem, TaxConfig, CalculationSummary,
+    QuoteBuilderState, QuoteItem, QuoteExpense, TaxConfig, CalculationSummary,
     PricingType, Service, Contingency
 } from '@/types/quote-builder';
 import { taxService } from '@/services/taxService';
@@ -29,6 +29,7 @@ const INITIAL_STATE: QuoteBuilderState = {
     projectDescription: '',
     currency: 'COP',
     items: [],
+    expenses: [],
     selectedTaxIds: [],
     targetMargin: 0.35, // Default margin
     allowLowMargin: false,
@@ -66,6 +67,10 @@ interface QuoteBuilderContextType {
     addItem: (serviceId: number, serviceNameOverride?: string, pricingTypeOverride?: PricingType) => void;
     updateItem: (itemId: string, updates: Partial<QuoteItem>) => void;
     removeItem: (itemId: string) => void;
+
+    addExpense: (expense: Omit<QuoteExpense, 'id' | 'clientPrice'>) => void;
+    updateExpense: (expenseId: string, updates: Partial<QuoteExpense>) => void;
+    removeExpense: (expenseId: string) => void;
 
     toggleTax: (taxId: number) => void;
     setTargetMargin: (margin: number) => void;
@@ -250,6 +255,29 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     const removeItem = (itemId: string) =>
         setState(prev => ({ ...prev, items: prev.items.filter(i => i.id !== itemId) }));
 
+    const addExpense = (expense: Omit<QuoteExpense, 'id' | 'clientPrice'>) =>
+        setState(prev => ({
+            ...prev,
+            expenses: [...prev.expenses, {
+                ...expense,
+                id: crypto.randomUUID(),
+                clientPrice: expense.cost * expense.quantity * (1 + expense.markupPercentage),
+            }],
+        }));
+
+    const updateExpense = (expenseId: string, updates: Partial<QuoteExpense>) =>
+        setState(prev => ({
+            ...prev,
+            expenses: prev.expenses.map(e =>
+                e.id === expenseId
+                    ? { ...e, ...updates, clientPrice: (updates.cost ?? e.cost) * (updates.quantity ?? e.quantity) * (1 + (updates.markupPercentage ?? e.markupPercentage)) }
+                    : e
+            ),
+        }));
+
+    const removeExpense = (expenseId: string) =>
+        setState(prev => ({ ...prev, expenses: prev.expenses.filter(e => e.id !== expenseId) }));
+
     const toggleTax = (taxId: number) =>
         setState(prev => {
             const exists = prev.selectedTaxIds.includes(taxId);
@@ -337,7 +365,15 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             marginPercentage: summary.netMarginPercent,
             targetMargin: state.targetMargin,
             contingency: state.contingency,
-            items: state.items
+            items: state.items,
+            expenses: state.expenses.map(e => ({
+                name: e.name,
+                description: e.vendorName,
+                cost: String(e.cost),
+                markup_percentage: String(e.markupPercentage),
+                quantity: String(e.quantity),
+                category: e.category,
+            })),
         };
 
         if (state.items.length === 0) return undefined;
@@ -441,7 +477,9 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     return (
         <QuoteBuilderContext.Provider value={{
             state, services, taxes, teamMembers,
-            updateProjectInfo, addItem, updateItem, removeItem, toggleTax, setTargetMargin, setContingency,
+            updateProjectInfo, addItem, updateItem, removeItem,
+            addExpense, updateExpense, removeExpense,
+            toggleTax, setTargetMargin, setContingency,
             toggleResourceAllocation, addResourceAllocation, updateResourceAllocation, removeResourceAllocation, getMemberUtilization,
             summary, isValid: errors.length === 0, errors,
             saveQuote, loadQuote,

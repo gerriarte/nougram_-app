@@ -25,7 +25,7 @@ export function ScenarioCard({ scenario, onEdit, onDelete, currency }: ScenarioC
             <div className="flex justify-between items-start mb-6">
                 <h3 className="font-semibold text-lg text-gray-900">{scenario.name}</h3>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(scenario)} className="h-8 w-8 p-0 text-gray-500 hover:text-blue-600">
+                    <Button variant="ghost" size="sm" onClick={() => onEdit(scenario)} className="h-8 w-8 p-0 text-gray-500 hover:text-primary">
                         <Pencil size={16} />
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => onDelete(scenario.id)} className="h-8 w-8 p-0 text-gray-500 hover:text-red-600">
