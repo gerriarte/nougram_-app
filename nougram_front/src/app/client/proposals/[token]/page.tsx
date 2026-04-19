@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Image from 'next/image';
 import { CheckCircle2, Loader2, AlertCircle, X, Sparkles, RefreshCw, Building2 } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -162,7 +163,7 @@ export default function ClientProposalPortalPage() {
             {/* ── Top bar ── */}
             <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-gray-900 px-5 py-2.5">
                 <div className="flex items-center gap-2 text-[11.5px] text-white/70">
-                    <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary text-white text-[9.5px] font-bold">N</div>
+                    <Image src="/brand/Logo-iso-orange.svg" alt="Nougram" width={28} height={18} className="opacity-90" />
                     <span className="font-medium text-white/90">Propuesta comercial</span>
                     <span className="hidden sm:inline text-white/30">·</span>
                     <span className="hidden sm:inline text-white/40">Enlace seguro</span>
@@ -178,7 +179,9 @@ export default function ClientProposalPortalPage() {
             {!sessionToken && !loadingPortal && (
                 <div className="flex min-h-[calc(100vh-44px)] items-center justify-center px-4 py-12">
                     <div className="w-full max-w-sm rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
-                        <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-900 text-white font-bold text-lg">N</div>
+                        <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-900 p-2.5">
+                            <Image src="/brand/Logo-iso-orange.svg" alt="Nougram" width={36} height={23} />
+                        </div>
                         <h1 className="mt-4 text-[22px] font-semibold tracking-tight text-gray-900">Accede a tu propuesta</h1>
                         <p className="mt-1 text-[13.5px] text-gray-500">Usa la clave enviada por correo para abrirla.</p>
                         <form onSubmit={onVerify} className="mt-6 space-y-3">
@@ -229,7 +232,7 @@ export default function ClientProposalPortalPage() {
                                 </div>
                             ) : (
                                 <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-surface-2 px-3 py-1.5">
-                                    <div className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-900 text-[8px] font-bold text-white">N</div>
+                                    <Image src="/brand/Logo-iso-orange.svg" alt="Nougram" width={22} height={14} />
                                     <span className="text-[12.5px] font-medium text-gray-700">Enviado vía Nougram</span>
                                 </div>
                             )}
@@ -369,7 +372,9 @@ export default function ClientProposalPortalPage() {
                             {/* Sender card */}
                             <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-white text-[13px] font-bold">N</div>
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 p-1.5">
+                                    <Image src="/brand/Logo-iso-orange.svg" alt="Nougram" width={28} height={18} />
+                                </div>
                                     <div className="min-w-0">
                                         <p className="truncate text-[13px] font-semibold text-gray-900">
                                             {senderName || 'Enviado vía Nougram'}
@@ -412,8 +417,10 @@ export default function ClientProposalPortalPage() {
                         </div>
                     )}
 
-                    <footer className="mt-8 pb-2 text-center text-[11.5px] text-gray-400">
-                        Enviado y gestionado con <span className="font-semibold text-gray-600">Nougram</span>
+                    <footer className="mt-8 pb-2 flex items-center justify-center gap-2 text-[11.5px] text-gray-400">
+                        Enviado y gestionado con
+                        <Image src="/brand/Logo-iso-orange.svg" alt="Nougram" width={20} height={13} className="opacity-60" />
+                        <span className="font-semibold text-gray-600">Nougram</span>
                     </footer>
                 </div>
             )}
