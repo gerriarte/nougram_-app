@@ -18,7 +18,7 @@ export function QuoteBuilderLayout() {
                         <VersionSelector currentVersion="v1" />
                     </div>
                     <QuoteBuilderForm />
-                    <div className="hidden lg:block sticky bottom-4 z-30 w-full max-w-5xl mx-auto lg:mx-0">
+                    <div className="hidden lg:block sticky bottom-4 z-30 w-full">
                         <QuoteBuilderActions variant="desktop" />
                     </div>
                 </div>

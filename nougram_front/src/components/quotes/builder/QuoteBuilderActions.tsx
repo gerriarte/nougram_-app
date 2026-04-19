@@ -16,8 +16,16 @@ export function QuoteBuilderActions({ variant }: QuoteBuilderActionsProps) {
   const handleSave = async (options?: { goToProposal?: boolean; goToDashboard?: boolean }) => {
     try {
       const projectId = await saveQuote();
-      if (options?.goToProposal && projectId) {
-        router.push(`/dashboard/quotes/${projectId}/proposal`);
+      if (options?.goToProposal) {
+        if (projectId) {
+          router.push(`/dashboard/quotes/${projectId}/proposal`);
+        } else if (projectId === null) {
+          // Paywall de créditos: QuoteBuilderForm ya abre PaywallModal.
+        } else {
+          alert(
+            'No se pudo guardar la cotización para continuar. Asegúrate de tener al menos un ítem de servicio (no solo proveedores) y datos completos.'
+          );
+        }
       } else if (options?.goToDashboard) {
         router.push('/dashboard');
       }

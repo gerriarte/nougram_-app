@@ -88,7 +88,8 @@ interface QuoteBuilderContextType {
     isValid: boolean;
     errors: string[];
 
-    saveQuote: (status?: 'Draft' | 'Sent' | 'Won' | 'Lost') => Promise<string | undefined>;
+    /** `null` = paywall de créditos abierto (no navegar). `undefined` = salida temprana sin guardar. */
+    saveQuote: (status?: 'Draft' | 'Sent' | 'Won' | 'Lost') => Promise<string | null | undefined>;
     loadQuote: (id: string) => Promise<void>;
 
     /** 402 / credits paywall: show PaywallModal when reason is set */
@@ -323,9 +324,12 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
 
     // --- VALIDATION ---
     const errors: string[] = [];
-    if (!state.projectName) errors.push('Project Name Required');
-    if (!state.clientName) errors.push('Client Name Required');
-    if (state.items.length === 0) errors.push('At least one item required');
+    if (!normalizeOptionalText(state.projectName)) errors.push('Nombre del proyecto requerido');
+    const hasClientForSave =
+        Boolean(normalizeOptionalText(state.clientName)) ||
+        Boolean(normalizeOptionalText(state.clientCompany));
+    if (!hasClientForSave) errors.push('Cliente requerido');
+    if (state.items.length === 0) errors.push('Al menos un ítem de servicio requerido (gastos de proveedor no bastan)');
     if (summary.totalClientPrice < summary.totalInternalCost && !state.allowLowMargin) {
         errors.push('CRITICAL: Price below Cost');
     }
@@ -358,7 +362,10 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         const payload = {
             projectName: state.projectName,
             clientId: state.clientId ?? undefined,
-            clientName: state.clientName,
+            clientName:
+                normalizeOptionalText(state.clientName) ||
+                normalizeOptionalText(state.clientCompany) ||
+                state.clientName,
             clientEmail: state.clientEmail,
             selectedTaxIds: sanitizedTaxIds,
             amount: summary.totalClientPrice,
@@ -424,7 +431,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                         requiredCredits: err.requiredCredits ?? 1,
                     },
                 });
-                return;
+                return null;
             }
             throw err;
         }
