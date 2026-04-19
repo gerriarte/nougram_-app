@@ -29,16 +29,16 @@ class TeamMemberBase(BaseModel):
     user_id: Optional[int] = Field(None, description="Associated user ID")
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
-    @field_serializer('salary_monthly_brute')
+    @field_serializer('salary_monthly_brute', when_used='json')
     def serialize_salary(self, value: Decimal) -> str:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None
 
-    @field_serializer('non_billable_hours_percentage')
+    @field_serializer('non_billable_hours_percentage', when_used='json')
     def serialize_non_billable(self, value: Decimal) -> str:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else "0"
-    
+
     model_config = DECIMAL_CONFIG
 
 
@@ -62,12 +62,12 @@ class TeamMemberUpdate(BaseModel):
     user_id: Optional[int] = None
     
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
-    @field_serializer('salary_monthly_brute')
+    @field_serializer('salary_monthly_brute', when_used='json')
     def serialize_salary(self, value: Optional[Decimal]) -> Optional[str]:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None
 
-    @field_serializer('non_billable_hours_percentage')
+    @field_serializer('non_billable_hours_percentage', when_used='json')
     def serialize_non_billable(self, value: Optional[Decimal]) -> Optional[str]:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None
@@ -103,7 +103,7 @@ class TeamMemberAllocationResponse(BaseModel):
     non_billable_hours_percentage: Optional[Decimal] = None
     is_active: Optional[bool] = True
 
-    @field_serializer('non_billable_hours_percentage')
+    @field_serializer('non_billable_hours_percentage', when_used='json')
     def serialize_non_billable(self, value: Optional[Decimal]) -> Optional[str]:
         return str(value) if value is not None else None
 
