@@ -17,16 +17,33 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             const isNegative = cleaned.startsWith("-");
             const unsigned = cleaned.replace(/-/g, "");
 
-            const lastComma = unsigned.lastIndexOf(",");
-            const lastDot = unsigned.lastIndexOf(".");
-            const decimalIndex = Math.max(lastComma, lastDot);
+            const dotCount = (unsigned.match(/\./g) || []).length;
+            const commaCount = (unsigned.match(/,/g) || []).length;
 
-            let integerPart = decimalIndex >= 0 ? unsigned.slice(0, decimalIndex) : unsigned;
-            const decimalPart = decimalIndex >= 0 ? unsigned.slice(decimalIndex + 1) : "";
+            let integerPart: string;
+            let normalizedDecimal = "";
 
-            integerPart = integerPart.replace(/[.,]/g, "");
+            if (commaCount === 1 && dotCount >= 1) {
+                // es-CO format: dots=thousands, comma=decimal  e.g. "1.000.000,50"
+                const commaIdx = unsigned.lastIndexOf(",");
+                integerPart = unsigned.slice(0, commaIdx).replace(/\./g, "");
+                normalizedDecimal = unsigned.slice(commaIdx + 1).replace(/[^\d]/g, "");
+            } else if (dotCount > 1) {
+                // Multiple dots → all are thousands separators  e.g. "1.000.000"
+                integerPart = unsigned.replace(/\./g, "");
+            } else if (commaCount > 1) {
+                // Multiple commas → all are thousands separators  e.g. "1,000,000"
+                integerPart = unsigned.replace(/,/g, "");
+            } else {
+                // Single separator or none — last separator is decimal
+                const lastComma = unsigned.lastIndexOf(",");
+                const lastDot = unsigned.lastIndexOf(".");
+                const decimalIndex = Math.max(lastComma, lastDot);
+                integerPart = decimalIndex >= 0 ? unsigned.slice(0, decimalIndex).replace(/[.,]/g, "") : unsigned;
+                normalizedDecimal = decimalIndex >= 0 ? unsigned.slice(decimalIndex + 1).replace(/[^\d]/g, "") : "";
+            }
+
             const normalizedInteger = integerPart.replace(/^0+(?=\d)/, "") || "0";
-            const normalizedDecimal = decimalPart.replace(/[^\d]/g, "");
 
             const canonical = normalizedDecimal.length > 0
                 ? `${normalizedInteger}.${normalizedDecimal}`
