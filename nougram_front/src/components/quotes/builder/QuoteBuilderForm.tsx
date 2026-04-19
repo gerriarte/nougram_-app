@@ -12,15 +12,8 @@ import { AddItemMenu, ItemType } from './AddItemMenu';
 import { VendorItemRow } from './VendorItemRow';
 import { useRouter } from 'next/navigation';
 import { PaywallModal } from '@/components/billing/PaywallModal';
-import { QuoteFlowStepper } from '@/components/quotes/QuoteFlowStepper';
 import { Check, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const QUOTE_FLOW_STEPS = [
-    { id: 1, title: 'Información general' },
-    { id: 2, title: 'Tipo de cotización' },
-    { id: 3, title: 'Validación y propuesta' },
-];
 
 interface SectionHeaderProps {
     step: number;
@@ -101,30 +94,12 @@ export function QuoteBuilderForm() {
     const hasItems = state.items.length > 0 || state.expenses.length > 0;
     const currentFlowStepId = !hasProjectName || !hasClient ? 1 : !hasItems ? 2 : 3;
 
-    const stepSectionById: Record<number, string> = {
-        1: 'quote-step-project-info',
-        2: 'quote-step-estimation',
-        3: 'quote-final-proposal-summary',
-    };
-
-    const handleStepNavigation = (stepId: number) => {
-        const el = document.getElementById(stepSectionById[stepId]);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
-
     const step1Done = hasProjectName && hasClient;
     const step2Done = hasItems;
 
     return (
         <>
-        <div className="space-y-8 pb-6 lg:pb-12 max-w-5xl mx-auto">
-            <QuoteFlowStepper
-                className="sticky top-2 z-20 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur p-3 shadow-sm"
-                label="Flujo de cotización"
-                steps={QUOTE_FLOW_STEPS}
-                currentStepId={currentFlowStepId}
-                onStepClick={handleStepNavigation}
-            />
+        <div className="space-y-8 pb-6 lg:pb-12">
 
             {/* ── Step 1: Project Info ── */}
             <section id="quote-step-project-info">

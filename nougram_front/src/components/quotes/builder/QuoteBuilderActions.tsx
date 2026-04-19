@@ -53,7 +53,7 @@ export function QuoteBuilderActions({ variant }: QuoteBuilderActionsProps) {
         </div>
         <Button
           type="button"
-          className={`mt-2 w-full h-10 rounded-xl text-sm font-bold ${isValid ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+          className={`mt-2 w-full h-10 rounded-xl text-sm font-bold ${isValid ? 'bg-gray-900 hover:bg-gray-700 text-white shadow-md' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
           disabled={!isValid}
           onClick={() => handleSave({ goToProposal: true })}
         >
@@ -79,7 +79,7 @@ export function QuoteBuilderActions({ variant }: QuoteBuilderActionsProps) {
         </Button>
         <Button
           type="button"
-          className={`w-full sm:w-auto h-10 rounded-xl md:rounded-md font-semibold ${isValid ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+          className={`w-full sm:w-auto h-10 rounded-xl md:rounded-md font-semibold ${isValid ? 'bg-gray-900 hover:bg-gray-700 text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
           disabled={!isValid}
           onClick={() => handleSave({ goToProposal: true })}
         >
