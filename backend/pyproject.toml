@@ -29,7 +29,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Allow unused imports in __init__.py
-"alembic/**/*.py" = ["I001"]  # Migration files have auto-generated import patterns
+# Migrations: generated / merge revisions and large SQL blocks; keep CI signal on app code.
+"alembic/**/*.py" = ["I001", "W293", "W291", "F401"]
 
 [tool.ruff.format]
 quote-style = "double"

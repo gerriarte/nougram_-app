@@ -426,7 +426,9 @@ export function ProposalBuilderHybrid({
                         }
                     >
                         {objectives.length === 0 ? (
-                            <p className="text-[12px] text-gray-400">Sin objetivos. Pulsa "Añadir" para agregar.</p>
+                            <p className="text-[12px] text-gray-400">
+                                Sin objetivos. Pulsa &ldquo;Añadir&rdquo; para agregar.
+                            </p>
                         ) : (
                             <div className="space-y-2">
                                 {objectives.map((obj, i) => (
@@ -458,7 +460,9 @@ export function ProposalBuilderHybrid({
                         }
                     >
                         {deliverables.length === 0 ? (
-                            <p className="text-[12px] text-gray-400">Sin entregables. Pulsa "Añadir" para agregar.</p>
+                            <p className="text-[12px] text-gray-400">
+                                Sin entregables. Pulsa &ldquo;Añadir&rdquo; para agregar.
+                            </p>
                         ) : (
                             <div className="space-y-2">
                                 {deliverables.map((d, i) => (
