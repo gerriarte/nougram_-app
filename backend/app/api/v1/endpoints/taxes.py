@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from app.core.database import get_db
 from app.core.exceptions import ResourceNotFoundError
@@ -108,12 +109,29 @@ async def create_tax(
         tax_repo = RepositoryFactory.create_tax_repository(db, tenant.organization_id)
 
         # Check if code already exists
-        existing = await tax_repo.get_by_code(tax_data.code)
+        existing = await tax_repo.get_by_code(tax_data.code, include_deleted=True)
         if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tax with code '{tax_data.code}' already exists",
+            if existing.deleted_at is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Tax with code '{tax_data.code}' already exists",
+                )
+
+            logger.info(
+                "Restoring soft-deleted tax with existing code",
+                tax_id=existing.id,
+                tax_code=tax_data.code,
+                user_id=current_user.id,
             )
+            existing.name = tax_data.name
+            existing.percentage = tax_data.percentage
+            existing.country = tax_data.country
+            existing.description = tax_data.description
+            existing.is_active = tax_data.is_active
+            existing.deleted_at = None
+            existing.deleted_by_id = None
+            restored_tax = await tax_repo.update(existing)
+            return TaxResponse.model_validate(restored_tax)
 
         logger.info("Creating tax", tax_data=tax_data.model_dump(), user_id=current_user.id)
 
@@ -127,6 +145,18 @@ async def create_tax(
         return TaxResponse.model_validate(new_tax)
     except HTTPException:
         raise
+    except IntegrityError as e:
+        await db.rollback()
+        logger.warning(
+            "Integrity error creating tax",
+            error=str(e),
+            user_id=current_user.id,
+            tax_code=tax_data.code,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tax with code '{tax_data.code}' already exists",
+        )
     except Exception as e:
         await db.rollback()
         logger.error(
@@ -193,7 +223,9 @@ async def update_tax(
         # Check if code is being updated and if it conflicts (excluding deleted taxes)
         update_data = tax_data.model_dump(exclude_unset=True)
         if "code" in update_data:
-            existing = await tax_repo.get_by_code(update_data["code"], exclude_id=tax_id)
+            existing = await tax_repo.get_by_code(
+                update_data["code"], include_deleted=True, exclude_id=tax_id
+            )
             if existing:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -210,6 +242,24 @@ async def update_tax(
         return TaxResponse.model_validate(tax)
     except HTTPException:
         raise
+    except IntegrityError as e:
+        await db.rollback()
+        logger.warning(
+            "Integrity error updating tax",
+            tax_id=tax_id,
+            error=str(e),
+            user_id=current_user.id,
+            update_data=update_data,
+        )
+        if "code" in update_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tax with code '{update_data['code']}' already exists",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tax update failed due to a data integrity constraint",
+        )
     except Exception as e:
         await db.rollback()
         logger.error(
