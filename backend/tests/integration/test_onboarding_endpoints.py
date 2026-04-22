@@ -38,7 +38,6 @@ async def test_org_with_owner(db_session: AsyncSession) -> tuple[Organization, U
         slug=f"test-onboarding-org-{unique_id}",
         subscription_plan="free",
         subscription_status="active",
-        primary_currency="USD",
     )
     db_session.add(org)
     await db_session.commit()
@@ -68,7 +67,6 @@ async def test_org_with_admin_financiero(db_session: AsyncSession) -> tuple[Orga
         slug=f"test-admin-org-{unique_id}",
         subscription_plan="free",
         subscription_status="active",
-        primary_currency="USD",
     )
     db_session.add(org)
     await db_session.commit()
@@ -180,9 +178,8 @@ class TestGetBenchmarks:
         """Test that benchmarks use organization defaults when not provided"""
         org, user = test_org_with_owner
 
-        # Update org settings
-        org.settings = {"country": "COL"}
-        org.primary_currency = "COP"
+        # Update org settings (currency lives in JSON settings, not a column)
+        org.settings = {"country": "COL", "primary_currency": "COP"}
         await db_session.commit()
         await db_session.refresh(org)
 
@@ -570,7 +567,7 @@ class TestCompleteOnboarding:
         result = await db_session.execute(select(Organization).where(Organization.id == org.id))
         updated_org = result.scalar_one()
         assert updated_org.name == "Complete Test Org"
-        assert updated_org.primary_currency == "COP"
+        assert updated_org.settings["primary_currency"] == "COP"
         assert updated_org.settings["country"] == "COL"
         assert updated_org.settings["profile_type"] == "agency"
         assert updated_org.settings["tax_structure"]["iva"] == 19.0
