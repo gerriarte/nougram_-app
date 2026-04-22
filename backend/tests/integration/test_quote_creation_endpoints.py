@@ -37,7 +37,6 @@ async def test_org_with_user(db_session: AsyncSession) -> tuple[Organization, Us
         slug=f"test-quote-org-{unique_id}",
         subscription_plan="free",
         subscription_status="active",
-        primary_currency="USD",
     )
     db_session.add(org)
     await db_session.commit()
@@ -67,7 +66,6 @@ async def other_organization(db_session: AsyncSession) -> Organization:
         slug=f"other-org-{unique_id}",
         subscription_plan="free",
         subscription_status="active",
-        primary_currency="USD",
     )
     db_session.add(org)
     await db_session.commit()
