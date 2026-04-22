@@ -8,6 +8,7 @@ import {
 } from "@/types/user";
 import { apiRequest } from "@/lib/api-client";
 import {
+  clearAuthSessionInvalidated,
   getRefreshToken,
   isAuthenticated,
   isSessionInactive,
@@ -266,6 +267,7 @@ export function useAuth() {
 
   const logout = useCallback(() => {
     trackLogout();
+    clearAuthSessionInvalidated();
     removeAuthToken();
     authUserPromise = null;
     authUserCache = null;

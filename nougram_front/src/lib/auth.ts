@@ -4,6 +4,40 @@ const LEGACY_AUTH_KEYS = ["nougram_token", "token", "access_token"];
 const LAST_ACTIVITY_KEY = "nougram_last_activity_at";
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 
+/**
+ * After a protected request returns 401 and refresh fails, we set this so parallel
+ * dashboard calls do not hammer the API or spam the console. Cleared on new login
+ * (setAuthToken) or explicit logout.
+ */
+let authSessionInvalidated = false;
+
+export function markAuthSessionInvalidated(): void {
+  authSessionInvalidated = true;
+}
+
+export function clearAuthSessionInvalidated(): void {
+  authSessionInvalidated = false;
+}
+
+export function shouldShortCircuitAuthenticatedApi(
+  normalizedEndpoint: string
+): boolean {
+  if (!authSessionInvalidated) return false;
+  if (getAuthToken()) return false;
+  const ep = normalizedEndpoint.toLowerCase();
+  if (
+    ep.startsWith("/auth/login") ||
+    ep.startsWith("/auth/register") ||
+    ep.startsWith("/auth/forgot-password") ||
+    ep.startsWith("/auth/reset-password") ||
+    ep.startsWith("/auth/verify-email") ||
+    ep.startsWith("/auth/refresh")
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   const currentToken = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -37,9 +71,14 @@ export function getAuthToken(): string | null {
 
 export function setAuthToken(token: string): void {
   if (typeof window === "undefined") return;
+  const hadToken = Boolean(getAuthToken());
+  authSessionInvalidated = false;
   localStorage.setItem(AUTH_TOKEN_KEY, token);
   // Keep compatibility for any legacy readers during rollout.
   localStorage.setItem("nougram_token", token);
+  if (!hadToken && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("nougram:session-restored"));
+  }
 }
 
 export function getRefreshToken(): string | null {
