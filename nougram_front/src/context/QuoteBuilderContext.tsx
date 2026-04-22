@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useNougram } from '@/context/NougramCoreContext';
 import {
     QuoteBuilderState, QuoteItem, QuoteExpense, TaxConfig, CalculationSummary,
@@ -154,6 +154,22 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     }, [coreState.identity.primaryCurrency]);
 
     // --- CALCULATION ENGINE ---
+    // Recalculate all item costs when BCR changes (e.g. after hydration or team/equipment update).
+    const prevBcrRef = useRef<number>(0);
+    useEffect(() => {
+        const currentBcr = coreState.financials.bcr;
+        if (currentBcr === 0 || currentBcr === prevBcrRef.current) return;
+        prevBcrRef.current = currentBcr;
+        setState(prev => {
+            if (prev.items.length === 0) return prev;
+            const nextItems = prev.items.map(item => {
+                const calculated = pricingService.calculateItem(item, currentBcr, prev.targetMargin);
+                return { ...item, internalCost: calculated.internalCost, clientPrice: calculated.clientPrice, marginPercentage: calculated.marginPercentage };
+            });
+            return { ...prev, items: nextItems };
+        });
+    }, [coreState.financials.bcr]);
+
     useEffect(() => {
         calculateTotals();
     }, [state.items, state.expenses, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency, taxes]);

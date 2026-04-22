@@ -83,7 +83,7 @@ export function BCRSummaryCard({ summary, isLoading }: BCRSummaryCardProps) {
                     <p className="text-[9.5px] font-semibold uppercase tracking-[0.5px] text-gray-400 pt-2">Desglose mensual</p>
                     <Row label="Salarios (con cargas)" value={formatCurrency(summary.total_salaries, summaryCurrency)} />
                     <Row label="Gastos fijos" value={formatCurrency(summary.total_fixed_overhead, summaryCurrency)} />
-                    <Row label="Herramientas / SaaS" value={formatCurrency(summary.total_tools_costs, summaryCurrency)} />
+                    <Row label="Herramientas / SaaS + Amortización" value={formatCurrency(summary.total_tools_costs, summaryCurrency)} />
                 </div>
             )}
 
