@@ -147,10 +147,11 @@ async def create_tax(
     except HTTPException:
         raise
     except IntegrityError as e:
+        error_msg = str(e.orig)  # capture before rollback; e.orig is DBAPI-level, no ORM state
         await db.rollback()
         logger.warning(
             "Integrity error creating tax",
-            error=str(e),
+            error=error_msg,
             user_id=user_id,
             tax_code=tax_data.code,
         )
@@ -159,17 +160,18 @@ async def create_tax(
             detail=f"Tax with code '{tax_data.code}' already exists",
         )
     except Exception as e:
+        error_msg = str(e)
         await db.rollback()
         logger.error(
             "Error creating tax",
-            error=str(e),
+            error=error_msg,
             user_id=user_id,
             tax_data=tax_data.model_dump(),
             exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create tax: {str(e)}",
+            detail=f"Failed to create tax: {error_msg}",
         )
 
 
