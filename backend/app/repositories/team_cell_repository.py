@@ -1,9 +1,8 @@
 """
 Repository for team groups/cells and version snapshots.
 """
-from __future__ import annotations
 
-from typing import Optional
+from __future__ import annotations
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,12 +20,12 @@ class TeamCellRepository:
     async def list_groups(self, include_inactive: bool = False) -> list[TeamGroup]:
         query = select(TeamGroup).where(TeamGroup.organization_id == self.tenant_id)
         if not include_inactive:
-            query = query.where(TeamGroup.is_active == True)
+            query = query.where(TeamGroup.is_active)
         query = query.order_by(TeamGroup.name.asc())
         result = await self.db.execute(query)
         return result.scalars().all()
 
-    async def get_group(self, group_id: int) -> Optional[TeamGroup]:
+    async def get_group(self, group_id: int) -> TeamGroup | None:
         result = await self.db.execute(
             select(TeamGroup).where(
                 TeamGroup.id == group_id,
@@ -35,7 +34,9 @@ class TeamCellRepository:
         )
         return result.scalar_one_or_none()
 
-    async def create_group(self, *, name: str, description: Optional[str], is_active: bool) -> TeamGroup:
+    async def create_group(
+        self, *, name: str, description: str | None, is_active: bool
+    ) -> TeamGroup:
         group = TeamGroup(
             organization_id=self.tenant_id,
             name=name.strip(),
@@ -52,17 +53,19 @@ class TeamCellRepository:
         await self.db.refresh(group)
         return group
 
-    async def list_cells(self, *, group_id: Optional[int] = None, include_inactive: bool = False) -> list[TeamCell]:
+    async def list_cells(
+        self, *, group_id: int | None = None, include_inactive: bool = False
+    ) -> list[TeamCell]:
         query = select(TeamCell).where(TeamCell.organization_id == self.tenant_id)
         if group_id is not None:
             query = query.where(TeamCell.group_id == group_id)
         if not include_inactive:
-            query = query.where(TeamCell.is_active == True)
+            query = query.where(TeamCell.is_active)
         query = query.order_by(TeamCell.name.asc())
         result = await self.db.execute(query)
         return result.scalars().all()
 
-    async def get_cell(self, cell_id: int) -> Optional[TeamCell]:
+    async def get_cell(self, cell_id: int) -> TeamCell | None:
         result = await self.db.execute(
             select(TeamCell).where(
                 TeamCell.id == cell_id,
@@ -76,7 +79,7 @@ class TeamCellRepository:
         *,
         group_id: int,
         name: str,
-        description: Optional[str],
+        description: str | None,
         is_active: bool,
     ) -> TeamCell:
         cell = TeamCell(
@@ -112,13 +115,10 @@ class TeamCellRepository:
     async def validate_members_belong_to_tenant(self, member_ids: list[int]) -> list[TeamMember]:
         if not member_ids:
             return []
-        query = (
-            select(TeamMember)
-            .where(
-                TeamMember.id.in_(member_ids),
-                TeamMember.organization_id == self.tenant_id,
-                TeamMember.is_active == True,
-            )
+        query = select(TeamMember).where(
+            TeamMember.id.in_(member_ids),
+            TeamMember.organization_id == self.tenant_id,
+            TeamMember.is_active,
         )
         result = await self.db.execute(query)
         return result.scalars().all()
@@ -128,11 +128,13 @@ class TeamCellRepository:
         *,
         cell: TeamCell,
         members_payload: list[dict],
-        notes: Optional[str],
+        notes: str | None,
         published_by: int,
     ) -> TeamCellVersion:
         current_max_result = await self.db.execute(
-            select(func.max(TeamCellVersion.version_number)).where(TeamCellVersion.cell_id == cell.id)
+            select(func.max(TeamCellVersion.version_number)).where(
+                TeamCellVersion.cell_id == cell.id
+            )
         )
         current_max = current_max_result.scalar() or 0
         version = TeamCellVersion(

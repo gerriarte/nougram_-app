@@ -1,26 +1,27 @@
 """
 Onboarding View - Data transformation for onboarding responses
 """
-from typing import Dict, Any
+
+from typing import Any
 
 from app.schemas.onboarding import (
     BenchmarksResponse,
-    ProfileBenchmark,
     CompleteOnboardingResponse,
-    TemporaryBCRResponse
+    ProfileBenchmark,
+    TemporaryBCRResponse,
 )
 
 
 class OnboardingView:
     """View for transforming onboarding data to response schemas"""
-    
-    def to_benchmarks_response(self, data: Dict[str, Any]) -> BenchmarksResponse:
+
+    def to_benchmarks_response(self, data: dict[str, Any]) -> BenchmarksResponse:
         """
         Transform service data to BenchmarksResponse
-        
+
         Args:
             data: Dictionary from OnboardingService.get_benchmarks()
-        
+
         Returns:
             BenchmarksResponse instance
         """
@@ -33,22 +34,22 @@ class OnboardingView:
             avg_salary=data["benchmarks"].get("avg_salary"),
             avg_clients=data["benchmarks"].get("avg_clients"),
         )
-        
+
         return BenchmarksResponse(
             profile_type=data["profile_type"],
             country=data["country"],
             currency=data["currency"],
             benchmarks=benchmarks,
-            source=data["source"]
+            source=data["source"],
         )
-    
-    def to_complete_response(self, data: Dict[str, Any]) -> CompleteOnboardingResponse:
+
+    def to_complete_response(self, data: dict[str, Any]) -> CompleteOnboardingResponse:
         """
         Transform service data to CompleteOnboardingResponse
-        
+
         Args:
             data: Dictionary from OnboardingService.complete_onboarding()
-        
+
         Returns:
             CompleteOnboardingResponse instance
         """
@@ -59,16 +60,16 @@ class OnboardingView:
             team_members_created=data["team_members_created"],
             expenses_created=data["expenses_created"],
             bcr_calculated=data.get("bcr_calculated"),
-            organization=data["organization"]
+            organization=data["organization"],
         )
-    
-    def to_temporary_bcr_response(self, data: Dict[str, Any]) -> TemporaryBCRResponse:
+
+    def to_temporary_bcr_response(self, data: dict[str, Any]) -> TemporaryBCRResponse:
         """
         Transform service data to TemporaryBCRResponse
-        
+
         Args:
             data: Dictionary from OnboardingService.calculate_temporary_bcr()
-        
+
         Returns:
             TemporaryBCRResponse instance
         """
@@ -80,5 +81,5 @@ class OnboardingView:
             total_monthly_hours=data["total_monthly_hours"],
             team_members_count=data["team_members_count"],
             currency=data["currency"],
-            note=data["note"]
+            note=data["note"],
         )

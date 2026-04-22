@@ -1,8 +1,9 @@
 """
 Unit tests for DashboardKpiRepository (latest quote per project KPI aggregation).
 """
+
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -29,8 +30,8 @@ async def _fresh_org(db_session) -> Organization:
 
 
 def _window():
-    start = datetime(2000, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2100, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2000, 1, 1, tzinfo=UTC)
+    end = datetime(2100, 1, 1, tzinfo=UTC)
     return start, end
 
 
@@ -48,7 +49,7 @@ async def test_counts_only_latest_quote_version(db_session):
     await db_session.commit()
     await db_session.refresh(p)
 
-    now = datetime(2025, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2025, 6, 15, 12, 0, 0, tzinfo=UTC)
     q1 = Quote(
         project_id=p.id,
         version=1,
@@ -90,7 +91,7 @@ async def test_excludes_draft_projects(db_session):
     await db_session.commit()
     await db_session.refresh(p)
 
-    now = datetime(2025, 6, 15, tzinfo=timezone.utc)
+    now = datetime(2025, 6, 15, tzinfo=UTC)
     db_session.add(
         Quote(
             project_id=p.id,
@@ -134,11 +135,9 @@ async def test_won_status_and_taxes(db_session):
     await db_session.commit()
     await db_session.refresh(tax)
 
-    await db_session.execute(
-        insert(project_taxes).values(project_id=p.id, tax_id=tax.id)
-    )
+    await db_session.execute(insert(project_taxes).values(project_id=p.id, tax_id=tax.id))
 
-    now = datetime(2025, 6, 15, tzinfo=timezone.utc)
+    now = datetime(2025, 6, 15, tzinfo=UTC)
     db_session.add(
         Quote(
             project_id=p.id,
@@ -175,7 +174,7 @@ async def test_respects_updated_at_window(db_session):
     await db_session.commit()
     await db_session.refresh(p)
 
-    old = datetime(1990, 1, 1, tzinfo=timezone.utc)
+    old = datetime(1990, 1, 1, tzinfo=UTC)
     db_session.add(
         Quote(
             project_id=p.id,
@@ -188,8 +187,8 @@ async def test_respects_updated_at_window(db_session):
     await db_session.commit()
 
     repo = DashboardKpiRepository(db_session)
-    start = datetime(2000, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2001, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2000, 1, 1, tzinfo=UTC)
+    end = datetime(2001, 1, 1, tzinfo=UTC)
     totals = await repo.aggregate_latest_quotes_kpis(org.id, start, end)
 
     assert totals.numero_propuestas_realizadas == 0

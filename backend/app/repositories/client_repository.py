@@ -1,26 +1,26 @@
 """
 Repository for Client model (master catalog, multi-tenant).
 """
-from typing import List, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, and_, func, desc
 
-from app.repositories.base import BaseRepository
+from sqlalchemy import and_, desc, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.client import Client
+from app.repositories.base import BaseRepository
 
 
 class ClientRepository(BaseRepository[Client]):
     """Repository for Client operations scoped by organization_id."""
 
-    def __init__(self, db: AsyncSession, tenant_id: Optional[int] = None):
+    def __init__(self, db: AsyncSession, tenant_id: int | None = None):
         super().__init__(db, Client, tenant_id=tenant_id)
 
     async def search(
         self,
         q: str,
         limit: int = 10,
-        status_filter: Optional[str] = None,
-    ) -> List[Client]:
+        status_filter: str | None = None,
+    ) -> list[Client]:
         """
         Search clients by display_name, requester_name, or email (case-insensitive).
         """
@@ -34,7 +34,10 @@ class ClientRepository(BaseRepository[Client]):
             .where(
                 or_(
                     func.lower(Client.display_name).like(pattern),
-                    and_(Client.requester_name.isnot(None), func.lower(Client.requester_name).like(pattern)),
+                    and_(
+                        Client.requester_name.isnot(None),
+                        func.lower(Client.requester_name).like(pattern),
+                    ),
                     and_(Client.email.isnot(None), func.lower(Client.email).like(pattern)),
                 )
             )
@@ -47,11 +50,11 @@ class ClientRepository(BaseRepository[Client]):
 
     async def get_all_paginated(
         self,
-        status_filter: Optional[str] = None,
+        status_filter: str | None = None,
         order_by=None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-    ) -> List[Client]:
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[Client]:
         """List clients with optional filters and pagination."""
         query = select(Client)
         query = self._apply_tenant_filter(query)

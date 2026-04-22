@@ -1,14 +1,16 @@
 """
 Email sending module for quotes and notifications
 """
+
 import base64
-import aiosmtplib
-import httpx
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+import aiosmtplib
+import httpx
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -48,12 +50,12 @@ async def _send_email_via_mailersend(
     to_email: str,
     subject: str,
     body_html: str,
-    body_text: Optional[str] = None,
-    attachments: Optional[List[dict]] = None,
-    cc: Optional[List[str]] = None,
-    bcc: Optional[List[str]] = None,
-    template_id: Optional[str] = None,
-    template_data: Optional[Dict[str, Any]] = None,
+    body_text: str | None = None,
+    attachments: list[dict] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
+    template_id: str | None = None,
+    template_data: dict[str, Any] | None = None,
 ) -> bool:
     api_key = (settings.MAILERSEND_API_KEY or "").strip()
     from_email, from_name = _get_from_identity()
@@ -73,10 +75,12 @@ async def _send_email_via_mailersend(
     }
     if template_id:
         payload["template_id"] = template_id
-        payload["personalization"] = [{
-            "email": to_email,
-            "data": template_data or {},
-        }]
+        payload["personalization"] = [
+            {
+                "email": to_email,
+                "data": template_data or {},
+            }
+        ]
     else:
         payload["html"] = body_html
         if body_text:
@@ -147,10 +151,10 @@ async def _send_email_via_smtp(
     to_email: str,
     subject: str,
     body_html: str,
-    body_text: Optional[str] = None,
-    attachments: Optional[List[dict]] = None,
-    cc: Optional[List[str]] = None,
-    bcc: Optional[List[str]] = None,
+    body_text: str | None = None,
+    attachments: list[dict] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
 ) -> bool:
     # Check if email is configured
     if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
@@ -164,36 +168,33 @@ async def _send_email_via_smtp(
 
     try:
         # Create message
-        msg = MIMEMultipart('alternative')
-        msg['From'] = f"{from_name} <{from_email}>"
-        msg['To'] = to_email
-        msg['Subject'] = subject
+        msg = MIMEMultipart("alternative")
+        msg["From"] = f"{from_name} <{from_email}>"
+        msg["To"] = to_email
+        msg["Subject"] = subject
 
         if cc:
-            msg['Cc'] = ', '.join(cc)
+            msg["Cc"] = ", ".join(cc)
 
         # Add body
         if body_text:
-            part1 = MIMEText(body_text, 'plain')
+            part1 = MIMEText(body_text, "plain")
             msg.attach(part1)
 
-        part2 = MIMEText(body_html, 'html')
+        part2 = MIMEText(body_html, "html")
         msg.attach(part2)
 
         # Add attachments
         if attachments:
             for attachment in attachments:
-                filename = attachment.get('filename', 'attachment')
-                content = attachment.get('content')
+                filename = attachment.get("filename", "attachment")
+                content = attachment.get("content")
 
                 if content:
-                    part = MIMEBase('application', 'octet-stream')
+                    part = MIMEBase("application", "octet-stream")
                     part.set_payload(_read_attachment_bytes(content))
                     encoders.encode_base64(part)
-                    part.add_header(
-                        'Content-Disposition',
-                        f'attachment; filename= {filename}'
-                    )
+                    part.add_header("Content-Disposition", f"attachment; filename= {filename}")
                     msg.attach(part)
 
         # Get all recipients
@@ -211,7 +212,7 @@ async def _send_email_via_smtp(
             username=settings.SMTP_USER,
             password=settings.SMTP_PASSWORD,
             use_tls=settings.SMTP_USE_TLS,
-            recipients=recipients
+            recipients=recipients,
         )
 
         logger.info(
@@ -239,16 +240,16 @@ async def send_email(
     to_email: str,
     subject: str,
     body_html: str,
-    body_text: Optional[str] = None,
-    attachments: Optional[List[dict]] = None,
-    cc: Optional[List[str]] = None,
-    bcc: Optional[List[str]] = None,
-    template_id: Optional[str] = None,
-    template_data: Optional[Dict[str, Any]] = None,
+    body_text: str | None = None,
+    attachments: list[dict] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
+    template_id: str | None = None,
+    template_data: dict[str, Any] | None = None,
 ) -> bool:
     """
     Send an email using the configured provider (SMTP or MailerSend API).
-    
+
     Args:
         to_email: Recipient email address
         subject: Email subject
@@ -257,7 +258,7 @@ async def send_email(
         attachments: List of attachments with 'filename' and 'content' keys
         cc: List of CC email addresses
         bcc: List of BCC email addresses
-    
+
     Returns:
         bool: True if email was sent successfully, False otherwise
     """
@@ -292,12 +293,12 @@ def generate_quote_email_html(
     quote_version: int,
     total_with_taxes: float,
     currency: str = "USD",
-    notes: Optional[str] = None,
-    agency_name: str = "Nougram"
+    notes: str | None = None,
+    agency_name: str = "Nougram",
 ) -> str:
     """
     Generate HTML email template for quote
-    
+
     Args:
         project_name: Project name
         client_name: Client name
@@ -306,19 +307,14 @@ def generate_quote_email_html(
         currency: Currency code
         notes: Optional notes
         agency_name: Agency name
-    
+
     Returns:
         str: HTML email body
     """
-    currency_symbols = {
-        "USD": "$",
-        "COP": "$",
-        "ARS": "$",
-        "EUR": "€"
-    }
+    currency_symbols = {"USD": "$", "COP": "$", "ARS": "$", "EUR": "€"}
     symbol = currency_symbols.get(currency, "$")
     formatted_amount = f"{symbol} {total_with_taxes:,.2f}"
-    
+
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -378,22 +374,22 @@ def generate_quote_email_html(
         <div class="content">
             <p>Dear {client_name},</p>
             <p>Thank you for your interest in our services. Please find attached the quote for <strong>{project_name}</strong>.</p>
-            
+
             <div class="quote-info">
                 <p><strong>Project:</strong> {project_name}</p>
                 <p><strong>Quote Version:</strong> {quote_version}</p>
             </div>
-            
+
             <div class="total">
                 Total: {formatted_amount}
             </div>
-            
-            {f'<p><strong>Notes:</strong><br>{notes}</p>' if notes else ''}
-            
+
+            {f"<p><strong>Notes:</strong><br>{notes}</p>" if notes else ""}
+
             <p>The detailed quote is attached as a PDF document. Please review it and let us know if you have any questions.</p>
-            
+
             <p>This quote is valid for 30 days from the date of issue.</p>
-            
+
             <p>Best regards,<br>{agency_name} Team</p>
         </div>
         <div class="footer">
@@ -411,12 +407,12 @@ def generate_quote_email_text(
     quote_version: int,
     total_with_taxes: float,
     currency: str = "USD",
-    notes: Optional[str] = None,
-    agency_name: str = "Nougram"
+    notes: str | None = None,
+    agency_name: str = "Nougram",
 ) -> str:
     """
     Generate plain text email template for quote
-    
+
     Args:
         project_name: Project name
         client_name: Client name
@@ -425,19 +421,14 @@ def generate_quote_email_text(
         currency: Currency code
         notes: Optional notes
         agency_name: Agency name
-    
+
     Returns:
         str: Plain text email body
     """
-    currency_symbols = {
-        "USD": "$",
-        "COP": "$",
-        "ARS": "$",
-        "EUR": "€"
-    }
+    currency_symbols = {"USD": "$", "COP": "$", "ARS": "$", "EUR": "€"}
     symbol = currency_symbols.get(currency, "$")
     formatted_amount = f"{symbol} {total_with_taxes:,.2f}"
-    
+
     text = f"""
 {agency_name} - Quote #{quote_version}
 
@@ -449,7 +440,7 @@ Project: {project_name}
 Quote Version: {quote_version}
 Total: {formatted_amount}
 
-{f'Notes: {notes}' if notes else ''}
+{f"Notes: {notes}" if notes else ""}
 
 The detailed quote is attached as a PDF document. Please review it and let us know if you have any questions.
 
@@ -703,15 +694,3 @@ Para activar tu cuenta, verifica tu correo con este enlace:
 
 El enlace expira en {expiration_minutes} minutos.
     """.strip()
-
-
-
-
-
-
-
-
-
-
-
-

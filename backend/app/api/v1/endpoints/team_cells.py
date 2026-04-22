@@ -1,12 +1,13 @@
 """
 Team groups/cells endpoints for reusable staffing structures.
 """
-from datetime import date, datetime, time, timezone
+
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -41,8 +42,8 @@ router = APIRouter()
 
 
 def _to_period_bounds(period_start: date, period_end: date) -> tuple[datetime, datetime]:
-    start = datetime.combine(period_start, time.min).replace(tzinfo=timezone.utc)
-    end = datetime.combine(period_end, time.max).replace(tzinfo=timezone.utc)
+    start = datetime.combine(period_start, time.min).replace(tzinfo=UTC)
+    end = datetime.combine(period_end, time.max).replace(tzinfo=UTC)
     return start, end
 
 
@@ -56,7 +57,9 @@ async def get_capacity_overview(
     db: AsyncSession = Depends(get_db),
 ):
     if period_end < period_start:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period_end must be >= period_start")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="period_end must be >= period_start"
+        )
 
     normalized_states = [s.strip().lower() for s in (states or []) if str(s).strip()]
     if not normalized_states:
@@ -69,13 +72,15 @@ async def get_capacity_overview(
         )
 
     period_start_dt, period_end_dt = _to_period_bounds(period_start, period_end)
-    months_count = ((period_end.year - period_start.year) * 12) + (period_end.month - period_start.month) + 1
+    months_count = (
+        ((period_end.year - period_start.year) * 12) + (period_end.month - period_start.month) + 1
+    )
     months_count = max(1, months_count)
 
     active_members_result = await db.execute(
         select(TeamMember).where(
             TeamMember.organization_id == tenant.organization_id,
-            TeamMember.is_active == True,
+            TeamMember.is_active,
         )
     )
     active_members = active_members_result.scalars().all()
@@ -107,7 +112,11 @@ async def get_capacity_overview(
         actual = states_dict.get("actual", Decimal("0"))
         total = tentative + committed + actual
         non_billable = Decimal(str(member.non_billable_hours_percentage or 0))
-        capacity_monthly = Decimal(str(member.billable_hours_per_week or 0)) * Decimal("4.33") * (Decimal("1") - non_billable)
+        capacity_monthly = (
+            Decimal(str(member.billable_hours_per_week or 0))
+            * Decimal("4.33")
+            * (Decimal("1") - non_billable)
+        )
         capacity_hours = capacity_monthly * Decimal(str(months_count))
         utilization_ratio = (total / capacity_hours) if capacity_hours > 0 else Decimal("0")
         members_response.append(
@@ -231,7 +240,12 @@ async def create_team_group(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A group with this name already exists in your organization.",
         )
-    logger.info("Team group created", group_id=group.id, user_id=current_user.id, organization_id=tenant.organization_id)
+    logger.info(
+        "Team group created",
+        group_id=group.id,
+        user_id=current_user.id,
+        organization_id=tenant.organization_id,
+    )
     return TeamGroupResponse.model_validate(group)
 
 
@@ -260,7 +274,12 @@ async def update_team_group(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A group with this name already exists in your organization.",
         )
-    logger.info("Team group updated", group_id=group.id, user_id=current_user.id, organization_id=tenant.organization_id)
+    logger.info(
+        "Team group updated",
+        group_id=group.id,
+        user_id=current_user.id,
+        organization_id=tenant.organization_id,
+    )
     return TeamGroupResponse.model_validate(group)
 
 
@@ -277,7 +296,12 @@ async def delete_team_group(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team group not found")
     group.is_active = False
     await repo.update_group(group)
-    logger.info("Team group deactivated", group_id=group.id, user_id=current_user.id, organization_id=tenant.organization_id)
+    logger.info(
+        "Team group deactivated",
+        group_id=group.id,
+        user_id=current_user.id,
+        organization_id=tenant.organization_id,
+    )
     return None
 
 
@@ -322,7 +346,12 @@ async def create_team_cell(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A cell with this name already exists in the selected group.",
         )
-    logger.info("Team cell created", cell_id=cell.id, user_id=current_user.id, organization_id=tenant.organization_id)
+    logger.info(
+        "Team cell created",
+        cell_id=cell.id,
+        user_id=current_user.id,
+        organization_id=tenant.organization_id,
+    )
     return TeamCellResponse.model_validate(cell)
 
 
@@ -355,7 +384,12 @@ async def update_team_cell(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A cell with this name already exists in the selected group.",
         )
-    logger.info("Team cell updated", cell_id=cell.id, user_id=current_user.id, organization_id=tenant.organization_id)
+    logger.info(
+        "Team cell updated",
+        cell_id=cell.id,
+        user_id=current_user.id,
+        organization_id=tenant.organization_id,
+    )
     return TeamCellResponse.model_validate(cell)
 
 
@@ -372,7 +406,12 @@ async def delete_team_cell(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team cell not found")
     cell.is_active = False
     await repo.update_cell(cell)
-    logger.info("Team cell deactivated", cell_id=cell.id, user_id=current_user.id, organization_id=tenant.organization_id)
+    logger.info(
+        "Team cell deactivated",
+        cell_id=cell.id,
+        user_id=current_user.id,
+        organization_id=tenant.organization_id,
+    )
     return None
 
 

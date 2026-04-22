@@ -2,6 +2,7 @@
 Unit tests for OperationalCostService.
 Ensures each calculation block (resources, fixed costs, amortization, margin) and totals are correct.
 """
+
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -9,22 +10,22 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BusinessLogicError
-from app.models.organization import Organization
-from app.models.team import TeamMember
 from app.models.cost import CostFixed
-from app.models.service import Service
 from app.models.equipment import EquipmentAmortization
+from app.models.organization import Organization
 from app.models.project import Project, Quote
+from app.models.service import Service
 from app.models.tax import Tax
+from app.models.team import TeamMember
 from app.services.operational_cost_service import (
-    get_current_month_operational_costs,
-    _to_decimal,
-    _get_social_charges_multiplier,
-    _compute_resource_costs,
-    _compute_fixed_costs,
     _compute_amortization,
+    _compute_fixed_costs,
+    _compute_resource_costs,
     _compute_tax_costs,
+    _get_social_charges_multiplier,
     _get_target_margin_configured,
+    _to_decimal,
+    get_current_month_operational_costs,
 )
 
 
@@ -38,11 +39,15 @@ class TestOperationalCostService:
         assert _to_decimal(100) == Decimal("100")
         assert _to_decimal(Decimal("2.5")) == Decimal("2.5")
 
-    async def test_social_charges_multiplier_no_config(self, db_session: AsyncSession, test_organization: Organization):
+    async def test_social_charges_multiplier_no_config(
+        self, db_session: AsyncSession, test_organization: Organization
+    ):
         mult = await _get_social_charges_multiplier(db_session, test_organization.id)
         assert mult == Decimal("1.0")
 
-    async def test_social_charges_multiplier_with_config(self, db_session: AsyncSession, test_organization: Organization):
+    async def test_social_charges_multiplier_with_config(
+        self, db_session: AsyncSession, test_organization: Organization
+    ):
         test_organization.settings = {
             "social_charges_config": {
                 "enable_social_charges": True,
@@ -55,13 +60,16 @@ class TestOperationalCostService:
         mult = await _get_social_charges_multiplier(db_session, test_organization.id)
         assert mult == Decimal("1.3")
 
-    async def test_compute_resource_costs_empty(self, db_session: AsyncSession, test_organization: Organization):
+    async def test_compute_resource_costs_empty(
+        self, db_session: AsyncSession, test_organization: Organization
+    ):
         total = await _compute_resource_costs(db_session, test_organization.id, "USD", "test-id")
         assert total == Decimal("0")
 
     async def test_compute_resource_costs_one_member(self, db_session: AsyncSession):
         """One member, no social charges: total must be exactly salary (5000). Uses isolated org to avoid test order."""
         import uuid
+
         slug = f"opcost-res-{uuid.uuid4().hex[:8]}"
         org = Organization(
             name="OpCost Resource Test Org",
@@ -87,11 +95,15 @@ class TestOperationalCostService:
         assert total > 0
         assert total == Decimal("5000")
 
-    async def test_compute_fixed_costs_empty(self, db_session: AsyncSession, test_organization: Organization):
+    async def test_compute_fixed_costs_empty(
+        self, db_session: AsyncSession, test_organization: Organization
+    ):
         total = await _compute_fixed_costs(db_session, test_organization.id, "USD", "test-id")
         assert total == Decimal("0")
 
-    async def test_compute_fixed_costs_one(self, db_session: AsyncSession, test_organization: Organization):
+    async def test_compute_fixed_costs_one(
+        self, db_session: AsyncSession, test_organization: Organization
+    ):
         cost = CostFixed(
             name="Rent",
             amount_monthly=Decimal("1000"),
@@ -104,13 +116,18 @@ class TestOperationalCostService:
         total = await _compute_fixed_costs(db_session, test_organization.id, "USD", "test-id")
         assert total == Decimal("1000")
 
-    async def test_compute_amortization_empty(self, db_session: AsyncSession, test_organization: Organization):
+    async def test_compute_amortization_empty(
+        self, db_session: AsyncSession, test_organization: Organization
+    ):
         total, ok = await _compute_amortization(db_session, test_organization.id, "USD", "test-id")
         assert total == Decimal("0")
         assert ok is True
 
-    async def test_compute_amortization_one_asset(self, db_session: AsyncSession, test_organization: Organization):
+    async def test_compute_amortization_one_asset(
+        self, db_session: AsyncSession, test_organization: Organization
+    ):
         from datetime import date as date_type
+
         asset = EquipmentAmortization(
             name="Laptop",
             category="Hardware",
@@ -131,7 +148,9 @@ class TestOperationalCostService:
         assert total.quantize(Decimal("0.01")) == Decimal("33.33")
         assert ok is True
 
-    async def test_get_target_margin_from_services(self, db_session: AsyncSession, test_organization: Organization):
+    async def test_get_target_margin_from_services(
+        self, db_session: AsyncSession, test_organization: Organization
+    ):
         svc = Service(
             name="Consulting",
             default_margin_target=Decimal("0.40"),
@@ -158,10 +177,7 @@ class TestOperationalCostService:
         )
         assert payload.total_operational_cost >= 0
         expected = (
-            payload.resource_costs
-            + payload.fixed_costs
-            + payload.amortization
-            + payload.tax_costs
+            payload.resource_costs + payload.fixed_costs + payload.amortization + payload.tax_costs
         )
         assert payload.total_operational_cost == expected
         assert payload.calculation_metadata.currency == "USD"
@@ -266,6 +282,7 @@ class TestOperationalCostService:
         self, db_session: AsyncSession
     ):
         import uuid
+
         org = Organization(
             name="OpCost Tax Config Org",
             slug=f"opcost-tax-config-{uuid.uuid4().hex[:8]}",

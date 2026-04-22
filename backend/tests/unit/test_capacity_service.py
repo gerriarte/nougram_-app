@@ -1,12 +1,12 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from app.services.capacity_service import CapacityService
 
 
 def test_merge_commitments_by_unique_key_aggregates_hours():
-    period_start = datetime(2026, 3, 1, tzinfo=timezone.utc)
-    period_end = datetime(2026, 3, 31, 23, 59, 59, tzinfo=timezone.utc)
+    period_start = datetime(2026, 3, 1, tzinfo=UTC)
+    period_end = datetime(2026, 3, 31, 23, 59, 59, tzinfo=UTC)
 
     raw_entries = [
         (10, 1, period_start, period_end, Decimal("6")),
@@ -29,8 +29,8 @@ def test_merge_commitments_by_unique_key_aggregates_hours():
 
 
 def test_merge_commitments_by_unique_key_prefers_first_non_null_cell():
-    period_start = datetime(2026, 4, 1, tzinfo=timezone.utc)
-    period_end = datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc)
+    period_start = datetime(2026, 4, 1, tzinfo=UTC)
+    period_end = datetime(2026, 4, 30, 23, 59, 59, tzinfo=UTC)
 
     raw_entries = [
         (20, None, period_start, period_end, Decimal("2")),

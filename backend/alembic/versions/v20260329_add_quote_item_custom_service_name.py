@@ -23,4 +23,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("ALTER TABLE quote_items DROP COLUMN IF EXISTS custom_service_name")
-

@@ -1,22 +1,23 @@
 """
 Repository for CreditAccount model
 """
-from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from app.repositories.base import BaseRepository
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.credit_account import CreditAccount
+from app.repositories.base import BaseRepository
 
 
 class CreditAccountRepository(BaseRepository[CreditAccount]):
     """
     Repository for CreditAccount model
     """
-    def __init__(self, db: AsyncSession, tenant_id: Optional[int] = None):
+
+    def __init__(self, db: AsyncSession, tenant_id: int | None = None):
         super().__init__(db, CreditAccount, tenant_id)
 
-    async def get_by_organization_id(self, organization_id: int) -> Optional[CreditAccount]:
+    async def get_by_organization_id(self, organization_id: int) -> CreditAccount | None:
         """
         Get credit account by organization ID
         """
@@ -27,7 +28,7 @@ class CreditAccountRepository(BaseRepository[CreditAccount]):
     async def create_for_organization(
         self,
         organization_id: int,
-        credits_per_month: Optional[int] = None,
+        credits_per_month: int | None = None,
         auto_commit: bool = True,
     ) -> CreditAccount:
         """
@@ -39,18 +40,10 @@ class CreditAccountRepository(BaseRepository[CreditAccount]):
             credits_used_total=0,
             credits_used_this_month=0,
             credits_per_month=credits_per_month,
-            manual_credits_bonus=0
+            manual_credits_bonus=0,
         )
         self.db.add(account)
         if auto_commit:
             await self.db.commit()
             await self.db.refresh(account)
         return account
-
-
-
-
-
-
-
-

@@ -1,31 +1,33 @@
 """
 Team member management endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user
-from app.core.exceptions import ResourceNotFoundError, BusinessLogicError
+from app.core.exceptions import ResourceNotFoundError
 from app.core.logging import get_logger
-from app.core.permissions import has_permission, PERM_VIEW_SENSITIVE_DATA, PERM_MODIFY_COSTS, PERM_DELETE_RESOURCES
-from app.core.permission_middleware import require_view_sensitive_data, require_modify_costs, require_delete_resources, require_create_quotes
+from app.core.permission_middleware import (
+    require_create_quotes,
+    require_delete_resources,
+    require_modify_costs,
+    require_view_sensitive_data,
+)
+from app.core.tenant import TenantContext, get_tenant_context
 from app.models.team import TeamMember
 from app.models.user import User
-from app.repositories.team_repository import TeamRepository
-from app.core.tenant import get_tenant_context, TenantContext
 from app.repositories.factory import RepositoryFactory
-from app.services.settings_service import SettingsService
 from app.schemas.team import (
-    TeamMemberCreate,
-    TeamMemberUpdate,
-    TeamMemberResponse,
-    TeamMemberListResponse,
-    TeamMemberAllocationResponse,
     TeamMemberAllocationListResponse,
+    TeamMemberAllocationResponse,
+    TeamMemberCreate,
+    TeamMemberListResponse,
+    TeamMemberResponse,
+    TeamMemberUpdate,
 )
+from app.services.settings_service import SettingsService
 
 logger = get_logger(__name__)
 
@@ -35,15 +37,17 @@ router = APIRouter()
 @router.get("/team", response_model=TeamMemberListResponse)
 async def list_team_members(
     tenant: TenantContext = Depends(get_tenant_context),
-    current_user: User = Depends(require_view_sensitive_data),  # Require permission to view sensitive data (salaries)
+    current_user: User = Depends(
+        require_view_sensitive_data
+    ),  # Require permission to view sensitive data (salaries)
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
-    include_inactive: bool = Query(False, description="Include inactive team members")
+    include_inactive: bool = Query(False, description="Include inactive team members"),
 ):
     """
     List all team members with pagination
-    
+
     **Permissions:**
     - Requires `can_view_sensitive_data` permission (salaries are sensitive data)
     - Allowed roles: owner, admin_financiero, super_admin
@@ -55,34 +59,35 @@ async def list_team_members(
 
     try:
         team_repo = RepositoryFactory.create_team_repository(db, tenant.organization_id)
-        
-        where_clause = None if include_inactive else TeamMember.is_active == True
+
+        where_clause = None if include_inactive else TeamMember.is_active
 
         # Get total count
         total = await team_repo.count(where=where_clause)
-        
+
         # Get paginated results
         offset = (page - 1) * page_size
         members = await team_repo.get_all(
-            where=where_clause,
-            order_by=desc(TeamMember.created_at),
-            limit=page_size,
-            offset=offset
+            where=where_clause, order_by=desc(TeamMember.created_at), limit=page_size, offset=offset
         )
-        
+
         total_pages = (total + page_size - 1) // page_size if total > 0 else 1
-        
+
         return TeamMemberListResponse(
             items=[TeamMemberResponse.model_validate(member) for member in members],
             total=total,
             page=page,
             page_size=page_size,
-            total_pages=total_pages
+            total_pages=total_pages,
         )
     except Exception as e:
-        logger.error("Error listing team members", error=str(e), user_id=actor_user_id, exc_info=True)
+        logger.error(
+            "Error listing team members", error=str(e), user_id=actor_user_id, exc_info=True
+        )
         # Return empty list on error
-        return TeamMemberListResponse(items=[], total=0, page=page, page_size=page_size, total_pages=0)
+        return TeamMemberListResponse(
+            items=[], total=0, page=page, page_size=page_size, total_pages=0
+        )
 
 
 @router.get("/team/allocation-members", response_model=TeamMemberAllocationListResponse)
@@ -107,7 +112,9 @@ async def list_team_members_for_allocation(
             total=len(members),
         )
     except Exception as e:
-        logger.error("Error listing allocation members", error=str(e), user_id=actor_user_id, exc_info=True)
+        logger.error(
+            "Error listing allocation members", error=str(e), user_id=actor_user_id, exc_info=True
+        )
         return TeamMemberAllocationListResponse(items=[], total=0)
 
 
@@ -115,12 +122,14 @@ async def list_team_members_for_allocation(
 async def create_team_member(
     member_data: TeamMemberCreate,
     tenant: TenantContext = Depends(get_tenant_context),
-    current_user: User = Depends(require_modify_costs),  # Require permission to modify costs (salaries)
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(
+        require_modify_costs
+    ),  # Require permission to modify costs (salaries)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Create a new team member
-    
+
     **Permissions:**
     - Requires `can_modify_costs` permission (team members affect costs)
     - Allowed roles: owner, admin_financiero, super_admin
@@ -128,6 +137,7 @@ async def create_team_member(
     """
     # Validate team member limit for plan
     from app.core.plan_limits import validate_team_member_limit
+
     await validate_team_member_limit(tenant.organization_id, tenant.subscription_plan, db)
 
     actor_user_id = current_user.id
@@ -137,9 +147,9 @@ async def create_team_member(
         member_dict = member_data.model_dump()
         settings_service = SettingsService(db)
         primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
-        
+
         # Set defaults for optional fields
-        incoming_currency = member_dict.get('currency')
+        incoming_currency = member_dict.get("currency")
         if incoming_currency and incoming_currency != primary_currency:
             logger.warning(
                 "Overriding team member currency with organization primary currency",
@@ -148,35 +158,41 @@ async def create_team_member(
                 incoming_currency=incoming_currency,
                 primary_currency=primary_currency,
             )
-        member_dict['currency'] = primary_currency
-        if 'is_active' not in member_dict:
-            member_dict['is_active'] = True
-        if 'billable_hours_per_week' not in member_dict or member_dict['billable_hours_per_week'] is None:
-            member_dict['billable_hours_per_week'] = 32
-        
+        member_dict["currency"] = primary_currency
+        if "is_active" not in member_dict:
+            member_dict["is_active"] = True
+        if (
+            "billable_hours_per_week" not in member_dict
+            or member_dict["billable_hours_per_week"] is None
+        ):
+            member_dict["billable_hours_per_week"] = 32
+
         # Convert billable_hours_per_week to int if it's a float
-        if isinstance(member_dict.get('billable_hours_per_week'), float):
-            member_dict['billable_hours_per_week'] = int(member_dict['billable_hours_per_week'])
-        
+        if isinstance(member_dict.get("billable_hours_per_week"), float):
+            member_dict["billable_hours_per_week"] = int(member_dict["billable_hours_per_week"])
+
         # Remove user_id if not provided (optional field)
-        if 'user_id' not in member_dict or member_dict['user_id'] is None:
-            member_dict.pop('user_id', None)
-        
+        if "user_id" not in member_dict or member_dict["user_id"] is None:
+            member_dict.pop("user_id", None)
+
         logger.info("Creating team member", member_data=member_dict, user_id=actor_user_id)
-        
-        member_dict['organization_id'] = tenant.organization_id
-        
+
+        member_dict["organization_id"] = tenant.organization_id
+
         new_member = TeamMember(**member_dict)
         team_repo = RepositoryFactory.create_team_repository(db, tenant.organization_id)
         new_member = await team_repo.create(new_member)
-        
+
         # Invalidate blended cost rate cache
         from app.core.cache import get_cache
+
         cache = get_cache()
         cache.invalidate_pattern("blended_cost_rate:")
         cache.invalidate_pattern("financial_summary:")
-        
-        logger.info("Team member created successfully", member_id=new_member.id, user_id=actor_user_id)
+
+        logger.info(
+            "Team member created successfully", member_id=new_member.id, user_id=actor_user_id
+        )
         return TeamMemberResponse.model_validate(new_member)
     except Exception as e:
         await db.rollback()
@@ -184,12 +200,14 @@ async def create_team_member(
             "Error creating team member",
             error=str(e),
             user_id=actor_user_id,
-            member_data=member_data.model_dump() if hasattr(member_data, 'model_dump') else str(member_data),
-            exc_info=True
+            member_data=member_data.model_dump()
+            if hasattr(member_data, "model_dump")
+            else str(member_data),
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create team member: {str(e)}"
+            detail=f"Failed to create team member: {str(e)}",
         )
 
 
@@ -198,12 +216,14 @@ async def update_team_member(
     member_id: int,
     member_data: TeamMemberUpdate,
     tenant: TenantContext = Depends(get_tenant_context),
-    current_user: User = Depends(require_modify_costs),  # Require permission to modify costs (salaries)
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(
+        require_modify_costs
+    ),  # Require permission to modify costs (salaries)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Update an existing team member
-    
+
     **Permissions:**
     - Requires `can_modify_costs` permission (team members affect costs)
     - Allowed roles: owner, admin_financiero, super_admin
@@ -214,24 +234,26 @@ async def update_team_member(
     try:
         team_repo = RepositoryFactory.create_team_repository(db, tenant.organization_id)
         member = await team_repo.get_by_id(member_id)
-        
+
         if not member:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Team member with id {member_id} not found"
+                detail=f"Team member with id {member_id} not found",
             )
-        
+
         update_data = member_data.model_dump(exclude_unset=True)
         settings_service = SettingsService(db)
         primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
-        
+
         # Convert billable_hours_per_week to int if it's a float
-        if 'billable_hours_per_week' in update_data and isinstance(update_data['billable_hours_per_week'], float):
-            update_data['billable_hours_per_week'] = int(update_data['billable_hours_per_week'])
-        
+        if "billable_hours_per_week" in update_data and isinstance(
+            update_data["billable_hours_per_week"], float
+        ):
+            update_data["billable_hours_per_week"] = int(update_data["billable_hours_per_week"])
+
         # Enforce organization primary currency for financial consistency
-        if 'currency' in update_data:
-            incoming_currency = update_data.get('currency')
+        if "currency" in update_data:
+            incoming_currency = update_data.get("currency")
             if incoming_currency and incoming_currency != primary_currency:
                 logger.warning(
                     "Overriding team member currency update with organization primary currency",
@@ -241,21 +263,27 @@ async def update_team_member(
                     incoming_currency=incoming_currency,
                     primary_currency=primary_currency,
                 )
-            update_data['currency'] = primary_currency
-        
-        logger.info("Updating team member", member_id=member_id, update_data=update_data, user_id=actor_user_id)
-        
+            update_data["currency"] = primary_currency
+
+        logger.info(
+            "Updating team member",
+            member_id=member_id,
+            update_data=update_data,
+            user_id=actor_user_id,
+        )
+
         for field, value in update_data.items():
             setattr(member, field, value)
-        
+
         member = await team_repo.update(member)
-        
+
         # Invalidate blended cost rate cache
         from app.core.cache import get_cache
+
         cache = get_cache()
         cache.invalidate_pattern("blended_cost_rate:")
         cache.invalidate_pattern("financial_summary:")
-        
+
         logger.info("Team member updated successfully", member_id=member_id, user_id=actor_user_id)
         return TeamMemberResponse.model_validate(member)
     except HTTPException:
@@ -267,12 +295,14 @@ async def update_team_member(
             member_id=member_id,
             error=str(e),
             user_id=actor_user_id,
-            update_data=member_data.model_dump(exclude_unset=True) if hasattr(member_data, 'model_dump') else str(member_data),
-            exc_info=True
+            update_data=member_data.model_dump(exclude_unset=True)
+            if hasattr(member_data, "model_dump")
+            else str(member_data),
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update team member: {str(e)}"
+            detail=f"Failed to update team member: {str(e)}",
         )
 
 
@@ -280,27 +310,29 @@ async def update_team_member(
 async def delete_team_member(
     member_id: int,
     tenant: TenantContext = Depends(get_tenant_context),
-    current_user: User = Depends(require_delete_resources),  # Require permission to delete resources
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(
+        require_delete_resources
+    ),  # Require permission to delete resources
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Delete a team member
-    
+
     **Permissions:**
     - Requires `can_delete_resources` permission
     - Allowed roles: owner, super_admin
     - Denied roles: admin_financiero, product_manager, collaborator
-    
+
     Validates that the member is not active before deletion.
     Active members are used in calculations, so deletion will affect the blended cost rate.
     """
     # Verify if the member exists
     team_repo = RepositoryFactory.create_team_repository(db, tenant.organization_id)
     member = await team_repo.get_by_id(member_id)
-    
+
     if not member:
         raise ResourceNotFoundError("Team member", member_id)
-    
+
     # VALIDATION: Warn if member is active
     # Active members contribute to the blended cost rate calculation
     # In production, you might want to require deactivation before deletion
@@ -313,7 +345,7 @@ async def delete_team_member(
         #     "Please deactivate the member first, then delete."
         # )
         pass
-    
+
     acting_user_id = current_user.id
     acting_org_id = tenant.organization_id
 
@@ -340,15 +372,12 @@ async def delete_team_member(
             user_id=acting_user_id,
             organization_id=acting_org_id,
         )
-    
+
     # Invalidate blended cost rate cache
     from app.core.cache import get_cache
+
     cache = get_cache()
     cache.invalidate_pattern("blended_cost_rate:")
     cache.invalidate_pattern("financial_summary:")
-    
+
     return None
-
-
-
-

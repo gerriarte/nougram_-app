@@ -1,6 +1,7 @@
 """
 Automatic bootstrap for super admin account on application startup.
 """
+
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -38,16 +39,12 @@ async def ensure_super_admin_bootstrap(db: AsyncSession) -> None:
 
     bootstrap_password = (settings.SUPER_ADMIN_BOOTSTRAP_PASSWORD or "").strip()
     if not bootstrap_password:
-        logger.warning(
-            "Super admin auto-provision skipped: missing SUPER_ADMIN_BOOTSTRAP_PASSWORD"
-        )
+        logger.warning("Super admin auto-provision skipped: missing SUPER_ADMIN_BOOTSTRAP_PASSWORD")
         return
 
     email = _resolve_bootstrap_email()
     if not email:
-        logger.error(
-            "Super admin auto-provision skipped: no allowed super admin email configured"
-        )
+        logger.error("Super admin auto-provision skipped: no allowed super admin email configured")
         return
 
     full_name = (settings.SUPER_ADMIN_BOOTSTRAP_FULL_NAME or "Super Admin").strip()

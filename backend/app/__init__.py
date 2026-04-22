@@ -1,5 +1,3 @@
 """
 Nougram Backend Application
 """
-
-

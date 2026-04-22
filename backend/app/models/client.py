@@ -1,7 +1,8 @@
 """
 Client model - master catalog for organizations (multi-tenant).
 """
-from sqlalchemy import Column, Integer, String, DateTime, func, ForeignKey
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -12,6 +13,7 @@ class Client(Base):
     Client master catalog per organization.
     Projects reference client_id; client_name/client_email on project kept for snapshot/compat.
     """
+
     __tablename__ = "clients"
 
     id = Column(Integer, primary_key=True, index=True)

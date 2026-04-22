@@ -1,7 +1,6 @@
 """
 Repository for BillingRequest model.
 """
-from typing import Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +15,7 @@ class BillingRequestRepository(BaseRepository[BillingRequest]):
     Repository for billing request operations.
     """
 
-    def __init__(self, db: AsyncSession, tenant_id: Optional[int] = None):
+    def __init__(self, db: AsyncSession, tenant_id: int | None = None):
         super().__init__(db, BillingRequest, tenant_id=tenant_id)
 
     async def create_request(
@@ -24,9 +23,9 @@ class BillingRequestRepository(BaseRepository[BillingRequest]):
         organization_id: int,
         requested_by_user_id: int,
         request_type: str,
-        target_plan: Optional[str],
-        target_interval: Optional[str],
-        notes: Optional[str],
+        target_plan: str | None,
+        target_interval: str | None,
+        notes: str | None,
         status: str = "pending",
         auto_commit: bool = True,
     ) -> BillingRequest:
@@ -45,7 +44,7 @@ class BillingRequestRepository(BaseRepository[BillingRequest]):
             await self.db.refresh(billing_request)
         return billing_request
 
-    async def get_latest_pending_by_org(self, organization_id: int) -> Optional[BillingRequest]:
+    async def get_latest_pending_by_org(self, organization_id: int) -> BillingRequest | None:
         query = (
             select(BillingRequest)
             .where(
@@ -60,8 +59,8 @@ class BillingRequestRepository(BaseRepository[BillingRequest]):
 
     async def list_requests(
         self,
-        organization_id: Optional[int] = None,
-        status: Optional[str] = None,
+        organization_id: int | None = None,
+        status: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[BillingRequest], int]:

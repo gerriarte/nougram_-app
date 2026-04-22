@@ -1,11 +1,10 @@
 """
 Repository for capacity commitments/events and quote loading for occupancy sync.
 """
+
 from __future__ import annotations
 
-from typing import Optional
-
-from sqlalchemy import delete, select, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -19,7 +18,7 @@ class CapacityRepository:
         self.db = db
         self.tenant_id = tenant_id
 
-    async def get_quote_for_capacity(self, *, quote_id: int, project_id: int) -> Optional[Quote]:
+    async def get_quote_for_capacity(self, *, quote_id: int, project_id: int) -> Quote | None:
         query = (
             select(Quote)
             .join(Project, Quote.project_id == Project.id)
@@ -100,7 +99,7 @@ class CapacityRepository:
         source_type: str,
         source_id: int,
         payload: dict,
-        created_by_id: Optional[int],
+        created_by_id: int | None,
     ) -> CapacityEvent:
         event = CapacityEvent(
             organization_id=self.tenant_id,

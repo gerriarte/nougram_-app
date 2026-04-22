@@ -1,11 +1,12 @@
 """
 Repository: dashboard KPI aggregates using latest quote per project.
 """
-from dataclasses import dataclass
-from decimal import Decimal
-from datetime import datetime
 
-from sqlalchemy import select, func, and_, case
+from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
+
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project, Quote, project_taxes
@@ -103,8 +104,10 @@ class DashboardKpiRepository:
             )
             .where(
                 candidates_sq.c.proj_status != "Draft",
-                func.coalesce(candidates_sq.c.qu_updated_at, candidates_sq.c.qu_created_at) >= range_start_utc,
-                func.coalesce(candidates_sq.c.qu_updated_at, candidates_sq.c.qu_created_at) <= range_end_utc,
+                func.coalesce(candidates_sq.c.qu_updated_at, candidates_sq.c.qu_created_at)
+                >= range_start_utc,
+                func.coalesce(candidates_sq.c.qu_updated_at, candidates_sq.c.qu_created_at)
+                <= range_end_utc,
             )
             .subquery()
         )

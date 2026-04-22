@@ -1,7 +1,17 @@
 """
 Capacity tracking models (tentative/committed/actual) by source event.
 """
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, Numeric, func
+
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base

@@ -1,13 +1,12 @@
 """
 Rate limiting configuration and utilities
 """
-from typing import Optional, Dict
-from fastapi import Request, HTTPException, status
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 
-from app.core.config import settings
+from fastapi import HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,13 +25,13 @@ def get_tenant_identifier(request: Request) -> str:
     tenant_id = getattr(request.state, "organization_id", None)
     if tenant_id:
         return f"tenant:{tenant_id}"
-    
+
     # Fallback to IP address
     return get_remote_address(request)
 
 
 # Plan-based rate limits (requests per minute)
-RATE_LIMITS_BY_PLAN: Dict[str, Dict[str, int]] = {
+RATE_LIMITS_BY_PLAN: dict[str, dict[str, int]] = {
     "free": {
         "default": 60,  # 60 requests per minute
         "auth": 5,  # 5 login attempts per minute
@@ -60,18 +59,18 @@ RATE_LIMITS_BY_PLAN: Dict[str, Dict[str, int]] = {
         "create": 500,
         "update": 750,
         "ai": 100,  # 100 AI requests per minute
-    }
+    },
 }
 
 
 def get_rate_limit_for_plan(plan: str, limit_type: str = "default") -> int:
     """
     Get rate limit for a specific plan and limit type
-    
+
     Args:
         plan: Subscription plan (free, starter, professional, enterprise)
         limit_type: Type of limit (default, auth, create, update)
-    
+
     Returns:
         Rate limit (requests per minute)
     """
@@ -82,11 +81,11 @@ def get_rate_limit_for_plan(plan: str, limit_type: str = "default") -> int:
 async def get_rate_limit_for_request(request: Request, limit_type: str = "default") -> int:
     """
     Get rate limit for the current request based on user's plan
-    
+
     Args:
         request: FastAPI request
         limit_type: Type of limit (default, auth, create, update)
-    
+
     Returns:
         Rate limit (requests per minute)
     """
@@ -100,20 +99,12 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     Custom handler for rate limit exceeded errors
     """
     logger.warning(
-        f"Rate limit exceeded",
+        "Rate limit exceeded",
         ip_address=get_remote_address(request),
         endpoint=request.url.path,
-        organization_id=getattr(request.state, "organization_id", None)
+        organization_id=getattr(request.state, "organization_id", None),
     )
-    
+
     raise HTTPException(
-        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail=f"Rate limit exceeded: {exc.detail}"
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Rate limit exceeded: {exc.detail}"
     )
-
-
-
-
-
-
-

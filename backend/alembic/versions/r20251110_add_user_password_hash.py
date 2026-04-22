@@ -4,6 +4,7 @@ Revision ID: r20251110_user_password
 Revises: r20251109_role_varchar
 Create Date: 2025-11-10
 """
+
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text

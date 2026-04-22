@@ -2,10 +2,10 @@
 Repository for AI usage events (token/cost tracking).
 No tenant scoping on write; super-admin can query across organizations.
 """
-from datetime import datetime
-from typing import List, Optional
 
-from sqlalchemy import select, desc, and_
+from datetime import datetime
+
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai_usage import AIUsageEvent
@@ -13,7 +13,7 @@ from app.repositories.base import BaseRepository
 
 
 class AIUsageRepository(BaseRepository[AIUsageEvent]):
-    def __init__(self, db: AsyncSession, tenant_id: Optional[int] = None):
+    def __init__(self, db: AsyncSession, tenant_id: int | None = None):
         super().__init__(db, AIUsageEvent, tenant_id=tenant_id)
 
     async def create_event(
@@ -24,11 +24,11 @@ class AIUsageRepository(BaseRepository[AIUsageEvent]):
         prompt_tokens: int,
         completion_tokens: int,
         total_tokens: int,
-        estimated_cost: Optional[float] = None,
-        model: Optional[str] = None,
-        project_id: Optional[int] = None,
-        proposal_id: Optional[int] = None,
-        actor_user_id: Optional[int] = None,
+        estimated_cost: float | None = None,
+        model: str | None = None,
+        project_id: int | None = None,
+        proposal_id: int | None = None,
+        actor_user_id: int | None = None,
     ) -> AIUsageEvent:
         entity = AIUsageEvent(
             organization_id=organization_id,
@@ -48,12 +48,12 @@ class AIUsageRepository(BaseRepository[AIUsageEvent]):
     async def list_by_organization(
         self,
         organization_id: int,
-        feature: Optional[str] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        feature: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
         limit: int = 500,
         offset: int = 0,
-    ) -> List[AIUsageEvent]:
+    ) -> list[AIUsageEvent]:
         query = select(AIUsageEvent).where(AIUsageEvent.organization_id == organization_id)
         if feature:
             query = query.where(AIUsageEvent.feature == feature)

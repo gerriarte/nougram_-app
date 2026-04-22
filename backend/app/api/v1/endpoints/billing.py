@@ -1,36 +1,34 @@
 """
 Billing and subscription endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
-from datetime import datetime
-from datetime import timezone
 
-from app.core.database import get_db
-from app.core.security import get_current_user
-from app.core.tenant import get_tenant_context, TenantContext
-from app.core.permission_middleware import require_manage_subscription
-from app.core.billing_gateway import get_billing_gateway, BillingGatewayError
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.audit import AuditAction, AuditService
+from app.core.billing_gateway import BillingGatewayError, get_billing_gateway
+from app.core.database import get_db
 from app.core.exceptions import BusinessLogicError
 from app.core.logging import get_logger
+from app.core.permission_middleware import require_manage_subscription
+from app.core.security import get_current_user
+from app.core.tenant import TenantContext, get_tenant_context
 from app.models.user import User
-from app.models.subscription import Subscription
 from app.repositories.factory import RepositoryFactory
-from app.repositories.organization_repository import OrganizationRepository
-from app.services.super_admin_notification_service import SuperAdminNotificationService
 from app.schemas.billing import (
     CheckoutSessionCreate,
     CheckoutSessionResponse,
-    SubscriptionResponse,
-    SubscriptionUpdate,
-    SubscriptionCancel,
     ManualBillingRequestCreate,
     ManualBillingRequestResponse,
-    PlansListResponse,
     PlanInfo,
+    PlansListResponse,
+    SubscriptionCancel,
+    SubscriptionResponse,
+    SubscriptionUpdate,
 )
+from app.services.super_admin_notification_service import SuperAdminNotificationService
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -42,16 +40,18 @@ ALLOWED_MANUAL_REQUEST_TYPES = {
 }
 
 
-@router.post("/checkout-session", response_model=CheckoutSessionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/checkout-session", response_model=CheckoutSessionResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_checkout_session(
     checkout_data: CheckoutSessionCreate,
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(require_manage_subscription),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Create a hosted checkout session for subscription
-    
+
     Only organization owners/admins can create checkout sessions
     """
     gateway = get_billing_gateway()
@@ -68,35 +68,34 @@ async def create_checkout_session(
 
     # Get price ID for the plan in current provider.
     price_id = gateway.get_price_id(checkout_data.plan, checkout_data.interval)
-    
+
     if not price_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Price ID not configured for plan {checkout_data.plan} with interval {checkout_data.interval}"
+            detail=f"Price ID not configured for plan {checkout_data.plan} with interval {checkout_data.interval}",
         )
-    
+
     # Get organization
     org_repo = RepositoryFactory.create_organization_repository(db)
     organization = await org_repo.get_by_id(tenant.organization_id)
-    
+
     if not organization:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
     # Get or create external customer in configured provider.
     customer_id = None
     subscription_repo = RepositoryFactory.create_subscription_repository(db)
     existing_subscription = await subscription_repo.get_latest_subscription(tenant.organization_id)
-    
+
     customer_id = gateway.ensure_customer_id(
-        existing_customer_id=existing_subscription.stripe_customer_id if existing_subscription else None,
+        existing_customer_id=existing_subscription.stripe_customer_id
+        if existing_subscription
+        else None,
         email=current_user.email,
         organization_name=organization.name,
         organization_id=tenant.organization_id,
     )
-    
+
     # Create checkout session
     try:
         session = gateway.create_checkout_session(
@@ -108,10 +107,10 @@ async def create_checkout_session(
             plan=checkout_data.plan,
             interval=checkout_data.interval,
         )
-        
+
         logger.info(
             f"Created checkout session {session.session_id} for organization {tenant.organization_id}",
-            extra={"organization_id": tenant.organization_id, "plan": checkout_data.plan}
+            extra={"organization_id": tenant.organization_id, "plan": checkout_data.plan},
         )
 
         notification_details = {
@@ -137,7 +136,7 @@ async def create_checkout_session(
             details={**notification_details, "super_admin_notified_count": notified_count},
             status="success",
         )
-        
+
         return CheckoutSessionResponse(
             session_id=session.session_id,
             url=session.url,
@@ -151,7 +150,7 @@ async def create_checkout_session(
         logger.error(f"Error creating checkout session: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create checkout session: {str(e)}"
+            detail=f"Failed to create checkout session: {str(e)}",
         )
 
 
@@ -159,7 +158,7 @@ async def create_checkout_session(
 async def get_subscription(
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get current subscription for the organization
@@ -168,14 +167,11 @@ async def get_subscription(
     org_repo = RepositoryFactory.create_organization_repository(db)
     organization = await org_repo.get_by_id(tenant.organization_id)
     if not organization:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
 
     subscription_repo = RepositoryFactory.create_subscription_repository(db)
     subscription = await subscription_repo.get_active_subscription(tenant.organization_id)
-    
+
     if not subscription:
         # Fallback for manual/local billing mode: use organization-level subscription fields.
         return SubscriptionResponse(
@@ -213,11 +209,11 @@ async def update_subscription(
     subscription_data: SubscriptionUpdate,
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(require_manage_subscription),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Update subscription (change plan or cancel at period end)
-    
+
     Only organization owners/admins can update subscriptions
     """
     gateway = get_billing_gateway()
@@ -225,18 +221,14 @@ async def update_subscription(
     org_repo = RepositoryFactory.create_organization_repository(db)
     organization = await org_repo.get_by_id(tenant.organization_id)
     if not organization:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
     subscription = await subscription_repo.get_active_subscription(tenant.organization_id)
-    
+
     if not subscription:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active subscription found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="No active subscription found"
         )
-    
+
     try:
         # If provider has external subscription integration, sync it.
         if subscription.stripe_subscription_id and gateway.provider_name != "manual":
@@ -259,13 +251,13 @@ async def update_subscription(
 
         if subscription_data.plan:
             subscription.plan = subscription_data.plan
-        
+
         await db.commit()
         await db.refresh(subscription)
-        
+
         logger.info(
             f"Updated subscription {subscription.id} for organization {tenant.organization_id}",
-            extra={"organization_id": tenant.organization_id, "plan": subscription.plan}
+            extra={"organization_id": tenant.organization_id, "plan": subscription.plan},
         )
 
         notification_details = {
@@ -295,7 +287,7 @@ async def update_subscription(
         )
 
         return SubscriptionResponse.model_validate(subscription)
-        
+
     except (HTTPException, BillingGatewayError):
         raise
     except Exception as e:
@@ -303,7 +295,7 @@ async def update_subscription(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update subscription: {str(e)}"
+            detail=f"Failed to update subscription: {str(e)}",
         )
 
 
@@ -312,11 +304,11 @@ async def cancel_subscription(
     cancel_data: SubscriptionCancel,
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(require_manage_subscription),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Cancel subscription (immediately or at period end)
-    
+
     Only organization owners/admins can cancel subscriptions
     """
     gateway = get_billing_gateway()
@@ -324,18 +316,14 @@ async def cancel_subscription(
     org_repo = RepositoryFactory.create_organization_repository(db)
     organization = await org_repo.get_by_id(tenant.organization_id)
     if not organization:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
     subscription = await subscription_repo.get_active_subscription(tenant.organization_id)
-    
+
     if not subscription:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active subscription found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="No active subscription found"
         )
-    
+
     try:
         # External cancel when available, local fallback otherwise.
         if subscription.stripe_subscription_id and gateway.provider_name != "manual":
@@ -353,13 +341,16 @@ async def cancel_subscription(
                 subscription.canceled_at = datetime.utcnow()
             else:
                 subscription.cancel_at_period_end = True
-        
+
         await db.commit()
         await db.refresh(subscription)
-        
+
         logger.info(
             f"Cancelled subscription {subscription.id} for organization {tenant.organization_id}",
-            extra={"organization_id": tenant.organization_id, "immediate": cancel_data.cancel_immediately}
+            extra={
+                "organization_id": tenant.organization_id,
+                "immediate": cancel_data.cancel_immediately,
+            },
         )
 
         notification_details = {
@@ -389,7 +380,7 @@ async def cancel_subscription(
         )
 
         return SubscriptionResponse.model_validate(subscription)
-        
+
     except BillingGatewayError as e:
         await db.rollback()
         raise HTTPException(
@@ -401,31 +392,31 @@ async def cancel_subscription(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to cancel subscription: {str(e)}"
+            detail=f"Failed to cancel subscription: {str(e)}",
         )
 
 
 @router.get("/plans", response_model=PlansListResponse)
-async def list_plans(
-    current_user: User = Depends(get_current_user)
-):
+async def list_plans(current_user: User = Depends(get_current_user)):
     """
     List available subscription plans
     """
     from app.core.plan_limits import PLAN_INFO
-    
+
     plans = []
     for plan_key, plan_data in PLAN_INFO.items():
-        plans.append(PlanInfo(
-            name=plan_key,
-            display_name=plan_data.get("display_name", plan_key.title()),
-            description=plan_data.get("description", ""),
-            monthly_price=plan_data.get("monthly_price"),
-            yearly_price=plan_data.get("yearly_price"),
-            features=plan_data.get("features", []),
-            limits=plan_data.get("limits", {})
-        ))
-    
+        plans.append(
+            PlanInfo(
+                name=plan_key,
+                display_name=plan_data.get("display_name", plan_key.title()),
+                description=plan_data.get("description", ""),
+                monthly_price=plan_data.get("monthly_price"),
+                yearly_price=plan_data.get("yearly_price"),
+                features=plan_data.get("features", []),
+                limits=plan_data.get("limits", {}),
+            )
+        )
+
     return PlansListResponse(plans=plans)
 
 
@@ -500,5 +491,3 @@ async def create_manual_billing_request(
     )
 
     return ManualBillingRequestResponse.model_validate(created)
-
-

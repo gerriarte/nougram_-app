@@ -29,4 +29,3 @@ def downgrade() -> None:
     op.execute("ALTER TABLE quotes DROP COLUMN IF EXISTS contingency_value")
     op.execute("ALTER TABLE quotes DROP COLUMN IF EXISTS contingency_type")
     op.execute("ALTER TABLE quotes DROP COLUMN IF EXISTS contingency_description")
-

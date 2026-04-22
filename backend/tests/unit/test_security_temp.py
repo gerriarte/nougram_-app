@@ -1,6 +1,7 @@
 """
 Unit tests for security functions
 """
+
 import pytest
 
 from app.core.security import (
@@ -81,4 +82,3 @@ class TestJWT:
         decoded = decode_access_token(invalid_token)
 
         assert decoded is None
-

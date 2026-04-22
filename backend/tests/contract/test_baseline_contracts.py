@@ -5,6 +5,7 @@ These tests freeze the current API contract (response shapes and status codes) s
 refactors (endpoint -> service -> repository) can be validated without changing behavior.
 Run these before and after each phase to ensure no regressions.
 """
+
 import uuid
 
 import pytest
@@ -87,7 +88,9 @@ class TestCreditsContract:
         assert isinstance(payload["credits_used_total"], int)
         assert isinstance(payload["credits_used_this_month"], int)
         assert isinstance(payload["is_unlimited"], bool)
-        assert payload.get("credits_per_month") is None or isinstance(payload["credits_per_month"], int)
+        assert payload.get("credits_per_month") is None or isinstance(
+            payload["credits_per_month"], int
+        )
         assert payload.get("last_reset_at") is None or isinstance(payload["last_reset_at"], str)
         assert payload.get("next_reset_at") is None or isinstance(payload["next_reset_at"], str)
 
@@ -224,8 +227,12 @@ class TestProjectQuoteContract:
 
 BENCHMARKS_RESPONSE_KEYS = ["profile_type", "country", "currency", "benchmarks", "source"]
 BENCHMARK_KEYS = [
-    "avg_monthly_income", "avg_margin", "avg_hours_per_month",
-    "avg_team_size", "avg_salary", "avg_clients",
+    "avg_monthly_income",
+    "avg_margin",
+    "avg_hours_per_month",
+    "avg_team_size",
+    "avg_salary",
+    "avg_clients",
 ]
 
 
@@ -255,7 +262,12 @@ class TestOnboardingContract:
 
 # --- Settings contract ---
 
-SETTINGS_CURRENCY_KEYS = ["primary_currency", "currency_symbol", "available_currencies", "exchange_rates"]
+SETTINGS_CURRENCY_KEYS = [
+    "primary_currency",
+    "currency_symbol",
+    "available_currencies",
+    "exchange_rates",
+]
 
 
 @pytest.mark.integration

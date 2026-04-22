@@ -1,6 +1,7 @@
 """
 Unit tests for tax calculations
 """
+
 import uuid
 
 import pytest
@@ -27,24 +28,16 @@ class TestTaxCalculations:
             code=unique_code,
             percentage=19.0,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(tax)
         await db_session.commit()
 
         blended_cost_rate = 50.0
-        items = [
-            {
-                "service_id": test_service.id,
-                "estimated_hours": 10.0
-            }
-        ]
+        items = [{"service_id": test_service.id, "estimated_hours": 10.0}]
 
         result = await calculate_quote_totals_enhanced(
-            db_session,
-            items,
-            blended_cost_rate,
-            tax_ids=[tax.id]
+            db_session, items, blended_cost_rate, tax_ids=[tax.id]
         )
 
         # Client price: ~714.29
@@ -72,32 +65,24 @@ class TestTaxCalculations:
             code=unique_code1,
             percentage=19.0,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         tax2 = Tax(
             name="Transaction Cost",
             code=unique_code2,
             percentage=5.0,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(tax1)
         db_session.add(tax2)
         await db_session.commit()
 
         blended_cost_rate = 50.0
-        items = [
-            {
-                "service_id": test_service.id,
-                "estimated_hours": 10.0
-            }
-        ]
+        items = [{"service_id": test_service.id, "estimated_hours": 10.0}]
 
         result = await calculate_quote_totals_enhanced(
-            db_session,
-            items,
-            blended_cost_rate,
-            tax_ids=[tax1.id, tax2.id]
+            db_session, items, blended_cost_rate, tax_ids=[tax1.id, tax2.id]
         )
 
         # Client price: ~714.29
@@ -108,7 +93,10 @@ class TestTaxCalculations:
         assert result["total_taxes"] < 172.0
         assert len(result["taxes"]) == 2
         # Allow small rounding differences
-        assert abs(result["total_with_taxes"] - (result["total_client_price"] + result["total_taxes"])) < 0.01
+        assert (
+            abs(result["total_with_taxes"] - (result["total_client_price"] + result["total_taxes"]))
+            < 0.01
+        )
 
     async def test_tax_on_expenses(self, db_session, test_organization, test_service):
         """Test that taxes are calculated on total price including expenses"""
@@ -124,33 +112,17 @@ class TestTaxCalculations:
             code=unique_code,
             percentage=19.0,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(tax)
         await db_session.commit()
 
         blended_cost_rate = 50.0
-        items = [
-            {
-                "service_id": test_service.id,
-                "estimated_hours": 10.0
-            }
-        ]
-        expenses = [
-            {
-                "name": "Expense",
-                "cost": 200.0,
-                "markup_percentage": 0.20,
-                "quantity": 1.0
-            }
-        ]
+        items = [{"service_id": test_service.id, "estimated_hours": 10.0}]
+        expenses = [{"name": "Expense", "cost": 200.0, "markup_percentage": 0.20, "quantity": 1.0}]
 
         result = await calculate_quote_totals_enhanced(
-            db_session,
-            items,
-            blended_cost_rate,
-            tax_ids=[tax.id],
-            expenses=expenses
+            db_session, items, blended_cost_rate, tax_ids=[tax.id], expenses=expenses
         )
 
         # Total client price: ~714 (service) + 240 (expense) = ~954
@@ -173,18 +145,13 @@ class TestTaxCalculations:
             code=unique_code,
             percentage=19.0,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(tax)
         await db_session.commit()
 
         blended_cost_rate = 50.0
-        items = [
-            {
-                "service_id": test_service.id,
-                "estimated_hours": 10.0
-            }
-        ]
+        items = [{"service_id": test_service.id, "estimated_hours": 10.0}]
 
         result = await calculate_quote_totals_enhanced(
             db_session,
@@ -193,7 +160,7 @@ class TestTaxCalculations:
             tax_ids=[tax.id],
             revisions_included=2,
             revision_cost_per_additional=100.0,
-            revisions_count=5  # 3 additional revisions = 300
+            revisions_count=5,  # 3 additional revisions = 300
         )
 
         # Client price: ~714 (service) + 300 (revisions) = ~1014
@@ -216,32 +183,24 @@ class TestTaxCalculations:
             code=unique_code1,
             percentage=10.0,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         inactive_tax = Tax(
             name="Inactive Tax",
             code=unique_code2,
             percentage=20.0,
             is_active=False,  # Inactive
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(active_tax)
         db_session.add(inactive_tax)
         await db_session.commit()
 
         blended_cost_rate = 50.0
-        items = [
-            {
-                "service_id": test_service.id,
-                "estimated_hours": 10.0
-            }
-        ]
+        items = [{"service_id": test_service.id, "estimated_hours": 10.0}]
 
         result = await calculate_quote_totals_enhanced(
-            db_session,
-            items,
-            blended_cost_rate,
-            tax_ids=[active_tax.id, inactive_tax.id]
+            db_session, items, blended_cost_rate, tax_ids=[active_tax.id, inactive_tax.id]
         )
 
         # Only active tax should be applied
@@ -262,24 +221,16 @@ class TestTaxCalculations:
             code=unique_code,
             percentage=19.0,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(tax)
         await db_session.commit()
 
         blended_cost_rate = 50.0
-        items = [
-            {
-                "service_id": test_service.id,
-                "estimated_hours": 10.0
-            }
-        ]
+        items = [{"service_id": test_service.id, "estimated_hours": 10.0}]
 
         result = await calculate_quote_totals_enhanced(
-            db_session,
-            items,
-            blended_cost_rate,
-            tax_ids=[tax.id]
+            db_session, items, blended_cost_rate, tax_ids=[tax.id]
         )
 
         # Check tax breakdown structure
@@ -309,24 +260,16 @@ class TestTaxCalculations:
             code=unique_code,
             percentage=0.0,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(tax)
         await db_session.commit()
 
         blended_cost_rate = 50.0
-        items = [
-            {
-                "service_id": test_service.id,
-                "estimated_hours": 10.0
-            }
-        ]
+        items = [{"service_id": test_service.id, "estimated_hours": 10.0}]
 
         result = await calculate_quote_totals_enhanced(
-            db_session,
-            items,
-            blended_cost_rate,
-            tax_ids=[tax.id]
+            db_session, items, blended_cost_rate, tax_ids=[tax.id]
         )
 
         # Tax should be zero
@@ -346,24 +289,16 @@ class TestTaxCalculations:
             code=unique_code,
             percentage=50.0,
             is_active=True,
-            organization_id=test_organization.id
+            organization_id=test_organization.id,
         )
         db_session.add(tax)
         await db_session.commit()
 
         blended_cost_rate = 50.0
-        items = [
-            {
-                "service_id": test_service.id,
-                "estimated_hours": 10.0
-            }
-        ]
+        items = [{"service_id": test_service.id, "estimated_hours": 10.0}]
 
         result = await calculate_quote_totals_enhanced(
-            db_session,
-            items,
-            blended_cost_rate,
-            tax_ids=[tax.id]
+            db_session, items, blended_cost_rate, tax_ids=[tax.id]
         )
 
         # Client price: ~714.29
@@ -380,18 +315,10 @@ class TestTaxCalculations:
         await db_session.commit()
 
         blended_cost_rate = 50.0
-        items = [
-            {
-                "service_id": test_service.id,
-                "estimated_hours": 10.0
-            }
-        ]
+        items = [{"service_id": test_service.id, "estimated_hours": 10.0}]
 
         result = await calculate_quote_totals_enhanced(
-            db_session,
-            items,
-            blended_cost_rate,
-            tax_ids=None
+            db_session, items, blended_cost_rate, tax_ids=None
         )
 
         # Should have no taxes
@@ -405,13 +332,9 @@ class TestTaxCalculations:
         items = []  # No items
 
         result = await calculate_quote_totals_enhanced(
-            db_session,
-            items,
-            blended_cost_rate,
-            tax_ids=[]
+            db_session, items, blended_cost_rate, tax_ids=[]
         )
 
         # Should handle zero price gracefully
         assert result["total_taxes"] == 0.0
         assert result["total_with_taxes"] == 0.0
-

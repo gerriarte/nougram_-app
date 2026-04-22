@@ -4,6 +4,7 @@ Revision ID: n20260225
 Revises: k2l3m4n5o6p7
 Create Date: 2026-02-25 12:00:00.000000
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -32,7 +33,9 @@ def upgrade() -> None:
         sa.Column("salvage_value", sa.Numeric(15, 2), nullable=False, server_default=sa.text("0")),
         sa.Column("depreciation_method", sa.String(), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=True, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=True, server_default=sa.text("now()")
+        ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("organization_id", sa.Integer(), nullable=False),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
@@ -42,10 +45,24 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
-    op.create_index("ix_equipment_amortization_category", "equipment_amortization", ["category"], unique=False)
-    op.create_index("ix_equipment_amortization_is_active", "equipment_amortization", ["is_active"], unique=False)
-    op.create_index("ix_equipment_amortization_organization_id", "equipment_amortization", ["organization_id"], unique=False)
-    op.create_index("ix_equipment_amortization_deleted_at", "equipment_amortization", ["deleted_at"], unique=False)
+    op.create_index(
+        "ix_equipment_amortization_category", "equipment_amortization", ["category"], unique=False
+    )
+    op.create_index(
+        "ix_equipment_amortization_is_active", "equipment_amortization", ["is_active"], unique=False
+    )
+    op.create_index(
+        "ix_equipment_amortization_organization_id",
+        "equipment_amortization",
+        ["organization_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_equipment_amortization_deleted_at",
+        "equipment_amortization",
+        ["deleted_at"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
@@ -54,4 +71,3 @@ def downgrade() -> None:
     op.drop_index("ix_equipment_amortization_is_active", table_name="equipment_amortization")
     op.drop_index("ix_equipment_amortization_category", table_name="equipment_amortization")
     op.drop_table("equipment_amortization")
-

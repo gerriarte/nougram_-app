@@ -5,6 +5,7 @@ Revises: r20251110_user_password, v20260304_proposals, v20260415_team_apply_soci
 Create Date: 2026-04-19 14:00:00.000000
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op

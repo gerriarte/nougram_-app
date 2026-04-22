@@ -1,45 +1,47 @@
 """
 Authentication endpoints
 """
+
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import JWTError, jwt
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.email import (
+    generate_password_reset_email_html,
+    generate_password_reset_email_text,
+    send_email,
+)
+from app.core.logging import get_logger
+from app.core.rate_limiting import limiter
 from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
     get_current_user,
-    verify_password,
     get_password_hash,
+    verify_password,
 )
-from app.core.rate_limiting import limiter, get_rate_limit_for_plan
-from app.core.email import (
-    send_email,
-    generate_password_reset_email_html,
-    generate_password_reset_email_text,
-)
-from app.core.logging import get_logger
 from app.models.user import User
 from app.schemas.auth import (
+    ChangePasswordRequest,
+    ChangePasswordResponse,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginRequest,
+    RefreshTokenRequest,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
+    SwitchOrganizationRequest,
     TokenResponse,
     UserResponse,
     UserUpdate,
-    SwitchOrganizationRequest,
-    ForgotPasswordRequest,
-    ForgotPasswordResponse,
-    ResetPasswordRequest,
-    ResetPasswordResponse,
     VerifyEmailRequest,
     VerifyEmailResponse,
-    ChangePasswordRequest,
-    ChangePasswordResponse,
-    RefreshTokenRequest,
 )
 
 router = APIRouter()
@@ -62,14 +64,15 @@ async def email_password_login(
 
     if user is None or not user.hashed_password:
         # Log failed login attempt
-        from app.core.audit import AuditService, AuditAction
+        from app.core.audit import AuditAction, AuditService
+
         await AuditService.log_action(
             db=db,
             action=AuditAction.USER_LOGIN_FAILED,
             request=request,
             details={"email": normalized_email, "reason": "user_not_found"},
             status="failure",
-            error_message="User not found or no password set"
+            error_message="User not found or no password set",
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -78,7 +81,8 @@ async def email_password_login(
 
     if not verify_password(payload.password, user.hashed_password):
         # Log failed login attempt
-        from app.core.audit import AuditService, AuditAction
+        from app.core.audit import AuditAction, AuditService
+
         await AuditService.log_action(
             db=db,
             action=AuditAction.USER_LOGIN_FAILED,
@@ -87,7 +91,7 @@ async def email_password_login(
             request=request,
             details={"email": normalized_email, "reason": "invalid_password"},
             status="failure",
-            error_message="Invalid password"
+            error_message="Invalid password",
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -107,8 +111,9 @@ async def email_password_login(
 
     # Get role_type (infer from role if not set for backward compatibility)
     from app.core.permissions import get_user_role_type
+
     role_type = get_user_role_type(user)
-    
+
     token_data_jwt = {
         "sub": str(user.id),
         "email": user.email,
@@ -122,7 +127,8 @@ async def email_password_login(
     user_role = get_user_role(user)
 
     # Log successful login
-    from app.core.audit import AuditService, AuditAction
+    from app.core.audit import AuditAction, AuditService
+
     await AuditService.log_action(
         db=db,
         action=AuditAction.USER_LOGIN,
@@ -130,7 +136,7 @@ async def email_password_login(
         organization_id=user.organization_id,
         request=request,
         details={"email": normalized_email, "role": user_role},
-        status="success"
+        status="success",
     )
 
     return TokenResponse(
@@ -232,7 +238,9 @@ async def forgot_password(
 ):
     """Request password reset email for an account."""
     normalized_email = payload.email.strip().lower()
-    generic_message = "Si el correo existe, enviaremos instrucciones para restablecer la contrasena."
+    generic_message = (
+        "Si el correo existe, enviaremos instrucciones para restablecer la contrasena."
+    )
 
     result = await db.execute(select(User).where(User.email == normalized_email))
     user = result.scalar_one_or_none()
@@ -416,9 +424,7 @@ async def verify_email(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(
-    current_user: User = Depends(get_current_user)
-):
+async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """
     Get current authenticated user information
     """
@@ -444,6 +450,7 @@ async def get_current_user_info(
         timezone=current_user.timezone,
         language=current_user.language,
     )
+
 
 @router.put("/me", response_model=UserResponse)
 async def update_current_user_info(
@@ -565,41 +572,36 @@ async def switch_organization(
 ):
     """
     Switch the active organization for the current user.
-    
+
     This endpoint generates a new JWT token with the requested organization_id.
     The user must have access to the requested organization.
-    
+
     **Permissions:**
     - Support users (super_admin, support_manager, data_analyst) can switch to any organization
     - Tenant users can only switch to their own organization (if they belong to it)
     """
-    from app.core.permissions import get_user_role_type, can_user_access_tenant, get_user_role
+    from app.core.audit import AuditAction, AuditService
+    from app.core.permissions import can_user_access_tenant, get_user_role, get_user_role_type
     from app.models.organization import Organization
-    from app.core.audit import AuditService, AuditAction
-    
+
     organization_id = payload.organization_id
-    
+
     # Validate that the organization exists
-    org_result = await db.execute(
-        select(Organization).where(Organization.id == organization_id)
-    )
+    org_result = await db.execute(select(Organization).where(Organization.id == organization_id))
     org = org_result.scalar_one_or_none()
-    
+
     if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
     # Check if user can access this organization
     role_type = get_user_role_type(current_user)
-    
+
     if role_type == "tenant":
         # Tenant users can only switch to their own organization
         if current_user.organization_id != organization_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only switch to your own organization"
+                detail="You can only switch to your own organization",
             )
     elif role_type == "support":
         # Support users can switch to any organization
@@ -607,15 +609,14 @@ async def switch_organization(
         if not can_user_access_tenant(current_user, organization_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have access to this organization"
+                detail="You don't have access to this organization",
             )
     else:
         # Unknown role type
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Unable to determine user role type"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Unable to determine user role type"
         )
-    
+
     # Generate new token with the requested organization_id
     token_data_jwt = {
         "sub": str(current_user.id),
@@ -625,9 +626,9 @@ async def switch_organization(
         "role_type": role_type,
     }
     access_token = create_access_token(token_data_jwt)
-    
+
     user_role = get_user_role(current_user)
-    
+
     # Log organization switch
     await AuditService.log_action(
         db=db,
@@ -639,11 +640,11 @@ async def switch_organization(
             "action": "switch_organization",
             "from_org_id": current_user.organization_id,
             "to_org_id": organization_id,
-            "role": user_role
+            "role": user_role,
         },
-        status="success"
+        status="success",
     )
-    
+
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",

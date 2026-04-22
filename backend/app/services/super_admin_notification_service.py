@@ -1,10 +1,11 @@
 """
 Service to notify super admins about tenant billing/account actions.
 """
+
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

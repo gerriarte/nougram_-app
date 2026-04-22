@@ -5,6 +5,7 @@ Revises: v20260309_client_links
 Create Date: 2026-03-15
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -32,7 +33,9 @@ def upgrade() -> None:
         sa.Column("total_tokens", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("estimated_cost", sa.Float(), nullable=True),
         sa.Column("actor_user_id", sa.Integer(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True
+        ),
         sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"]),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"]),
         sa.ForeignKeyConstraint(["proposal_id"], ["proposal_documents.id"]),

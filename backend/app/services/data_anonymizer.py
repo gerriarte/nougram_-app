@@ -8,7 +8,7 @@ so only super_admin retains full visibility.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.models.project import Project, Quote
 from app.models.team import TeamMember
@@ -65,7 +65,7 @@ def anonymize_percentage(value: float) -> str:
     return "50%+"
 
 
-def anonymize_quote_totals(quote: Quote, currency: Currency = "USD") -> Dict[str, Any]:
+def anonymize_quote_totals(quote: Quote, currency: Currency = "USD") -> dict[str, Any]:
     """Return anonymized summary for a quote."""
     return {
         "id": quote.id,
@@ -79,7 +79,7 @@ def anonymize_quote_totals(quote: Quote, currency: Currency = "USD") -> Dict[str
     }
 
 
-def anonymize_client_name(name: Optional[str]) -> str:
+def anonymize_client_name(name: str | None) -> str:
     """Mask client names keeping only the first character."""
     if not name:
         return "***"
@@ -89,7 +89,7 @@ def anonymize_client_name(name: Optional[str]) -> str:
     return trimmed[0] + "*" * min(len(trimmed) - 1, 5)
 
 
-def anonymize_project_cost_data(project: Project, currency: Currency = "USD") -> Dict[str, Any]:
+def anonymize_project_cost_data(project: Project, currency: Currency = "USD") -> dict[str, Any]:
     """Return project metadata plus anonymized latest quote."""
     latest_quote = None
     quotes = getattr(project, "quotes", None)
@@ -99,13 +99,15 @@ def anonymize_project_cost_data(project: Project, currency: Currency = "USD") ->
         except (TypeError, ValueError):
             latest_quote = None
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "id": project.id,
         "name": project.name,
         "client_name": anonymize_client_name(getattr(project, "client_name", None)),
         "status": project.status,
         "currency": getattr(project, "currency", currency),
-        "created_at": project.created_at.isoformat() if getattr(project, "created_at", None) else None,
+        "created_at": project.created_at.isoformat()
+        if getattr(project, "created_at", None)
+        else None,
     }
 
     if latest_quote:
@@ -116,7 +118,7 @@ def anonymize_project_cost_data(project: Project, currency: Currency = "USD") ->
     return payload
 
 
-def anonymize_name(name: Optional[str]) -> str:
+def anonymize_name(name: str | None) -> str:
     """Mask personal names keeping the initials."""
     if not name:
         return "***"
@@ -128,9 +130,11 @@ def anonymize_name(name: Optional[str]) -> str:
     return f"{first} {last}"
 
 
-def anonymize_team_salaries(team_members: List[TeamMember], currency: Currency = "USD") -> List[Dict[str, Any]]:
+def anonymize_team_salaries(
+    team_members: list[TeamMember], currency: Currency = "USD"
+) -> list[dict[str, Any]]:
     """Return anonymized team member cards."""
-    payload: List[Dict[str, Any]] = []
+    payload: list[dict[str, Any]] = []
     for member in team_members:
         payload.append(
             {
@@ -146,13 +150,17 @@ def anonymize_team_salaries(team_members: List[TeamMember], currency: Currency =
                 "currency": member.currency or currency,
                 "billable_hours_per_week": member.billable_hours_per_week,
                 "is_active": member.is_active,
-                "created_at": member.created_at.isoformat() if getattr(member, "created_at", None) else None,
+                "created_at": member.created_at.isoformat()
+                if getattr(member, "created_at", None)
+                else None,
             }
         )
     return payload
 
 
-def anonymize_organization_data(organization: Any, include_sensitive: bool = False) -> Dict[str, Any]:
+def anonymize_organization_data(
+    organization: Any, include_sensitive: bool = False
+) -> dict[str, Any]:
     """Return anonymized organization summary."""
     data = {
         "id": organization.id,
@@ -160,7 +168,9 @@ def anonymize_organization_data(organization: Any, include_sensitive: bool = Fal
         "slug": organization.slug,
         "subscription_plan": organization.subscription_plan,
         "subscription_status": organization.subscription_status,
-        "created_at": organization.created_at.isoformat() if getattr(organization, "created_at", None) else None,
+        "created_at": organization.created_at.isoformat()
+        if getattr(organization, "created_at", None)
+        else None,
     }
     if include_sensitive:
         data["settings"] = getattr(organization, "settings", None)
@@ -171,9 +181,9 @@ def anonymize_usage_metrics(
     user_count: int,
     project_count: int,
     quote_count: int,
-    credits_available: Optional[int] = None,
-    credits_used_this_month: Optional[int] = None,
-) -> Dict[str, Any]:
+    credits_available: int | None = None,
+    credits_used_this_month: int | None = None,
+) -> dict[str, Any]:
     """Convert usage numbers into rough buckets."""
 
     def bucket(value: int) -> str:

@@ -1,8 +1,8 @@
 """
 Delete request management endpoints
 """
+
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,7 +43,7 @@ async def get_pending_count(
 
 @router.get("/", response_model=DeleteRequestListResponse)
 async def list_delete_requests(
-    status_filter: Optional[str] = Query(None, alias="status"),
+    status_filter: str | None = Query(None, alias="status"),
     current_user: User = Depends(get_current_user),
     _db: AsyncSession = Depends(get_db),
 ):
@@ -55,7 +55,7 @@ async def list_delete_requests(
     if not DELETE_REQUESTS_ENABLED:
         logger.debug("Delete requests disabled; returning empty list")
         return DeleteRequestListResponse(items=[], total=0)
-    
+
     return DeleteRequestListResponse(items=[], total=0)
 
 
@@ -63,7 +63,7 @@ async def list_delete_requests(
 async def get_delete_request(
     request_id: int,
     current_user: User = Depends(get_current_user),
-    _db: AsyncSession = Depends(get_db)
+    _db: AsyncSession = Depends(get_db),
 ):
     """
     Get a specific delete request
@@ -71,21 +71,20 @@ async def get_delete_request(
     if not DELETE_REQUESTS_ENABLED:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Delete requests feature is disabled"
+            detail="Delete requests feature is disabled",
         )
-    
+
     raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Delete requests feature is disabled"
+        status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Delete requests feature is disabled"
     )
 
 
 @router.post("/{request_id}/approve", response_model=DeleteRequestResponse)
 async def approve_delete_request(
     request_id: int,
-    approval_data: Optional[DeleteRequestApprovalRequest] = None,
+    approval_data: DeleteRequestApprovalRequest | None = None,
     current_user: User = Depends(get_current_user),
-    _db: AsyncSession = Depends(get_db)
+    _db: AsyncSession = Depends(get_db),
 ):
     """
     Approve a delete request (Super Admin only)
@@ -93,12 +92,11 @@ async def approve_delete_request(
     if not DELETE_REQUESTS_ENABLED:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Delete requests feature is disabled"
+            detail="Delete requests feature is disabled",
         )
-    
+
     raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Delete requests feature is disabled"
+        status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Delete requests feature is disabled"
     )
 
 
@@ -107,7 +105,7 @@ async def reject_delete_request(
     request_id: int,
     rejection_data: DeleteRequestApprovalRequest,
     current_user: User = Depends(get_current_user),
-    _db: AsyncSession = Depends(get_db)
+    _db: AsyncSession = Depends(get_db),
 ):
     """
     Reject a delete request (Super Admin only)
@@ -115,12 +113,11 @@ async def reject_delete_request(
     if not DELETE_REQUESTS_ENABLED:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Delete requests feature is disabled"
+            detail="Delete requests feature is disabled",
         )
-    
+
     raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Delete requests feature is disabled"
+        status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Delete requests feature is disabled"
     )
 
 
@@ -130,4 +127,3 @@ async def _perform_deletion(delete_request, _db: AsyncSession):
     """
     logger.debug("_perform_deletion invoked but feature is disabled; no action taken")
     return
-

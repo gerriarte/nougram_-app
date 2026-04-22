@@ -1,23 +1,24 @@
 """
 Client management endpoints (master catalog).
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user
-from app.core.tenant import get_tenant_context, TenantContext
 from app.core.exceptions import ResourceNotFoundError
+from app.core.security import get_current_user
+from app.core.tenant import TenantContext, get_tenant_context
 from app.models.user import User
-from app.services.client_service import ClientService
 from app.schemas.client import (
     ClientCreate,
-    ClientUpdate,
-    ClientResponse,
     ClientListResponse,
+    ClientResponse,
     ClientSearchItem,
     ClientSearchResponse,
+    ClientUpdate,
 )
+from app.services.client_service import ClientService
 
 router = APIRouter()
 
@@ -56,7 +57,9 @@ async def search_clients(
     service = ClientService(db, tenant.organization_id)
     clients = await service.search(q=q, limit=limit)
     items = [
-        ClientSearchItem(id=c.id, display_name=c.display_name, requester_name=c.requester_name, email=c.email)
+        ClientSearchItem(
+            id=c.id, display_name=c.display_name, requester_name=c.requester_name, email=c.email
+        )
         for c in clients
     ]
     return ClientSearchResponse(items=items, total=len(items))

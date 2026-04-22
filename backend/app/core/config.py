@@ -1,18 +1,18 @@
 """
 Application configuration and settings
 """
+
 from pydantic_settings import BaseSettings
-from typing import List
 
 
 class Settings(BaseSettings):
     """
     Application settings loaded from environment variables
     """
-    
+
     # Database
     DATABASE_URL: str
-    
+
     # JWT
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
@@ -22,15 +22,15 @@ class Settings(BaseSettings):
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60
     EMAIL_VERIFICATION_REQUIRED: bool = False
     EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
-    
+
     # Google OAuth (opcional - vacío si no se usa)
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_SERVICE_ACCOUNT_PATH: str = ""
-    
+
     # Google Sheets (opcional - vacío si no se usa)
     GOOGLE_SHEETS_ID: str = ""
-    
+
     # AI Configuration
     AI_PROVIDER: str = "openai"  # Supported: "openai"
     AI_MODEL: str = "gpt-4o-mini"
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     AI_MAX_RETRIES: int = 2
     OPENAI_API_KEY: str = ""
     GOOGLE_AI_API_KEY: str = ""
-    
+
     # Email Configuration (SMTP)
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
@@ -56,10 +56,10 @@ class Settings(BaseSettings):
     MAILERSEND_TEMPLATE_QUOTE_ID: str = ""
     MAILERSEND_TEMPLATE_PROPOSAL_SHARE_ID: str = ""
     MAILERSEND_TEMPLATE_PROPOSAL_DECISION_ID: str = ""
-    
+
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5000"
-    
+
     # Environment
     ENVIRONMENT: str = "development"
     CREATE_SCHEMA_ON_STARTUP: bool = False
@@ -74,42 +74,43 @@ class Settings(BaseSettings):
     FEATURE_ROLES: bool = False
     FEATURE_ROLES_ENFORCE: bool = False
     FEATURE_TEAM_CELLS: bool = False
-    
+
     # Stripe Configuration
     STRIPE_SECRET_KEY: str = ""
     STRIPE_PUBLISHABLE_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
     STRIPE_PRICE_IDS: str = "{}"  # JSON string with price IDs per plan
-    
+
     # Billing provider abstraction
     # Supported values: "manual", "stripe"
     PAYMENT_GATEWAY_PROVIDER: str = "manual"
-    
+
     # Exchange Rate API Configuration
     EXCHANGE_RATE_API_KEY: str = ""  # API key for exchangerate-api.com (free tier available)
     EXCHANGE_RATE_API_URL: str = "https://api.exchangerate-api.com/v4/latest"  # Free tier endpoint
-    
+
     # Frontend URL for invitation links
     FRONTEND_URL: str = "http://localhost:3000"  # Frontend URL for invitation links
-    
+
     # Celery Configuration
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"  # Redis broker URL
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"  # Redis result backend
-    
+
     @property
-    def cors_origins_list(self) -> List[str]:
+    def cors_origins_list(self) -> list[str]:
         """Parse CORS origins from comma-separated string; skip empty entries."""
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o and o.strip()]
-    
+
     @property
     def stripe_price_ids_dict(self) -> dict:
         """Parse Stripe price IDs from JSON string"""
         import json
+
         try:
             return json.loads(self.STRIPE_PRICE_IDS)
         except (json.JSONDecodeError, TypeError):
             return {}
-    
+
     class Config:
         env_file = ".env"
         case_sensitive = True

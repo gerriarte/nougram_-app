@@ -1,11 +1,11 @@
 """
 Repository for financial ledger events (provider-agnostic payment tracking).
 """
+
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.financial_ledger import FinancialLedgerEvent
@@ -13,7 +13,7 @@ from app.repositories.base import BaseRepository
 
 
 class FinancialLedgerRepository(BaseRepository[FinancialLedgerEvent]):
-    def __init__(self, db: AsyncSession, tenant_id: Optional[int] = None):
+    def __init__(self, db: AsyncSession, tenant_id: int | None = None):
         super().__init__(db, FinancialLedgerEvent, tenant_id=tenant_id)
 
     async def create_event(
@@ -24,9 +24,9 @@ class FinancialLedgerRepository(BaseRepository[FinancialLedgerEvent]):
         currency: str = "USD",
         status: str = "completed",
         provider: str = "manual",
-        external_id: Optional[str] = None,
-        reference: Optional[str] = None,
-        metadata_json: Optional[str] = None,
+        external_id: str | None = None,
+        reference: str | None = None,
+        metadata_json: str | None = None,
     ) -> FinancialLedgerEvent:
         entity = FinancialLedgerEvent(
             organization_id=organization_id,
@@ -44,13 +44,15 @@ class FinancialLedgerRepository(BaseRepository[FinancialLedgerEvent]):
     async def list_by_organization(
         self,
         organization_id: int,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        provider: Optional[str] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        provider: str | None = None,
         limit: int = 200,
         offset: int = 0,
-    ) -> List[FinancialLedgerEvent]:
-        query = select(FinancialLedgerEvent).where(FinancialLedgerEvent.organization_id == organization_id)
+    ) -> list[FinancialLedgerEvent]:
+        query = select(FinancialLedgerEvent).where(
+            FinancialLedgerEvent.organization_id == organization_id
+        )
         if since is not None:
             query = query.where(FinancialLedgerEvent.created_at >= since)
         if until is not None:

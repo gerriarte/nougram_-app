@@ -1,14 +1,14 @@
 """
 Client Service - business logic for client master catalog.
 """
-from typing import List, Optional, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import desc
+
 from fastapi import HTTPException, status
+from sqlalchemy import desc
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.client import Client
 from app.repositories.factory import RepositoryFactory
-from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientSearchItem
+from app.schemas.client import ClientCreate, ClientUpdate
 
 
 class ClientService:
@@ -21,10 +21,10 @@ class ClientService:
 
     async def list_clients(
         self,
-        status_filter: Optional[str] = None,
+        status_filter: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[Client], int]:
+    ) -> tuple[list[Client], int]:
         """List clients with pagination."""
         total = await self.repo.count(
             where=(Client.status == status_filter) if status_filter else None
@@ -38,7 +38,7 @@ class ClientService:
         )
         return items, total
 
-    async def get_by_id(self, client_id: int) -> Optional[Client]:
+    async def get_by_id(self, client_id: int) -> Client | None:
         """Get client by ID (tenant-scoped)."""
         return await self.repo.get_by_id(client_id)
 
@@ -64,6 +64,6 @@ class ClientService:
             setattr(client, k, v)
         return await self.repo.update(client)
 
-    async def search(self, q: str, limit: int = 10) -> List[Client]:
+    async def search(self, q: str, limit: int = 10) -> list[Client]:
         """Search clients for autocomplete."""
         return await self.repo.search(q=q, limit=limit)
