@@ -6,6 +6,7 @@ import { Equipment } from '@/types/equipment';
 import { calculateDepreciation } from '@/lib/depreciation';
 import { FixedCostTemplate } from '@/types/onboarding';
 import { apiRequest } from '@/lib/api-client';
+import { isAuthenticated } from '@/lib/auth';
 import { equipmentService } from '@/services/equipmentService';
 
 // --- Types ---
@@ -86,6 +87,19 @@ const NougramCoreContext = createContext<NougramCoreContextType | undefined>(und
 
 export function NougramCoreProvider({ children }: { children: React.ReactNode }) {
     const [state, setState] = useState<NougramState>(DEFAULT_STATE);
+    const [backendHydrationKey, setBackendHydrationKey] = useState(0);
+
+    useEffect(() => {
+        const onSessionRestored = () => setBackendHydrationKey((k) => k + 1);
+        if (typeof window !== 'undefined') {
+            window.addEventListener('nougram:session-restored', onSessionRestored);
+        }
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('nougram:session-restored', onSessionRestored);
+            }
+        };
+    }, []);
 
     type OrganizationMeResponse = {
         id: number;
@@ -105,8 +119,12 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         resource_planning_mode?: 'simple' | 'advanced';
     };
 
-    // Initial hydration from backend-only sources.
+    // Initial hydration from backend-only sources (skip when logged out to avoid 401 storms).
     useEffect(() => {
+        if (!isAuthenticated()) {
+            setState((prev) => ({ ...prev, isHydrated: true }));
+            return;
+        }
         const hydrateFromBackend = async () => {
             const equipment = await equipmentService.getAll();
             setState(prev => ({ ...prev, equipment, isHydrated: true }));
@@ -114,9 +132,12 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         void hydrateFromBackend().catch(() => {
             setState(prev => ({ ...prev, isHydrated: true }));
         });
-    }, []);
+    }, [backendHydrationKey]);
 
     useEffect(() => {
+        if (!isAuthenticated()) {
+            return;
+        }
         const hydrateOrganizationName = async () => {
             const [organizationResponse, currencyResponse, featuresResponse] = await Promise.all([
                 apiRequest<OrganizationMeResponse>('/organizations/me'),
@@ -146,7 +167,7 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
             }));
         };
         void hydrateOrganizationName();
-    }, []);
+    }, [backendHydrationKey]);
 
     // BCR Recalculation Effect
     useEffect(() => {

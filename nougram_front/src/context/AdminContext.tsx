@@ -3,6 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useNougram } from '@/context/NougramCoreContext';
+import { isAuthenticated } from '@/lib/auth';
 import { TeamMember, FixedCost, SocialChargesConfig, GlobalConfig, BCRCalculation } from '@/types/admin';
 import { teamService } from '@/services/teamService';
 import { socialChargesService } from '@/services/socialChargesService';
@@ -45,6 +46,20 @@ interface AdminContextType {
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
+    const [adminDataKey, setAdminDataKey] = useState(0);
+
+    useEffect(() => {
+        const onSessionRestored = () => setAdminDataKey((k) => k + 1);
+        if (typeof window !== 'undefined') {
+            window.addEventListener('nougram:session-restored', onSessionRestored);
+        }
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('nougram:session-restored', onSessionRestored);
+            }
+        };
+    }, []);
+
     // 1. State
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
@@ -58,22 +73,25 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const { state: nougramState, updateFinancialBasics } = useNougram(); // Connect to Core
 
     useEffect(() => {
+        if (!isAuthenticated()) return;
         const loadTeamMembers = async () => {
             const members = await teamService.getAll();
             setTeamMembers(members);
         };
         void loadTeamMembers();
-    }, []);
+    }, [adminDataKey]);
 
     useEffect(() => {
+        if (!isAuthenticated()) return;
         const loadFixedCosts = async () => {
             const costs = await fixedCostService.getAll();
             setFixedCosts(costs);
         };
         void loadFixedCosts();
-    }, []);
+    }, [adminDataKey]);
 
     useEffect(() => {
+        if (!isAuthenticated()) return;
         const loadSocialCharges = async () => {
             const config = await socialChargesService.get();
             if (config) {
@@ -86,7 +104,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             setSocialChargesSource('preset');
         };
         void loadSocialCharges();
-    }, [nougramState.identity.primaryCurrency]);
+    }, [nougramState.identity.primaryCurrency, adminDataKey]);
 
     useEffect(() => {
         const primaryCurrency = (nougramState.identity.primaryCurrency || 'COP') as GlobalConfig['primary_currency'];
