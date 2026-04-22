@@ -9,33 +9,32 @@ from __future__ import annotations
 
 import csv
 import json
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from io import StringIO
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.exc import ProgrammingError
 
 from app.core.database import get_db
 from app.core.logging import get_logger
-from app.core.plan_limits import PLAN_LIMITS
-from app.core.permission_middleware import require_support_role_decorator, require_role_decorator
+from app.core.permission_middleware import require_role_decorator, require_support_role_decorator
 from app.core.permissions import get_user_role
+from app.core.plan_limits import PLAN_LIMITS
+from app.models.ai_usage import AIUsageEvent
+from app.models.audit_log import AuditLog
 from app.models.project import Project, Quote
 from app.models.proposal import ProposalClientLink
 from app.models.subscription import Subscription
 from app.models.team import TeamMember
 from app.models.user import User
-from app.models.ai_usage import AIUsageEvent
-from app.models.audit_log import AuditLog
-from app.repositories.organization_repository import OrganizationRepository
 from app.repositories.factory import RepositoryFactory
-from app.repositories.ai_usage_repository import AIUsageRepository
-from app.repositories.financial_ledger_repository import FinancialLedgerRepository
+from app.repositories.organization_repository import OrganizationRepository
+from app.schemas.organization import OrganizationResponse
 from app.services.credit_service import CreditService
 from app.services.data_anonymizer import (
     anonymize_organization_data,
@@ -44,7 +43,6 @@ from app.services.data_anonymizer import (
     anonymize_team_salaries,
     anonymize_usage_metrics,
 )
-from app.schemas.organization import OrganizationResponse
 
 logger = get_logger(__name__)
 
@@ -70,8 +68,8 @@ async def _count_quotes(db: AsyncSession, organization_id: int) -> int:
 
 
 async def _load_projects(
-    db: AsyncSession, organization_ids: Optional[List[int]] = None
-) -> List[Project]:
+    db: AsyncSession, organization_ids: list[int] | None = None
+) -> list[Project]:
     stmt = select(Project).options(selectinload(Project.quotes))
     if organization_ids:
         stmt = stmt.where(Project.organization_id.in_(organization_ids))
@@ -79,9 +77,7 @@ async def _load_projects(
     return list(result.scalars().unique().all())
 
 
-async def _load_quotes(
-    db: AsyncSession, organization_ids: Optional[List[int]] = None
-) -> List[Quote]:
+async def _load_quotes(db: AsyncSession, organization_ids: list[int] | None = None) -> list[Quote]:
     stmt = select(Quote).join(Project, Quote.project_id == Project.id)
     if organization_ids:
         stmt = stmt.where(Project.organization_id.in_(organization_ids))
@@ -90,8 +86,8 @@ async def _load_quotes(
 
 
 async def _load_team_members(
-    db: AsyncSession, organization_ids: Optional[List[int]] = None
-) -> List[TeamMember]:
+    db: AsyncSession, organization_ids: list[int] | None = None
+) -> list[TeamMember]:
     stmt = select(TeamMember)
     if organization_ids:
         stmt = stmt.where(TeamMember.organization_id.in_(organization_ids))
@@ -106,17 +102,14 @@ async def list_support_organizations(
     include_inactive: bool = Query(False),
     current_user: User = Depends(require_support_user),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     repo = OrganizationRepository(db)
     organizations, total = await repo.list_all(
         page=page, page_size=page_size, include_inactive=include_inactive
     )
 
     if _is_super_admin(current_user):
-        items = [
-            OrganizationResponse.model_validate(org).model_dump()
-            for org in organizations
-        ]
+        items = [OrganizationResponse.model_validate(org).model_dump() for org in organizations]
     else:
         items = [anonymize_organization_data(org) for org in organizations]
 
@@ -137,7 +130,7 @@ async def get_support_organization(
     organization_id: int,
     current_user: User = Depends(require_support_user),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     repo = OrganizationRepository(db)
     organization = await repo.get_by_id(organization_id)
     if not organization:
@@ -160,7 +153,7 @@ async def get_support_organization_usage(
     organization_id: int,
     current_user: User = Depends(require_support_user),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     repo = OrganizationRepository(db)
     organization = await repo.get_by_id(organization_id)
     if not organization:
@@ -185,9 +178,7 @@ async def get_support_organization_usage(
 
     if _is_super_admin(current_user):
         return {
-            "organization": OrganizationResponse.model_validate(
-                organization
-            ).model_dump(),
+            "organization": OrganizationResponse.model_validate(organization).model_dump(),
             "metrics": {
                 "user_count": user_count,
                 "project_count": project_count,
@@ -227,8 +218,8 @@ async def get_support_organization_usage(
 
 
 async def _build_datasets(
-    db: AsyncSession, org_ids: Optional[List[int]], include_sensitive: bool
-) -> Dict[str, Any]:
+    db: AsyncSession, org_ids: list[int] | None, include_sensitive: bool
+) -> dict[str, Any]:
     repo = OrganizationRepository(db)
     if org_ids:
         organizations = [await repo.get_by_id(org_id) for org_id in org_ids]
@@ -304,15 +295,13 @@ async def _build_datasets(
     description="Returns anonymized datasets. Super admins receive raw values.",
 )
 async def get_anonymized_datasets(
-    dataset_type: Optional[str] = Query(
+    dataset_type: str | None = Query(
         None, description="organizations, projects, quotes or team_members"
     ),
-    organization_id: Optional[int] = Query(
-        None, description="Optional organization filter"
-    ),
+    organization_id: int | None = Query(None, description="Optional organization filter"),
     current_user: User = Depends(require_support_user),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     org_ids = [organization_id] if organization_id else None
     datasets = await _build_datasets(
         db=db,
@@ -334,13 +323,9 @@ async def get_anonymized_datasets(
 
 @router.post("/datasets/export", summary="Export datasets as JSON or CSV")
 async def export_anonymized_dataset(
-    dataset_type: str = Query(
-        ..., description="organizations, projects, quotes or team_members"
-    ),
+    dataset_type: str = Query(..., description="organizations, projects, quotes or team_members"),
     export_format: str = Query("json", description="json or csv"),
-    organization_id: Optional[int] = Query(
-        None, description="Optional organization filter"
-    ),
+    organization_id: int | None = Query(None, description="Optional organization filter"),
     current_user: User = Depends(require_support_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -398,21 +383,31 @@ PAID_STATUSES = ("active", "trialing", "past_due")
     summary="Proposal consumption by tenant (super_admin only)",
 )
 async def get_support_analytics_proposals(
-    organization_id: Optional[int] = Query(None),
-    since: Optional[datetime] = Query(None),
-    until: Optional[datetime] = Query(None),
+    organization_id: int | None = Query(None),
+    since: datetime | None = Query(None),
+    until: datetime | None = Query(None),
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Aggregate proposal client links by organization: total, sent, viewed, accepted, rejected, revision_requested."""
     base = select(
         ProposalClientLink.organization_id,
         func.count(ProposalClientLink.id).label("total_links"),
-        func.count(ProposalClientLink.id).filter(ProposalClientLink.last_sent_at.isnot(None)).label("sent_count"),
-        func.count(ProposalClientLink.id).filter(ProposalClientLink.view_count > 0).label("viewed_count"),
-        func.count(ProposalClientLink.id).filter(ProposalClientLink.status == "accepted").label("accepted_count"),
-        func.count(ProposalClientLink.id).filter(ProposalClientLink.status == "rejected").label("rejected_count"),
-        func.count(ProposalClientLink.id).filter(ProposalClientLink.status == "revision_requested").label("revision_count"),
+        func.count(ProposalClientLink.id)
+        .filter(ProposalClientLink.last_sent_at.isnot(None))
+        .label("sent_count"),
+        func.count(ProposalClientLink.id)
+        .filter(ProposalClientLink.view_count > 0)
+        .label("viewed_count"),
+        func.count(ProposalClientLink.id)
+        .filter(ProposalClientLink.status == "accepted")
+        .label("accepted_count"),
+        func.count(ProposalClientLink.id)
+        .filter(ProposalClientLink.status == "rejected")
+        .label("rejected_count"),
+        func.count(ProposalClientLink.id)
+        .filter(ProposalClientLink.status == "revision_requested")
+        .label("revision_count"),
     ).group_by(ProposalClientLink.organization_id)
     if organization_id is not None:
         base = base.where(ProposalClientLink.organization_id == organization_id)
@@ -442,14 +437,14 @@ async def get_support_analytics_proposals(
     summary="Subscription change history by tenant (super_admin only)",
 )
 async def get_support_analytics_subscription_history(
-    organization_id: Optional[int] = Query(None),
-    since: Optional[datetime] = Query(None),
-    until: Optional[datetime] = Query(None),
+    organization_id: int | None = Query(None),
+    since: datetime | None = Query(None),
+    until: datetime | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     base = select(AuditLog).where(AuditLog.action == "subscription.update")
     if organization_id is not None:
         base = base.where(AuditLog.organization_id == organization_id)
@@ -491,13 +486,13 @@ async def get_support_analytics_subscription_history(
     summary="AI token/cost aggregates by tenant (super_admin only)",
 )
 async def get_support_analytics_ai_usage(
-    organization_id: Optional[int] = Query(None),
-    since: Optional[datetime] = Query(None),
-    until: Optional[datetime] = Query(None),
-    feature: Optional[str] = Query(None, description="e.g. proposal_ai_generate"),
+    organization_id: int | None = Query(None),
+    since: datetime | None = Query(None),
+    until: datetime | None = Query(None),
+    feature: str | None = Query(None, description="e.g. proposal_ai_generate"),
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Aggregate AI usage events by organization (tokens and estimated cost)."""
     base = select(
         AIUsageEvent.organization_id,
@@ -524,7 +519,9 @@ async def get_support_analytics_ai_usage(
             "total_prompt_tokens": r.total_prompt_tokens,
             "total_completion_tokens": r.total_completion_tokens,
             "total_tokens": r.total_tokens,
-            "total_estimated_cost_usd": float(r.total_estimated_cost) if r.total_estimated_cost else 0.0,
+            "total_estimated_cost_usd": float(r.total_estimated_cost)
+            if r.total_estimated_cost
+            else 0.0,
         }
         for r in rows
     ]
@@ -536,10 +533,10 @@ async def get_support_analytics_ai_usage(
     summary="Paid-account summary by tenant (super_admin only)",
 )
 async def get_support_analytics_paid_accounts(
-    organization_id: Optional[int] = Query(None),
+    organization_id: int | None = Query(None),
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List organizations with paid plans (starter/professional/enterprise) and status active/trialing/past_due."""
     subscriptions_table_exists = True
     try:
@@ -570,8 +567,12 @@ async def get_support_analytics_paid_accounts(
                     "organization_id": s.organization_id,
                     "plan": s.plan,
                     "status": s.status,
-                    "current_period_start": s.current_period_start.isoformat() if s.current_period_start else None,
-                    "current_period_end": s.current_period_end.isoformat() if s.current_period_end else None,
+                    "current_period_start": s.current_period_start.isoformat()
+                    if s.current_period_start
+                    else None,
+                    "current_period_end": s.current_period_end.isoformat()
+                    if s.current_period_end
+                    else None,
                 }
                 for s in subs
             ]
@@ -610,15 +611,15 @@ async def get_support_analytics_paid_accounts(
     summary="Financial event ledger by tenant (super_admin only)",
 )
 async def get_support_analytics_financial_ledger(
-    organization_id: Optional[int] = Query(None),
-    since: Optional[datetime] = Query(None),
-    until: Optional[datetime] = Query(None),
-    provider: Optional[str] = Query(None),
+    organization_id: int | None = Query(None),
+    since: datetime | None = Query(None),
+    until: datetime | None = Query(None),
+    provider: str | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List financial ledger events (manual now, Wompi-ready)."""
     from app.models.financial_ledger import FinancialLedgerEvent
 
@@ -657,8 +658,8 @@ async def get_support_analytics_financial_ledger(
     summary="Manual billing requests queue (super_admin only)",
 )
 async def get_support_billing_requests(
-    organization_id: Optional[int] = Query(None),
-    status_filter: Optional[str] = Query(
+    organization_id: int | None = Query(None),
+    status_filter: str | None = Query(
         None,
         alias="status",
         description="Filter by status (pending, processed, dismissed)",
@@ -667,7 +668,7 @@ async def get_support_billing_requests(
     offset: int = Query(0, ge=0),
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Fallback queue for super admins when email notifications fail.
     """

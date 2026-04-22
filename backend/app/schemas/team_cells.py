@@ -1,9 +1,9 @@
 """
 Schemas for team groups/cells and version publishing.
 """
+
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -12,7 +12,7 @@ from app.core.pydantic_config import DECIMAL_CONFIG
 
 class TeamGroupBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
-    description: Optional[str] = Field(None, max_length=500)
+    description: str | None = Field(None, max_length=500)
     is_active: bool = True
 
 
@@ -21,16 +21,16 @@ class TeamGroupCreate(TeamGroupBase):
 
 
 class TeamGroupUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=120)
-    description: Optional[str] = Field(None, max_length=500)
-    is_active: Optional[bool] = None
+    name: str | None = Field(None, min_length=1, max_length=120)
+    description: str | None = Field(None, max_length=500)
+    is_active: bool | None = None
 
 
 class TeamGroupResponse(TeamGroupBase):
     id: int
     organization_id: int
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -44,7 +44,7 @@ class TeamGroupListResponse(BaseModel):
 class TeamCellBase(BaseModel):
     group_id: int = Field(..., gt=0)
     name: str = Field(..., min_length=1, max_length=120)
-    description: Optional[str] = Field(None, max_length=500)
+    description: str | None = Field(None, max_length=500)
     is_active: bool = True
 
 
@@ -53,17 +53,17 @@ class TeamCellCreate(TeamCellBase):
 
 
 class TeamCellUpdate(BaseModel):
-    group_id: Optional[int] = Field(None, gt=0)
-    name: Optional[str] = Field(None, min_length=1, max_length=120)
-    description: Optional[str] = Field(None, max_length=500)
-    is_active: Optional[bool] = None
+    group_id: int | None = Field(None, gt=0)
+    name: str | None = Field(None, min_length=1, max_length=120)
+    description: str | None = Field(None, max_length=500)
+    is_active: bool | None = None
 
 
 class TeamCellResponse(TeamCellBase):
     id: int
     organization_id: int
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -77,7 +77,7 @@ class TeamCellListResponse(BaseModel):
 class TeamCellVersionMemberInput(BaseModel):
     team_member_id: int = Field(..., gt=0)
     weight: Decimal = Field(default=Decimal("1.0"), gt=0)
-    role_override: Optional[str] = Field(None, max_length=120)
+    role_override: str | None = Field(None, max_length=120)
     is_active: bool = True
 
     @field_serializer("weight")
@@ -89,14 +89,14 @@ class TeamCellVersionMemberInput(BaseModel):
 
 class TeamCellPublishVersionRequest(BaseModel):
     members: list[TeamCellVersionMemberInput] = Field(default_factory=list, min_items=1)
-    notes: Optional[str] = Field(None, max_length=1000)
+    notes: str | None = Field(None, max_length=1000)
 
 
 class TeamCellVersionMemberResponse(BaseModel):
     id: int
     team_member_id: int
     weight: Decimal
-    role_override: Optional[str] = None
+    role_override: str | None = None
     is_active: bool = True
 
     @field_serializer("weight")
@@ -112,10 +112,10 @@ class TeamCellVersionResponse(BaseModel):
     cell_id: int
     version_number: int
     status: str
-    notes: Optional[str] = None
-    published_at: Optional[datetime] = None
-    published_by: Optional[int] = None
-    created_at: Optional[datetime] = None
+    notes: str | None = None
+    published_at: datetime | None = None
+    published_by: int | None = None
+    created_at: datetime | None = None
     members: list[TeamCellVersionMemberResponse] = Field(default_factory=list)
 
     class Config:

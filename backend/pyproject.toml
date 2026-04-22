@@ -10,6 +10,7 @@ exclude = [
     ".ruff_cache",
     "htmlcov",
     "node_modules",
+    "scripts",
 ]
 
 [tool.ruff.lint]
@@ -25,10 +26,15 @@ select = [
 ignore = [
     "E501",  # line too long (handled by formatter)
     "B008",  # do not perform function calls in argument defaults
+    "B904",  # raise-without-from inside except (large churn; prefer explicit `from e` in new code)
+    "E402",  # module import not at top (lazy imports in FastAPI handlers / scripts)
+    "E722",  # bare except in legacy handlers and scripts
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+# OpenAPI description is a large indented triple-quoted string; blank "lines" carry indent spaces.
+"main.py" = ["W293"]
 # Migrations: generated / merge revisions and large SQL blocks; keep CI signal on app code.
 "alembic/**/*.py" = ["I001", "W293", "W291", "F401"]
 

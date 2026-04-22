@@ -20,7 +20,9 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS is_active INTEGER NOT NULL DEFAULT 1")
     op.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMPTZ")
-    op.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS deletion_requested_by_id INTEGER REFERENCES users(id)")
+    op.execute(
+        "ALTER TABLE quotes ADD COLUMN IF NOT EXISTS deletion_requested_by_id INTEGER REFERENCES users(id)"
+    )
     op.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS deletion_request_reason VARCHAR")
     op.execute("CREATE INDEX IF NOT EXISTS ix_quotes_is_active ON quotes (is_active)")
 

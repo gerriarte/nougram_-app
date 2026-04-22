@@ -5,25 +5,26 @@ Implements role-based access control with two levels:
 - Support roles: Multi-tenant managers
 - Tenant roles: Client users within organizations
 """
-from typing import Dict, Set, Optional, Tuple, TYPE_CHECKING
-from fastapi import HTTPException, status, Depends
+
+from typing import TYPE_CHECKING
+
+from fastapi import HTTPException, status
 
 if TYPE_CHECKING:
-    from app.core.security import get_current_user
+    pass
 
+from app.core.config import settings
 from app.core.roles import (
-    is_support_role,
-    is_tenant_role,
-    get_role_type,
     SUPPORT_ROLES,
     TENANT_ROLES,
+    get_role_type,
 )
 from app.models.user import User
-from app.core.config import settings
 
 
 class PermissionError(Exception):
     """Exception raised when user lacks required permission"""
+
     pass
 
 
@@ -54,11 +55,11 @@ def get_allowed_super_admin_emails() -> set[str]:
 def validate_super_admin_email(email: str, role: str) -> None:
     """
     Validate that only the authorized email can be super_admin
-    
+
     Args:
         email: User email
         role: Role being assigned
-        
+
     Raises:
         HTTPException: If email is not authorized for super_admin role
     """
@@ -66,10 +67,14 @@ def validate_super_admin_email(email: str, role: str) -> None:
         normalized_email = email.strip().lower()
         allowed_emails = get_allowed_super_admin_emails()
         if normalized_email not in allowed_emails:
-            allowed_label = ", ".join(sorted(allowed_emails)) if allowed_emails else "configured super admin email"
+            allowed_label = (
+                ", ".join(sorted(allowed_emails))
+                if allowed_emails
+                else "configured super admin email"
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Only {allowed_label} can be assigned the super_admin role"
+                detail=f"Only {allowed_label} can be assigned the super_admin role",
             )
 
 
@@ -88,7 +93,7 @@ PERM_VIEW_ANALYTICS = "can_view_analytics"
 PERM_VIEW_FINANCIAL_PROJECTIONS = "can_view_financial_projections"
 
 # Permission matrix: role -> set of permissions
-PERMISSION_MATRIX: Dict[str, Set[str]] = {
+PERMISSION_MATRIX: dict[str, set[str]] = {
     # Support roles
     "super_admin": {
         PERM_ACCESS_ALL_TENANTS,
@@ -114,7 +119,6 @@ PERMISSION_MATRIX: Dict[str, Set[str]] = {
         # Only anonymized datasets
         PERM_VIEW_ANALYTICS,
     },
-    
     # Tenant roles
     "owner": {
         PERM_VIEW_SENSITIVE_DATA,
@@ -156,19 +160,19 @@ PERMISSION_MATRIX: Dict[str, Set[str]] = {
 }
 
 # Resources that consume credits (for future credit system)
-CREDITS_REQUIRED: Set[str] = {
+CREDITS_REQUIRED: set[str] = {
     PERM_SEND_QUOTES,
     PERM_VIEW_ANALYTICS,  # Advanced analytics
 }
 
 
-def get_user_role(user: User) -> Optional[str]:
+def get_user_role(user: User) -> str | None:
     """
     Get user's role as a string
-    
+
     Args:
         user: User model instance
-        
+
     Returns:
         Role name or None
     """
@@ -178,25 +182,25 @@ def get_user_role(user: User) -> Optional[str]:
     return None
 
 
-def get_user_role_type(user: User) -> Optional[str]:
+def get_user_role_type(user: User) -> str | None:
     """
     Get user's role_type ("support" or "tenant")
-    
+
     Args:
         user: User model instance
-        
+
     Returns:
         "support", "tenant", or None
     """
     role_type = getattr(user, "role_type", None)
     if role_type:
         return role_type
-    
+
     # Infer from role if role_type is not set (backward compatibility)
     role = get_user_role(user)
     if role:
         return get_role_type(role)
-    
+
     # Default to tenant for backward compatibility
     return "tenant"
 
@@ -204,7 +208,7 @@ def get_user_role_type(user: User) -> Optional[str]:
 def ensure_role_string(user: User) -> None:
     """
     Ensure user.role is a string (for backward compatibility)
-    
+
     Args:
         user: User model instance
     """
@@ -214,9 +218,9 @@ def ensure_role_string(user: User) -> None:
             # Default to product_manager for tenant users
             role_type = get_user_role_type(user)
             if role_type == "support":
-                setattr(user, "role", "super_admin")
+                user.role = "super_admin"
             else:
-                setattr(user, "role", "product_manager")
+                user.role = "product_manager"
     except Exception:
         pass
 
@@ -224,18 +228,18 @@ def ensure_role_string(user: User) -> None:
 def has_permission(user: User, permission: str) -> bool:
     """
     Check if user has a specific permission
-    
+
     Args:
         user: User model instance
         permission: Permission name
-        
+
     Returns:
         True if user has permission, False otherwise
     """
     role = get_user_role(user)
     if not role:
         return False
-    
+
     role_permissions = PERMISSION_MATRIX.get(role, set())
     return permission in role_permissions
 
@@ -243,29 +247,27 @@ def has_permission(user: User, permission: str) -> bool:
 def check_permission(user: User, permission: str) -> None:
     """
     Check if user has permission, raise exception if not
-    
+
     Args:
         user: User model instance
         permission: Permission name
-        
+
     Raises:
         PermissionError: If user lacks permission
     """
     if not has_permission(user, permission):
         role = get_user_role(user) or "unknown"
-        raise PermissionError(
-            f"User with role '{role}' does not have permission '{permission}'"
-        )
+        raise PermissionError(f"User with role '{role}' does not have permission '{permission}'")
 
 
 def require_permission(user: User, permission: str) -> None:
     """
     Alias for check_permission (for consistency)
-    
+
     Args:
         user: User model instance
         permission: Permission name
-        
+
     Raises:
         PermissionError: If user lacks permission
     """
@@ -275,20 +277,20 @@ def require_permission(user: User, permission: str) -> None:
 def can_user_access_tenant(user: User, tenant_id: int) -> bool:
     """
     Check if user can access a specific tenant/organization
-    
+
     Args:
         user: User model instance
         tenant_id: Organization ID
-        
+
     Returns:
         True if user can access tenant, False otherwise
     """
     role_type = get_user_role_type(user)
-    
+
     # Support roles can access all tenants
     if role_type == "support" and has_permission(user, PERM_ACCESS_ALL_TENANTS):
         return True
-    
+
     # Tenant users can only access their own organization
     user_org_id = getattr(user, "organization_id", None)
     return user_org_id == tenant_id
@@ -297,11 +299,11 @@ def can_user_access_tenant(user: User, tenant_id: int) -> bool:
 def can_create(user: User, resource: str) -> bool:
     """
     Check if user can create a specific resource
-    
+
     Args:
         user: User model instance
         resource: Resource type ("project", "service", "quote", etc.)
-        
+
     Returns:
         True if user can create resource, False otherwise
     """
@@ -319,11 +321,11 @@ def can_create(user: User, resource: str) -> bool:
 def can_edit(user: User, resource: str) -> bool:
     """
     Check if user can edit a specific resource
-    
+
     Args:
         user: User model instance
         resource: Resource type
-        
+
     Returns:
         True if user can edit resource, False otherwise
     """
@@ -331,34 +333,34 @@ def can_edit(user: User, resource: str) -> bool:
     # This can be refined later with specific edit permissions
     if resource in ["cost", "cost_fixed"]:
         return has_permission(user, PERM_MODIFY_COSTS)
-    
+
     return can_create(user, resource)
 
 
-def can_delete(user: User, resource: str) -> Tuple[bool, bool]:
+def can_delete(user: User, resource: str) -> tuple[bool, bool]:
     """
     Check if user can delete a specific resource
-    
+
     Args:
         user: User model instance
         resource: Resource type
-        
+
     Returns:
         (can_delete, requires_approval)
     """
     can_delete_resource = has_permission(user, PERM_DELETE_RESOURCES)
     requires_approval = False  # Can be enhanced later
-    
+
     return can_delete_resource, requires_approval
 
 
 def can_approve_deletions(user: User) -> bool:
     """
     Check if user can approve deletion requests
-    
+
     Args:
         user: User model instance
-        
+
     Returns:
         True if user can approve deletions, False otherwise
     """
@@ -370,11 +372,11 @@ def can_approve_deletions(user: User) -> bool:
 def require_role(user: User, required_roles: list[str]) -> None:
     """
     Require user to have one of the specified roles
-    
+
     Args:
         user: User model instance
         required_roles: List of allowed roles
-        
+
     Raises:
         PermissionError: If user doesn't have required role
     """
@@ -388,10 +390,10 @@ def require_role(user: User, required_roles: list[str]) -> None:
 def require_super_admin(user: User) -> None:
     """
     Require user to be super_admin
-    
+
     Args:
         user: User model instance
-        
+
     Raises:
         PermissionError: If user is not super_admin
     """
@@ -403,7 +405,7 @@ def require_super_admin(user: User) -> None:
 def require_view_financial_projections(user: User) -> User:
     """
     Dependency function to require financial projections permission
-    
+
     This function should be used as a dependency in FastAPI endpoints:
     ```python
     @router.get("/projections")
@@ -412,20 +414,20 @@ def require_view_financial_projections(user: User) -> User:
     ):
         ...
     ```
-    
+
     Args:
         user: Current user (from dependency)
-        
+
     Returns:
         User instance if permission granted
-        
+
     Raises:
         HTTPException: If user lacks permission
     """
     if not has_permission(user, PERM_VIEW_FINANCIAL_PROJECTIONS):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to view financial projections. Required roles: owner, admin_financiero"
+            detail="You don't have permission to view financial projections. Required roles: owner, admin_financiero",
         )
     return user
 
@@ -433,10 +435,10 @@ def require_view_financial_projections(user: User) -> User:
 def requires_credits(permission: str) -> bool:
     """
     Check if a permission requires credits
-    
+
     Args:
         permission: Permission name
-        
+
     Returns:
         True if permission requires credits, False otherwise
     """

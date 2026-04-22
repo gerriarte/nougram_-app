@@ -2,9 +2,9 @@
 Canonical DTOs for operational cost dashboard.
 ESTÁNDAR NOUGRAM: Decimal end-to-end; amounts serialized as string in API.
 """
+
 from datetime import date
 from decimal import Decimal
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -16,7 +16,7 @@ class CalculationMetadataSchema(BaseModel):
     period_start: date = Field(..., description="Start of the calculation period (inclusive)")
     period_end: date = Field(..., description="End of the calculation period (inclusive)")
     formula_version: str = Field(default="1.0", description="Version of the calculation formula")
-    calculation_id: Optional[str] = Field(None, description="Unique id for log traceability")
+    calculation_id: str | None = Field(None, description="Unique id for log traceability")
 
 
 class OperationalCostPayloadSchema(BaseModel):
@@ -45,11 +45,11 @@ class OperationalCostPayloadSchema(BaseModel):
         default=Decimal("0"),
         description="resource_costs + fixed_costs + amortization + tax_costs",
     )
-    target_margin_configured: Optional[Decimal] = Field(
+    target_margin_configured: Decimal | None = Field(
         None,
         description="Target margin used when quoting (0-1, e.g. 0.40 = 40%)",
     )
-    effective_margin_observed: Optional[Decimal] = Field(
+    effective_margin_observed: Decimal | None = Field(
         None,
         description="Effective margin from Won quotes in period; (revenue - cost) / revenue",
     )
@@ -73,7 +73,7 @@ class OperationalCostPayloadSchema(BaseModel):
         "target_margin_configured",
         "effective_margin_observed",
     )
-    def serialize_decimal_as_str(self, value: Optional[Decimal]) -> Optional[str]:
+    def serialize_decimal_as_str(self, value: Decimal | None) -> str | None:
         if value is None:
             return None
         return str(value)

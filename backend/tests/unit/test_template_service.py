@@ -1,6 +1,7 @@
 """
 Unit tests for template service
 """
+
 import pytest
 
 from app.models.template import IndustryTemplate
@@ -48,7 +49,7 @@ class TestTemplateService:
                 "non_existent_template",
                 region="US",
                 currency="USD",
-                db=db_session
+                db=db_session,
             )
 
     async def test_apply_industry_template_organization_not_found(self, db_session):
@@ -60,7 +61,7 @@ class TestTemplateService:
             is_active=True,
             suggested_roles=[],
             suggested_services=[],
-            suggested_fixed_costs=[]
+            suggested_fixed_costs=[],
         )
         db_session.add(template)
         await db_session.commit()
@@ -71,17 +72,12 @@ class TestTemplateService:
                 "test_industry",
                 region="US",
                 currency="USD",
-                db=db_session
+                db=db_session,
             )
 
     async def test_apply_industry_template_missing_db(self, test_organization):
         """Test applying template without database session"""
         with pytest.raises(ValueError, match="Database session is required"):
             await apply_industry_template(
-                test_organization.id,
-                "test_industry",
-                region="US",
-                currency="USD",
-                db=None
+                test_organization.id, "test_industry", region="US", currency="USD", db=None
             )
-

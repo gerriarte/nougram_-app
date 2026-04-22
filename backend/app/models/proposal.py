@@ -1,7 +1,8 @@
 """
 Proposal document model, independent from quote pricing.
 """
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -18,7 +19,9 @@ class ProposalDocument(Base):
     title = Column(String, nullable=False)
     body_json = Column(FlexibleJSON, nullable=False, default={})
     status = Column(String, nullable=False, default="draft")  # draft, approved, sent
-    is_locked = Column(Integer, nullable=False, default=0)  # 0=False, 1=True for broad DB compatibility
+    is_locked = Column(
+        Integer, nullable=False, default=0
+    )  # 0=False, 1=True for broad DB compatibility
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     updated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -49,7 +52,9 @@ class ProposalClientLink(Base):
     access_code_expires_at = Column(DateTime(timezone=True), nullable=True)
     access_expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
 
-    status = Column(String, nullable=False, default="sent")  # sent, viewed, accepted, revision_requested, rejected, expired
+    status = Column(
+        String, nullable=False, default="sent"
+    )  # sent, viewed, accepted, revision_requested, rejected, expired
     decision_comment = Column(String, nullable=True)
     decided_at = Column(DateTime(timezone=True), nullable=True)
     viewed_at = Column(DateTime(timezone=True), nullable=True)

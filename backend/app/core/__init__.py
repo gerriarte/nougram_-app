@@ -1,5 +1,3 @@
 """
 Core application modules
 """
-
-

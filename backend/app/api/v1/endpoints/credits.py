@@ -2,41 +2,46 @@
 Credit management endpoints (thin layer: auth + service call + response).
 All data access and business logic live in CreditService and repositories.
 """
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user
-from app.core.tenant import get_tenant_context, TenantContext
-from app.core.permissions import require_super_admin
 from app.core.logging import get_logger
+from app.core.permissions import require_super_admin
+from app.core.security import get_current_user
+from app.core.tenant import TenantContext, get_tenant_context
 from app.models.user import User
-from app.services.credit_service import CreditService
 from app.schemas.credit import (
     CreditBalanceResponse,
-    CreditTransactionResponse,
     CreditTransactionListResponse,
+    CreditTransactionResponse,
     GrantManualCreditsRequest,
     ResetCreditsRequest,
 )
+from app.services.credit_service import CreditService
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
 
-@router.get("/me/balance", response_model=CreditBalanceResponse, summary="Get my organization's credit balance")
+@router.get(
+    "/me/balance",
+    response_model=CreditBalanceResponse,
+    summary="Get my organization's credit balance",
+)
 async def get_my_credit_balance(
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get credit balance for the current user's organization
-    
+
     **Permissions:**
     - All authenticated users can view their organization's credit balance
-    
+
     **Returns:**
     - `200 OK`: Credit balance information
     """
@@ -44,13 +49,17 @@ async def get_my_credit_balance(
     return CreditBalanceResponse(**balance)
 
 
-@router.get("/me/history", response_model=CreditTransactionListResponse, summary="Get credit transaction history")
+@router.get(
+    "/me/history",
+    response_model=CreditTransactionListResponse,
+    summary="Get credit transaction history",
+)
 async def get_my_credit_history(
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page (max 100)")
+    page_size: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
 ):
     """
     Get credit transaction history for the current user's organization
@@ -70,18 +79,23 @@ async def get_my_credit_history(
         total=total,
         page=page,
         page_size=page_size,
-        total_pages=total_pages
+        total_pages=total_pages,
     )
 
 
 # Admin endpoints - these should be mounted under /admin/organizations/{org_id}/credits
 # But for now, we'll use /admin/credits/{organization_id} pattern
 
-@router.get("/admin/{organization_id}/balance", response_model=CreditBalanceResponse, summary="[Admin] Get organization credit balance")
+
+@router.get(
+    "/admin/{organization_id}/balance",
+    response_model=CreditBalanceResponse,
+    summary="[Admin] Get organization credit balance",
+)
 async def get_organization_credit_balance(
     organization_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get credit balance for a specific organization (Admin only)
@@ -100,12 +114,16 @@ async def get_organization_credit_balance(
     return CreditBalanceResponse(**balance)
 
 
-@router.post("/admin/{organization_id}/grant", response_model=CreditBalanceResponse, summary="[Admin] Grant manual credits")
+@router.post(
+    "/admin/{organization_id}/grant",
+    response_model=CreditBalanceResponse,
+    summary="[Admin] Grant manual credits",
+)
 async def grant_manual_credits(
     organization_id: int,
     request: GrantManualCreditsRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Grant manual credits to an organization (Admin only)
@@ -129,19 +147,23 @@ async def grant_manual_credits(
         amount=request.amount,
         granted_by=current_user.id,
         reason=request.reason,
-        db=db
+        db=db,
     )
     balance = await CreditService.get_credit_balance(organization_id, db)
     return CreditBalanceResponse(**balance)
 
 
-@router.get("/admin/{organization_id}/transactions", response_model=CreditTransactionListResponse, summary="[Admin] Get organization transaction history")
+@router.get(
+    "/admin/{organization_id}/transactions",
+    response_model=CreditTransactionListResponse,
+    summary="[Admin] Get organization transaction history",
+)
 async def get_organization_credit_transactions(
     organization_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page (max 100)")
+    page_size: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
 ):
     """
     Get credit transaction history for a specific organization (Admin only)
@@ -165,16 +187,20 @@ async def get_organization_credit_transactions(
         total=total,
         page=page,
         page_size=page_size,
-        total_pages=total_pages
+        total_pages=total_pages,
     )
 
 
-@router.post("/admin/{organization_id}/reset", response_model=CreditBalanceResponse, summary="[Admin] Manually reset monthly credits")
+@router.post(
+    "/admin/{organization_id}/reset",
+    response_model=CreditBalanceResponse,
+    summary="[Admin] Manually reset monthly credits",
+)
 async def reset_monthly_credits(
     organization_id: int,
     request: ResetCreditsRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Manually trigger monthly credit reset for an organization (Admin only)
@@ -194,9 +220,3 @@ async def reset_monthly_credits(
     await CreditService.grant_subscription_credits(organization_id, db, force=True)
     balance = await CreditService.get_credit_balance(organization_id, db)
     return CreditBalanceResponse(**balance)
-
-
-
-
-
-

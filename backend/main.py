@@ -1,27 +1,28 @@
 """
 Main application entry point for Nougram Backend API
 """
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
-import logging
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
 
 # Docs only in non-production
 _docs_url = "/docs" if settings.ENVIRONMENT.lower() != "production" else None
 _redoc_url = "/redoc" if settings.ENVIRONMENT.lower() != "production" else None
-from app.core.database import engine, Base
-from app.core.database import AsyncSessionLocal
-from app.api.v1.router import api_router
-from app.core.rate_limiting import limiter, rate_limit_exceeded_handler
-from app.core.permissions import PermissionError
-from app.core.logging import get_logger
-from app.services.super_admin_bootstrap_service import ensure_super_admin_bootstrap
 from slowapi.errors import RateLimitExceeded
+
+from app.api.v1.router import api_router
+from app.core.database import AsyncSessionLocal, Base, engine
+from app.core.logging import get_logger
+from app.core.permissions import PermissionError
+from app.core.rate_limiting import limiter, rate_limit_exceeded_handler
+from app.services.super_admin_bootstrap_service import ensure_super_admin_bootstrap
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -107,8 +108,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     docs_url=_docs_url,
-    redoc_url=_redoc_url
+    redoc_url=_redoc_url,
 )
+
 
 # Fallback CORS: ensure CORS headers on every response when Origin is allowed
 # (handles proxies that may strip headers or OPTIONS not reaching app)
@@ -127,7 +129,9 @@ class CORSFallbackMiddleware(BaseHTTPMiddleware):
         if "access-control-allow-origin" not in [h.lower() for h in response.headers.keys()]:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Methods"] = (
+                "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            )
             response.headers["Access-Control-Allow-Headers"] = "*"
             response.headers["Access-Control-Max-Age"] = "3600"
         return response
@@ -149,22 +153,24 @@ app.add_middleware(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
+
 # Add PermissionError handler
 @app.exception_handler(PermissionError)
 async def permission_error_handler(request: Request, exc: PermissionError):
     """Handle PermissionError exceptions"""
     return JSONResponse(
         status_code=status.HTTP_403_FORBIDDEN,
-        content={
-            "detail": str(exc)
-        },
+        content={"detail": str(exc)},
         headers={
-            "Access-Control-Allow-Origin": settings.cors_origins_list[0] if settings.cors_origins_list else "*",
+            "Access-Control-Allow-Origin": settings.cors_origins_list[0]
+            if settings.cors_origins_list
+            else "*",
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Allow-Methods": "*",
             "Access-Control-Allow-Headers": "*",
-        }
+        },
     )
+
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")
@@ -179,26 +185,22 @@ async def global_exception_handler(request: Request, exc: Exception):
     logging.error(f"Unhandled exception: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "detail": "Internal server error"
-        },
+        content={"detail": "Internal server error"},
         headers={
-            "Access-Control-Allow-Origin": settings.cors_origins_list[0] if settings.cors_origins_list else "*",
+            "Access-Control-Allow-Origin": settings.cors_origins_list[0]
+            if settings.cors_origins_list
+            else "*",
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Allow-Methods": "*",
             "Access-Control-Allow-Headers": "*",
-        }
+        },
     )
 
 
 @app.get("/")
 async def root():
     """Health check endpoint"""
-    return {
-        "message": "Nougram API is running",
-        "version": "1.0.0",
-        "status": "healthy"
-    }
+    return {"message": "Nougram API is running", "version": "1.0.0", "status": "healthy"}
 
 
 @app.get("/health")
@@ -214,6 +216,7 @@ async def health_ready():
     Uso: UptimeRobot, Kubernetes liveness, etc.
     """
     from sqlalchemy import text
+
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
@@ -229,4 +232,5 @@ async def health_ready():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

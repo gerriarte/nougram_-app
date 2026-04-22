@@ -1,7 +1,8 @@
 """
 Billing request model for manual subscription/account actions.
 """
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -26,7 +27,9 @@ class BillingRequest(Base):
     notes = Column(Text, nullable=True)
     status = Column(String(32), nullable=False, default="pending", index=True)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
     organization = relationship("Organization")

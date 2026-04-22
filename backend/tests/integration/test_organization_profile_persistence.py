@@ -1,6 +1,7 @@
 """
 Integration test: organization profile fields persist in DB settings.
 """
+
 import uuid
 
 import pytest

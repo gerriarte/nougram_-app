@@ -1,10 +1,10 @@
 """
 Public client portal endpoints for proposal access/decision.
 """
-from datetime import datetime, timedelta, timezone
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import UTC, datetime, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,13 +18,13 @@ from app.models.project import Project, Quote
 from app.models.proposal import ProposalClientLink, ProposalDocument
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
-from app.services.capacity_service import CapacityService
 from app.schemas.proposal import (
     ProposalClientDecisionRequest,
     ProposalClientPortalResponse,
     ProposalClientVerifyRequest,
     ProposalClientVerifyResponse,
 )
+from app.services.capacity_service import CapacityService
 
 router = APIRouter(prefix="/public/proposals", tags=["proposal-portal"])
 portal_security = HTTPBearer(auto_error=False)
@@ -50,7 +50,7 @@ async def _get_active_link(token: str, db: AsyncSession) -> ProposalClientLink:
     return link
 
 
-def _get_portal_payload(session_token: str) -> Optional[dict]:
+def _get_portal_payload(session_token: str) -> dict | None:
     payload = decode_access_token(session_token)
     if not payload:
         return None
@@ -66,8 +66,12 @@ async def verify_proposal_access(
     db: AsyncSession = Depends(get_db),
 ):
     link = await _get_active_link(token, db)
-    now = datetime.now(timezone.utc)
-    if not link.access_code_hash or not link.access_code_expires_at or link.access_code_expires_at < now:
+    now = datetime.now(UTC)
+    if (
+        not link.access_code_hash
+        or not link.access_code_expires_at
+        or link.access_code_expires_at < now
+    ):
         raise HTTPException(status_code=401, detail="Temporary key expired. Request a new email.")
     if not verify_password(payload.access_code, link.access_code_hash):
         raise HTTPException(status_code=401, detail="Invalid temporary key")
@@ -94,7 +98,7 @@ async def verify_proposal_access(
 @router.get("/{token}", response_model=ProposalClientPortalResponse)
 async def get_proposal_portal_data(
     token: str,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(portal_security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(portal_security),
     db: AsyncSession = Depends(get_db),
 ):
     if not credentials:
@@ -106,7 +110,10 @@ async def get_proposal_portal_data(
     link = await _get_active_link(token, db)
     result = await db.execute(
         select(ProposalDocument)
-        .where(ProposalDocument.id == link.proposal_id, ProposalDocument.organization_id == link.organization_id)
+        .where(
+            ProposalDocument.id == link.proposal_id,
+            ProposalDocument.organization_id == link.organization_id,
+        )
         .options(selectinload(ProposalDocument.project))
     )
     proposal = result.scalar_one_or_none()
@@ -115,11 +122,13 @@ async def get_proposal_portal_data(
 
     quote = None
     if link.quote_id:
-        q_res = await db.execute(select(Quote).where(Quote.id == link.quote_id, Quote.project_id == link.project_id))
+        q_res = await db.execute(
+            select(Quote).where(Quote.id == link.quote_id, Quote.project_id == link.project_id)
+        )
         quote = q_res.scalar_one_or_none()
 
     link.view_count = int(link.view_count or 0) + 1
-    link.viewed_at = datetime.now(timezone.utc)
+    link.viewed_at = datetime.now(UTC)
     if link.status == "sent":
         link.status = "viewed"
     await db.commit()
@@ -132,7 +141,9 @@ async def get_proposal_portal_data(
         client_name=proposal.project.client_name if proposal.project else "",
         quote_id=quote.id if quote else None,
         quote_version=quote.version if quote else None,
-        quote_total_client_price=str(quote.total_client_price) if quote and quote.total_client_price is not None else None,
+        quote_total_client_price=str(quote.total_client_price)
+        if quote and quote.total_client_price is not None
+        else None,
         quote_currency=proposal.project.currency if proposal.project else None,
         decision_status=link.status,
         decision_comment=link.decision_comment,
@@ -145,7 +156,7 @@ async def get_proposal_portal_data(
 async def submit_proposal_decision(
     token: str,
     payload: ProposalClientDecisionRequest,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(portal_security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(portal_security),
     db: AsyncSession = Depends(get_db),
 ):
     if not credentials:
@@ -155,7 +166,7 @@ async def submit_proposal_decision(
         raise HTTPException(status_code=401, detail="Invalid client portal session")
 
     link = await _get_active_link(token, db)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     link.status = payload.decision
     link.decision_comment = payload.comment
     link.decided_at = now
@@ -189,7 +200,10 @@ async def submit_proposal_decision(
 
     result = await db.execute(
         select(ProposalDocument)
-        .where(ProposalDocument.id == link.proposal_id, ProposalDocument.organization_id == link.organization_id)
+        .where(
+            ProposalDocument.id == link.proposal_id,
+            ProposalDocument.organization_id == link.organization_id,
+        )
         .options(selectinload(ProposalDocument.project))
     )
     proposal = result.scalar_one_or_none()
@@ -198,7 +212,9 @@ async def submit_proposal_decision(
 
     quote = None
     if link.quote_id:
-        q_res = await db.execute(select(Quote).where(Quote.id == link.quote_id, Quote.project_id == link.project_id))
+        q_res = await db.execute(
+            select(Quote).where(Quote.id == link.quote_id, Quote.project_id == link.project_id)
+        )
         quote = q_res.scalar_one_or_none()
 
     creator = None
@@ -217,11 +233,11 @@ async def submit_proposal_decision(
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
           <h2>Actualización de propuesta</h2>
           <p>El cliente respondió la propuesta enviada desde el portal.</p>
-          <p><strong>Proyecto:</strong> {proposal.project.name if proposal.project else ''}</p>
-          <p><strong>Cliente:</strong> {proposal.project.client_name if proposal.project else ''}</p>
+          <p><strong>Proyecto:</strong> {proposal.project.name if proposal.project else ""}</p>
+          <p><strong>Cliente:</strong> {proposal.project.client_name if proposal.project else ""}</p>
           <p><strong>Respuesta:</strong> {decision_label}</p>
           <p><strong>Fecha:</strong> {decision_date}</p>
-          <p><strong>Comentario:</strong> {comment_text or 'Sin comentario'}</p>
+          <p><strong>Comentario:</strong> {comment_text or "Sin comentario"}</p>
         </div>
         """
         creator_text = (
@@ -265,7 +281,9 @@ async def submit_proposal_decision(
         client_name=proposal.project.client_name if proposal.project else "",
         quote_id=quote.id if quote else None,
         quote_version=quote.version if quote else None,
-        quote_total_client_price=str(quote.total_client_price) if quote and quote.total_client_price is not None else None,
+        quote_total_client_price=str(quote.total_client_price)
+        if quote and quote.total_client_price is not None
+        else None,
         quote_currency=proposal.project.currency if proposal.project else None,
         decision_status=link.status,
         decision_comment=link.decision_comment,

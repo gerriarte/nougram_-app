@@ -1,12 +1,12 @@
 """
 Billing gateway abstraction to support multiple payment providers.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -27,10 +27,10 @@ class CheckoutSessionResult:
 @dataclass
 class ExternalSubscriptionResult:
     status: str
-    current_period_start: Optional[datetime] = None
-    current_period_end: Optional[datetime] = None
+    current_period_start: datetime | None = None
+    current_period_end: datetime | None = None
     cancel_at_period_end: bool = False
-    external_price_id: Optional[str] = None
+    external_price_id: str | None = None
 
 
 class BillingGateway(ABC):
@@ -49,23 +49,23 @@ class BillingGateway(ABC):
         """Whether provider supports webhooks handled by this service."""
 
     @abstractmethod
-    def get_price_id(self, plan: str, interval: str = "month") -> Optional[str]:
+    def get_price_id(self, plan: str, interval: str = "month") -> str | None:
         """Map internal plan+interval to provider price id."""
 
     @abstractmethod
     def ensure_customer_id(
         self,
-        existing_customer_id: Optional[str],
+        existing_customer_id: str | None,
         email: str,
         organization_name: str,
         organization_id: int,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Reuse or create external customer id."""
 
     @abstractmethod
     def create_checkout_session(
         self,
-        customer_id: Optional[str],
+        customer_id: str | None,
         price_id: str,
         success_url: str,
         cancel_url: str,
@@ -79,9 +79,9 @@ class BillingGateway(ABC):
     def update_subscription(
         self,
         external_subscription_id: str,
-        plan: Optional[str],
-        interval: Optional[str],
-        cancel_at_period_end: Optional[bool],
+        plan: str | None,
+        interval: str | None,
+        cancel_at_period_end: bool | None,
     ) -> ExternalSubscriptionResult:
         """Update external subscription."""
 
@@ -110,21 +110,21 @@ class ManualBillingGateway(BillingGateway):
     def supports_webhooks(self) -> bool:
         return False
 
-    def get_price_id(self, plan: str, interval: str = "month") -> Optional[str]:
+    def get_price_id(self, plan: str, interval: str = "month") -> str | None:
         return None
 
     def ensure_customer_id(
         self,
-        existing_customer_id: Optional[str],
+        existing_customer_id: str | None,
         email: str,
         organization_name: str,
         organization_id: int,
-    ) -> Optional[str]:
+    ) -> str | None:
         return existing_customer_id
 
     def create_checkout_session(
         self,
-        customer_id: Optional[str],
+        customer_id: str | None,
         price_id: str,
         success_url: str,
         cancel_url: str,
@@ -132,16 +132,14 @@ class ManualBillingGateway(BillingGateway):
         plan: str,
         interval: str,
     ) -> CheckoutSessionResult:
-        raise BillingGatewayError(
-            "Checkout is not available for manual billing provider."
-        )
+        raise BillingGatewayError("Checkout is not available for manual billing provider.")
 
     def update_subscription(
         self,
         external_subscription_id: str,
-        plan: Optional[str],
-        interval: Optional[str],
-        cancel_at_period_end: Optional[bool],
+        plan: str | None,
+        interval: str | None,
+        cancel_at_period_end: bool | None,
     ) -> ExternalSubscriptionResult:
         raise BillingGatewayError(
             "External subscription updates are not available for manual provider."
@@ -175,16 +173,16 @@ class StripeBillingGateway(BillingGateway):
     def supports_webhooks(self) -> bool:
         return True
 
-    def get_price_id(self, plan: str, interval: str = "month") -> Optional[str]:
+    def get_price_id(self, plan: str, interval: str = "month") -> str | None:
         return self._stripe.get_price_id(plan, interval)
 
     def ensure_customer_id(
         self,
-        existing_customer_id: Optional[str],
+        existing_customer_id: str | None,
         email: str,
         organization_name: str,
         organization_id: int,
-    ) -> Optional[str]:
+    ) -> str | None:
         if existing_customer_id:
             return existing_customer_id
         customer = self._stripe.create_customer(
@@ -196,7 +194,7 @@ class StripeBillingGateway(BillingGateway):
 
     def create_checkout_session(
         self,
-        customer_id: Optional[str],
+        customer_id: str | None,
         price_id: str,
         success_url: str,
         cancel_url: str,
@@ -218,9 +216,9 @@ class StripeBillingGateway(BillingGateway):
     def update_subscription(
         self,
         external_subscription_id: str,
-        plan: Optional[str],
-        interval: Optional[str],
-        cancel_at_period_end: Optional[bool],
+        plan: str | None,
+        interval: str | None,
+        cancel_at_period_end: bool | None,
     ) -> ExternalSubscriptionResult:
         price_id = None
         if plan:
@@ -238,14 +236,10 @@ class StripeBillingGateway(BillingGateway):
 
         return ExternalSubscriptionResult(
             status=updated.status,
-            current_period_start=datetime.fromtimestamp(
-                updated.current_period_start, tz=timezone.utc
-            )
+            current_period_start=datetime.fromtimestamp(updated.current_period_start, tz=UTC)
             if getattr(updated, "current_period_start", None)
             else None,
-            current_period_end=datetime.fromtimestamp(
-                updated.current_period_end, tz=timezone.utc
-            )
+            current_period_end=datetime.fromtimestamp(updated.current_period_end, tz=UTC)
             if getattr(updated, "current_period_end", None)
             else None,
             cancel_at_period_end=bool(updated.cancel_at_period_end),

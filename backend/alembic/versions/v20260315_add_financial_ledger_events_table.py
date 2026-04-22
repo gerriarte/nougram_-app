@@ -5,6 +5,7 @@ Revises: v20260315_ai_usage
 Create Date: 2026-03-15
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -30,17 +31,27 @@ def upgrade() -> None:
         sa.Column("external_id", sa.String(256), nullable=True),
         sa.Column("reference", sa.String(512), nullable=True),
         sa.Column("metadata_json", sa.String(2048), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True
+        ),
         sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_financial_ledger_events_id", "financial_ledger_events", ["id"])
-    op.create_index("ix_financial_ledger_events_organization_id", "financial_ledger_events", ["organization_id"])
-    op.create_index("ix_financial_ledger_events_event_type", "financial_ledger_events", ["event_type"])
+    op.create_index(
+        "ix_financial_ledger_events_organization_id", "financial_ledger_events", ["organization_id"]
+    )
+    op.create_index(
+        "ix_financial_ledger_events_event_type", "financial_ledger_events", ["event_type"]
+    )
     op.create_index("ix_financial_ledger_events_provider", "financial_ledger_events", ["provider"])
     op.create_index("ix_financial_ledger_events_status", "financial_ledger_events", ["status"])
-    op.create_index("ix_financial_ledger_events_external_id", "financial_ledger_events", ["external_id"])
-    op.create_index("ix_financial_ledger_events_created_at", "financial_ledger_events", ["created_at"])
+    op.create_index(
+        "ix_financial_ledger_events_external_id", "financial_ledger_events", ["external_id"]
+    )
+    op.create_index(
+        "ix_financial_ledger_events_created_at", "financial_ledger_events", ["created_at"]
+    )
 
 
 def downgrade() -> None:
@@ -49,6 +60,8 @@ def downgrade() -> None:
     op.drop_index("ix_financial_ledger_events_status", table_name="financial_ledger_events")
     op.drop_index("ix_financial_ledger_events_provider", table_name="financial_ledger_events")
     op.drop_index("ix_financial_ledger_events_event_type", table_name="financial_ledger_events")
-    op.drop_index("ix_financial_ledger_events_organization_id", table_name="financial_ledger_events")
+    op.drop_index(
+        "ix_financial_ledger_events_organization_id", table_name="financial_ledger_events"
+    )
     op.drop_index("ix_financial_ledger_events_id", table_name="financial_ledger_events")
     op.drop_table("financial_ledger_events")

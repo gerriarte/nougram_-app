@@ -1,8 +1,9 @@
 """
 Integration tests for GET /api/v1/insights/dashboard/kpi-summary.
 """
-from datetime import datetime, timezone
+
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -101,35 +102,35 @@ async def kpi_seed_data(db_session: AsyncSession, kpi_org: Organization):
         version=1,
         total_client_price=100,
         total_internal_cost=40,
-        updated_at=datetime(2025, 6, 10, 12, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 6, 10, 12, 0, tzinfo=UTC),
     )
     q1_v2 = Quote(
         project_id=p1.id,
         version=2,
         total_client_price=200,
         total_internal_cost=80,
-        updated_at=datetime(2025, 6, 20, 12, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 6, 20, 12, 0, tzinfo=UTC),
     )
     q2 = Quote(
         project_id=p2.id,
         version=1,
         total_client_price=1000,
         total_internal_cost=100,
-        updated_at=datetime(2025, 6, 15, 10, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 6, 15, 10, 0, tzinfo=UTC),
     )
     q3 = Quote(
         project_id=p3.id,
         version=1,
         total_client_price=300,
         total_internal_cost=120,
-        updated_at=datetime(2025, 6, 22, 15, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 6, 22, 15, 0, tzinfo=UTC),
     )
     q4 = Quote(
         project_id=p4.id,
         version=1,
         total_client_price=999,
         total_internal_cost=500,
-        updated_at=datetime(2025, 1, 5, 12, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 1, 5, 12, 0, tzinfo=UTC),
     )
     db_session.add_all([q1_v1, q1_v2, q2, q3, q4])
     await db_session.commit()
@@ -143,9 +144,7 @@ async def kpi_seed_data(db_session: AsyncSession, kpi_org: Organization):
     db_session.add(tax)
     await db_session.commit()
     await db_session.refresh(tax)
-    await db_session.execute(
-        insert(project_taxes).values(project_id=p1.id, tax_id=tax.id)
-    )
+    await db_session.execute(insert(project_taxes).values(project_id=p1.id, tax_id=tax.id))
     await db_session.commit()
 
 
@@ -177,8 +176,7 @@ class TestInsightsKpiSummaryEndpoint:
         assert payload["kpis"]["numeroPropuestasRealizadas"] == 2
         assert payload["kpis"]["numeroPropuestasGanadas"] == 1
         assert payload["kpis"]["margenNetoTotal"] == pytest.approx(
-            payload["kpis"]["totalCotizadoConImpuestos"]
-            - payload["kpis"]["costoTotalOperacional"]
+            payload["kpis"]["totalCotizadoConImpuestos"] - payload["kpis"]["costoTotalOperacional"]
         )
         assert payload["currency"] == "USD"
 
@@ -258,14 +256,14 @@ class TestInsightsKpiSummaryEndpoint:
                     version=1,
                     total_client_price=50,
                     total_internal_cost=10,
-                    updated_at=datetime(2025, 6, 1, 4, 59, 59, tzinfo=timezone.utc),
+                    updated_at=datetime(2025, 6, 1, 4, 59, 59, tzinfo=UTC),
                 ),
                 Quote(
                     project_id=project.id,
                     version=2,  # latest; should be selected and included
                     total_client_price=120,
                     total_internal_cost=20,
-                    updated_at=datetime(2025, 6, 1, 5, 0, 0, tzinfo=timezone.utc),
+                    updated_at=datetime(2025, 6, 1, 5, 0, 0, tzinfo=UTC),
                 ),
             ]
         )
@@ -311,14 +309,14 @@ class TestInsightsKpiSummaryEndpoint:
                     version=1,
                     total_client_price=200,
                     total_internal_cost=40,
-                    updated_at=datetime(2025, 6, 2, 4, 59, 59, tzinfo=timezone.utc),
+                    updated_at=datetime(2025, 6, 2, 4, 59, 59, tzinfo=UTC),
                 ),
                 Quote(
                     project_id=project.id,
                     version=2,  # latest but outside local end boundary
                     total_client_price=999,
                     total_internal_cost=100,
-                    updated_at=datetime(2025, 6, 2, 5, 0, 0, tzinfo=timezone.utc),
+                    updated_at=datetime(2025, 6, 2, 5, 0, 0, tzinfo=UTC),
                 ),
             ]
         )
@@ -392,7 +390,7 @@ class TestInsightsKpiSummaryEndpoint:
                     version=1,
                     total_client_price=10,
                     total_internal_cost=1,
-                    updated_at=datetime(2025, 3, 9, 4, 59, 59, tzinfo=timezone.utc),
+                    updated_at=datetime(2025, 3, 9, 4, 59, 59, tzinfo=UTC),
                 ),
                 # Exactly at local day start (included)
                 Quote(
@@ -400,7 +398,7 @@ class TestInsightsKpiSummaryEndpoint:
                     version=1,
                     total_client_price=100,
                     total_internal_cost=20,
-                    updated_at=datetime(2025, 3, 9, 5, 0, 0, tzinfo=timezone.utc),
+                    updated_at=datetime(2025, 3, 9, 5, 0, 0, tzinfo=UTC),
                 ),
                 # Exactly at local day end (included)
                 Quote(
@@ -408,7 +406,7 @@ class TestInsightsKpiSummaryEndpoint:
                     version=1,
                     total_client_price=200,
                     total_internal_cost=40,
-                    updated_at=datetime(2025, 3, 10, 3, 59, 59, tzinfo=timezone.utc),
+                    updated_at=datetime(2025, 3, 10, 3, 59, 59, tzinfo=UTC),
                 ),
                 # First instant of next local day (excluded)
                 Quote(
@@ -416,7 +414,7 @@ class TestInsightsKpiSummaryEndpoint:
                     version=1,
                     total_client_price=300,
                     total_internal_cost=60,
-                    updated_at=datetime(2025, 3, 10, 4, 0, 0, tzinfo=timezone.utc),
+                    updated_at=datetime(2025, 3, 10, 4, 0, 0, tzinfo=UTC),
                 ),
             ]
         )

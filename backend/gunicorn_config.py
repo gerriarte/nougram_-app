@@ -1,6 +1,7 @@
 """
 Configuración de Gunicorn para producción
 """
+
 import multiprocessing
 import os
 

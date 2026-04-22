@@ -4,6 +4,7 @@ Revision ID: r20251109_role_varchar
 Revises: 48d403df0b4b
 Create Date: 2025-11-09
 """
+
 from alembic import op
 
 import sqlalchemy as sa
@@ -31,7 +32,9 @@ def upgrade() -> None:
     if not col_exists:
         op.add_column(
             "users",
-            sa.Column("role", sa.String(length=32), nullable=True, server_default="product_manager"),
+            sa.Column(
+                "role", sa.String(length=32), nullable=True, server_default="product_manager"
+            ),
         )
         # Create index if missing
         try:
@@ -58,5 +61,3 @@ def downgrade() -> None:
         except Exception:
             pass
         op.drop_column("users", "role")
-
-

@@ -2,8 +2,8 @@
 Settings Service - Single point of access for organization and agency settings.
 Unifies currency/country resolution and validation (core/currency remains the validator).
 """
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
+
+from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -33,7 +33,9 @@ class SettingsService:
     def _quantize(value: Decimal, scale: int) -> Decimal:
         return value.quantize(Decimal("1").scaleb(-scale), rounding=ROUND_HALF_UP)
 
-    def _convert_decimal(self, amount: Decimal, from_currency: str, to_currency: str, scale: int) -> Decimal:
+    def _convert_decimal(
+        self, amount: Decimal, from_currency: str, to_currency: str, scale: int
+    ) -> Decimal:
         from_code = (from_currency or "USD").upper()
         to_code = (to_currency or "USD").upper()
         if from_code == to_code:
@@ -112,7 +114,9 @@ class SettingsService:
         from app.models.equipment import EquipmentAmortization
 
         result = await self.db.execute(
-            select(EquipmentAmortization).where(EquipmentAmortization.organization_id == organization_id)
+            select(EquipmentAmortization).where(
+                EquipmentAmortization.organization_id == organization_id
+            )
         )
         records = result.scalars().all()
         updated = 0
@@ -191,7 +195,13 @@ class SettingsService:
                     )
 
                 for item in quote.items:
-                    for attr in ("internal_cost", "client_price", "fixed_price", "recurring_price", "project_value"):
+                    for attr in (
+                        "internal_cost",
+                        "client_price",
+                        "fixed_price",
+                        "recurring_price",
+                        "project_value",
+                    ):
                         value = getattr(item, attr, None)
                         if value is None:
                             continue
@@ -230,13 +240,17 @@ class SettingsService:
         to_currency: str,
     ) -> dict[str, int]:
         return {
-            "team_members": await self._normalize_team_members_currency(organization_id, to_currency),
+            "team_members": await self._normalize_team_members_currency(
+                organization_id, to_currency
+            ),
             "fixed_costs": await self._normalize_fixed_costs_currency(organization_id, to_currency),
             "equipment": await self._normalize_equipment_currency(organization_id, to_currency),
-            "projects": await self._normalize_projects_quotes_currency(organization_id, to_currency),
+            "projects": await self._normalize_projects_quotes_currency(
+                organization_id, to_currency
+            ),
         }
 
-    async def get_primary_currency(self, organization_id: Optional[int] = None) -> str:
+    async def get_primary_currency(self, organization_id: int | None = None) -> str:
         """
         Get primary currency for the given organization or global default.
 
@@ -261,8 +275,8 @@ class SettingsService:
         return default_settings.primary_currency or "USD"
 
     async def get_organization_currency_and_social_config(
-        self, organization_id: Optional[int] = None
-    ) -> tuple[str, Optional[dict]]:
+        self, organization_id: int | None = None
+    ) -> tuple[str, dict | None]:
         """
         Get primary_currency and social_charges_config for an organization (e.g. for calculations).
         Single place for organization.settings access used by project/quote and onboarding flows.
@@ -281,7 +295,7 @@ class SettingsService:
     async def update_primary_currency(
         self,
         currency: str,
-        organization_id: Optional[int] = None,
+        organization_id: int | None = None,
     ) -> None:
         """
         Update primary currency. Validates with is_valid_currency (single point of truth).
@@ -295,7 +309,7 @@ class SettingsService:
         if not is_valid_currency(currency):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid currency: {currency}. Supported: USD, COP, ARS, EUR, PEN, MXN"
+                detail=f"Invalid currency: {currency}. Supported: USD, COP, ARS, EUR, PEN, MXN",
             )
         target_currency = currency.upper()
         if organization_id:
@@ -303,7 +317,9 @@ class SettingsService:
             if org:
                 settings = org.settings if isinstance(getattr(org, "settings", None), dict) else {}
                 settings = dict(settings)
-                previous_currency = (settings.get("primary_currency") or settings.get("currency") or "USD").upper()
+                previous_currency = (
+                    settings.get("primary_currency") or settings.get("currency") or "USD"
+                ).upper()
                 settings["primary_currency"] = target_currency
                 settings["currency"] = target_currency
                 org.settings = settings

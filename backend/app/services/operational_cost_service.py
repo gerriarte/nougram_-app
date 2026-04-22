@@ -2,12 +2,12 @@
 Operational cost calculation service — single source of truth for monthly operational metrics.
 ESTÁNDAR NOUGRAM: Decimal end-to-end; structured logging with calculation_id for traceability.
 """
+
 from datetime import date
 from decimal import Decimal
-from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.currency import normalize_to_primary_currency
@@ -19,8 +19,8 @@ from app.models.equipment import EquipmentAmortization
 from app.models.organization import Organization
 from app.models.project import Project, Quote, project_taxes
 from app.models.service import Service
-from app.models.team import TeamMember
 from app.models.tax import Tax
+from app.models.team import TeamMember
 from app.schemas.operational_cost import (
     CalculationMetadataSchema,
     OperationalCostPayloadSchema,
@@ -35,8 +35,8 @@ async def get_current_month_operational_costs(
     db: AsyncSession,
     organization_id: int,
     primary_currency: str = "USD",
-    period_start: Optional[date] = None,
-    period_end: Optional[date] = None,
+    period_start: date | None = None,
+    period_end: date | None = None,
 ) -> OperationalCostPayloadSchema:
     """
     Compute canonical operational cost payload for the given organization and period.
@@ -70,9 +70,7 @@ async def get_current_month_operational_costs(
     )
 
     # 2. Fixed costs (overhead, excl. amortization)
-    fixed_costs = await _compute_fixed_costs(
-        db, organization_id, primary_currency, calculation_id
-    )
+    fixed_costs = await _compute_fixed_costs(db, organization_id, primary_currency, calculation_id)
 
     # 3. Amortization (monthly depreciation)
     amortization, amortization_ok = await _compute_amortization(
@@ -90,14 +88,10 @@ async def get_current_month_operational_costs(
         operational_subtotal=resource_costs + fixed_costs + amortization,
     )
 
-    total_operational_cost = (
-        resource_costs + fixed_costs + amortization + tax_costs
-    )
+    total_operational_cost = resource_costs + fixed_costs + amortization + tax_costs
 
     # 5. Target margin (from org settings or average service default)
-    target_margin = await _get_target_margin_configured(
-        db, organization_id, calculation_id
-    )
+    target_margin = await _get_target_margin_configured(db, organization_id, calculation_id)
 
     # 6. Effective margin (from Won quotes in period)
     effective_margin = await _get_effective_margin_observed(
@@ -148,13 +142,9 @@ def _to_decimal(value) -> Decimal:
     return Decimal(str(value))
 
 
-async def _get_social_charges_multiplier(
-    db: AsyncSession, organization_id: int
-) -> Decimal:
+async def _get_social_charges_multiplier(db: AsyncSession, organization_id: int) -> Decimal:
     """Return 1 + (total_percentage/100) from org social_charges_config, or 1.0."""
-    result = await db.execute(
-        select(Organization).where(Organization.id == organization_id)
-    )
+    result = await db.execute(select(Organization).where(Organization.id == organization_id))
     org = result.scalar_one_or_none()
     if not org or not org.settings or not org.settings.get("social_charges_config"):
         return Decimal("1.0")
@@ -185,7 +175,7 @@ async def _compute_resource_costs(
     multiplier = await _get_social_charges_multiplier(db, organization_id)
     result = await db.execute(
         select(TeamMember).where(
-            TeamMember.is_active == True,
+            TeamMember.is_active,
             TeamMember.organization_id == organization_id,
         )
     )
@@ -248,7 +238,7 @@ async def _compute_amortization(
     result = await db.execute(
         select(EquipmentAmortization).where(
             EquipmentAmortization.deleted_at.is_(None),
-            EquipmentAmortization.is_active == True,
+            EquipmentAmortization.is_active,
             EquipmentAmortization.organization_id == organization_id,
         )
     )
@@ -299,9 +289,7 @@ async def _compute_amortization_from_onboarding_settings(
     primary_currency: str,
 ) -> Decimal:
     """Legacy-safe fallback: derive monthly amortization from onboarding inventory settings."""
-    org_result = await db.execute(
-        select(Organization).where(Organization.id == organization_id)
-    )
+    org_result = await db.execute(select(Organization).where(Organization.id == organization_id))
     org = org_result.scalar_one_or_none()
     if not org or not org.settings:
         return Decimal("0")
@@ -319,9 +307,7 @@ async def _compute_amortization_from_onboarding_settings(
             useful_life_months = Decimal("24") if category == "software" else Decimal("36")
             monthly = amount / useful_life_months
             item_currency = str(item.get("currency") or primary_currency or "USD")
-            normalized = normalize_to_primary_currency(
-                monthly, item_currency, primary_currency
-            )
+            normalized = normalize_to_primary_currency(monthly, item_currency, primary_currency)
             if isinstance(normalized, Money):
                 total += normalized.amount
             else:
@@ -365,7 +351,7 @@ async def _compute_tax_costs(
             Project.status == "Won",
             func.coalesce(Quote.updated_at, Quote.created_at) >= start_dt,
             func.coalesce(Quote.updated_at, Quote.created_at) <= end_dt,
-            Tax.is_active == True,
+            Tax.is_active,
             Tax.deleted_at.is_(None),
         )
     )
@@ -394,7 +380,7 @@ async def _compute_tax_costs(
         configured_taxes_result = await db.execute(
             select(Tax.percentage).where(
                 Tax.organization_id == organization_id,
-                Tax.is_active == True,
+                Tax.is_active,
                 Tax.deleted_at.is_(None),
             )
         )
@@ -414,11 +400,9 @@ async def _compute_tax_costs(
 
 async def _get_target_margin_configured(
     db: AsyncSession, organization_id: int, calculation_id: str
-) -> Optional[Decimal]:
+) -> Decimal | None:
     """Target margin used when quoting: from org.settings.quote_default_margin or average of services."""
-    result = await db.execute(
-        select(Organization).where(Organization.id == organization_id)
-    )
+    result = await db.execute(select(Organization).where(Organization.id == organization_id))
     org = result.scalar_one_or_none()
     if org and org.settings and org.settings.get("quote_default_margin") is not None:
         val = org.settings.get("quote_default_margin")
@@ -428,7 +412,7 @@ async def _get_target_margin_configured(
         select(func.avg(Service.default_margin_target)).where(
             Service.organization_id == organization_id,
             Service.deleted_at.is_(None),
-            Service.is_active == True,
+            Service.is_active,
         )
     )
     avg = r.scalar()
@@ -444,7 +428,7 @@ async def _get_effective_margin_observed(
     period_end: date,
     primary_currency: str,
     calculation_id: str,
-) -> Optional[Decimal]:
+) -> Decimal | None:
     """Effective margin from Won projects in period: (revenue - cost) / revenue. Revenue/cost in project currency, then we use as-is for ratio."""
     from datetime import datetime
 
@@ -476,12 +460,8 @@ async def _get_effective_margin_observed(
         project_currency = row.currency or "USD"
         price = _to_decimal(row.total_client_price)
         cost = _to_decimal(row.total_internal_cost)
-        normalized_price = normalize_to_primary_currency(
-            price, project_currency, primary_currency
-        )
-        normalized_cost = normalize_to_primary_currency(
-            cost, project_currency, primary_currency
-        )
+        normalized_price = normalize_to_primary_currency(price, project_currency, primary_currency)
+        normalized_cost = normalize_to_primary_currency(cost, project_currency, primary_currency)
         sum_price += (
             normalized_price.amount
             if isinstance(normalized_price, Money)

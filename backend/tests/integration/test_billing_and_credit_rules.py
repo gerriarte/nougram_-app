@@ -1,6 +1,7 @@
 """
 Integration tests for billing fallback and quote-credit rules.
 """
+
 import uuid
 
 import pytest

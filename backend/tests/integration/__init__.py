@@ -1,16 +1,3 @@
 # Integration tests package
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-

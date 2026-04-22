@@ -1,7 +1,8 @@
 """
 AI usage event model for tracking token consumption and cost per feature (e.g. proposal generation).
 """
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, func
+
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -15,7 +16,9 @@ class AIUsageEvent(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
     proposal_id = Column(Integer, ForeignKey("proposal_documents.id"), nullable=True, index=True)
 
-    feature = Column(String(64), nullable=False, index=True)  # e.g. proposal_ai_generate, proposal_executive_summary
+    feature = Column(
+        String(64), nullable=False, index=True
+    )  # e.g. proposal_ai_generate, proposal_executive_summary
     provider = Column(String(32), nullable=False, default="openai")
     model = Column(String(128), nullable=True)
 

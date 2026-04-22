@@ -1,6 +1,7 @@
 """
 Equipment amortization management endpoints.
 """
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,6 +88,7 @@ async def create_equipment(
     )
     created = await repo.create(entity)
     from app.core.cache import get_cache
+
     cache = get_cache()
     cache.invalidate_pattern("blended_cost_rate:")
     cache.invalidate_pattern("financial_summary:")
@@ -131,6 +133,7 @@ async def update_equipment(
 
     updated = await repo.update(entity)
     from app.core.cache import get_cache
+
     cache = get_cache()
     cache.invalidate_pattern("blended_cost_rate:")
     cache.invalidate_pattern("financial_summary:")
@@ -152,6 +155,7 @@ async def delete_equipment(
 
     await repo.delete(entity, soft=True, deleted_by_id=current_user.id)
     from app.core.cache import get_cache
+
     cache = get_cache()
     cache.invalidate_pattern("blended_cost_rate:")
     cache.invalidate_pattern("financial_summary:")

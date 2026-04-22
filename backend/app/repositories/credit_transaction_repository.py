@@ -1,28 +1,25 @@
 """
 Repository for CreditTransaction model
 """
-from typing import Optional, List
-from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, func
 
-from app.repositories.base import BaseRepository
+from sqlalchemy import desc, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.credit_transaction import CreditTransaction
+from app.repositories.base import BaseRepository
 
 
 class CreditTransactionRepository(BaseRepository[CreditTransaction]):
     """
     Repository for CreditTransaction model
     """
-    def __init__(self, db: AsyncSession, tenant_id: Optional[int] = None):
+
+    def __init__(self, db: AsyncSession, tenant_id: int | None = None):
         super().__init__(db, CreditTransaction, tenant_id)
 
     async def get_by_organization_id(
-        self,
-        organization_id: int,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None
-    ) -> List[CreditTransaction]:
+        self, organization_id: int, limit: int | None = None, offset: int | None = None
+    ) -> list[CreditTransaction]:
         """
         Get all transactions for an organization, ordered by created_at DESC
         """
@@ -31,12 +28,12 @@ class CreditTransactionRepository(BaseRepository[CreditTransaction]):
             .where(CreditTransaction.organization_id == organization_id)
             .order_by(desc(CreditTransaction.created_at))
         )
-        
+
         if limit:
             query = query.limit(limit)
         if offset:
             query = query.offset(offset)
-        
+
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -45,9 +42,9 @@ class CreditTransactionRepository(BaseRepository[CreditTransaction]):
         organization_id: int,
         transaction_type: str,
         amount: int,
-        reason: Optional[str] = None,
-        reference_id: Optional[int] = None,
-        performed_by: Optional[int] = None,
+        reason: str | None = None,
+        reference_id: int | None = None,
+        performed_by: int | None = None,
         auto_commit: bool = True,
     ) -> CreditTransaction:
         """
@@ -59,7 +56,7 @@ class CreditTransactionRepository(BaseRepository[CreditTransaction]):
             amount=amount,
             reason=reason,
             reference_id=reference_id,
-            performed_by=performed_by
+            performed_by=performed_by,
         )
         self.db.add(transaction)
         if auto_commit:
@@ -81,7 +78,7 @@ class CreditTransactionRepository(BaseRepository[CreditTransaction]):
         self,
         organization_id: int,
         transaction_type: str,
-    ) -> Optional[CreditTransaction]:
+    ) -> CreditTransaction | None:
         """
         Get latest transaction for an organization and type.
         """
@@ -96,12 +93,3 @@ class CreditTransactionRepository(BaseRepository[CreditTransaction]):
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
-
-
-
-
-
-
-
-
-

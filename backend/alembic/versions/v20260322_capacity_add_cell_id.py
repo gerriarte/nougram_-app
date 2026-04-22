@@ -27,10 +27,14 @@ def upgrade() -> None:
         ["cell_id"],
         ["id"],
     )
-    op.create_index(op.f("ix_capacity_commitments_cell_id"), "capacity_commitments", ["cell_id"], unique=False)
+    op.create_index(
+        op.f("ix_capacity_commitments_cell_id"), "capacity_commitments", ["cell_id"], unique=False
+    )
 
 
 def downgrade() -> None:
     op.drop_index(op.f("ix_capacity_commitments_cell_id"), table_name="capacity_commitments")
-    op.drop_constraint("fk_capacity_commitments_cell_id", "capacity_commitments", type_="foreignkey")
+    op.drop_constraint(
+        "fk_capacity_commitments_cell_id", "capacity_commitments", type_="foreignkey"
+    )
     op.drop_column("capacity_commitments", "cell_id")

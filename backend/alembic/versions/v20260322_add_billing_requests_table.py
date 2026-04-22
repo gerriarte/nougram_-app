@@ -29,7 +29,12 @@ def upgrade() -> None:
         sa.Column("target_interval", sa.String(length=16), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column("status", sa.String(length=32), nullable=False, server_default="pending"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"]),
         sa.ForeignKeyConstraint(["requested_by_user_id"], ["users.id"]),
@@ -48,9 +53,15 @@ def upgrade() -> None:
         ["requested_by_user_id"],
         unique=False,
     )
-    op.create_index(op.f("ix_billing_requests_request_type"), "billing_requests", ["request_type"], unique=False)
-    op.create_index(op.f("ix_billing_requests_status"), "billing_requests", ["status"], unique=False)
-    op.create_index(op.f("ix_billing_requests_created_at"), "billing_requests", ["created_at"], unique=False)
+    op.create_index(
+        op.f("ix_billing_requests_request_type"), "billing_requests", ["request_type"], unique=False
+    )
+    op.create_index(
+        op.f("ix_billing_requests_status"), "billing_requests", ["status"], unique=False
+    )
+    op.create_index(
+        op.f("ix_billing_requests_created_at"), "billing_requests", ["created_at"], unique=False
+    )
 
 
 def downgrade() -> None:

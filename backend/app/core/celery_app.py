@@ -1,7 +1,9 @@
 """
 Celery application configuration
 """
+
 from celery import Celery
+
 from app.core.config import settings
 
 # Create Celery app instance
@@ -9,7 +11,7 @@ celery_app = Celery(
     "nougram",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.core.tasks"]
+    include=["app.core.tasks"],
 )
 
 # Celery configuration
@@ -31,9 +33,6 @@ celery_app.conf.beat_schedule = {
     "reset-monthly-credits": {
         "task": "app.core.tasks.reset_monthly_credits",
         "schedule": 86400.0,  # Run daily (in seconds) - 86400 = 24 hours
-        "options": {
-            "timezone": "UTC"
-        }
+        "options": {"timezone": "UTC"},
     },
 }
-

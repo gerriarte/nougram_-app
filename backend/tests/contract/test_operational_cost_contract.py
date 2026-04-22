@@ -2,6 +2,7 @@
 Contract tests for operational cost dashboard endpoint.
 Freezes payload keys/types so frontend integration remains stable.
 """
+
 import uuid
 
 import pytest
@@ -24,9 +25,7 @@ def _auth_headers(user: User) -> dict:
 
 
 @pytest.fixture
-async def owner_user_for_operational_contract(
-    db_session: AsyncSession
-) -> User:
+async def owner_user_for_operational_contract(db_session: AsyncSession) -> User:
     org = Organization(
         name=f"Operational Contract Org {uuid.uuid4().hex[:6]}",
         slug=f"operational-contract-org-{uuid.uuid4().hex[:8]}",
@@ -104,6 +103,4 @@ class TestOperationalCostContract:
         assert isinstance(metadata["period_start"], str)
         assert isinstance(metadata["period_end"], str)
         assert isinstance(metadata["formula_version"], str)
-        assert metadata["calculation_id"] is None or isinstance(
-            metadata["calculation_id"], str
-        )
+        assert metadata["calculation_id"] is None or isinstance(metadata["calculation_id"], str)

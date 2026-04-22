@@ -1,9 +1,43 @@
 """
 Main API router for v1
 """
+
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, costs, team, team_cells, services, quotes, projects, clients, insights, integrations, settings, taxes, maintenance, delete_requests, users, ai, organizations, templates, billing, stripe_webhooks, credits, support, invitations, expenses, sales_projection, annual_projection, onboarding, dashboard, equipment, proposals, proposal_portal, admin
+from app.api.v1.endpoints import (
+    admin,
+    ai,
+    annual_projection,
+    auth,
+    billing,
+    clients,
+    costs,
+    credits,
+    dashboard,
+    delete_requests,
+    equipment,
+    expenses,
+    insights,
+    integrations,
+    invitations,
+    maintenance,
+    onboarding,
+    organizations,
+    projects,
+    proposal_portal,
+    proposals,
+    quotes,
+    sales_projection,
+    services,
+    settings,
+    stripe_webhooks,
+    support,
+    taxes,
+    team,
+    team_cells,
+    templates,
+    users,
+)
 
 api_router = APIRouter()
 
@@ -26,13 +60,17 @@ api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboar
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 api_router.include_router(taxes.router, prefix="/taxes", tags=["taxes"])
 api_router.include_router(maintenance.router, prefix="", tags=["maintenance"])
-api_router.include_router(delete_requests.router, prefix="/delete-requests", tags=["delete-requests"])
+api_router.include_router(
+    delete_requests.router, prefix="/delete-requests", tags=["delete-requests"]
+)
 api_router.include_router(users.router, prefix="", tags=["users"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
 api_router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
-api_router.include_router(invitations.router, tags=["Invitations"])  # Uses prefix from router definition
+api_router.include_router(
+    invitations.router, tags=["Invitations"]
+)  # Uses prefix from router definition
 api_router.include_router(templates.router, tags=["templates"])
 api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
 api_router.include_router(stripe_webhooks.router, prefix="/stripe", tags=["stripe-webhooks"])
@@ -40,4 +78,6 @@ api_router.include_router(credits.router, prefix="/credits", tags=["credits"])
 # support.router already has prefix="/support"; avoid duplicating /support/support
 api_router.include_router(support.router, tags=["support"])
 api_router.include_router(sales_projection.router, prefix="/sales", tags=["sales-projection"])
-api_router.include_router(annual_projection.router, prefix="/projections", tags=["annual-projection"])
+api_router.include_router(
+    annual_projection.router, prefix="/projections", tags=["annual-projection"]
+)

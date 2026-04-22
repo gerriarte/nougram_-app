@@ -2,15 +2,16 @@
 Integration tests for GET /api/v1/dashboard/operational-costs.
 Covers permissions (owner, admin_financiero, super_admin), tenant isolation, and response schema.
 """
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, get_password_hash
-from app.models.user import User
+from app.models.cost import CostFixed
 from app.models.organization import Organization
 from app.models.team import TeamMember
-from app.models.cost import CostFixed
+from app.models.user import User
 
 
 def get_auth_headers(user: User) -> dict:
@@ -28,6 +29,7 @@ def get_auth_headers(user: User) -> dict:
 async def org_with_data(db_session: AsyncSession) -> Organization:
     """Create organization with team member and fixed cost for operational cost data."""
     import uuid
+
     unique_id = str(uuid.uuid4())[:8]
     org = Organization(
         name="OpCost Org",
@@ -78,6 +80,7 @@ async def org_with_data(db_session: AsyncSession) -> Organization:
 async def users_operational(db_session: AsyncSession, org_with_data: Organization) -> dict:
     """Create owner, admin_financiero, super_admin, and collaborator (no access)."""
     import uuid
+
     uid = str(uuid.uuid4())[:8]
     password_hash = get_password_hash("test123")
     users = {
@@ -171,7 +174,7 @@ class TestDashboardOperationalCostsEndpoint:
             headers=headers,
         )
         assert response.status_code == 200
-    
+
     async def test_super_admin_can_access_with_explicit_organization_id(
         self,
         async_client: AsyncClient,

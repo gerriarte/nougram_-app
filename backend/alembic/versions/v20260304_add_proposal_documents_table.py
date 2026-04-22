@@ -4,6 +4,7 @@ Revision ID: v20260304_proposals
 Revises: v20260304
 Create Date: 2026-03-04 18:10:00.000000
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -30,7 +31,9 @@ def upgrade() -> None:
         sa.Column("is_locked", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("created_by_id", sa.Integer(), nullable=True),
         sa.Column("updated_by_id", sa.Integer(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True
+        ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"]),
         sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"]),
@@ -40,7 +43,9 @@ def upgrade() -> None:
     )
     op.create_index("ix_proposal_documents_id", "proposal_documents", ["id"])
     op.create_index("ix_proposal_documents_project_id", "proposal_documents", ["project_id"])
-    op.create_index("ix_proposal_documents_organization_id", "proposal_documents", ["organization_id"])
+    op.create_index(
+        "ix_proposal_documents_organization_id", "proposal_documents", ["organization_id"]
+    )
 
 
 def downgrade() -> None:
