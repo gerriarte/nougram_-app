@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { NumInput } from '@/components/ui/NumInput';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { useNougram } from '@/context/NougramCoreContext';
 import { QuoteItem, ResourceAllocation } from '@/types/quote-builder';
-import { Trash2, Plus, Clock, Briefcase, Repeat, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, Plus, Clock, Briefcase, Repeat, TrendingUp, ChevronDown, ChevronUp, AlertCircle, Users } from 'lucide-react';
 import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -60,7 +60,11 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
     const { state: coreState } = useNougram();
     const currency = coreState.identity.primaryCurrency || 'COP';
 
-    const [resourcesOpen, setResourcesOpen] = useState(false);
+    const pricingNeedsResource =
+        item.pricingType === 'hourly' || item.pricingType === 'recurring';
+    const [resourcesOpen, setResourcesOpen] = useState(
+        () => pricingNeedsResource && (item.allocations?.length ?? 0) === 0
+    );
     const [isAddingResource, setIsAddingResource] = useState(false);
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [newResourceHours, setNewResourceHours] = useState<number>(10);
@@ -106,9 +110,26 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
     };
 
     const allocCount = (item.allocations || []).length;
+    const resourceAssigned = allocCount > 0;
+    const resourceMissing = pricingNeedsResource && !resourceAssigned;
+
+    useEffect(() => {
+        if (resourceMissing) setResourcesOpen(true);
+    }, [resourceMissing]);
 
     return (
-        <div className="group rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden transition-shadow hover:shadow-md hover:border-gray-300">
+        <div
+            className={cn(
+                'group rounded-xl border overflow-hidden transition-shadow',
+                resourceAssigned &&
+                    'border-emerald-200/90 bg-gradient-to-br from-emerald-50/[0.85] via-white to-teal-50/50 shadow-sm shadow-emerald-900/[0.04] hover:shadow-md hover:border-emerald-300/90',
+                resourceMissing &&
+                    'border-amber-300/90 bg-gradient-to-br from-amber-50/40 via-white to-orange-50/25 ring-1 ring-amber-200/50 shadow-sm hover:shadow-md hover:border-amber-400/90',
+                !resourceAssigned &&
+                    !resourceMissing &&
+                    'border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-gray-300'
+            )}
+        >
 
             {/* ── Header strip ── */}
             <div className="flex items-center gap-2.5 px-4 py-3">
@@ -303,25 +324,73 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
 
                 {/* ── Resource allocation (collapsible) ── */}
                 <div className="mt-3">
+                    {resourceMissing && (
+                        <div className="mb-2 flex flex-col gap-2 rounded-xl border border-amber-200/90 bg-amber-50/70 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex min-w-0 items-start gap-2 text-[11px] text-amber-950">
+                                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" strokeWidth={2.2} />
+                                <p>
+                                    <span className="font-semibold">Asigna un recurso</span>
+                                    <span className="text-amber-800/90"> para vincular horas al equipo y calcular costo y margen.</span>
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setResourcesOpen(true)}
+                                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-amber-700"
+                            >
+                                <Users size={12} strokeWidth={2.2} />
+                                Asignar recurso
+                            </button>
+                        </div>
+                    )}
+
                     <button
                         type="button"
                         onClick={() => setResourcesOpen(v => !v)}
-                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-gray-400 hover:bg-surface-2 hover:text-gray-600 transition-colors"
+                        className={cn(
+                            'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors',
+                            resourceMissing &&
+                                'border border-amber-200/80 bg-amber-50/50 text-amber-900 hover:bg-amber-50',
+                            resourceAssigned &&
+                                'text-emerald-800 hover:bg-emerald-50/60',
+                            !resourceMissing && !resourceAssigned && 'text-gray-400 hover:bg-surface-2 hover:text-gray-600'
+                        )}
                     >
                         {resourcesOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                        Recursos asignados
+                        {resourceMissing ? (
+                            <span className="font-bold tracking-tight">Asignar recurso</span>
+                        ) : (
+                            <span>Recursos asignados</span>
+                        )}
                         {allocCount > 0 && (
-                            <span className="ml-1 rounded-full bg-primary-soft px-1.5 py-px text-[10px] font-semibold text-primary">
+                            <span
+                                className={cn(
+                                    'ml-1 rounded-full px-1.5 py-px text-[10px] font-semibold',
+                                    resourceAssigned ? 'bg-emerald-100 text-emerald-800' : 'bg-primary-soft text-primary'
+                                )}
+                            >
                                 {allocCount}
                             </span>
                         )}
-                        <span className="ml-auto text-[10px] font-normal text-gray-400">
+                        <span
+                            className={cn(
+                                'ml-auto text-[10px] font-normal tabular-nums',
+                                resourceAssigned ? 'text-emerald-700/90' : 'text-gray-400'
+                            )}
+                        >
                             {formatMoneyAmount(estimatedProjectHours)}h · {formatCurrency(totalResourceCost, currency)}
                         </span>
                     </button>
 
                     {resourcesOpen && (
-                        <div className="mt-2 rounded-xl border border-gray-100 bg-surface-2 p-3 space-y-2 animate-in fade-in slide-in-from-top-1">
+                        <div
+                            className={cn(
+                                'mt-2 rounded-xl border p-3 space-y-2 animate-in fade-in slide-in-from-top-1',
+                                resourceAssigned
+                                    ? 'border-emerald-100/90 bg-gradient-to-b from-emerald-50/50 to-white'
+                                    : 'border-gray-100 bg-surface-2'
+                            )}
+                        >
                             {allocCount === 0 && (
                                 <p className="text-center text-[11px] text-gray-400 py-2">Sin recursos asignados.</p>
                             )}
@@ -360,15 +429,21 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                             })}
 
                             {/* Add resource */}
-                            <div className="pt-1 border-t border-gray-100">
+                            <div className={cn('pt-1 border-t', resourceAssigned ? 'border-emerald-100' : 'border-gray-100')}>
                                 {!isAddingResource ? (
                                     <Button
                                         size="sm"
                                         variant="ghost"
                                         onClick={() => setIsAddingResource(true)}
-                                        className="w-full text-primary hover:bg-primary-soft text-xs h-8"
+                                        className={cn(
+                                            'w-full text-xs h-8',
+                                            resourceMissing
+                                                ? 'font-bold text-amber-900 hover:bg-amber-100/80 border border-dashed border-amber-300/90 rounded-lg'
+                                                : 'text-primary hover:bg-primary-soft'
+                                        )}
                                     >
-                                        <Plus size={11} className="mr-1.5" /> Agregar recurso
+                                        <Plus size={11} className="mr-1.5" />
+                                        {resourceMissing ? 'Asignar recurso' : 'Agregar recurso'}
                                     </Button>
                                 ) : (
                                     <div className="flex items-end gap-2 animate-in fade-in slide-in-from-top-1">
