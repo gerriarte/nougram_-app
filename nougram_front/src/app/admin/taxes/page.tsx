@@ -121,11 +121,11 @@ export default function TaxesAdminPage() {
     };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Impuestos</h1>
-                <p className="text-gray-500">
-                    Configura impuestos por país. Se aplican como porcentaje sobre la base de la cotización y funcionan igual en cualquier moneda.
+                <h1 className="text-[20px] font-bold text-gray-900">Impuestos</h1>
+                <p className="text-[13px] text-gray-500 mt-0.5">
+                    Configura impuestos por país. Se aplican como porcentaje sobre la base de la cotización.
                 </p>
             </div>
 
@@ -202,7 +202,7 @@ export default function TaxesAdminPage() {
 
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <h2 className="text-lg font-semibold text-gray-900">Impuestos configurados</h2>
+                    <h2 className="text-[14px] font-semibold text-gray-900">Impuestos configurados</h2>
                     <Input
                         value={filterCountry}
                         onChange={(e) => setFilterCountry(e.target.value)}

@@ -58,6 +58,7 @@ Para que el frontend staging pueda iniciar sesión, el backend debe estar desple
 - **"Error de conexión"**: backend no alcanzable. Revisar que la URL sea correcta y que el backend esté en ejecución.
 - **CORS**: si el frontend está en otro dominio, `CORS_ORIGINS` debe incluir esa URL exactamente.
 - **Ruta truncada**: `NEXT_PUBLIC_API_URL` debe terminar en `/api/v1` (no `/api/v`).
+- **`UndefinedColumnError` / columna no existe** (p. ej. `team_members.apply_social_charges`): la base de staging no tiene migraciones aplicadas. Desde la carpeta `backend`, con variables del servicio: `railway run -e staging -s <servicio-backend> alembic upgrade head`, o usar el `backend/Dockerfile` (ya ejecuta `alembic upgrade head` al arrancar). Si el Start Command en Railway es solo `gunicorn` sin Alembic, añadir `alembic upgrade head &&` antes del servidor.
 
 ---
 

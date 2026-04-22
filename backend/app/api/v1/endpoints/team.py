@@ -50,7 +50,9 @@ async def list_team_members(
     - Denied roles: product_manager, collaborator (data leakage prevention)
     """
     from sqlalchemy import desc
-    
+
+    actor_user_id = current_user.id
+
     try:
         team_repo = RepositoryFactory.create_team_repository(db, tenant.organization_id)
         
@@ -78,7 +80,7 @@ async def list_team_members(
             total_pages=total_pages
         )
     except Exception as e:
-        logger.error("Error listing team members", error=str(e), user_id=current_user.id, exc_info=True)
+        logger.error("Error listing team members", error=str(e), user_id=actor_user_id, exc_info=True)
         # Return empty list on error
         return TeamMemberListResponse(items=[], total=0, page=page, page_size=page_size, total_pages=0)
 
@@ -95,6 +97,8 @@ async def list_team_members_for_allocation(
     Returns only fields needed for planning capacity and assigning resources.
     Salary and other sensitive financial data are intentionally excluded.
     """
+    actor_user_id = current_user.id
+
     try:
         team_repo = RepositoryFactory.create_team_repository(db, tenant.organization_id)
         members = await team_repo.get_all_active()
@@ -103,7 +107,7 @@ async def list_team_members_for_allocation(
             total=len(members),
         )
     except Exception as e:
-        logger.error("Error listing allocation members", error=str(e), user_id=current_user.id, exc_info=True)
+        logger.error("Error listing allocation members", error=str(e), user_id=actor_user_id, exc_info=True)
         return TeamMemberAllocationListResponse(items=[], total=0)
 
 
@@ -125,7 +129,9 @@ async def create_team_member(
     # Validate team member limit for plan
     from app.core.plan_limits import validate_team_member_limit
     await validate_team_member_limit(tenant.organization_id, tenant.subscription_plan, db)
-    
+
+    actor_user_id = current_user.id
+
     try:
         # Ensure all required fields have values
         member_dict = member_data.model_dump()
@@ -137,7 +143,7 @@ async def create_team_member(
         if incoming_currency and incoming_currency != primary_currency:
             logger.warning(
                 "Overriding team member currency with organization primary currency",
-                user_id=current_user.id,
+                user_id=actor_user_id,
                 organization_id=tenant.organization_id,
                 incoming_currency=incoming_currency,
                 primary_currency=primary_currency,
@@ -156,7 +162,7 @@ async def create_team_member(
         if 'user_id' not in member_dict or member_dict['user_id'] is None:
             member_dict.pop('user_id', None)
         
-        logger.info("Creating team member", member_data=member_dict, user_id=current_user.id)
+        logger.info("Creating team member", member_data=member_dict, user_id=actor_user_id)
         
         member_dict['organization_id'] = tenant.organization_id
         
@@ -170,14 +176,14 @@ async def create_team_member(
         cache.invalidate_pattern("blended_cost_rate:")
         cache.invalidate_pattern("financial_summary:")
         
-        logger.info("Team member created successfully", member_id=new_member.id, user_id=current_user.id)
+        logger.info("Team member created successfully", member_id=new_member.id, user_id=actor_user_id)
         return TeamMemberResponse.model_validate(new_member)
     except Exception as e:
         await db.rollback()
         logger.error(
             "Error creating team member",
             error=str(e),
-            user_id=current_user.id,
+            user_id=actor_user_id,
             member_data=member_data.model_dump() if hasattr(member_data, 'model_dump') else str(member_data),
             exc_info=True
         )
@@ -203,6 +209,8 @@ async def update_team_member(
     - Allowed roles: owner, admin_financiero, super_admin
     - Denied roles: product_manager, collaborator
     """
+    actor_user_id = current_user.id
+
     try:
         team_repo = RepositoryFactory.create_team_repository(db, tenant.organization_id)
         member = await team_repo.get_by_id(member_id)
@@ -227,7 +235,7 @@ async def update_team_member(
             if incoming_currency and incoming_currency != primary_currency:
                 logger.warning(
                     "Overriding team member currency update with organization primary currency",
-                    user_id=current_user.id,
+                    user_id=actor_user_id,
                     organization_id=tenant.organization_id,
                     member_id=member_id,
                     incoming_currency=incoming_currency,
@@ -235,7 +243,7 @@ async def update_team_member(
                 )
             update_data['currency'] = primary_currency
         
-        logger.info("Updating team member", member_id=member_id, update_data=update_data, user_id=current_user.id)
+        logger.info("Updating team member", member_id=member_id, update_data=update_data, user_id=actor_user_id)
         
         for field, value in update_data.items():
             setattr(member, field, value)
@@ -248,7 +256,7 @@ async def update_team_member(
         cache.invalidate_pattern("blended_cost_rate:")
         cache.invalidate_pattern("financial_summary:")
         
-        logger.info("Team member updated successfully", member_id=member_id, user_id=current_user.id)
+        logger.info("Team member updated successfully", member_id=member_id, user_id=actor_user_id)
         return TeamMemberResponse.model_validate(member)
     except HTTPException:
         raise
@@ -258,7 +266,7 @@ async def update_team_member(
             "Error updating team member",
             member_id=member_id,
             error=str(e),
-            user_id=current_user.id,
+            user_id=actor_user_id,
             update_data=member_data.model_dump(exclude_unset=True) if hasattr(member_data, 'model_dump') else str(member_data),
             exc_info=True
         )

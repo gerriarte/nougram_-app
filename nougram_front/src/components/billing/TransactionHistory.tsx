@@ -39,7 +39,7 @@ export function TransactionHistory({ transactions = [] }: TransactionHistoryProp
     return (
         <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 overflow-hidden">
             <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-[19px] font-semibold text-[#1D1D1F]">Historial de Facturación</h2>
+                <h2 className="text-[19px] font-semibold text-gray-900">Historial de Facturación</h2>
                 <Button variant="ghost" className="text-[#0071E3] font-medium text-[13px]">Descargar todo</Button>
             </div>
 
@@ -47,25 +47,25 @@ export function TransactionHistory({ transactions = [] }: TransactionHistoryProp
                 <table className="w-full text-left">
                     <thead className="bg-[#FAFAFA] border-b border-gray-100">
                         <tr>
-                            <th className="px-8 py-4 text-[11px] font-bold text-[#86868B] uppercase tracking-wider">Factura</th>
-                            <th className="px-6 py-4 text-[11px] font-bold text-[#86868B] uppercase tracking-wider">Fecha</th>
-                            <th className="px-6 py-4 text-[11px] font-bold text-[#86868B] uppercase tracking-wider">Monto</th>
-                            <th className="px-6 py-4 text-[11px] font-bold text-[#86868B] uppercase tracking-wider">Plan</th>
-                            <th className="px-6 py-4 text-[11px] font-bold text-[#86868B] uppercase tracking-wider">Estado</th>
-                            <th className="px-8 py-4 text-right text-[11px] font-bold text-[#86868B] uppercase tracking-wider">Acciones</th>
+                            <th className="px-8 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Factura</th>
+                            <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Fecha</th>
+                            <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Monto</th>
+                            <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Plan</th>
+                            <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Estado</th>
+                            <th className="px-8 py-4 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                         {transactions.map((tx) => (
-                            <tr key={tx.id} className="group hover:bg-[#F5F5F7] transition-colors duration-200">
-                                <td className="px-8 py-5 font-semibold text-[#1D1D1F] text-[14px]">{tx.invoiceNumber}</td>
-                                <td className="px-6 py-5 text-[#86868B] text-[13px]">{new Date(tx.date).toLocaleDateString()}</td>
-                                <td className="px-6 py-5 font-semibold text-[#1D1D1F] text-[14px]">
+                            <tr key={tx.id} className="group hover:bg-background transition-colors duration-200">
+                                <td className="px-8 py-5 font-semibold text-gray-900 text-[14px]">{tx.invoiceNumber}</td>
+                                <td className="px-6 py-5 text-gray-500 text-[13px]">{new Date(tx.date).toLocaleDateString()}</td>
+                                <td className="px-6 py-5 font-semibold text-gray-900 text-[14px]">
                                     {formatCurrency(tx.amount, tx.currency)}
                                 </td>
                                 <td className="px-6 py-5 text-[#424245] text-[13px]">
                                     {tx.planName}
-                                    <span className="block text-[11px] text-[#86868B] mt-0.5 font-normal">
+                                    <span className="block text-[11px] text-gray-500 mt-0.5 font-normal">
                                         {new Date(tx.periodStart).toLocaleDateString()} - {new Date(tx.periodEnd).toLocaleDateString()}
                                     </span>
                                 </td>
@@ -74,10 +74,10 @@ export function TransactionHistory({ transactions = [] }: TransactionHistoryProp
                                 </td>
                                 <td className="px-8 py-5 text-right">
                                     <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button className="text-[#86868B] hover:text-[#0071E3] transition-colors p-2 rounded-full hover:bg-white" title="Ver Detalles">
+                                        <button className="text-gray-500 hover:text-[#0071E3] transition-colors p-2 rounded-full hover:bg-white" title="Ver Detalles">
                                             <ExternalLink size={16} />
                                         </button>
-                                        <button className="text-[#86868B] hover:text-[#0071E3] transition-colors p-2 rounded-full hover:bg-white" title="Descargar PDF">
+                                        <button className="text-gray-500 hover:text-[#0071E3] transition-colors p-2 rounded-full hover:bg-white" title="Descargar PDF">
                                             <Download size={16} />
                                         </button>
                                     </div>
@@ -89,7 +89,7 @@ export function TransactionHistory({ transactions = [] }: TransactionHistoryProp
             </div>
 
             {transactions.length === 0 && (
-                <div className="p-12 text-center text-[#86868B]">
+                <div className="p-12 text-center text-gray-500">
                     No hay facturas disponibles.
                 </div>
             )}

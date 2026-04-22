@@ -309,7 +309,8 @@ async def calculate_quote_totals(
     db: AsyncSession,
     items: List[Dict],
     blended_cost_rate: float,
-    tax_ids: List[int] = None
+    tax_ids: List[int] = None,
+    organization_id: Optional[int] = None,
 ) -> Dict:
     """
     Calculate total internal cost, client price, taxes, and margin for a quote.
@@ -358,15 +359,16 @@ async def calculate_quote_totals(
     taxes_breakdown = []
     
     if tax_ids:
-        result = await db.execute(
-            select(Tax).where(
-                Tax.id.in_(tax_ids),
-                Tax.is_active == True,
-                Tax.deleted_at.is_(None)
-            )
-        )
+        tax_conditions = [
+            Tax.id.in_(tax_ids),
+            Tax.is_active == True,
+            Tax.deleted_at.is_(None),
+        ]
+        if organization_id is not None:
+            tax_conditions.append(Tax.organization_id == organization_id)
+        result = await db.execute(select(Tax).where(and_(*tax_conditions)))
         taxes = result.scalars().all()
-        
+
         for tax in taxes:
             tax_amount = total_client_price * (tax.percentage / 100)
             total_taxes += tax_amount
@@ -408,7 +410,8 @@ async def calculate_quote_totals_enhanced(
     revisions_included: int = 2,
     revision_cost_per_additional: Optional[float] = None,
     revisions_count: Optional[int] = None,
-    currency: str = "USD"  # ESTÁNDAR NOUGRAM: Especificar moneda para precisión
+    currency: str = "USD",  # ESTÁNDAR NOUGRAM: Especificar moneda para precisión
+    organization_id: Optional[int] = None,
 ) -> Dict:
     """
     Enhanced quote calculation supporting multiple pricing types, expenses, and revisions (Sprint 15-16)
@@ -606,15 +609,16 @@ async def calculate_quote_totals_enhanced(
     taxes_breakdown = []
     
     if tax_ids:
-        result = await db.execute(
-            select(Tax).where(
-                Tax.id.in_(tax_ids),
-                Tax.is_active == True,
-                Tax.deleted_at.is_(None)
-            )
-        )
+        tax_conditions = [
+            Tax.id.in_(tax_ids),
+            Tax.is_active == True,
+            Tax.deleted_at.is_(None),
+        ]
+        if organization_id is not None:
+            tax_conditions.append(Tax.organization_id == organization_id)
+        result = await db.execute(select(Tax).where(and_(*tax_conditions)))
         taxes = result.scalars().all()
-        
+
         for tax in taxes:
             # ESTÁNDAR NOUGRAM: Aplicar porcentaje usando Money
             # Convertir tax.percentage a float si es Decimal para evitar problemas de tipo

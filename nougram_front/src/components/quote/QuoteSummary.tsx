@@ -11,9 +11,8 @@ interface QuoteSummaryProps {
 
 export function QuoteSummary({ calculation }: QuoteSummaryProps) {
 
-    // Logic to determine badge color based on margin
-    const margin = parseFloat(calculation.margin?.net_margin_ratio ?? calculation.margin_percentage);
-    const targetMargin = calculation.margin?.target_margin_ratio ?? calculation.target_margin_percentage;
+    const margin = parseFloat(calculation.margin.net_margin_ratio ?? "0");
+    const targetMargin = calculation.margin.target_margin_ratio;
     let badgeVariant: "success" | "warning" | "critical" | "default" = "default";
     let marginLabel = "Neutro";
 

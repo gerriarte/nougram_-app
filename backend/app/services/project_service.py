@@ -300,9 +300,9 @@ class ProjectService:
         contingency_value = getattr(project_data, 'contingency_value', None)
         logger.info(f"Calculating quote totals (enhanced) with {len(tax_ids)} taxes, revisions_included={revisions_included}, target_margin={target_margin_percentage}...")
         totals = await calculate_quote_totals_enhanced(
-            self.db, 
-            items_dict, 
-            blended_rate, 
+            self.db,
+            items_dict,
+            blended_rate,
             tax_ids,
             expenses=None,  # Expenses are added separately via expenses endpoints
             target_margin_percentage=target_margin_percentage,
@@ -310,6 +310,7 @@ class ProjectService:
             revision_cost_per_additional=revision_cost_per_additional,
             revisions_count=None,  # Only used when calculating additional revision costs
             currency=primary_currency,
+            organization_id=self.organization_id,
         )
         totals = _apply_contingency_to_totals(totals, contingency_type, contingency_value)
         logger.info(f"Quote totals calculated: {totals}")
@@ -535,9 +536,9 @@ class ProjectService:
         contingency_value = getattr(quote_data, 'contingency_value', None)
         
         totals = await calculate_quote_totals_enhanced(
-            self.db, 
-            items_dict, 
-            blended_rate, 
+            self.db,
+            items_dict,
+            blended_rate,
             tax_ids,
             expenses=None,
             target_margin_percentage=target_margin_percentage,  # Pass target margin
@@ -545,6 +546,7 @@ class ProjectService:
             revision_cost_per_additional=revision_cost_per_additional,
             revisions_count=None,
             currency=project.currency,
+            organization_id=self.organization_id,
         )
         totals = _apply_contingency_to_totals(totals, contingency_type, contingency_value)
         
@@ -871,8 +873,9 @@ class ProjectService:
         result = await self.db.execute(
             select(Tax).where(
                 Tax.id.in_(tax_ids),
+                Tax.organization_id == self.organization_id,
                 Tax.is_active == True,
-                Tax.deleted_at.is_(None)
+                Tax.deleted_at.is_(None),
             )
         )
         taxes = result.scalars().all()

@@ -1,11 +1,13 @@
 'use client';
 
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { Toggle } from '@/components/ui/Toggle';
+import { NumInput } from '@/components/ui/NumInput';
 import { Shield } from 'lucide-react';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { formatCurrency } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 export function ContingencySection() {
     const { state, setContingency, summary } = useQuoteBuilder();
@@ -17,111 +19,105 @@ export function ContingencySection() {
         if (isActive) {
             setContingency(undefined);
         } else {
-            setContingency({ description: 'Imprevistos Generales', type: 'percentage', value: 5 });
+            setContingency({ description: 'Imprevistos generales', type: 'percentage', value: 5 });
         }
     };
 
-    const updateContingency = (updates: Partial<typeof contingency>) => {
+    const update = (updates: Partial<typeof contingency>) =>
         setContingency({ ...contingency, ...updates });
-    };
 
     return (
-        <Card className={`transition-all duration-300 ${isActive ? 'border-orange-200 bg-orange-50/30' : 'border-gray-200 bg-white'}`}>
-            <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${isActive ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
-                            <Shield size={20} />
-                        </div>
-                        <div>
-                            <CardTitle className="text-lg">Gestión de Imprevistos</CardTitle>
-                            <CardDescription>Reserva fondos para cubrir riesgos o costos no planeados.</CardDescription>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" className="sr-only peer" checked={isActive} onChange={handleToggle} />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
-                        </label>
-                    </div>
+        <div className={cn(
+            'rounded-xl border bg-white shadow-sm overflow-hidden transition-colors',
+            isActive ? 'border-amber-200' : 'border-gray-200'
+        )}>
+            {/* Header */}
+            <div className="flex items-center gap-3 px-4 py-3.5">
+                <div className={cn(
+                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
+                    isActive ? 'bg-warning-soft text-amber-700' : 'bg-surface-2 text-gray-400'
+                )}>
+                    <Shield size={15} strokeWidth={2} />
                 </div>
-            </CardHeader>
+                <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-gray-800">Imprevistos</p>
+                    <p className="text-[11.5px] text-gray-400">Reserva para riesgos o costos no planeados</p>
+                </div>
+                <Toggle checked={isActive} onChange={handleToggle} />
+            </div>
 
+            {/* Expanded content */}
             {isActive && (
-                <CardContent className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="border-t border-dashed border-amber-100 px-4 pb-4 pt-3 space-y-3 animate-in fade-in slide-in-from-top-1">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         {/* Description */}
-                        <div className="md:col-span-6">
-                            <label className="text-xs font-semibold text-gray-600 uppercase mb-1 block">Descripción del Riesgo</label>
+                        <div className="sm:col-span-1 space-y-1">
+                            <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Descripción</label>
                             <Input
                                 value={contingency.description}
-                                onChange={e => updateContingency({ description: e.target.value })}
-                                placeholder="Ej: Variación en tasa de cambio, Licencias extra..."
-                                className="bg-white border-orange-200 focus:border-orange-400"
+                                onChange={e => update({ description: e.target.value })}
+                                placeholder="Ej: Variación en tasa de cambio…"
+                                className="h-9 bg-white border-amber-200 focus:border-amber-400"
                             />
                         </div>
 
-                        {/* Type Selector */}
-                        <div className="md:col-span-3">
-                            <label className="text-xs font-semibold text-gray-600 uppercase mb-1 block">Tipo de Cálculo</label>
-                            <div className="flex rounded-lg border border-orange-200 bg-white p-1">
-                                <button
-                                    onClick={() => updateContingency({ type: 'percentage' })}
-                                    className={`flex-1 text-xs py-1.5 px-2 rounded-md transition-colors ${contingency.type === 'percentage' ? 'bg-orange-100 text-orange-800 font-medium' : 'text-gray-500 hover:bg-gray-50'}`}
-                                >
-                                    Porcentaje (%)
-                                </button>
-                                <button
-                                    onClick={() => updateContingency({ type: 'fixed' })}
-                                    className={`flex-1 text-xs py-1.5 px-2 rounded-md transition-colors ${contingency.type === 'fixed' ? 'bg-orange-100 text-orange-800 font-medium' : 'text-gray-500 hover:bg-gray-50'}`}
-                                >
-                                    Valor Fijo ($)
-                                </button>
+                        {/* Type toggle */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Tipo</label>
+                            <div className="flex h-9 rounded-lg border border-amber-200 bg-white p-1">
+                                {(['percentage', 'fixed'] as const).map(t => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => update({ type: t })}
+                                        className={cn(
+                                            'flex-1 rounded-md text-[11px] font-semibold transition-colors',
+                                            contingency.type === t
+                                                ? 'bg-warning-soft text-amber-700'
+                                                : 'text-gray-400 hover:bg-surface-2'
+                                        )}
+                                    >
+                                        {t === 'percentage' ? 'Porcentaje' : 'Valor fijo'}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
-                        {/* Value Input */}
-                        <div className="md:col-span-3">
-                            <label className="text-xs font-semibold text-gray-600 uppercase mb-1 block">
-                                {contingency.type === 'percentage' ? 'Porcentaje' : 'Valor Total'}
+                        {/* Value */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                {contingency.type === 'percentage' ? 'Porcentaje' : 'Valor'}
                             </label>
-                            <div className="relative">
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    value={contingency.value}
-                                    onChange={e => updateContingency({ value: parseFloat(e.target.value) || 0 })}
-                                    className="bg-white border-orange-200 focus:border-orange-400 font-bold text-gray-800 pr-8"
-                                />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
-                                    {contingency.type === 'percentage' ? '%' : '$'}
-                                </span>
-                            </div>
+                            <NumInput
+                                value={contingency.value}
+                                onChange={v => update({ value: v === '' ? 0 : v })}
+                                suffix={contingency.type === 'percentage' ? '%' : undefined}
+                                className="border-amber-200 focus-within:border-amber-400"
+                                placeholder="0"
+                            />
                         </div>
                     </div>
 
-                    {/* Summary Feedback */}
-                    <div className="bg-orange-100/50 rounded-lg p-3 flex justify-between items-center text-sm border border-orange-100">
-                        <span className="text-orange-800">
-                            Impacto en la cotización:
-                        </span>
-                        <div className="flex gap-4">
+                    {/* Impact summary */}
+                    <div className="flex items-center justify-between rounded-lg border border-amber-100 bg-warning-soft px-3 py-2.5">
+                        <span className="text-[12px] text-amber-700">Impacto en cotización</span>
+                        <div className="flex items-center gap-5">
                             <div className="text-right">
-                                <span className="block text-xs text-orange-600/70">Costo Adicional</span>
-                                <span className="font-bold text-orange-900">
-                                    + {formatCurrency((summary.contingencyAmount || 0), state.currency)}
+                                <span className="block text-[10px] text-amber-600/70">Costo adicional</span>
+                                <span className="text-[13px] font-semibold text-amber-900">
+                                    +{formatCurrency(summary.contingencyAmount || 0, state.currency)}
                                 </span>
                             </div>
-                            <div className="text-right pl-4 border-l border-orange-200/50">
-                                <span className="block text-xs text-orange-600/70">Total con Imprevistos</span>
-                                <span className="font-bold text-orange-900">
-                                    {formatCurrency((summary.contingencyTotal || 0), state.currency)}
+                            <div className="text-right">
+                                <span className="block text-[10px] text-amber-600/70">Total con imprevistos</span>
+                                <span className="text-[13px] font-semibold text-amber-900">
+                                    {formatCurrency(summary.contingencyTotal || 0, state.currency)}
                                 </span>
                             </div>
                         </div>
                     </div>
-                </CardContent>
+                </div>
             )}
-        </Card>
+        </div>
     );
 }

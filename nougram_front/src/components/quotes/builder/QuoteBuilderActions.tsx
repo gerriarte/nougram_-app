@@ -16,8 +16,16 @@ export function QuoteBuilderActions({ variant }: QuoteBuilderActionsProps) {
   const handleSave = async (options?: { goToProposal?: boolean; goToDashboard?: boolean }) => {
     try {
       const projectId = await saveQuote();
-      if (options?.goToProposal && projectId) {
-        router.push(`/dashboard/quotes/${projectId}/proposal`);
+      if (options?.goToProposal) {
+        if (projectId) {
+          router.push(`/dashboard/quotes/${projectId}/send`);
+        } else if (projectId === null) {
+          // Paywall de créditos: QuoteBuilderForm ya abre PaywallModal.
+        } else {
+          alert(
+            'No se pudo guardar la cotización para continuar. Asegúrate de tener al menos un ítem de servicio (no solo proveedores) y datos completos.'
+          );
+        }
       } else if (options?.goToDashboard) {
         router.push('/dashboard');
       }
@@ -53,7 +61,7 @@ export function QuoteBuilderActions({ variant }: QuoteBuilderActionsProps) {
         </div>
         <Button
           type="button"
-          className={`mt-2 w-full h-10 rounded-xl text-sm font-bold ${isValid ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+          className={`mt-2 w-full h-10 rounded-xl text-sm font-bold ${isValid ? 'bg-gray-900 hover:bg-gray-700 text-white shadow-md' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
           disabled={!isValid}
           onClick={() => handleSave({ goToProposal: true })}
         >
@@ -79,7 +87,7 @@ export function QuoteBuilderActions({ variant }: QuoteBuilderActionsProps) {
         </Button>
         <Button
           type="button"
-          className={`w-full sm:w-auto h-10 rounded-xl md:rounded-md font-semibold ${isValid ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+          className={`w-full sm:w-auto h-10 rounded-xl md:rounded-md font-semibold ${isValid ? 'bg-gray-900 hover:bg-gray-700 text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
           disabled={!isValid}
           onClick={() => handleSave({ goToProposal: true })}
         >

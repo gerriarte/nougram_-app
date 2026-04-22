@@ -16,7 +16,7 @@ export function BreakEvenStateCard({ data }: BreakEvenStateCardProps) {
     return (
         <div className={`rounded-[24px] p-6 border ${isBelow ? 'bg-yellow-50/50 border-yellow-200' :
                 isAbove ? 'bg-green-50/50 border-green-200' :
-                    'bg-blue-50/50 border-blue-200'
+                    'bg-primary-soft border-primary-soft'
             }`}>
             <div className="flex justify-between items-start">
                 <div className="space-y-4">
@@ -25,11 +25,11 @@ export function BreakEvenStateCard({ data }: BreakEvenStateCardProps) {
                         <div className="flex items-center gap-2">
                             {isBelow && <AlertCircle className="text-yellow-600" />}
                             {isAbove && <CheckCircle2 className="text-green-600" />}
-                            {isAt && <TrendingUp className="text-blue-600" />}
+                            {isAt && <TrendingUp className="text-primary" />}
 
                             <span className={`text-xl font-bold ${isBelow ? 'text-yellow-700' :
                                     isAbove ? 'text-green-700' :
-                                        'text-blue-700'
+                                        'text-primary'
                                 }`}>
                                 {isBelow ? 'Por debajo del equilibrio' :
                                     isAbove ? 'Por encima del equilibrio' :

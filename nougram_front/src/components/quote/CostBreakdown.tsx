@@ -53,7 +53,7 @@ export function CostBreakdown({ calculation }: CostBreakdownProps) {
 
                     <div className="border-t border-gray-200 my-4"></div>
 
-                    <div className="grid grid-cols-2 gap-4 text-lg font-bold text-blue-600 bg-blue-50 p-3 rounded-lg">
+                    <div className="grid grid-cols-2 gap-4 text-lg font-bold text-primary bg-primary-soft p-3 rounded-lg">
                         <div>TOTAL CON IMPUESTOS</div>
                         <div className="text-right">{formatCurrency(calculation.total_with_taxes)}</div>
                     </div>

@@ -49,7 +49,7 @@ export default function OnboardingError({ error, reset }: OnboardingErrorProps) 
                     </p>
                 )}
                 {clearMessage && (
-                    <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
+                    <p className="text-xs text-primary bg-primary-soft border border-primary-soft rounded p-2">
                         {clearMessage}
                     </p>
                 )}

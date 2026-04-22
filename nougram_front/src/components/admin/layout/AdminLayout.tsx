@@ -38,7 +38,7 @@ export function AdminLayout({ children, hideRightPanel = false }: { children: Re
     if (loading || !isAuthenticated) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+                <div className="w-8 h-8 border-[3px] border-gray-200 border-t-gray-500 rounded-full animate-spin" />
             </div>
         );
     }
@@ -59,7 +59,7 @@ export function AdminLayout({ children, hideRightPanel = false }: { children: Re
                             <div className="flex-1 min-w-0 w-full">
                                 {desktopOnlyPending ? (
                                     <div className="min-h-[40vh] flex items-center justify-center">
-                                        <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+                                        <div className="w-8 h-8 border-[3px] border-gray-200 border-t-gray-500 rounded-full animate-spin" />
                                     </div>
                                 ) : blockDesktopModule ? (
                                     <DesktopOnlyBlock />

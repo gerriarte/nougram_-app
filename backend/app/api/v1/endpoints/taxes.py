@@ -303,17 +303,24 @@ async def restore_tax(
 
 @router.get("/trash/list", response_model=TaxListResponse)
 async def list_deleted_taxes(
+    tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    List all soft-deleted taxes (trash)
+    List soft-deleted taxes (trash) for the current organization only.
     """
     from sqlalchemy.orm import selectinload
-    
-    query = select(Tax).where(
-        Tax.deleted_at.isnot(None)
-    ).options(selectinload(Tax.deleted_by)).order_by(Tax.deleted_at.desc())
+
+    query = (
+        select(Tax)
+        .where(
+            Tax.deleted_at.isnot(None),
+            Tax.organization_id == tenant.organization_id,
+        )
+        .options(selectinload(Tax.deleted_by))
+        .order_by(Tax.deleted_at.desc())
+    )
     
     result = await db.execute(query)
     taxes = result.scalars().all()

@@ -1,5 +1,5 @@
 
-import { QuoteItem, TaxConfig, CalculationSummary, ResourceAllocation } from '@/types/quote-builder';
+import { QuoteItem, QuoteExpense, TaxConfig, CalculationSummary } from '@/types/quote-builder';
 
 // Interface for calculation results per item
 export interface ItemCalculationResult {
@@ -9,8 +9,8 @@ export interface ItemCalculationResult {
     marginAmount: number;
 }
 
-// Interface for total calculation results (maps to CalculationSummary)
-export interface QuoteCalculationResult extends CalculationSummary { }
+/** Total calculation results (alias of CalculationSummary). */
+export type QuoteCalculationResult = CalculationSummary;
 
 export const pricingService = {
 
@@ -114,15 +114,22 @@ export const pricingService = {
         items: QuoteItem[],
         taxes: TaxConfig[],
         selectedTaxIds: number[],
-        contingency?: { type: 'fixed' | 'percentage'; value: number }
+        contingency?: { type: 'fixed' | 'percentage'; value: number },
+        expenses?: QuoteExpense[]
     ): QuoteCalculationResult => {
         let totalInternalCost = 0;
         let totalClientPrice = 0;
 
-        // Sum up items
+        // Sum up service items
         items.forEach(item => {
             totalInternalCost += item.internalCost;
             totalClientPrice += item.clientPrice;
+        });
+
+        // Sum up vendor/pass-through expenses
+        (expenses || []).forEach(expense => {
+            totalInternalCost += expense.cost * expense.quantity;
+            totalClientPrice += expense.cost * expense.quantity * (1 + expense.markupPercentage);
         });
 
         // Calculate Contingency

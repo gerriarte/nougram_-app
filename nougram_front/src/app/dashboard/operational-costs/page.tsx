@@ -114,7 +114,7 @@ export default function OperationalCostsPage() {
       <div className="space-y-10">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+            <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">
               Costo de operación ({companyName})
             </h1>
             <p className="text-gray-500 font-medium mt-1">
@@ -155,8 +155,8 @@ export default function OperationalCostsPage() {
           <h2 className="text-lg font-bold text-gray-900 mb-4">Desglose por categoría</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="rounded-xl border border-gray-200 bg-white p-5 flex items-start gap-4">
-              <div className="rounded-lg bg-blue-50 p-3">
-                <Wallet className="w-5 h-5 text-blue-600" />
+              <div className="rounded-lg bg-primary-soft p-3">
+                <Wallet className="w-5 h-5 text-primary" />
               </div>
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase">Recursos (nómina + cargas)</p>

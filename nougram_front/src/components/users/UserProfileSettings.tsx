@@ -150,7 +150,10 @@ export function UserProfileSettings() {
                                 <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400">
                                     <Calendar size={16} strokeWidth={1.5} />
                                 </div>
-                                Unido: {new Date(user?.created_at || Date.now()).toLocaleDateString()}
+                                Unido:{' '}
+                                {user?.created_at
+                                    ? new Date(user.created_at).toLocaleDateString()
+                                    : '—'}
                             </div>
                         </div>
                     </Card>

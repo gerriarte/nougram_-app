@@ -100,7 +100,7 @@ export default function BreakEvenScenariosPage() {
                 </div>
 
                 {/* Base Scenario Card Mock */}
-                <div className="bg-blue-50/50 border border-blue-100 rounded-[24px] p-6">
+                <div className="bg-primary-soft border border-primary-soft rounded-[24px] p-6">
                     <h3 className="text-blue-900 font-semibold mb-4">Escenario Base (Actual)</h3>
                     <div className="flex gap-8 text-blue-800">
                         <div>

@@ -31,7 +31,7 @@ export default function RootPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center space-y-4 animate-pulse">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto animate-spin"></div>
+        <div className="w-12 h-12 border-4 border-gray-900 border-t-transparent rounded-full mx-auto animate-spin"></div>
         <p className="text-gray-500 font-medium">Cargando Nougram OS...</p>
       </div>
     </div>

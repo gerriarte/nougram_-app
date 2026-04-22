@@ -64,7 +64,7 @@ export function FixedCostList({ costs, onAdd, onEdit, onDelete }: FixedCostListP
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div className="flex justify-end gap-2">
-                                        <button onClick={() => onEdit(cost)} className="text-blue-600 hover:text-blue-900 p-1">
+                                        <button onClick={() => onEdit(cost)} className="text-primary hover:text-gray-900 p-1">
                                             <Edit2 className="h-4 w-4" />
                                         </button>
                                         <button onClick={() => onDelete(cost.id)} className="text-red-400 hover:text-red-600 p-1">

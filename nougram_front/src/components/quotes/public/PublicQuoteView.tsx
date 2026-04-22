@@ -83,7 +83,7 @@ export function PublicQuoteView({ quote: initialQuote }: PublicQuoteViewProps) {
     }
 
     return (
-        <div className="min-h-screen bg-[#F5F5F7] font-sans text-[#1D1D1F]">
+        <div className="min-h-screen bg-background font-sans text-gray-900">
             {/* Header Branding */}
             <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-200/50">
                 <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">

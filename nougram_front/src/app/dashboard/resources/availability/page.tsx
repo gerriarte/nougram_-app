@@ -148,7 +148,7 @@ export default function AvailabilityPage() {
             <div className="space-y-8 pb-20">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-black text-gray-900 tracking-tight">Capacidad del Equipo</h1>
+                        <h1 className="text-[22px] font-black text-gray-900 tracking-tight">Capacidad del Equipo</h1>
                         <p className="text-gray-500 font-medium">Seguimiento de ocupación por periodo y estado operativo.</p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -171,7 +171,7 @@ export default function AvailabilityPage() {
                                 type="date"
                                 value={periodStart}
                                 onChange={(e) => setPeriodStart(e.target.value)}
-                                className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm"
+                                className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm"
                             />
                         </div>
                         <div className="space-y-1">
@@ -180,7 +180,7 @@ export default function AvailabilityPage() {
                                 type="date"
                                 value={periodEnd}
                                 onChange={(e) => setPeriodEnd(e.target.value)}
-                                className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm"
+                                className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm"
                             />
                         </div>
                         <div className="space-y-1">
@@ -201,7 +201,7 @@ export default function AvailabilityPage() {
                     </div>
                     <div className="mt-3">
                         <div className="flex flex-wrap items-center gap-2">
-                            <Button className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2" onClick={() => void loadOverview()}>
+                            <Button className="bg-gray-900 hover:bg-gray-700 text-white flex items-center gap-2 rounded-lg" onClick={() => void loadOverview()}>
                                 <Calendar size={14} />
                                 Aplicar filtros
                             </Button>
@@ -233,7 +233,7 @@ export default function AvailabilityPage() {
                     </div>
                     <div className="rounded-xl border border-gray-200 bg-white p-4">
                         <p className="text-xs text-gray-500 font-semibold uppercase">Total</p>
-                        <p className="text-xl font-black text-blue-700">{formatHours(overview?.totals.totalHours || 0)}</p>
+                        <p className="text-xl font-black text-primary">{formatHours(overview?.totals.totalHours || 0)}</p>
                     </div>
                 </div>
 

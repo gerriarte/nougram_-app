@@ -70,7 +70,7 @@ export function StepReady({
     const bcrMonthlyWrong = monthlyBillableHours > 0 ? (totalMonthlyCosts / monthlyBillableHours) : 0;
 
     // Determine color based on hours (just for visual flair)
-    const bcrColor = billableHoursPerWeek < 20 ? 'text-orange-600' : 'text-blue-700';
+    const bcrColor = billableHoursPerWeek < 20 ? 'text-orange-600' : 'text-primary';
 
     return (
         <div className="space-y-8 max-w-3xl mx-auto text-center px-2 pb-8">
@@ -82,13 +82,13 @@ export function StepReady({
             </div>
 
             {/* Main BCR Result */}
-            <Card className="bg-blue-50 border-blue-200 shadow-md transform hover:scale-105 transition-transform duration-300">
+            <Card className="bg-primary-soft border-primary-soft shadow-md transform hover:scale-105 transition-transform duration-300">
                 <CardContent className="py-10">
                     <p className="text-sm font-semibold text-blue-800 uppercase tracking-widest mb-2">Tu Costo por Hora Real (BCR)</p>
                     <h2 className={`text-4xl sm:text-6xl font-extrabold ${bcrColor} mb-2 break-words`}>
                         {formatCurrency(Math.round(bcr), currency)} <span className="text-2xl font-normal text-gray-500">{currency}</span>
                     </h2>
-                    <p className="text-xs text-blue-600/80 font-medium">
+                    <p className="text-xs text-primary/80 font-medium">
                         {backendBcrLoading ? 'Actualizando con motor financiero central...' : 'Calculado por motor financiero central'}
                     </p>
                 </CardContent>
@@ -110,7 +110,7 @@ export function StepReady({
                 <div className="space-y-2 pt-2">
                     <div className="flex justify-between text-sm font-medium">
                         <span>15h</span>
-                        <span className="text-blue-600 text-lg">{billableHoursPerWeek} horas / semana</span>
+                        <span className="text-primary text-lg">{billableHoursPerWeek} horas / semana</span>
                         <span>40h</span>
                     </div>
                     <Input
@@ -170,7 +170,7 @@ export function StepReady({
                 <Button variant="secondary" onClick={onGoToDashboard} className="w-full h-12 rounded-2xl font-bold sm:h-auto sm:rounded-md" disabled={isPersisting}>
                     Ir al Dashboard
                 </Button>
-                <Button size="lg" className="w-full h-12 rounded-2xl font-bold sm:h-auto bg-blue-600 hover:bg-blue-700 shadow-lg sm:rounded-md" onClick={onCreateQuote} disabled={isPersisting}>
+                <Button size="lg" className="w-full h-12 rounded-2xl font-bold sm:h-auto bg-gray-900 hover:bg-gray-700 shadow-lg sm:rounded-md" onClick={onCreateQuote} disabled={isPersisting}>
                     {isPersisting ? 'Guardando onboarding...' : 'Crear mi Primera Cotización →'}
                 </Button>
             </div>

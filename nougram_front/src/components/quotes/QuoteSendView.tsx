@@ -2,10 +2,11 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Card, CardContent } from '@/components/ui/Card';
-import { ArrowLeft, Send, Paperclip, Eye, Sparkles, Save, Link as LinkIcon, Copy, LayoutDashboard } from 'lucide-react';
+import { Toggle } from '@/components/ui/Toggle';
+import { ArrowLeft, Send, Sparkles, Save, Link as LinkIcon, Copy, LayoutDashboard, Check, FileText, Eye } from 'lucide-react';
 import { Quote } from '@/components/dashboard/QuoteCard';
 import { formatCurrency } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 export interface QuoteSendPayload {
     to: string;
@@ -18,17 +19,10 @@ export interface QuoteSendPayload {
     accessCode?: string;
 }
 
-type ActionResult = {
-    ok: boolean;
-    message: string;
-};
-
+type ActionResult = { ok: boolean; message: string };
 type AccessLinkResult = {
-    ok: boolean;
-    message: string;
-    publicUrl?: string;
-    accessCode?: string;
-    accessExpiresAt?: string;
+    ok: boolean; message: string;
+    publicUrl?: string; accessCode?: string; accessExpiresAt?: string;
 };
 
 interface QuoteSendViewProps {
@@ -39,12 +33,7 @@ interface QuoteSendViewProps {
     proposalVersion?: number;
     initialProposalId?: number;
     onSend: (data: QuoteSendPayload) => Promise<ActionResult>;
-    onGenerateAccessLink: (data: {
-        proposalId?: number;
-        useCustomAccessCode?: boolean;
-        accessCode?: string;
-        message?: string;
-    }) => Promise<AccessLinkResult>;
+    onGenerateAccessLink: (data: { proposalId?: number; useCustomAccessCode?: boolean; accessCode?: string; message?: string }) => Promise<AccessLinkResult>;
     onSaveProposal: (payload: { title: string; text: string }) => Promise<{ proposalId?: number; message: string }>;
     onGenerateProposalAI: () => Promise<{ title: string; text: string; version?: number; message: string } | null>;
     onOpenStructuredBuilder?: () => void;
@@ -52,21 +41,123 @@ interface QuoteSendViewProps {
     onCancel: () => void;
 }
 
+// ── Choice card ────────────────────────────────────────────────────
+function ChoiceCard({
+    icon: Icon, title, subtitle, bullets, active, accent, onClick,
+}: {
+    icon: React.ElementType; title: string; subtitle: string;
+    bullets: string[]; active: boolean; accent?: boolean; onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+                'flex-1 min-w-0 rounded-2xl border p-5 text-left transition-all shadow-sm',
+                active
+                    ? accent ? 'border-primary bg-primary-soft shadow' : 'border-gray-900 bg-white shadow'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+            )}
+        >
+            <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                    <div className={cn(
+                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+                        accent ? 'bg-primary text-white' : 'bg-gray-900 text-white'
+                    )}>
+                        <Icon size={18} strokeWidth={2} />
+                    </div>
+                    <div>
+                        <div className="text-[14.5px] font-semibold text-gray-900">{title}</div>
+                        <div className="mt-0.5 text-[12px] text-gray-500">{subtitle}</div>
+                    </div>
+                </div>
+                <div className={cn(
+                    'mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border transition-colors',
+                    active
+                        ? accent ? 'border-primary bg-primary' : 'border-gray-900 bg-gray-900'
+                        : 'border-gray-300'
+                )}>
+                    {active && <Check size={9} strokeWidth={3} className="text-white" />}
+                </div>
+            </div>
+            <ul className="space-y-1.5">
+                {bullets.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2 text-[12.5px] text-gray-600">
+                        <Check size={11} strokeWidth={2.5} className={cn('mt-0.5 shrink-0', accent ? 'text-primary' : 'text-gray-400')} />
+                        {b}
+                    </li>
+                ))}
+            </ul>
+        </button>
+    );
+}
+
+// ── Email preview ──────────────────────────────────────────────────
+function EmailPreview({
+    to, subject, message, projectName, version, total, currency, mode,
+}: {
+    to: string; subject: string; message: string;
+    projectName: string; version: string | number; total: number; currency: string; mode: 'standard' | 'ai';
+}) {
+    const firstName = to.split('@')[0] || 'cliente';
+    return (
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow">
+            {/* Browser dots */}
+            <div className="flex items-center gap-1.5 border-b border-gray-100 bg-surface-2 px-4 py-2.5">
+                {['#ff5f57', '#febc2e', '#28c840'].map(c => (
+                    <div key={c} className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />
+                ))}
+                <div className="flex-1 text-center font-mono text-[10.5px] text-gray-400">mail.cliente.com</div>
+            </div>
+            {/* Headers */}
+            <div className="grid grid-cols-[44px_1fr] gap-y-1 border-b border-gray-100 px-5 py-3.5 text-[11.5px]">
+                <span className="text-gray-400">De:</span>
+                <span className="text-gray-700">Nougram &lt;hola@nougram.co&gt;</span>
+                <span className="text-gray-400">Para:</span>
+                <span className="text-gray-700">{to || 'cliente@email.com'}</span>
+                <span className="text-gray-400">Asunto:</span>
+                <span className="font-semibold text-gray-800">{subject || '—'}</span>
+            </div>
+            {/* Body */}
+            <div className="space-y-3 px-5 py-4 text-[13px] leading-relaxed text-gray-700">
+                <div>Hola {firstName},</div>
+                {message ? (
+                    <div className="whitespace-pre-wrap text-gray-700">{message}</div>
+                ) : (
+                    <div className="italic text-gray-400">Tu mensaje personalizado aparecerá aquí.</div>
+                )}
+                <div>
+                    {mode === 'ai'
+                        ? <>Adjunto encontrarás una propuesta comercial personalizada para el proyecto <b>{projectName}</b>, generada con base en los objetivos compartidos.</>
+                        : <>Adjunto encontrarás la cotización para el proyecto <b>{projectName}</b>.</>
+                    }
+                </div>
+                {/* Proposal card */}
+                <div className="rounded-xl border border-gray-100 bg-surface-2 p-3.5 mt-2">
+                    <div className="text-[13px] font-semibold text-gray-900">{projectName}</div>
+                    <div className="mt-0.5 text-[10.5px] text-gray-400">V{version} · Válida por 30 días</div>
+                    <div className="mt-2 text-[22px] font-bold tabular-nums text-gray-900 tracking-tight">
+                        {formatCurrency(total, currency)}
+                    </div>
+                    <div className="mt-2.5 w-full rounded-lg bg-primary py-1.5 text-center text-[12px] font-semibold text-white">
+                        Ver Propuesta Online →
+                    </div>
+                </div>
+                <div className="text-[10.5px] text-gray-400">Enviado con Nougram · Trazabilidad activada</div>
+            </div>
+        </div>
+    );
+}
+
+// ── Main component ─────────────────────────────────────────────────
 export function QuoteSendView({
-    quote,
-    initialToEmail,
-    initialProposalTitle,
-    initialProposalText,
-    proposalVersion,
-    initialProposalId,
-    onSend,
-    onGenerateAccessLink,
-    onSaveProposal,
-    onGenerateProposalAI,
-    onOpenStructuredBuilder,
-    onGoToDashboard,
-    onCancel
+    quote, initialToEmail, initialProposalTitle, initialProposalText,
+    proposalVersion, initialProposalId,
+    onSend, onGenerateAccessLink, onSaveProposal, onGenerateProposalAI,
+    onOpenStructuredBuilder, onGoToDashboard, onCancel,
 }: QuoteSendViewProps) {
+    const [mode, setMode] = useState<'standard' | 'ai'>('standard');
     const [to, setTo] = useState(initialToEmail || '');
     const [subject, setSubject] = useState(`Cotización para ${quote.project} - ${quote.version}`);
     const [message, setMessage] = useState('');
@@ -76,69 +167,40 @@ export function QuoteSendView({
     const [proposalId, setProposalId] = useState<number | undefined>(initialProposalId);
     const [includePdf, setIncludePdf] = useState(true);
     const [trackingOpen, setTrackingOpen] = useState(true);
+    const [useCustomAccessCode, setUseCustomAccessCode] = useState(false);
+    const [accessCode, setAccessCode] = useState('');
+    const [generatedAccess, setGeneratedAccess] = useState<{ publicUrl: string; accessCode: string; accessExpiresAt?: string } | null>(null);
+
     const [isSending, setIsSending] = useState(false);
     const [isSavingProposal, setIsSavingProposal] = useState(false);
     const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
     const [isGeneratingAccessLink, setIsGeneratingAccessLink] = useState(false);
-    const [useCustomAccessCode, setUseCustomAccessCode] = useState(false);
-    const [accessCode, setAccessCode] = useState('');
-    const [generatedAccess, setGeneratedAccess] = useState<{
-        publicUrl: string;
-        accessCode: string;
-        accessExpiresAt?: string;
-    } | null>(null);
-    const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+    const setMsg = (type: 'success' | 'error', text: string) => setFeedback({ type, text });
 
     const handleSend = async () => {
-        if (!to.trim()) {
-            setActionFeedback({ type: 'error', text: 'Ingresa el correo del destinatario antes de enviar.' });
-            return;
-        }
+        if (!to.trim()) { setMsg('error', 'Ingresa el correo del destinatario.'); return; }
         if (useCustomAccessCode) {
-            const normalizedCode = accessCode.trim();
-            if (normalizedCode.length < 4 || normalizedCode.length > 16) {
-                setActionFeedback({
-                    type: 'error',
-                    text: 'La clave temporal personalizada debe tener entre 4 y 16 caracteres.',
-                });
-                return;
-            }
+            const c = accessCode.trim();
+            if (c.length < 4 || c.length > 16) { setMsg('error', 'La clave debe tener entre 4 y 16 caracteres.'); return; }
         }
         setIsSending(true);
         try {
-            const result = await onSend({
-                to,
-                subject,
-                message,
-                includePdf,
-                trackingOpen,
-                proposalId,
-                useCustomAccessCode,
-                accessCode: useCustomAccessCode ? accessCode.trim() : undefined,
-            });
-            setActionFeedback({ type: result.ok ? 'success' : 'error', text: result.message });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'No se pudo enviar la propuesta';
-            setActionFeedback({ type: 'error', text: message });
-        } finally {
-            setIsSending(false);
-        }
+            const result = await onSend({ to, subject, message, includePdf, trackingOpen, proposalId, useCustomAccessCode, accessCode: useCustomAccessCode ? accessCode.trim() : undefined });
+            setMsg(result.ok ? 'success' : 'error', result.message);
+        } catch (e) { setMsg('error', e instanceof Error ? e.message : 'No se pudo enviar.'); }
+        finally { setIsSending(false); }
     };
 
     const handleSaveProposal = async () => {
         setIsSavingProposal(true);
         try {
             const result = await onSaveProposal({ title: proposalTitle, text: proposalText });
-            if (result.proposalId) {
-                setProposalId(result.proposalId);
-            }
-            setActionFeedback({ type: 'success', text: result.message });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'No se pudo guardar la propuesta';
-            setActionFeedback({ type: 'error', text: message });
-        } finally {
-            setIsSavingProposal(false);
-        }
+            if (result.proposalId) setProposalId(result.proposalId);
+            setMsg('success', result.message);
+        } catch (e) { setMsg('error', e instanceof Error ? e.message : 'No se pudo guardar.'); }
+        finally { setIsSavingProposal(false); }
     };
 
     const handleGenerateProposal = async () => {
@@ -149,341 +211,319 @@ export function QuoteSendView({
                 setProposalTitle(generated.title);
                 setProposalText(generated.text);
                 setCurrentProposalVersion(generated.version);
-                setActionFeedback({ type: 'success', text: generated.message });
+                setMsg('success', generated.message);
             }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'No se pudo generar propuesta con IA';
-            setActionFeedback({ type: 'error', text: message });
-        } finally {
-            setIsGeneratingProposal(false);
-        }
-    };
-
-    const copyToClipboard = async (value: string, label: string) => {
-        try {
-            await navigator.clipboard.writeText(value);
-            setActionFeedback({ type: 'success', text: `${label} copiado al portapapeles.` });
-        } catch {
-            setActionFeedback({ type: 'error', text: `No se pudo copiar ${label.toLowerCase()}.` });
-        }
+        } catch (e) { setMsg('error', e instanceof Error ? e.message : 'No se pudo generar.'); }
+        finally { setIsGeneratingProposal(false); }
     };
 
     const handleGenerateAccessLink = async () => {
         if (useCustomAccessCode) {
-            const normalizedCode = accessCode.trim();
-            if (normalizedCode.length < 4 || normalizedCode.length > 16) {
-                setActionFeedback({
-                    type: 'error',
-                    text: 'La clave temporal personalizada debe tener entre 4 y 16 caracteres.',
-                });
-                return;
-            }
+            const c = accessCode.trim();
+            if (c.length < 4 || c.length > 16) { setMsg('error', 'La clave debe tener entre 4 y 16 caracteres.'); return; }
         }
         setIsGeneratingAccessLink(true);
         try {
-            const result = await onGenerateAccessLink({
-                proposalId,
-                useCustomAccessCode,
-                accessCode: useCustomAccessCode ? accessCode.trim() : undefined,
-                message,
-            });
-            setActionFeedback({ type: result.ok ? 'success' : 'error', text: result.message });
+            const result = await onGenerateAccessLink({ proposalId, useCustomAccessCode, accessCode: useCustomAccessCode ? accessCode.trim() : undefined, message });
+            setMsg(result.ok ? 'success' : 'error', result.message);
             if (result.ok && result.publicUrl && result.accessCode) {
-                setGeneratedAccess({
-                    publicUrl: result.publicUrl,
-                    accessCode: result.accessCode,
-                    accessExpiresAt: result.accessExpiresAt,
-                });
+                setGeneratedAccess({ publicUrl: result.publicUrl, accessCode: result.accessCode, accessExpiresAt: result.accessExpiresAt });
             }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'No se pudo generar el acceso';
-            setActionFeedback({ type: 'error', text: message });
-        } finally {
-            setIsGeneratingAccessLink(false);
-        }
+        } catch (e) { setMsg('error', e instanceof Error ? e.message : 'No se pudo generar el acceso.'); }
+        finally { setIsGeneratingAccessLink(false); }
     };
 
-    return (
-        <div className="min-h-screen bg-[#F5F5F7] p-6 lg:p-12">
-            <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
+    const copyToClipboard = async (value: string, label: string) => {
+        try { await navigator.clipboard.writeText(value); setMsg('success', `${label} copiado.`); }
+        catch { setMsg('error', `No se pudo copiar.`); }
+    };
 
-                {/* Left: Configuration Form */}
-                <div className="space-y-6">
-                    <div className="flex items-center gap-4 mb-8">
-                        <Button variant="ghost" onClick={onCancel} className="h-10 w-10 p-0 rounded-full hover:bg-white/50">
-                            <ArrowLeft size={20} />
-                        </Button>
+    const total = Number(quote.totalWithTaxes || 0);
+
+    return (
+        <div className="flex min-h-screen flex-col bg-background">
+            {/* ── Page header ── */}
+            <div className="border-b border-gray-100 bg-white px-6 py-4 lg:px-10">
+                <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <button type="button" onClick={onCancel} className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white hover:bg-surface-2 transition-colors">
+                            <ArrowLeft size={16} />
+                        </button>
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Nougram</p>
-                            <h1 className="text-2xl font-bold text-[#1D1D1F]">Enviar Propuesta</h1>
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">Paso 2 de 3</div>
+                            <h1 className="text-[18px] font-semibold text-gray-900">Diseño de propuesta</h1>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="hidden items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 sm:flex">
+                            <span className="text-[11.5px] text-gray-400">Total</span>
+                            <span className="text-[15px] font-semibold tabular-nums text-gray-900">
+                                {formatCurrency(total, quote.currency)}
+                            </span>
                         </div>
                         {onGoToDashboard && (
-                            <Button
-                                variant="outline"
-                                className="ml-auto"
-                                onClick={onGoToDashboard}
-                            >
-                                <LayoutDashboard size={16} className="mr-2" />
-                                Ir al dashboard
+                            <Button variant="ghost" size="sm" onClick={onGoToDashboard} className="gap-1.5">
+                                <LayoutDashboard size={14} /> Dashboard
                             </Button>
                         )}
                     </div>
-                    {actionFeedback && (
-                        <div
-                            className={`rounded-md border px-3 py-2 text-sm ${
-                                actionFeedback.type === 'success'
-                                    ? 'border-green-200 bg-green-50 text-green-800'
-                                    : 'border-red-200 bg-red-50 text-red-800'
-                            }`}
-                        >
-                            {actionFeedback.text}
-                        </div>
-                    )}
+                </div>
+            </div>
 
-                    <Card>
-                        <CardContent className="space-y-6 pt-6">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Para</label>
-                                <Input value={to} onChange={e => setTo(e.target.value)} placeholder="cliente@empresa.com" />
-                            </div>
+            <div className="mx-auto w-full max-w-7xl flex-1 px-6 py-6 lg:px-10">
+                {/* Feedback */}
+                {feedback && (
+                    <div className={cn(
+                        'mb-4 rounded-xl border px-4 py-3 text-[13px]',
+                        feedback.type === 'success' ? 'border-green-200 bg-success-soft text-green-800' : 'border-red-200 bg-critical-soft text-red-800'
+                    )}>
+                        {feedback.text}
+                    </div>
+                )}
 
-                            {generatedAccess && (
-                                <div className="border-t border-blue-200 pt-4 space-y-3 rounded-xl bg-blue-50/70 p-4">
-                                    <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                                        <LinkIcon size={16} /> Acceso generado (sin envío de correo)
-                                    </h3>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-medium text-blue-700">Link portal cliente</label>
-                                        <div className="flex gap-2">
-                                            <Input value={generatedAccess.publicUrl} readOnly className="bg-white border-blue-200 text-blue-900" />
-                                            <Button
-                                                type="button"
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={() => void copyToClipboard(generatedAccess.publicUrl, 'Link')}
-                                            >
-                                                <Copy size={14} className="mr-1" /> Copiar
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-medium text-amber-700">Clave temporal</label>
-                                        <div className="flex gap-2">
-                                            <Input value={generatedAccess.accessCode} readOnly className="bg-amber-50 border-amber-300 text-amber-900 font-semibold" />
-                                            <Button
-                                                type="button"
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={() => void copyToClipboard(generatedAccess.accessCode, 'Clave')}
-                                            >
-                                                <Copy size={14} className="mr-1" /> Copiar
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    {generatedAccess.accessExpiresAt && (
-                                        <p className="text-xs text-blue-700">
-                                            Vigencia de acceso: {new Date(generatedAccess.accessExpiresAt).toLocaleString()}
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Asunto</label>
-                                <Input value={subject} onChange={e => setSubject(e.target.value)} />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Mensaje Personalizado</label>
-                                <textarea
-                                    className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-y"
-                                    placeholder="Escribe un mensaje opcional..."
-                                    value={message}
-                                    onChange={e => setMessage(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="border-t border-gray-100 pt-4 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-sm font-semibold text-gray-900">
-                                        Propuesta comercial independiente {currentProposalVersion ? `(V${currentProposalVersion})` : ''}
-                                    </h3>
-                                    <div className="flex gap-2">
-                                        {onOpenStructuredBuilder && (
-                                            <Button variant="outline" size="sm" onClick={onOpenStructuredBuilder}>
-                                                Editar propuesta estructurada
-                                            </Button>
-                                        )}
-                                        <Button variant="outline" size="sm" onClick={handleGenerateProposal} disabled={isGeneratingProposal}>
-                                            <Sparkles size={14} className="mr-1" />
-                                            {isGeneratingProposal ? 'Generando...' : 'Generar IA'}
-                                        </Button>
-                                        <Button variant="outline" size="sm" onClick={handleSaveProposal} disabled={isSavingProposal}>
-                                            <Save size={14} className="mr-1" />
-                                            {isSavingProposal ? 'Guardando...' : 'Guardar propuesta'}
-                                        </Button>
-                                    </div>
-                                </div>
-                                {proposalId && proposalText && (
-                                    <p className="text-xs text-green-600 font-medium">Listo para enviar</p>
-                                )}
-                                <Input
-                                    value={proposalTitle}
-                                    onChange={e => setProposalTitle(e.target.value)}
-                                    placeholder="Titulo de propuesta"
-                                />
-                                <textarea
-                                    className="flex min-h-[180px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-y"
-                                    placeholder="Escribe aqui descripcion, objetivos y entregables..."
-                                    value={proposalText}
-                                    onChange={e => setProposalText(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="border-t border-gray-100 pt-4 space-y-4">
-                                <h3 className="text-sm font-semibold text-gray-900">Acceso del cliente a propuesta</h3>
-                                <div className="flex items-center gap-3">
-                                    <input
-                                        type="checkbox"
-                                        checked={useCustomAccessCode}
-                                        onChange={e => setUseCustomAccessCode(e.target.checked)}
-                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-900">Definir clave temporal manualmente</p>
-                                        <p className="text-xs text-gray-500">Si no activas esto, el sistema genera la clave automáticamente.</p>
-                                    </div>
-                                </div>
-                                {useCustomAccessCode && (
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">Clave temporal personalizada</label>
-                                        <Input
-                                            value={accessCode}
-                                            onChange={e => setAccessCode(e.target.value)}
-                                            placeholder="Ej: ABRA2026"
-                                            maxLength={16}
-                                        />
-                                        <p className="text-xs text-gray-500">Debe tener entre 4 y 16 caracteres.</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="border-t border-gray-100 pt-4 space-y-4">
-                                <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                                    <Paperclip size={16} /> Adjuntos
-                                </h3>
-                                <div className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50/50">
-                                    <input
-                                        type="checkbox"
-                                        checked={includePdf}
-                                        onChange={e => setIncludePdf(e.target.checked)}
-                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm text-gray-700 font-medium">{`Cotización_${quote.project}_${quote.version}.pdf`}</span>
-                                </div>
-                            </div>
-
-                            <div className="border-t border-gray-100 pt-4 space-y-4">
-                                <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                                    <Eye size={16} /> Tracking Inteligente
-                                </h3>
-                                <div className="flex items-center gap-3">
-                                    <input
-                                        type="checkbox"
-                                        checked={trackingOpen}
-                                        onChange={e => setTrackingOpen(e.target.checked)}
-                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-900">Activar Pixel de Seguimiento</p>
-                                        <p className="text-xs text-gray-500">Recibe una notificación cuando el cliente abra el correo.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <div className="flex gap-4 pt-4">
-                        <Button variant="secondary" onClick={onCancel} className="flex-1">
-                            Cancelar
-                        </Button>
-                        <Button
-                            variant="outline"
-                            className="flex-1"
-                            onClick={handleGenerateAccessLink}
-                            disabled={isGeneratingAccessLink}
-                        >
-                            {isGeneratingAccessLink ? 'Generando acceso...' : 'Guardar acceso sin enviar'}
-                        </Button>
-                        <Button
-                            className="flex-1 bg-black text-white hover:bg-gray-800"
-                            onClick={handleSend}
-                            disabled={isSending}
-                        >
-                            {isSending ? 'Enviando...' : (
-                                <span className="flex items-center gap-2">
-                                    <Send size={16} /> Enviar Propuesta
-                                </span>
-                            )}
-                        </Button>
+                {/* ── Choice cards ── */}
+                <div className="mb-5">
+                    <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Modalidad de entrega</div>
+                    <div className="flex gap-3">
+                        <ChoiceCard
+                            icon={FileText}
+                            title="Plantilla estándar"
+                            subtitle="Lista para enviar · Rápido y directo"
+                            bullets={['Detalle automático de ítems y valores', 'El cliente acepta, rechaza o solicita cambios', 'Sin configuración adicional']}
+                            active={mode === 'standard'}
+                            onClick={() => setMode('standard')}
+                        />
+                        <ChoiceCard
+                            icon={Sparkles}
+                            title="Propuesta con IA"
+                            subtitle="Guiada · Narrativa profesional a medida"
+                            bullets={['La IA redacta una presentación personalizada', 'Mejor conversión en proyectos estratégicos', 'Incluye objetivos, alcance y entregables']}
+                            active={mode === 'ai'}
+                            accent
+                            onClick={() => setMode('ai')}
+                        />
                     </div>
                 </div>
 
-                {/* Right: Preview */}
-                <div className="hidden lg:block space-y-6">
-                    <h2 className="text-lg font-semibold text-gray-500 mb-8 pt-2">Vista Previa del Correo</h2>
-
-                    <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-                        {/* Fake Browser/Mail Header */}
-                        <div className="bg-gray-100 px-4 py-3 border-b border-gray-200 flex gap-2">
-                            <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                            <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                            <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                {/* ── Two-column layout ── */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
+                    {/* LEFT: Form */}
+                    <div className="space-y-4">
+                        {/* Email section */}
+                        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                            <div className="mb-4">
+                                <div className="text-[14.5px] font-semibold text-gray-900">Correo al cliente</div>
+                                <div className="text-[11.5px] text-gray-400">El cliente recibirá este mensaje en su bandeja.</div>
+                            </div>
+                            <div className="space-y-3">
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Para</label>
+                                    <Input
+                                        value={to}
+                                        onChange={e => setTo(e.target.value)}
+                                        placeholder="cliente@empresa.com"
+                                        className="h-9 bg-white"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Asunto</label>
+                                    <Input value={subject} onChange={e => setSubject(e.target.value)} className="h-9 bg-white" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Mensaje personalizado <span className="font-normal normal-case">· Opcional</span></label>
+                                    <textarea
+                                        value={message}
+                                        onChange={e => setMessage(e.target.value)}
+                                        placeholder="Escribe un mensaje breve al cliente…"
+                                        rows={3}
+                                        className="flex min-h-[80px] w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                    />
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="p-8 space-y-6">
-                            <div className="border-b border-gray-100 pb-6 space-y-1">
-                                <p className="text-sm text-gray-500">De: <span className="text-gray-900 font-medium">Nougram &lt;hola@nougram.co&gt;</span></p>
-                                <p className="text-sm text-gray-500">Para: <span className="text-gray-900 font-medium">{to || 'Destinatario'}</span></p>
-                                <p className="text-sm text-gray-500">Asunto: <span className="text-gray-900 font-medium">{subject}</span></p>
+                        {/* Proposal section */}
+                        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                            <div className="mb-4 flex items-start justify-between">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="text-[14.5px] font-semibold text-gray-900">
+                                            {mode === 'ai' ? 'Propuesta con IA' : 'Propuesta comercial'}
+                                        </div>
+                                        {mode === 'ai' && (
+                                            <span className="rounded-full bg-primary-soft px-2 py-px text-[9.5px] font-semibold uppercase tracking-wide text-primary">IA</span>
+                                        )}
+                                        {currentProposalVersion && (
+                                            <span className="text-[11px] text-gray-400">V{currentProposalVersion}</span>
+                                        )}
+                                    </div>
+                                    <div className="text-[11.5px] text-gray-400">
+                                        {mode === 'ai' ? 'La IA redacta y diseña la propuesta según tus objetivos.' : 'Título y descripción que verá el cliente.'}
+                                    </div>
+                                </div>
+                                <div className="flex shrink-0 gap-2">
+                                    {onOpenStructuredBuilder && (
+                                        <Button variant="outline" size="sm" onClick={onOpenStructuredBuilder} className="text-xs">
+                                            Estructurada
+                                        </Button>
+                                    )}
+                                    {mode === 'ai' && (
+                                        <Button variant="outline" size="sm" onClick={handleGenerateProposal} disabled={isGeneratingProposal} className="gap-1.5 text-xs">
+                                            <Sparkles size={12} />
+                                            {isGeneratingProposal ? 'Generando…' : 'Generar'}
+                                        </Button>
+                                    )}
+                                    <Button variant="outline" size="sm" onClick={handleSaveProposal} disabled={isSavingProposal} className="gap-1.5 text-xs">
+                                        <Save size={12} />
+                                        {isSavingProposal ? 'Guardando…' : 'Guardar'}
+                                    </Button>
+                                </div>
                             </div>
-
-                            <div className="space-y-4 text-gray-600 text-sm leading-relaxed">
-                                <p>Hola,</p>
-                                {message ? (
-                                    <p className="whitespace-pre-wrap">{message}</p>
-                                ) : (
-                                    <p className="italic text-gray-400">[Tu mensaje personalizado aparecerá aquí]</p>
-                                )}
-
-                                <p>Adjunto encontrarás la cotización para el proyecto <strong>{quote.project}</strong>.</p>
-                                {proposalText && (
-                                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                                        <p className="text-xs text-blue-700 font-semibold uppercase mb-1">{proposalTitle}</p>
-                                        <p className="whitespace-pre-wrap text-sm text-blue-900">{proposalText}</p>
+                            <div className="space-y-3">
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Título de la propuesta</label>
+                                    <Input value={proposalTitle} onChange={e => setProposalTitle(e.target.value)} className="h-9 bg-white" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                                        {mode === 'ai' ? 'Brief para la IA' : 'Descripción'}
+                                        <span className="ml-1.5 font-normal normal-case text-gray-400">
+                                            {mode === 'ai' ? '· Objetivos, tono, entregables' : '· Contexto y entregables'}
+                                        </span>
+                                    </label>
+                                    <textarea
+                                        value={proposalText}
+                                        onChange={e => setProposalText(e.target.value)}
+                                        placeholder={mode === 'ai' ? 'Ej: Tono profesional y cercano. Enfatizar ROI. Incluir caso de estudio…' : 'Describe alcance, objetivos y entregables…'}
+                                        rows={5}
+                                        className="flex min-h-[100px] w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                    />
+                                </div>
+                                {proposalId && proposalText && (
+                                    <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-success">
+                                        <Check size={12} strokeWidth={2.5} /> Propuesta guardada · lista para enviar
                                     </div>
                                 )}
+                            </div>
+                        </div>
 
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 mt-4">
-                                    <p className="font-semibold text-gray-900">{quote.project}</p>
-                                    <p className="text-gray-500">Versión: {quote.version}</p>
-                                    <p className="text-lg font-bold text-gray-900 mt-1">
-                                        {formatCurrency(quote.totalWithTaxes, quote.currency)}
-                                    </p>
-                                    <div className="mt-3">
-                                        <Button size="sm" className="w-full bg-[#1D1D1F] text-white">
-                                            Ver Propuesta Online
-                                        </Button>
+                        {/* Attachments + Options */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            {/* Attachments */}
+                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                                <div className="mb-3 text-[13px] font-semibold text-gray-800">Adjuntos</div>
+                                <label className={cn(
+                                    'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors',
+                                    includePdf ? 'border-gray-200 bg-white shadow-sm' : 'border-transparent bg-surface-2 opacity-60'
+                                )}>
+                                    <input type="checkbox" checked={includePdf} onChange={e => setIncludePdf(e.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300 text-primary" />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="truncate text-[12px] font-medium text-gray-700">{`Cotización_${quote.project}_v${quote.version}.pdf`}</div>
+                                        <div className="text-[10.5px] text-gray-400">PDF</div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            {/* Options */}
+                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
+                                <div className="text-[13px] font-semibold text-gray-800">Opciones de acceso</div>
+                                <div className="flex items-start gap-3">
+                                    <Toggle checked={useCustomAccessCode} onChange={setUseCustomAccessCode} />
+                                    <div>
+                                        <div className="text-[12.5px] font-medium text-gray-700">Clave temporal manual</div>
+                                        <div className="text-[11px] text-gray-400">Si no la activas, la generamos automáticamente.</div>
+                                    </div>
+                                </div>
+                                {useCustomAccessCode && (
+                                    <Input
+                                        value={accessCode}
+                                        onChange={e => setAccessCode(e.target.value.toUpperCase())}
+                                        placeholder="Ej: ABRA2026"
+                                        maxLength={16}
+                                        className="h-9 bg-white font-mono tracking-widest"
+                                    />
+                                )}
+                                <div className="border-t border-gray-100 pt-2 flex items-start gap-3">
+                                    <Toggle checked={trackingOpen} onChange={setTrackingOpen} />
+                                    <div>
+                                        <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-gray-700">
+                                            <Eye size={11} /> Pixel de seguimiento
+                                            {trackingOpen && <span className="rounded-full bg-success-soft px-1.5 py-px text-[9.5px] font-semibold text-success">ON</span>}
+                                        </div>
+                                        <div className="text-[11px] text-gray-400">Notificación cuando el cliente abra el correo.</div>
                                     </div>
                                 </div>
                             </div>
-
-                            <div className="pt-6 border-t border-gray-100">
-                                <p className="text-xs text-gray-400">
-                                    Enviado con Nougram · Trazabilidad activada
-                                </p>
-                            </div>
                         </div>
+
+                        {/* Generated access display */}
+                        {generatedAccess && (
+                            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+                                <div className="flex items-center gap-2 text-[13px] font-semibold text-blue-900">
+                                    <LinkIcon size={14} /> Acceso generado (sin envío de correo)
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="text-[10.5px] font-semibold uppercase tracking-wide text-blue-600">Link portal</div>
+                                    <div className="flex gap-2">
+                                        <Input value={generatedAccess.publicUrl} readOnly className="bg-white border-blue-200 text-[12px]" />
+                                        <Button type="button" variant="outline" size="sm" onClick={() => void copyToClipboard(generatedAccess.publicUrl, 'Link')}>
+                                            <Copy size={13} />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="text-[10.5px] font-semibold uppercase tracking-wide text-amber-600">Clave temporal</div>
+                                    <div className="flex gap-2">
+                                        <Input value={generatedAccess.accessCode} readOnly className="bg-amber-50 border-amber-200 font-mono text-amber-900 font-semibold text-[12px]" />
+                                        <Button type="button" variant="outline" size="sm" onClick={() => void copyToClipboard(generatedAccess.accessCode, 'Clave')}>
+                                            <Copy size={13} />
+                                        </Button>
+                                    </div>
+                                    {generatedAccess.accessExpiresAt && (
+                                        <div className="text-[10.5px] text-blue-600">Vigente hasta: {new Date(generatedAccess.accessExpiresAt).toLocaleString()}</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* RIGHT: Sticky preview */}
+                    <div className="sticky top-4 self-start space-y-2">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-1">Vista previa del correo</div>
+                        <EmailPreview
+                            to={to} subject={subject} message={message}
+                            projectName={quote.project} version={quote.version}
+                            total={total} currency={quote.currency} mode={mode}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Sticky footer ── */}
+            <div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white/90 backdrop-blur px-6 py-3 lg:px-10">
+                <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+                    <div className="text-[12px] text-gray-400">
+                        Modalidad: <span className="font-semibold text-gray-700">{mode === 'ai' ? 'Propuesta con IA' : 'Plantilla estándar'}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="ghost" onClick={onCancel} className="text-[13px]">Volver</Button>
+                        <Button
+                            variant="outline"
+                            onClick={handleGenerateAccessLink}
+                            disabled={isGeneratingAccessLink}
+                            className="gap-1.5 text-[13px]"
+                        >
+                            <LinkIcon size={13} />
+                            {isGeneratingAccessLink ? 'Generando…' : 'Guardar acceso sin enviar'}
+                        </Button>
+                        <Button
+                            onClick={handleSend}
+                            disabled={isSending}
+                            className="gap-1.5 bg-gray-900 text-white hover:bg-gray-800 text-[13px]"
+                        >
+                            <Send size={13} />
+                            {isSending ? 'Enviando…' : 'Enviar propuesta'}
+                        </Button>
                     </div>
                 </div>
             </div>

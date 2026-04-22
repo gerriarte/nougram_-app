@@ -4,7 +4,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNougram } from '@/context/NougramCoreContext';
 import {
-    QuoteBuilderState, QuoteItem, TaxConfig, CalculationSummary,
+    QuoteBuilderState, QuoteItem, QuoteExpense, TaxConfig, CalculationSummary,
     PricingType, Service, Contingency
 } from '@/types/quote-builder';
 import { taxService } from '@/services/taxService';
@@ -29,6 +29,7 @@ const INITIAL_STATE: QuoteBuilderState = {
     projectDescription: '',
     currency: 'COP',
     items: [],
+    expenses: [],
     selectedTaxIds: [],
     targetMargin: 0.35, // Default margin
     allowLowMargin: false,
@@ -67,6 +68,10 @@ interface QuoteBuilderContextType {
     updateItem: (itemId: string, updates: Partial<QuoteItem>) => void;
     removeItem: (itemId: string) => void;
 
+    addExpense: (expense: Omit<QuoteExpense, 'id' | 'clientPrice'>) => void;
+    updateExpense: (expenseId: string, updates: Partial<QuoteExpense>) => void;
+    removeExpense: (expenseId: string) => void;
+
     toggleTax: (taxId: number) => void;
     setTargetMargin: (margin: number) => void;
     setContingency: (contingency: Contingency | undefined) => void;
@@ -83,7 +88,8 @@ interface QuoteBuilderContextType {
     isValid: boolean;
     errors: string[];
 
-    saveQuote: (status?: 'Draft' | 'Sent' | 'Won' | 'Lost') => Promise<string | undefined>;
+    /** `null` = paywall de créditos abierto (no navegar). `undefined` = salida temprana sin guardar. */
+    saveQuote: (status?: 'Draft' | 'Sent' | 'Won' | 'Lost') => Promise<string | null | undefined>;
     loadQuote: (id: string) => Promise<void>;
 
     /** 402 / credits paywall: show PaywallModal when reason is set */
@@ -150,7 +156,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     // --- CALCULATION ENGINE ---
     useEffect(() => {
         calculateTotals();
-    }, [state.items, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency, taxes]);
+    }, [state.items, state.expenses, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency, taxes]);
 
     useEffect(() => {
         if (!state.selectedTaxIds.length) return;
@@ -170,7 +176,8 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             state.items,
             taxes,
             state.selectedTaxIds,
-            state.contingency
+            state.contingency,
+            state.expenses
         );
 
         setSummary(totals);
@@ -250,6 +257,29 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     const removeItem = (itemId: string) =>
         setState(prev => ({ ...prev, items: prev.items.filter(i => i.id !== itemId) }));
 
+    const addExpense = (expense: Omit<QuoteExpense, 'id' | 'clientPrice'>) =>
+        setState(prev => ({
+            ...prev,
+            expenses: [...prev.expenses, {
+                ...expense,
+                id: crypto.randomUUID(),
+                clientPrice: expense.cost * expense.quantity * (1 + expense.markupPercentage),
+            }],
+        }));
+
+    const updateExpense = (expenseId: string, updates: Partial<QuoteExpense>) =>
+        setState(prev => ({
+            ...prev,
+            expenses: prev.expenses.map(e =>
+                e.id === expenseId
+                    ? { ...e, ...updates, clientPrice: (updates.cost ?? e.cost) * (updates.quantity ?? e.quantity) * (1 + (updates.markupPercentage ?? e.markupPercentage)) }
+                    : e
+            ),
+        }));
+
+    const removeExpense = (expenseId: string) =>
+        setState(prev => ({ ...prev, expenses: prev.expenses.filter(e => e.id !== expenseId) }));
+
     const toggleTax = (taxId: number) =>
         setState(prev => {
             const exists = prev.selectedTaxIds.includes(taxId);
@@ -294,9 +324,12 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
 
     // --- VALIDATION ---
     const errors: string[] = [];
-    if (!state.projectName) errors.push('Project Name Required');
-    if (!state.clientName) errors.push('Client Name Required');
-    if (state.items.length === 0) errors.push('At least one item required');
+    if (!normalizeOptionalText(state.projectName)) errors.push('Nombre del proyecto requerido');
+    const hasClientForSave =
+        Boolean(normalizeOptionalText(state.clientName)) ||
+        Boolean(normalizeOptionalText(state.clientCompany));
+    if (!hasClientForSave) errors.push('Cliente requerido');
+    if (state.items.length === 0) errors.push('Al menos un ítem de servicio requerido (gastos de proveedor no bastan)');
     if (summary.totalClientPrice < summary.totalInternalCost && !state.allowLowMargin) {
         errors.push('CRITICAL: Price below Cost');
     }
@@ -329,7 +362,10 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         const payload = {
             projectName: state.projectName,
             clientId: state.clientId ?? undefined,
-            clientName: state.clientName,
+            clientName:
+                normalizeOptionalText(state.clientName) ||
+                normalizeOptionalText(state.clientCompany) ||
+                state.clientName,
             clientEmail: state.clientEmail,
             selectedTaxIds: sanitizedTaxIds,
             amount: summary.totalClientPrice,
@@ -337,7 +373,15 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             marginPercentage: summary.netMarginPercent,
             targetMargin: state.targetMargin,
             contingency: state.contingency,
-            items: state.items
+            items: state.items,
+            expenses: state.expenses.map(e => ({
+                name: e.name,
+                description: e.vendorName,
+                cost: String(e.cost),
+                markup_percentage: String(e.markupPercentage),
+                quantity: String(e.quantity),
+                category: e.category,
+            })),
         };
 
         if (state.items.length === 0) return undefined;
@@ -387,7 +431,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                         requiredCredits: err.requiredCredits ?? 1,
                     },
                 });
-                return;
+                return null;
             }
             throw err;
         }
@@ -441,7 +485,9 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     return (
         <QuoteBuilderContext.Provider value={{
             state, services, taxes, teamMembers,
-            updateProjectInfo, addItem, updateItem, removeItem, toggleTax, setTargetMargin, setContingency,
+            updateProjectInfo, addItem, updateItem, removeItem,
+            addExpense, updateExpense, removeExpense,
+            toggleTax, setTargetMargin, setContingency,
             toggleResourceAllocation, addResourceAllocation, updateResourceAllocation, removeResourceAllocation, getMemberUtilization,
             summary, isValid: errors.length === 0, errors,
             saveQuote, loadQuote,

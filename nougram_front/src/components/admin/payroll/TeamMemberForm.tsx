@@ -117,7 +117,7 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
                             id="member-active"
                             checked={formData.isActive}
                             onChange={e => setFormData({ ...formData, isActive: e.target.checked })}
-                            className="h-4 w-4 rounded text-blue-600"
+                            className="h-4 w-4 rounded accent-primary"
                         />
                         <Label htmlFor="member-active" className="font-normal cursor-pointer">Miembro activo</Label>
                     </div>
@@ -129,8 +129,9 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
                                 <Label>Salario Mensual Bruto *</Label>
                                 <Input
                                     type="number"
+                                    isInteger
                                     value={formData.salaryMonthlyBrute || ''}
-                                    onChange={e => setFormData({ ...formData, salaryMonthlyBrute: parseFloat(e.target.value) || 0 })}
+                                    onChange={e => setFormData({ ...formData, salaryMonthlyBrute: parseInt(e.target.value, 10) || 0 })}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -147,7 +148,7 @@ export function TeamMemberForm({ open, onOpenChange, initialData, onSave }: Team
                                 id="charges"
                                 checked={formData.applySocialCharges}
                                 onChange={e => setFormData({ ...formData, applySocialCharges: e.target.checked })}
-                                className="h-4 w-4 text-blue-600 rounded"
+                                className="h-4 w-4 accent-primary rounded"
                             />
                             <Label htmlFor="charges" className="font-normal cursor-pointer">Aplicar cargas sociales automáticas</Label>
                         </div>

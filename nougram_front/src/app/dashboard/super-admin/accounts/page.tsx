@@ -19,7 +19,7 @@ import {
     Users
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -1147,7 +1147,7 @@ export default function SuperAdminAccountsPage() {
         return (
             <AdminLayout hideRightPanel>
                 <div className="flex items-center justify-center min-h-[50vh]">
-                    <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+                    <div className="w-10 h-10 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin" />
                 </div>
             </AdminLayout>
         );
@@ -1241,8 +1241,8 @@ export default function SuperAdminAccountsPage() {
                     </div>
                 </div>
 
-                <Card>
-                    <CardContent>
+                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                    <div className="p-6">
                         <div className="flex flex-col md:flex-row md:items-end gap-3">
                             <div className="min-w-0 flex-1">
                                 <label className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
@@ -1269,8 +1269,8 @@ export default function SuperAdminAccountsPage() {
                                 Usa este desplegable para cambiar de tenant sin navegar la lista.
                             </p>
                         </div>
-                    </CardContent>
-                </Card>
+                    </div>
+                </div>
 
                 {error && (
                     <Alert variant="critical">
@@ -1291,15 +1291,15 @@ export default function SuperAdminAccountsPage() {
                 )}
 
                 <div className="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-6">
-                    <Card>
-                        <CardHeader className="space-y-4">
+                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                        <div className="px-6 py-4 border-b border-gray-100 space-y-4">
                             <div className="flex items-center justify-between gap-3">
-                                <CardTitle className="text-2xl">Tenants</CardTitle>
+                                <h3 className="text-[20px] font-bold text-gray-900">Tenants</h3>
                                 <Badge variant="info">{organizations.length} en pagina</Badge>
                             </div>
-                            <CardDescription>
+                            <p className="text-[13px] text-gray-500">
                                 Vista de cuentas por pagina. Puedes filtrar por texto y seleccionar una para administrar.
-                            </CardDescription>
+                            </p>
                             <div className="relative">
                                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-system-gray" />
                                 <Input
@@ -1318,10 +1318,10 @@ export default function SuperAdminAccountsPage() {
                                 />
                                 Incluir cuentas inactivas/canceladas
                             </label>
-                        </CardHeader>
-                        <CardContent className="pt-0">
-                            <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 mb-4 space-y-3">
-                                <p className="text-[11px] font-black text-blue-700 uppercase tracking-[0.15em]">
+                        </div>
+                        <div className="p-6 pt-0">
+                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 mb-4 space-y-3">
+                                <p className="text-[11px] font-black text-gray-500 uppercase tracking-[0.15em]">
                                     Crear nuevo tenant
                                 </p>
                                 <div className="space-y-3">
@@ -1337,7 +1337,7 @@ export default function SuperAdminAccountsPage() {
                                     />
                                     <div className="grid grid-cols-2 gap-3">
                                         <select
-                                            className="h-12 w-full rounded-xl bg-white px-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                            className="h-12 w-full rounded-xl bg-white px-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/50"
                                             value={newOrgPlan}
                                             onChange={(event) => setNewOrgPlan(event.target.value)}
                                         >
@@ -1348,7 +1348,7 @@ export default function SuperAdminAccountsPage() {
                                             ))}
                                         </select>
                                         <select
-                                            className="h-12 w-full rounded-xl bg-white px-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                            className="h-12 w-full rounded-xl bg-white px-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/50"
                                             value={newOrgStatus}
                                             onChange={(event) => setNewOrgStatus(event.target.value)}
                                         >
@@ -1361,7 +1361,7 @@ export default function SuperAdminAccountsPage() {
                                     </div>
                                 </div>
                                 <Button
-                                    className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white"
+                                    className="h-11 rounded-xl bg-gray-900 hover:bg-gray-700 text-white"
                                     onClick={() => void createTenant()}
                                     disabled={busyAction === 'create'}
                                 >
@@ -1373,7 +1373,7 @@ export default function SuperAdminAccountsPage() {
                             <div className="space-y-3 max-h-[620px] overflow-y-auto pr-1">
                                 {listLoading && (
                                     <div className="py-8 flex justify-center">
-                                        <div className="w-7 h-7 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+                                        <div className="w-7 h-7 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin" />
                                     </div>
                                 )}
                                 {!listLoading && filteredOrganizations.length === 0 && (
@@ -1390,7 +1390,7 @@ export default function SuperAdminAccountsPage() {
                                             type="button"
                                             onClick={() => setSelectedOrgId(org.id)}
                                             className={`w-full text-left rounded-2xl border p-4 transition-all ${isActiveCard
-                                                ? 'border-blue-300 bg-blue-50/70 shadow-sm'
+                                                ? 'border-primary bg-primary-soft shadow-sm'
                                                 : 'border-gray-100 bg-white hover:border-gray-200'
                                                 }`}
                                         >
@@ -1438,38 +1438,38 @@ export default function SuperAdminAccountsPage() {
                                     Siguiente
                                 </Button>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
                     <div className="space-y-6">
                         {!selectedOrgId && (
-                            <Card>
-                                <CardContent>
+                            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                <div className="p-6">
                                     <div className="py-14 text-center text-system-gray">
                                         Selecciona una cuenta para administrar su operacion.
                                     </div>
-                                </CardContent>
-                            </Card>
+                                </div>
+                            </div>
                         )}
 
                         {selectedOrgId && (
                             <>
-                                <Card>
-                                    <CardHeader>
+                                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div className="px-6 py-4 border-b border-gray-100">
                                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                             <div>
-                                                <CardTitle className="text-2xl flex items-center gap-2">
+                                                <h3 className="text-[20px] font-bold text-gray-900 flex items-center gap-2">
                                                     <Building2 size={20} />
                                                     {selectedOrg?.name || `Tenant #${selectedOrgId}`}
-                                                </CardTitle>
-                                                <CardDescription className="mt-1">
+                                                </h3>
+                                                <p className="text-[13px] text-gray-500 mt-1">
                                                     Gestion de estado de cuenta y plan de suscripcion.
-                                                </CardDescription>
+                                                </p>
                                             </div>
                                             <Badge variant={getStatusVariant(status)}>{status}</Badge>
                                         </div>
-                                    </CardHeader>
-                                    <CardContent>
+                                    </div>
+                                    <div className="p-6">
                                         <div className="grid grid-cols-1 xl:grid-cols-4 gap-3 mb-4">
                                             <div className="rounded-xl border border-gray-100 bg-white p-3">
                                                 <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
@@ -1532,7 +1532,7 @@ export default function SuperAdminAccountsPage() {
                                                     Plan
                                                 </label>
                                                 <select
-                                                    className="h-12 w-full rounded-xl bg-gray-200/50 px-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                                    className="h-12 w-full rounded-xl bg-gray-200/50 px-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/50"
                                                     value={plan}
                                                     onChange={(event) => setPlan(event.target.value)}
                                                 >
@@ -1548,7 +1548,7 @@ export default function SuperAdminAccountsPage() {
                                                     Estado
                                                 </label>
                                                 <select
-                                                    className="h-12 w-full rounded-xl bg-gray-200/50 px-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                                    className="h-12 w-full rounded-xl bg-gray-200/50 px-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400/50"
                                                     value={status}
                                                     onChange={(event) => setStatus(event.target.value)}
                                                 >
@@ -1563,7 +1563,7 @@ export default function SuperAdminAccountsPage() {
 
                                         <div className="mt-4 flex items-center gap-3">
                                             <Button
-                                                className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white"
+                                                className="h-11 rounded-xl bg-gray-900 hover:bg-gray-700 text-white"
                                                 onClick={() => void saveSubscription()}
                                                 disabled={busyAction === 'subscription'}
                                             >
@@ -1589,12 +1589,12 @@ export default function SuperAdminAccountsPage() {
                                                 Suspender
                                             </Button>
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                    <Card>
-                                        <CardContent className="space-y-2">
+                                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                        <div className="p-6 space-y-2">
                                             <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
                                                 Creditos disponibles
                                             </p>
@@ -1607,10 +1607,10 @@ export default function SuperAdminAccountsPage() {
                                             <p className="text-[11px] text-system-gray">
                                                 A nivel empresa (tenant), no por usuario.
                                             </p>
-                                        </CardContent>
-                                    </Card>
-                                    <Card>
-                                        <CardContent className="space-y-2">
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                        <div className="p-6 space-y-2">
                                             <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
                                                 Cotizaciones y cupo
                                             </p>
@@ -1623,10 +1623,10 @@ export default function SuperAdminAccountsPage() {
                                             <p className="text-[11px] text-system-gray">
                                                 {usage?.metrics.quote_policy?.message || 'Las cotizaciones se controlan por créditos del tenant.'}
                                             </p>
-                                        </CardContent>
-                                    </Card>
-                                    <Card>
-                                        <CardContent className="space-y-2">
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                        <div className="p-6 space-y-2">
                                             <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em]">
                                                 Usuarios del tenant
                                             </p>
@@ -1639,21 +1639,21 @@ export default function SuperAdminAccountsPage() {
                                             <p className="text-[11px] text-system-gray">
                                                 Limite plan: {formatLimit(usage?.metrics.plan_limits?.max_users)}
                                             </p>
-                                        </CardContent>
-                                    </Card>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-lg flex items-center gap-2">
+                                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div className="px-6 py-4 border-b border-gray-100">
+                                        <h3 className="text-[16px] font-bold text-gray-900 flex items-center gap-2">
                                             <Coins size={16} />
                                             Limites del plan y disponibilidad
-                                        </CardTitle>
-                                        <CardDescription>
+                                        </h3>
+                                        <p className="text-[13px] text-gray-500">
                                             Todos los tenants inician en free. La disponibilidad se controla por empresa.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+                                        </p>
+                                    </div>
+                                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
                                         <div className="rounded-xl border border-gray-100 bg-white p-3">
                                             <p className="text-[11px] font-black uppercase tracking-[0.15em] text-system-gray">Usuarios</p>
                                             <p className="text-sm font-bold text-gray-900">
@@ -1684,21 +1684,21 @@ export default function SuperAdminAccountsPage() {
                                                 Limite: {formatLimit(usage?.metrics.plan_limits?.max_team_members)}
                                             </p>
                                         </div>
-                                        <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
-                                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-blue-700">Creditos mensuales</p>
-                                            <p className="text-sm font-bold text-blue-900">
+                                        <div className="rounded-xl border border-primary-soft bg-primary-soft p-3">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-primary">Creditos mensuales</p>
+                                            <p className="text-sm font-bold text-gray-900">
                                                 {formatLimit(usage?.metrics.plan_limits?.credits_per_month)}
                                             </p>
-                                            <p className="text-[11px] text-blue-700">
+                                            <p className="text-[11px] text-primary">
                                                 Disponibles ahora: {balance ? balance.credits_available : '-'}
                                             </p>
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                    <Card>
-                                        <CardContent className="space-y-2">
+                                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                        <div className="p-6 space-y-2">
                                             <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em] flex items-center gap-1.5">
                                                 <FileText size={12} />
                                                 Propuestas (tenant)
@@ -1717,10 +1717,10 @@ export default function SuperAdminAccountsPage() {
                                                     </p>
                                                 </>
                                             )}
-                                        </CardContent>
-                                    </Card>
-                                    <Card>
-                                        <CardContent className="space-y-2">
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                        <div className="p-6 space-y-2">
                                             <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em] flex items-center gap-1.5">
                                                 <Sparkles size={12} />
                                                 Uso IA (30 d)
@@ -1739,10 +1739,10 @@ export default function SuperAdminAccountsPage() {
                                                     </p>
                                                 </>
                                             )}
-                                        </CardContent>
-                                    </Card>
-                                    <Card>
-                                        <CardContent className="space-y-2">
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                        <div className="p-6 space-y-2">
                                             <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em] flex items-center gap-1.5">
                                                 <TrendingUp size={12} />
                                                 Cuenta paga
@@ -1762,21 +1762,21 @@ export default function SuperAdminAccountsPage() {
                                                     </p>
                                                 </>
                                             )}
-                                        </CardContent>
-                                    </Card>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-xl flex items-center gap-2">
+                                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div className="px-6 py-4 border-b border-gray-100">
+                                        <h3 className="text-[18px] font-bold text-gray-900 flex items-center gap-2">
                                             <TrendingUp size={18} />
                                             Analitica comparativa
-                                        </CardTitle>
-                                        <CardDescription>
+                                        </h3>
+                                        <p className="text-[13px] text-gray-500">
                                             Compara el periodo actual vs periodo anterior de la misma longitud.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
+                                        </p>
+                                    </div>
+                                    <div className="p-6">
                                         <div className="mb-4 flex flex-wrap items-center gap-2">
                                             <span className="text-xs font-semibold text-system-gray">Rango:</span>
                                             <select
@@ -1821,20 +1821,20 @@ export default function SuperAdminAccountsPage() {
                                                 </p>
                                             </div>
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
 
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-xl flex items-center gap-2">
+                                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div className="px-6 py-4 border-b border-gray-100">
+                                        <h3 className="text-[18px] font-bold text-gray-900 flex items-center gap-2">
                                             <FileText size={18} />
                                             Fallback Super Admin: solicitudes manuales
-                                        </CardTitle>
-                                        <CardDescription>
+                                        </h3>
+                                        <p className="text-[13px] text-gray-500">
                                             Cola operativa de solicitudes de billing del tenant (visible aunque falle email).
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
+                                        </p>
+                                    </div>
+                                    <div className="p-6">
                                         <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
                                             {detailLoading && (
                                                 <div className="text-sm text-system-gray">Cargando solicitudes...</div>
@@ -1861,20 +1861,20 @@ export default function SuperAdminAccountsPage() {
                                                 </div>
                                             ))}
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
 
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-xl flex items-center gap-2">
+                                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div className="px-6 py-4 border-b border-gray-100">
+                                        <h3 className="text-[18px] font-bold text-gray-900 flex items-center gap-2">
                                             <ShieldAlert size={18} />
                                             Alertas automaticas
-                                        </CardTitle>
-                                        <CardDescription>
+                                        </h3>
+                                        <p className="text-[13px] text-gray-500">
                                             Deteccion automatica de señales de riesgo operativo y financiero.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
+                                        </p>
+                                    </div>
+                                    <div className="p-6">
                                         {automaticAlerts.length === 0 ? (
                                             <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
                                                 Sin alertas criticas para este tenant en el estado actual.
@@ -1894,20 +1894,20 @@ export default function SuperAdminAccountsPage() {
                                                 ))}
                                             </div>
                                         )}
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
 
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-xl flex items-center gap-2">
+                                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div className="px-6 py-4 border-b border-gray-100">
+                                        <h3 className="text-[18px] font-bold text-gray-900 flex items-center gap-2">
                                             <CreditCard size={18} />
                                             Operaciones de creditos
-                                        </CardTitle>
-                                        <CardDescription>
+                                        </h3>
+                                        <p className="text-[13px] text-gray-500">
                                             Controles de soporte para ajustes manuales y reset de ciclo.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
+                                        </p>
+                                    </div>
+                                    <div className="p-6">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                             <div className="md:col-span-1">
                                                 <Input
@@ -1928,7 +1928,7 @@ export default function SuperAdminAccountsPage() {
                                         </div>
                                         <div className="mt-4 flex flex-wrap items-center gap-3">
                                             <Button
-                                                className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white"
+                                                className="h-11 rounded-xl bg-gray-900 hover:bg-gray-700 text-white"
                                                 onClick={() => void grantManualCredits()}
                                                 disabled={busyAction === 'grant'}
                                             >
@@ -1948,20 +1948,20 @@ export default function SuperAdminAccountsPage() {
                                                 Proximo reset: {formatDate(balance?.next_reset_at)}
                                             </p>
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
 
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-xl flex items-center gap-2">
+                                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div className="px-6 py-4 border-b border-gray-100">
+                                        <h3 className="text-[18px] font-bold text-gray-900 flex items-center gap-2">
                                             <ShieldAlert size={18} />
                                             Trazabilidad de cuenta
-                                        </CardTitle>
-                                        <CardDescription>
+                                        </h3>
+                                        <p className="text-[13px] text-gray-500">
                                             Ultimos movimientos de creditos y usuarios del tenant seleccionado.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        </p>
+                                    </div>
+                                    <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                                         <div>
                                             <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em] mb-3">
                                                 Transacciones recientes
@@ -2030,8 +2030,8 @@ export default function SuperAdminAccountsPage() {
                                             <p className="text-[11px] font-black text-system-gray uppercase tracking-[0.15em] mb-3">
                                                 Usuarios del tenant (gestion)
                                             </p>
-                                            <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/70 p-3 space-y-2">
-                                                <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Crear usuario</p>
+                                            <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
+                                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Crear usuario</p>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                                     <Input
                                                         value={newUserEmail}
@@ -2065,7 +2065,7 @@ export default function SuperAdminAccountsPage() {
                                                     </select>
                                                 </div>
                                                 <Button
-                                                    className="h-9 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                                                    className="h-9 text-xs bg-gray-900 hover:bg-gray-700 text-white"
                                                     onClick={() => void createTenantUser()}
                                                     disabled={busyAction === 'create-user'}
                                                 >
@@ -2131,20 +2131,20 @@ export default function SuperAdminAccountsPage() {
                                                 ))}
                                             </div>
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
 
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-xl flex items-center gap-2">
+                                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div className="px-6 py-4 border-b border-gray-100">
+                                        <h3 className="text-[18px] font-bold text-gray-900 flex items-center gap-2">
                                             <ShieldAlert size={18} />
                                             Ledger financiero
-                                        </CardTitle>
-                                        <CardDescription>
+                                        </h3>
+                                        <p className="text-[13px] text-gray-500">
                                             Eventos financieros con filtros por proveedor y rango de fechas.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
+                                        </p>
+                                    </div>
+                                    <div className="p-6">
                                         <div className="mb-3 grid grid-cols-1 md:grid-cols-5 gap-2">
                                             <Input
                                                 value={ledgerProviderFilter}
@@ -2202,20 +2202,20 @@ export default function SuperAdminAccountsPage() {
                                                 </div>
                                             ))}
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
 
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-xl flex items-center gap-2">
+                                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div className="px-6 py-4 border-b border-gray-100">
+                                        <h3 className="text-[18px] font-bold text-gray-900 flex items-center gap-2">
                                             <BadgeCheck size={18} />
                                             Historial de suscripcion
-                                        </CardTitle>
-                                        <CardDescription>
+                                        </h3>
+                                        <p className="text-[13px] text-gray-500">
                                             Trazabilidad de cambios de plan y estado por tenant.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
+                                        </p>
+                                    </div>
+                                    <div className="p-6">
                                         <div className="mb-3 grid grid-cols-1 md:grid-cols-3 gap-2">
                                             <Input
                                                 type="date"
@@ -2258,8 +2258,8 @@ export default function SuperAdminAccountsPage() {
                                                 </div>
                                             ))}
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
                             </>
                         )}
                     </div>

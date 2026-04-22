@@ -1018,6 +1018,131 @@ No inventes datos numéricos que no estén en el contexto; si faltan, redacta su
             }
 
 
+    async def generate_proposal_sections_with_user_key(
+        self,
+        *,
+        user_api_key: str,
+        ai_provider: str = "openai",
+        project_name: str,
+        client_name: str,
+        currency: str,
+        services: List[str],
+        objective: str,
+        timeline: str,
+        payment_conditions: str,
+        execution_conditions: str,
+        language: str = "es",
+        extra_instructions: str = "",
+    ) -> Dict[str, Any]:
+        """Generate proposal sections using a user-supplied API key (OpenAI or Anthropic)."""
+        system_language = "español" if language == "es" else "english"
+        user_prompt = f"""Genera una propuesta comercial estructurada con la siguiente información.
+
+Proyecto: {project_name}
+Cliente: {client_name}
+Moneda: {currency}
+Servicios cotizados:
+{chr(10).join(f"- {s}" for s in services if s.strip()) or "- (no especificados)"}
+
+Objetivo de la propuesta:
+{objective or "(no especificado)"}
+
+Tiempo estimado de desarrollo:
+{timeline or "(no especificado)"}
+
+Condiciones de pago:
+{payment_conditions or "(no especificadas)"}
+
+Condiciones de ejecución:
+{execution_conditions or "(no especificadas)"}
+
+Instrucciones adicionales:
+{extra_instructions or "(sin instrucciones adicionales)"}
+
+Devuelve SOLO JSON válido con esta estructura:
+{{
+  "description": "texto",
+  "objectives": ["objetivo 1", "objetivo 2", "objetivo 3"],
+  "deliverables": [{{"name":"entregable 1","status":"propuesto"}}, {{"name":"entregable 2","status":"propuesto"}}],
+  "scope": "texto",
+  "timeline": "texto",
+  "conditions": "texto",
+  "free_text": "texto opcional",
+  "executive_summary": "texto"
+}}"""
+
+        system_prompt = f"""Eres experto en redacción de propuestas comerciales B2B.
+Responde SIEMPRE en {system_language}.
+Sé profesional, específico y accionable.
+No inventes datos numéricos que no estén en el contexto; si faltan, redacta supuestos razonables."""
+
+        try:
+            provider = (ai_provider or "openai").lower().strip()
+
+            if provider == "anthropic":
+                try:
+                    import anthropic as anthropic_sdk
+                    client = anthropic_sdk.AsyncAnthropic(api_key=user_api_key)
+                    response = await client.messages.create(
+                        model="claude-3-5-haiku-20241022",
+                        max_tokens=1200,
+                        system=system_prompt,
+                        messages=[{"role": "user", "content": user_prompt}],
+                    )
+                    raw = response.content[0].text if response.content else "{}"
+                    sections = json.loads(raw)
+                    return {
+                        "success": True,
+                        "sections": sections,
+                        "provider": "anthropic",
+                        "usage": {
+                            "prompt_tokens": response.usage.input_tokens,
+                            "completion_tokens": response.usage.output_tokens,
+                            "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+                            "estimated_cost": 0.0,
+                        },
+                    }
+                except ImportError:
+                    return {"success": False, "error": "Librería 'anthropic' no instalada en el servidor."}
+            else:
+                # OpenAI path with user key
+                user_client = AsyncOpenAI(
+                    api_key=user_api_key,
+                    timeout=self.timeout_seconds,
+                    max_retries=self.max_retries,
+                )
+                response = await user_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.6,
+                    max_tokens=1200,
+                )
+                content = response.choices[0].message.content
+                sections = json.loads(content)
+                return {
+                    "success": True,
+                    "sections": sections,
+                    "provider": "openai",
+                    "usage": {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens,
+                        "estimated_cost": self._estimate_cost(response.usage),
+                    },
+                }
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing user-key proposal JSON: {e}")
+            return {"success": False, "error": "Error al parsear la respuesta de IA"}
+        except Exception as e:
+            logger.error(f"Error generating proposal with user key: {e}", exc_info=True)
+            return {"success": False, "error": f"Error al generar propuesta: {str(e)}"}
+
+
 # Singleton instance
 ai_service = AIService()
 

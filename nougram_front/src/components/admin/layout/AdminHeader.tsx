@@ -116,21 +116,21 @@ export function AdminHeader({ onOpenMobileNav }: AdminHeaderProps) {
 
                             <div className="px-2 space-y-1">
                                 <Link href="/dashboard/organization" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-white hover:text-secondary hover:shadow-sm rounded-2xl transition-all group">
-                                    <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                                    <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-primary-soft transition-colors">
                                         <Building2 size={16} strokeWidth={2} />
                                     </div>
                                     Empresa
                                 </Link>
                                 {user?.role === 'owner' && (
                                     <a href="/dashboard/users" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-white hover:text-secondary hover:shadow-sm rounded-2xl transition-all group">
-                                        <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                                        <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-primary-soft transition-colors">
                                             <Users size={16} strokeWidth={2} />
                                         </div>
                                         Usuarios (Equipo)
                                     </a>
                                 )}
                                 <Link href="/billing" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-white hover:text-secondary hover:shadow-sm rounded-2xl transition-all group">
-                                    <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                                    <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-primary-soft transition-colors">
                                         <CreditCard size={16} strokeWidth={2} />
                                     </div>
                                     Gestionar suscripción

@@ -113,7 +113,7 @@ export function DepreciationScheduleTable({ equipment }: DepreciationScheduleTab
                                     <td className="px-4 py-2">
                                         <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                                             <div
-                                                className={`h-full ${row.percentage >= 100 ? 'bg-green-500' : 'bg-blue-500'}`}
+                                                className={`h-full ${row.percentage >= 100 ? 'bg-green-500' : 'bg-primary-soft0'}`}
                                                 style={{ width: `${Math.min(row.percentage, 100)}%` }}
                                             />
                                         </div>
@@ -148,7 +148,7 @@ export function DepreciationScheduleTable({ equipment }: DepreciationScheduleTab
                 )}
             </div>
 
-            <div className="flex gap-4 p-4 bg-blue-50 rounded-lg text-xs text-blue-800">
+            <div className="flex gap-4 p-4 bg-primary-soft rounded-lg text-xs text-primary">
                 <div>
                     <span className="font-bold block">Base Depreciable</span>
                     {formatCurrency((equipment.purchasePrice - equipment.salvageValue), 'COP')}

@@ -74,8 +74,8 @@ export function KPIWidgets({ kpiSummary, kpiLoading, kpiError }: KPIWidgetsProps
             title: 'Total cotizado (impuestos)',
             value: `${currency} ${formatMoneyAmount(kpis.totalCotizadoConImpuestos)}`,
             icon: DollarSign,
-            color: 'text-blue-600',
-            bg: 'bg-blue-50/60',
+            color: 'text-primary',
+            bg: 'bg-primary-soft/60',
             subtitle: 'Última versión / proyecto',
         },
         {
@@ -220,13 +220,13 @@ export function AlertsWidget({ quotes }: AlertsWidgetProps) {
                         >
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${alert.type === 'critical' ? 'bg-red-50 text-red-500' :
                                 alert.type === 'warning' ? 'bg-orange-50 text-orange-600' :
-                                    'bg-blue-50 text-blue-500'
+                                    'bg-primary-soft text-primary'
                                 }`}>
                                 <AlertCircle size={20} strokeWidth={1.5} />
                             </div>
                             <div className="flex-1 pt-0.5">
                                 <p className="text-sm text-gray-700 font-bold leading-snug tracking-tight mb-1">{alert.text}</p>
-                                <span className="text-[11px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1">
+                                <span className="text-[11px] font-black text-primary uppercase tracking-widest flex items-center gap-1">
                                     {alert.action} <ChevronRight size={10} strokeWidth={3} />
                                 </span>
                             </div>

@@ -96,9 +96,11 @@ export interface QuoteCalculationResponse {
     total_taxes: string;
     total_with_taxes: string;
 
+    /** @deprecated Use margin.net_margin_ratio */
     margin_percentage: string;
+    /** @deprecated Use margin.target_margin_ratio */
     target_margin_percentage: string | null;
-    margin?: MarginSummary | null;
+    margin: MarginSummary;
 
     items: Array<{
         service_id: number;

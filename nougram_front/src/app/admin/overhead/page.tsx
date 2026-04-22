@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { cn } from '@/lib/utils';
 // import dynamic from 'next/dynamic';
 import { FixedCostList } from '@/components/admin/overhead/FixedCostList';
 import { OverheadSummary } from '@/components/admin/overhead/OverheadSummary';
@@ -28,74 +29,59 @@ export default function OverheadPage() {
     }, [equipment]);
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Inventario de Gastos & Activos</h1>
-                <p className="text-gray-500">Gestiona tus costos fijos, licencias y la amortización de equipos.</p>
+                <h1 className="text-[20px] font-bold text-gray-900">Inventario de gastos & activos</h1>
+                <p className="text-[13px] text-gray-500 mt-0.5">Gestiona costos fijos, licencias y amortización de equipos.</p>
             </div>
 
-            {/* Quick Stats / Summary (Global) */}
             <OverheadSummary />
 
-            {/* Tabs Navigation */}
-            <div className="border-b border-gray-200">
-                <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            {/* Pill tabs */}
+            <div className="flex items-center gap-1 rounded-lg bg-surface-2 border border-gray-200 p-1 w-fit">
+                {(['fixed', 'equipment'] as const).map((tab) => (
                     <button
-                        onClick={() => setActiveTab('fixed')}
-                        className={`
-                            whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-                            ${activeTab === 'fixed'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                        `}
+                        key={tab}
+                        type="button"
+                        onClick={() => setActiveTab(tab)}
+                        className={cn(
+                            'px-4 py-1.5 rounded-md text-[12.5px] font-semibold transition-colors',
+                            activeTab === tab ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                        )}
                     >
-                        Gastos Fijos (Arriendo/Software)
+                        {tab === 'fixed' ? 'Gastos fijos' : 'Equipos'}
                     </button>
-                    <button
-                        onClick={() => setActiveTab('equipment')}
-                        className={`
-                            whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-                            ${activeTab === 'equipment'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                        `}
-                    >
-                        Amortización de Equipos
-                    </button>
-                </nav>
+                ))}
             </div>
 
-            {/* Content */}
             <div className="min-h-[400px]">
                 {activeTab === 'fixed' ? (
                     <FixedCostList />
                 ) : (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
-                        {/* Equipment KPI */}
+                    <div className="space-y-5 animate-in fade-in slide-in-from-left-2 duration-200">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                                <p className="text-xs font-bold text-blue-800 uppercase">Impacto Total BCR</p>
-                                <div className="flex items-baseline gap-2">
-                                    <p className="text-2xl font-bold text-blue-900">
+                            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Impacto total BCR</p>
+                                <div className="flex items-baseline gap-1.5 mt-1">
+                                    <p className="text-[22px] font-bold text-gray-900">
                                         +{formatCurrency((equipmentStats.totalAmortization / (state.financials.billableHours || 1)), currency)}
                                     </p>
-                                    <span className="text-xs text-blue-600">/ hora</span>
+                                    <span className="text-[11px] text-gray-400">/ hora</span>
                                 </div>
                             </div>
-                            <div className="bg-white p-4 rounded-lg border shadow-sm">
-                                <p className="text-xs font-bold text-gray-400 uppercase">Amortización Mensual</p>
-                                <p className="text-2xl font-bold text-gray-900">
+                            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Amortización mensual</p>
+                                <p className="text-[22px] font-bold text-gray-900 mt-1">
                                     {formatCurrency(equipmentStats.totalAmortization, currency)}
                                 </p>
                             </div>
-                            <div className="bg-white p-4 rounded-lg border shadow-sm">
-                                <p className="text-xs font-bold text-gray-400 uppercase">Activos Registrados</p>
-                                <p className="text-2xl font-bold text-gray-900">
+                            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Activos registrados</p>
+                                <p className="text-[22px] font-bold text-gray-900 mt-1">
                                     {equipmentStats.count}
                                 </p>
                             </div>
                         </div>
-
                         <EquipmentList />
                     </div>
                 )}

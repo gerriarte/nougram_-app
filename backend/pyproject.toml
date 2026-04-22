@@ -2,6 +2,15 @@
 # Ruff configuration for linting and formatting
 line-length = 100
 target-version = "py311"
+exclude = [
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    "htmlcov",
+    "node_modules",
+]
 
 [tool.ruff.lint]
 select = [

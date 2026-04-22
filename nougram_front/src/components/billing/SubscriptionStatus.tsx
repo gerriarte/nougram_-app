@@ -79,33 +79,33 @@ export function SubscriptionStatus({
 
                     <div className="flex justify-between items-start mb-6 z-10">
                         <div>
-                            <p className="text-[11px] font-bold text-[#86868B] uppercase tracking-widest mb-2">Tu Plan Actual</p>
-                            <h2 className="text-3xl font-semibold text-[#1D1D1F]">{currentPlan.name}</h2>
+                            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2">Tu Plan Actual</p>
+                            <h2 className="text-3xl font-semibold text-gray-900">{currentPlan.name}</h2>
                         </div>
                         {getStatusBadge()}
                     </div>
 
                     <div className="flex items-baseline gap-1 mb-8 z-10">
-                        <span className="text-4xl font-bold tracking-tight text-[#1D1D1F]">
+                        <span className="text-4xl font-bold tracking-tight text-gray-900">
                             ${subscription.interval === 'monthly' ? currentPlan.priceMonthly : currentPlan.priceYearly}
                         </span>
                         <span className="text-gray-400 font-medium">/{subscription.interval === 'monthly' ? 'mes' : 'año'}</span>
                     </div>
 
-                    <div className="bg-[#F5F5F7] rounded-[20px] p-6 mb-6 z-10">
+                    <div className="bg-background rounded-[20px] p-6 mb-6 z-10">
                         <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200/50">
-                            <span className="text-[13px] text-[#86868B] font-medium">Próxima renovación</span>
-                            <span className="text-[13px] text-[#1D1D1F] font-semibold">{new Date(subscription.currentPeriodEnd).toLocaleDateString()}</span>
+                            <span className="text-[13px] text-gray-500 font-medium">Próxima renovación</span>
+                            <span className="text-[13px] text-gray-900 font-semibold">{new Date(subscription.currentPeriodEnd).toLocaleDateString()}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-[13px] text-[#86868B] font-medium">Miembros incluidos</span>
-                            <span className="text-[13px] text-[#1D1D1F] font-semibold">{currentPlan.features.maxUsers} usuarios</span>
+                            <span className="text-[13px] text-gray-500 font-medium">Miembros incluidos</span>
+                            <span className="text-[13px] text-gray-900 font-semibold">{currentPlan.features.maxUsers} usuarios</span>
                         </div>
                     </div>
 
                     <Button
                         onClick={onChangePlan}
-                        className="w-full bg-[#1D1D1F] hover:bg-black text-white rounded-full h-12 font-medium z-10"
+                        className="w-full bg-gray-900 hover:bg-gray-700 text-white rounded-full h-12 font-medium z-10"
                     >
                         Cambiar Plan
                     </Button>
@@ -114,7 +114,7 @@ export function SubscriptionStatus({
                 {/* 2. Payment Method Card (Apple Wallet Style) */}
                 <div className="flex flex-col bg-white rounded-[28px] p-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100">
                     <div className="flex justify-between items-center mb-8">
-                        <p className="text-[11px] font-bold text-[#86868B] uppercase tracking-widest">Método de Pago</p>
+                        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Método de Pago</p>
                         <Button variant="ghost" size="sm" onClick={onUpdatePayment} className="text-[#0071E3] hover:bg-transparent p-0 text-[13px] font-medium h-auto hover:underline">
                             Editar
                         </Button>

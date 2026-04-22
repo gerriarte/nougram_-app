@@ -56,7 +56,7 @@ export function QuoteCard({ quote, onStatusChange, onOpenPublicAccess, isPublicA
     const getStatusStyle = (status: string) => {
         switch (status) {
             case 'draft': return { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Borrador', icon: Clock };
-            case 'sent': return { bg: 'bg-blue-50', text: 'text-blue-600', label: 'Enviada', icon: Send };
+            case 'sent': return { bg: 'bg-primary-soft', text: 'text-primary', label: 'Enviada', icon: Send };
             case 'viewed': return { bg: 'bg-yellow-50', text: 'text-yellow-600', label: 'Visto', icon: Eye };
             case 'accepted': return { bg: 'bg-[#E8F8F0]', text: 'text-[#1D9D5D]', label: 'Aceptada', icon: CheckCircle2 };
             case 'rejected': return { bg: 'bg-red-50', text: 'text-red-500', label: 'Rechazada', icon: XCircle };
@@ -97,12 +97,12 @@ export function QuoteCard({ quote, onStatusChange, onOpenPublicAccess, isPublicA
 
             {/* Content */}
             <div className="flex-1 mb-6">
-                <h3 className="text-[17px] font-semibold text-[#1D1D1F] leading-tight">{quote.project}</h3>
-                <p className="text-[13px] text-[#86868B] font-medium mt-1">{quote.client}</p>
+                <h3 className="text-[17px] font-semibold text-gray-900 leading-tight">{quote.project}</h3>
+                <p className="text-[13px] text-gray-500 font-medium mt-1">{quote.client}</p>
 
                 <div className="mt-4 flex items-baseline gap-2">
-                    <span className="text-2xl font-semibold text-[#1D1D1F] tracking-tight">
-                        ${formatMoneyAmount(quote.totalWithTaxes)} <span className="text-sm font-medium text-[#86868B]">{displayCurrency}</span>
+                    <span className="text-2xl font-semibold text-gray-900 tracking-tight">
+                        ${formatMoneyAmount(quote.totalWithTaxes)} <span className="text-sm font-medium text-gray-500">{displayCurrency}</span>
                     </span>
                 </div>
                 <p className="text-[10px] text-[#9AA0A6] font-medium mt-1 uppercase tracking-wide">
@@ -124,7 +124,7 @@ export function QuoteCard({ quote, onStatusChange, onOpenPublicAccess, isPublicA
                         {formatDisplayNumber(quote.margin, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% Margen
                     </span>
                     <span className="text-xs text-gray-300 mx-1">•</span>
-                    <span className="text-[11px] font-medium text-[#86868B] bg-gray-100 px-2 py-0.5 rounded-full">
+                    <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                         V{quote.version}
                     </span>
                 </div>
@@ -132,7 +132,7 @@ export function QuoteCard({ quote, onStatusChange, onOpenPublicAccess, isPublicA
 
             {/* Metrics / Footer */}
             <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
-                <div className="flex gap-3 text-xs font-medium text-[#86868B]">
+                <div className="flex gap-3 text-xs font-medium text-gray-500">
                     {quote.viewedCount > 0 && (
                         <span className="flex items-center gap-1 text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full">
                             <Eye size={12} /> {quote.viewedCount}

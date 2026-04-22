@@ -52,10 +52,10 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'draft': return 'bg-gray-100 text-gray-600';
-            case 'sent': return 'bg-blue-50 text-blue-600';
-            case 'viewed': return 'bg-yellow-50 text-yellow-600';
-            case 'accepted': return 'bg-green-50 text-green-600';
-            case 'rejected': return 'bg-red-50 text-red-600';
+            case 'sent': return 'bg-primary-soft text-primary';
+            case 'viewed': return 'bg-warning-soft text-amber-700';
+            case 'accepted': return 'bg-success-soft text-success';
+            case 'rejected': return 'bg-critical-soft text-critical';
             default: return 'bg-gray-100 text-gray-600';
         }
     };
@@ -73,9 +73,9 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
     };
 
     const getMarginColor = (margin: number) => {
-        if (margin >= 30) return 'text-green-600';
-        if (margin >= 15) return 'text-yellow-600';
-        return 'text-red-600';
+        if (margin >= 25) return 'text-success';
+        if (margin >= 15) return 'text-warning';
+        return 'text-critical';
     };
 
     const getFollowUpHint = (quote: Quote) => {
@@ -104,7 +104,7 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                 <p className="font-bold text-gray-900 leading-tight">{quote.project}</p>
                                 <p className="text-xs text-gray-500 mt-1">{quote.client}</p>
                                 <div className="flex flex-wrap items-center gap-2 mt-2">
-                                    <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md font-bold">
+                                    <span className="text-[10px] text-primary bg-primary-soft px-2 py-0.5 rounded-full font-bold">
                                         V{quote.version}
                                     </span>
                                     {quote.isActive === false ? (
@@ -119,7 +119,7 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                             <select
                                 value={quote.status}
                                 onChange={(e) => onStatusChange(quote.id, e.target.value as Quote['status'])}
-                                className={`text-[11px] font-bold uppercase tracking-wide border-none rounded-full px-2 py-1 cursor-pointer focus:ring-2 focus:ring-blue-500 shrink-0 ${getStatusColor(quote.status)}`}
+                                className={`text-[11px] font-bold uppercase tracking-wide border-none rounded-full px-2 py-1 cursor-pointer focus:ring-2 focus:ring-gray-400 shrink-0 ${getStatusColor(quote.status)}`}
                             >
                                 <option value="draft">Borrador</option>
                                 <option value="sent">Enviada</option>
@@ -151,7 +151,7 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                 Editar cotización
                             </Button>
                             <Button
-                                className="w-full h-11 rounded-2xl font-bold bg-blue-600 text-white hover:bg-blue-700"
+                                className="w-full h-11 rounded-2xl font-bold bg-gray-900 text-white hover:bg-gray-700"
                                 onClick={() => router.push(`/dashboard/quotes/${quote.id}/tracking`)}
                             >
                                 Ver trazabilidad
@@ -211,7 +211,7 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                     <div className="flex flex-col">
                                         <span className="font-semibold text-gray-900">{quote.project}</span>
                                         <div className="flex items-center gap-2 mt-0.5">
-                                            <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md font-medium">
+                                            <span className="text-[10px] text-primary bg-primary-soft px-1.5 py-0.5 rounded-full font-semibold">
                                                 V{quote.version}
                                             </span>
                                             {quote.isActive === false ? (
@@ -245,7 +245,7 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                     <select
                                         value={quote.status}
                                         onChange={(e) => onStatusChange(quote.id, e.target.value as Quote['status'])}
-                                        className={`text-xs font-bold uppercase tracking-wide border-none rounded-full px-2 py-1 cursor-pointer focus:ring-2 focus:ring-blue-500 ${getStatusColor(quote.status)}`}
+                                        className={`text-xs font-bold uppercase tracking-wide border-none rounded-full px-2 py-1 cursor-pointer focus:ring-2 focus:ring-gray-400 ${getStatusColor(quote.status)}`}
                                     >
                                         <option value="draft">Borrador</option>
                                         <option value="sent">Enviada</option>
@@ -259,7 +259,7 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-8 w-8 p-0 rounded-full text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                            className="h-8 w-8 p-0 rounded-full text-gray-400 hover:text-primary hover:bg-primary-soft transition-colors"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 onOpenPublicAccess?.(quote);
@@ -282,11 +282,11 @@ export function QuoteTable({ quotes, onStatusChange, onOpenPublicAccess, publicA
 
                                         <Button
                                             size="sm"
-                                            className="h-8 px-4 text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-100 transition-all rounded-lg flex items-center gap-1.5 active:scale-95"
+                                            className="h-8 px-3 text-[12px] font-semibold bg-gray-900 text-white hover:bg-gray-700 rounded-lg flex items-center gap-1.5 active:scale-95 transition-all"
                                             onClick={() => router.push(`/dashboard/quotes/${quote.id}/tracking`)}
                                         >
-                                            Ver Trazabilidad
-                                            <ArrowUpRight size={14} strokeWidth={2.5} />
+                                            Trazabilidad
+                                            <ArrowUpRight size={13} strokeWidth={2.5} />
                                         </Button>
 
                                         <Button

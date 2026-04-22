@@ -189,7 +189,7 @@ function toRealMarginPercent(
 }
 
 function buildFinancialBreakdown(
-    quote: Pick<ProjectQuoteResponse, 'total_client_price' | 'total_internal_cost' | 'total_with_taxes' | 'total_taxes'> | null | undefined,
+    quote: Pick<ProjectQuoteResponse, 'total_client_price' | 'total_internal_cost' | 'total_with_taxes' | 'total_taxes' | 'margin' | 'margin_percentage'> | null | undefined,
     taxes: Array<{ percentage: string | number }>
 ) {
     const baseAmount = toSafeNumber(quote?.total_client_price);
@@ -207,14 +207,18 @@ function buildFinancialBreakdown(
         : hasBilledDeltaFromQuote
             ? Math.max(0, billedFromQuote - baseAmount)
             : taxAmountFromRates;
-    // If quote totals come without tax breakdown but project taxes exist, derive billed from base + rates.
     const billedAmount = (billedFromQuote > 0 && (hasExplicitTaxFromQuote || hasBilledDeltaFromQuote))
         ? billedFromQuote
         : baseAmount + taxAmount;
     const taxRate = baseAmount > 0 ? (taxAmount / baseAmount) * 100 : taxRateFromProject;
     const realIncome = Math.max(0, baseAmount - taxAmount);
     const profitAmount = realIncome - internalCost;
-    const margin = Number(toRealMarginPercent(baseAmount, internalCost, taxAmount).toFixed(2));
+
+    // Backend is the source of truth: use net_margin_ratio (0-1) → convert to 0-100 for Quote.margin
+    const backendNetMargin = quote?.margin?.net_margin_ratio;
+    const margin = (backendNetMargin !== undefined && backendNetMargin !== null && backendNetMargin !== "")
+        ? toPercent(backendNetMargin)
+        : toPercent(quote?.margin_percentage) || Number(toRealMarginPercent(baseAmount, internalCost, taxAmount).toFixed(2));
 
     return {
         baseAmount,

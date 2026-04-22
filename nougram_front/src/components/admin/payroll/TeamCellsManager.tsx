@@ -277,14 +277,14 @@ export function TeamCellsManager() {
                     </div>
                 )}
 
-                <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
-                    <h3 className="text-sm font-bold uppercase tracking-wide text-blue-700 mb-2">Paso a paso de equipos</h3>
-                    <ol className="list-decimal ml-5 space-y-1 text-sm text-blue-900">
+                <div className="rounded-xl border border-primary-soft bg-primary-soft p-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-primary mb-2">Paso a paso de equipos</h3>
+                    <ol className="list-decimal ml-5 space-y-1 text-sm text-gray-900">
                         <li>Crea el equipo.</li>
                         <li>Asigna integrantes y porcentaje del recurso (total 100%).</li>
                         <li>Guarda y luego solo agrega/ajusta integrantes cuando lo necesites.</li>
                     </ol>
-                    <p className="text-xs text-blue-800 mt-3">
+                    <p className="text-xs text-primary mt-3">
                         El porcentaje define cómo se reparte la carga del equipo. La suma de todos los integrantes debe ser 100%.
                     </p>
                 </div>
