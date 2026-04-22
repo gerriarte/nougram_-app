@@ -5,7 +5,7 @@
     "buildCommand": "cd nougram_front && test -n \"$NEXT_PUBLIC_API_URL\" && npm ci --include=dev && npm run build && mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/static && cp -R public .next/standalone/public"
   },
   "deploy": {
-    "startCommand": "sh -c 'cd nougram_front && HOSTNAME=0.0.0.0 node .next/standalone/server.js'",
+    "startCommand": "sh -c 'if [ -f nougram_front/.next/standalone/server.js ]; then cd nougram_front && HOSTNAME=0.0.0.0 exec node .next/standalone/server.js; else alembic upgrade head && exec gunicorn main:app -c gunicorn_config.py -w 1 -b 0.0.0.0:${PORT:-8000}; fi'",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
