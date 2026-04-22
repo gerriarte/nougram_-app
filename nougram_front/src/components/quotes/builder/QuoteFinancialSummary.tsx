@@ -20,14 +20,38 @@ const TONE_CLASSES = {
 };
 const TONE_LABELS = { danger: 'BAJO', warn: 'ATENCIÓN', good: 'SALUDABLE' };
 
-function StatRow({ label, hint, value, muted }: { label: string; hint?: string; value: string; muted?: boolean }) {
+function StatRow({
+    label,
+    hint,
+    value,
+    muted,
+    emphasis,
+}: {
+    label: string;
+    hint?: string;
+    value: string;
+    muted?: boolean;
+    /** Destaca la fila (p. ej. valor a cobrar) para que no se pierda frente al hero de margen. */
+    emphasis?: boolean;
+}) {
     return (
-        <div className="flex items-baseline justify-between gap-3">
-            <div>
-                <span className={cn('text-[11.5px] font-medium', muted ? 'text-gray-400' : 'text-gray-500')}>{label}</span>
+        <div
+            className={cn(
+                'flex items-baseline justify-between gap-3',
+                emphasis && 'rounded-xl border border-gray-100 bg-surface-2 px-3 py-2.5 -mx-0.5'
+            )}
+        >
+            <div className="min-w-0 pr-2">
+                <span className={cn('text-[11.5px] font-medium', muted ? 'text-gray-400' : 'text-gray-600')}>{label}</span>
                 {hint && <span className="block text-[10.5px] text-gray-400">{hint}</span>}
             </div>
-            <span className={cn('tabular-nums text-[14.5px] font-semibold', muted ? 'text-gray-400' : 'text-gray-900')}>
+            <span
+                className={cn(
+                    'shrink-0 tabular-nums text-right',
+                    emphasis ? 'text-[17px] font-bold text-gray-900 tracking-tight' : 'text-[14.5px] font-semibold',
+                    !emphasis && (muted ? 'text-gray-400' : 'text-gray-900')
+                )}
+            >
                 {value}
             </span>
         </div>
@@ -163,11 +187,14 @@ export function QuoteFinancialSummary() {
                             {TONE_LABELS[tone]}
                         </span>
                     </div>
-                    <div className="flex items-baseline gap-3 mt-1">
+                    <div className="mt-1 flex flex-wrap items-end gap-x-4 gap-y-2">
                         <span className={cn('text-[42px] font-bold tabular-nums leading-none tracking-tight', tc.text)}>
                             {netMarginPct.toFixed(1)}%
                         </span>
-                        <div>
+                        <div className="min-w-0">
+                            <div className="text-[9px] font-semibold uppercase tracking-[0.45px] text-gray-500">
+                                Utilidad estimada
+                            </div>
                             <div className="text-[17px] font-semibold text-gray-900 tabular-nums">
                                 {fmt(summary.netMarginAmount || 0)}
                             </div>
@@ -180,18 +207,19 @@ export function QuoteFinancialSummary() {
                     </div>
                 </div>
 
-                {/* Stats */}
-                <div className="px-4 py-3.5 space-y-2.5">
+                {/* Stats — valor a cobrar primero: es la cifra clave para cotizar */}
+                <div className="space-y-2.5 px-4 py-3.5">
+                    <StatRow
+                        label="Valor a cobrar"
+                        hint="Precio al cliente, sin impuestos"
+                        value={fmt(summary.totalClientPrice)}
+                        emphasis
+                    />
                     <StatRow
                         label="Costo de ejecución"
                         hint="Recursos + gastos"
                         value={fmt(summary.totalInternalCost)}
                         muted
-                    />
-                    <StatRow
-                        label="Valor a cobrar"
-                        hint="Sin impuestos"
-                        value={fmt(summary.totalClientPrice)}
                     />
                     <div className="my-1 h-px bg-gray-100" />
                     <div className="flex items-baseline justify-between">
