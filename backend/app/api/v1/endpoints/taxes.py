@@ -105,6 +105,7 @@ async def create_tax(
     - Allowed roles: owner, admin_financiero, super_admin
     - Denied roles: product_manager, collaborator
     """
+    user_id = current_user.id  # cache before any await+rollback expiration
     try:
         tax_repo = RepositoryFactory.create_tax_repository(db, tenant.organization_id)
 
@@ -121,7 +122,7 @@ async def create_tax(
                 "Restoring soft-deleted tax with existing code",
                 tax_id=existing.id,
                 tax_code=tax_data.code,
-                user_id=current_user.id,
+                user_id=user_id,
             )
             existing.name = tax_data.name
             existing.percentage = tax_data.percentage
@@ -133,7 +134,7 @@ async def create_tax(
             restored_tax = await tax_repo.update(existing)
             return TaxResponse.model_validate(restored_tax)
 
-        logger.info("Creating tax", tax_data=tax_data.model_dump(), user_id=current_user.id)
+        logger.info("Creating tax", tax_data=tax_data.model_dump(), user_id=user_id)
 
         tax_dict = tax_data.model_dump()
         tax_dict["organization_id"] = tenant.organization_id
@@ -141,7 +142,7 @@ async def create_tax(
         new_tax = Tax(**tax_dict)
         new_tax = await tax_repo.create(new_tax)
 
-        logger.info("Tax created successfully", tax_id=new_tax.id, user_id=current_user.id)
+        logger.info("Tax created successfully", tax_id=new_tax.id, user_id=user_id)
         return TaxResponse.model_validate(new_tax)
     except HTTPException:
         raise
@@ -150,7 +151,7 @@ async def create_tax(
         logger.warning(
             "Integrity error creating tax",
             error=str(e),
-            user_id=current_user.id,
+            user_id=user_id,
             tax_code=tax_data.code,
         )
         raise HTTPException(
@@ -162,7 +163,7 @@ async def create_tax(
         logger.error(
             "Error creating tax",
             error=str(e),
-            user_id=current_user.id,
+            user_id=user_id,
             tax_data=tax_data.model_dump(),
             exc_info=True,
         )
