@@ -4,7 +4,7 @@
 import React from 'react';
 import { QuoteBuilderProvider } from '@/context/QuoteBuilderContext';
 import { QuoteBuilderLayout } from '@/components/quotes/builder/QuoteBuilderLayout';
-import { QuoteStepPills } from '@/components/quotes/builder/QuoteStepPills';
+import { QuoteBuilderSubheader } from '@/components/quotes/builder/QuoteBuilderSubheader';
 import { Button } from '@/components/ui/Button';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -16,7 +16,7 @@ export default function CreateQuotePage() {
     return (
         <AdminLayout hideRightPanel>
             <QuoteBuilderProvider>
-                <div className="max-w-[1400px] mx-auto space-y-4 sm:space-y-6">
+                <div className="max-w-[1400px] mx-auto space-y-2 sm:space-y-3">
                     <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                             <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9 rounded-xl border border-gray-200" onClick={() => router.back()}>
@@ -27,9 +27,9 @@ export default function CreateQuotePage() {
                                 <p className="text-[13px] text-gray-500">Crea una propuesta rentable en minutos.</p>
                             </div>
                         </div>
-                        <QuoteStepPills />
                     </div>
 
+                    <QuoteBuilderSubheader />
                     <QuoteBuilderLayout />
                 </div>
             </QuoteBuilderProvider>

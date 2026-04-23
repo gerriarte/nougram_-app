@@ -2,21 +2,13 @@ import React from 'react';
 import { QuoteFinancialSummary } from './QuoteFinancialSummary';
 import { QuoteBuilderForm } from './QuoteBuilderForm';
 import { QuoteBuilderActions } from './QuoteBuilderActions';
-import { VersionSelector } from './VersionSelector';
 
 export function QuoteBuilderLayout() {
     return (
         <div className="flex flex-col gap-6 pb-4 md:pb-0">
-            <div className="flex justify-end lg:hidden">
-                <VersionSelector currentVersion="v1" />
-            </div>
-
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
                 {/* Columna principal: formulario + acciones solo en desktop (sticky) */}
                 <div className="flex min-w-0 flex-1 flex-col gap-6 order-1">
-                    <div className="hidden lg:flex justify-end mb-2">
-                        <VersionSelector currentVersion="v1" />
-                    </div>
                     <QuoteBuilderForm />
                     <div className="hidden lg:block sticky bottom-4 z-30 w-full">
                         <QuoteBuilderActions variant="desktop" />

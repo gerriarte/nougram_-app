@@ -4,7 +4,7 @@
 import React, { useEffect } from 'react';
 import { QuoteBuilderProvider, useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { QuoteBuilderLayout } from '@/components/quotes/builder/QuoteBuilderLayout';
-import { QuoteStepPills } from '@/components/quotes/builder/QuoteStepPills';
+import { QuoteBuilderSubheader } from '@/components/quotes/builder/QuoteBuilderSubheader';
 import { Button } from '@/components/ui/Button';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
@@ -27,11 +27,13 @@ function EditQuoteLoader() {
 
 export default function EditQuotePage() {
     const router = useRouter();
+    const params = useParams();
+    const id = params.id as string;
 
     return (
         <AdminLayout hideRightPanel>
             <QuoteBuilderProvider>
-                <div className="max-w-[1400px] mx-auto space-y-4 sm:space-y-6">
+                <div className="max-w-[1400px] mx-auto space-y-2 sm:space-y-3">
                     <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                             <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9 rounded-xl border border-gray-200" onClick={() => router.back()}>
@@ -42,9 +44,9 @@ export default function EditQuotePage() {
                                 <p className="text-[13px] text-gray-500">Modifica los detalles de la propuesta.</p>
                             </div>
                         </div>
-                        <QuoteStepPills />
                     </div>
 
+                    <QuoteBuilderSubheader quoteId={id} />
                     <EditQuoteLoader />
                 </div>
             </QuoteBuilderProvider>
