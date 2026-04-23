@@ -1,0 +1,33 @@
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+
+# Virtual envs
+.venv
+venv
+env
+
+# VCS / editor
+.git
+.gitignore
+.vscode
+.idea
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs / local artifacts
+*.log
+tests
+scripts/manual_tests
+Backup_files
+
