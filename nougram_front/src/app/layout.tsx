@@ -22,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className="font-sans antialiased bg-gray-50 text-slate-900" suppressHydrationWarning>
+      <body className="font-sans antialiased bg-background text-slate-900" suppressHydrationWarning>
         <GoogleTagManager />
         <NougramCoreProvider>
           <RouteTrackerClient />
