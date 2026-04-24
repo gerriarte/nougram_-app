@@ -20,3 +20,5 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
+// Railway watch path includes nougram_front/** — bump this comment to trigger a production deploy when only repo-root config changed.
