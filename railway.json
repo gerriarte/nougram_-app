@@ -5,7 +5,8 @@
     "buildCommand": "cd nougram_front && test -n \"$NEXT_PUBLIC_API_URL\" && npm ci --include=dev && npm run build && mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/static && cp -R public .next/standalone/public"
   },
   "deploy": {
-    "startCommand": "cd nougram_front && HOSTNAME=0.0.0.0 exec node .next/standalone/server.js",
+    "startCommand": null,
+    "preDeployCommand": null,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
