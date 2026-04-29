@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils';
 
 const STEPS = [
     { id: 1, label: 'Información general',  section: 'quote-step-project-info' },
-    { id: 2, label: 'Tipo de cotización',   section: 'quote-step-estimation' },
-    { id: 3, label: 'Diseño de propuesta',  section: 'quote-final-proposal-summary' },
+    { id: 2, label: 'Servicios y alcance',  section: 'quote-step-estimation' },
+    { id: 3, label: 'Validación final',     section: 'quote-final-proposal-summary' },
 ];
 
 export function QuoteStepPills() {
@@ -43,7 +43,7 @@ export function QuoteStepPills() {
                             type="button"
                             onClick={() => scrollTo(step.section)}
                             className={cn(
-                                'flex items-center gap-2 rounded-full border px-3 py-[5px] text-[12.5px] font-semibold transition-colors',
+                                'flex items-center gap-2 rounded-full border px-3 py-[5px] text-[12.5px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/25',
                                 done    ? 'border-transparent bg-success-soft text-success'
                                 : current ? 'border-primary/20 bg-primary-soft text-primary'
                                           : 'border-transparent bg-transparent text-gray-400'

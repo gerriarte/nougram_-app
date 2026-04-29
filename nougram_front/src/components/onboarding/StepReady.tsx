@@ -1,12 +1,14 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { OnboardingStepHero } from '@/components/onboarding/OnboardingStepHero';
 import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
+import type { OnboardingData, Step3MyTeamData } from '@/types/onboarding';
 
 interface StepReadyProps {
-    data: any;
+    data: OnboardingData;
     onGoToDashboard: () => void;
     onCreateQuote: () => void;
     backendBcr?: number | null;
@@ -14,6 +16,8 @@ interface StepReadyProps {
     isPersisting?: boolean;
     persistError?: string | null;
 }
+
+type TeamMember = NonNullable<Step3MyTeamData['teamMembers']>[number];
 
 export function StepReady({
     data,
@@ -25,29 +29,28 @@ export function StepReady({
     persistError
 }: StepReadyProps) {
     // Extract data
-    const currency = data.identity.primaryCurrency || data.identity.currency || 'COP';
+    const currency = data.identity.primaryCurrency || 'COP';
     const monthlyFixedCosts = data.fixedCosts.totalMonthly;
-    const modeledMembers = Array.isArray(data.team?.teamMembers) ? data.team.teamMembers : [];
+    const modeledMembers: TeamMember[] = Array.isArray(data.team?.teamMembers) ? data.team.teamMembers : [];
     const monthlyPayroll = modeledMembers.length > 0
-        ? modeledMembers.reduce((sum: number, member: any) => {
+        ? modeledMembers.reduce((sum: number, member) => {
             const salary = Number(member.salary) || 0;
             const withCharges = member.applySocialCharges ? salary * 1.52852 : salary;
             return sum + withCharges;
         }, 0)
-        : (data.team.salaryWithCharges || (data.team.applySocialCharges ? (data.team.salary || 0) * 1.52852 : (data.team.salary || 0)));
-    const salaryWithCharges = monthlyPayroll;
+        : (data.team.applySocialCharges ? (data.team.salary || 0) * 1.52852 : (data.team.salary || 0));
 
     // Interactive State for "What-if" scenario
     const [billableHoursPerWeek, setBillableHoursPerWeek] = useState<number>(
         modeledMembers.length > 0
-            ? modeledMembers.reduce((sum: number, member: any) => sum + (Number(member.billableHours) || 0), 0)
+            ? modeledMembers.reduce((sum: number, member) => sum + (Number(member.billableHours) || 0), 0)
             : data.team.billableHours
     );
 
     // Initial constants
     const vacationDays = modeledMembers.length > 0
         ? Math.round(
-            modeledMembers.reduce((sum: number, member: any) => sum + (Number(member.vacationDays) || 0), 0) /
+            modeledMembers.reduce((sum: number, member) => sum + (Number(member.vacationDays) || 0), 0) /
             modeledMembers.length
         )
         : data.team.vacationDays;
@@ -75,11 +78,12 @@ export function StepReady({
     return (
         <div className="space-y-8 max-w-3xl mx-auto text-center px-2 pb-8">
 
-            <div className="space-y-2">
-                <span className="text-4xl">🎉</span>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">¡Listo! Tu estructura de costos está configurada</h1>
-                <p className="text-sm sm:text-base text-gray-600">Este es el mínimo que debes cobrar por hora para ser rentable.</p>
-            </div>
+            <OnboardingStepHero
+                eyebrow="Paso 4 de 4"
+                title="Tu estructura de costos está lista"
+                description="Este es el costo mínimo por hora que necesitas cubrir antes de sumar margen, impuestos y contingencias en tus cotizaciones."
+                callout="Usaremos este BCR como base para que cada nueva propuesta parta de números sanos."
+            />
 
             {/* Main BCR Result */}
             <Card className="bg-primary-soft border-primary-soft shadow-md transform hover:scale-105 transition-transform duration-300">

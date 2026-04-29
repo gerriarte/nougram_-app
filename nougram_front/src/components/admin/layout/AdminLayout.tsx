@@ -15,6 +15,12 @@ import { DesktopOnlyBlock } from '@/components/mobile/DesktopOnlyBlock';
 import { MobileBottomNav } from '@/components/mobile/MobileBottomNav';
 import { MobileDrawer } from '@/components/mobile/MobileDrawer';
 import { AdminNavigationLinks } from '@/components/admin/layout/AdminNavigationLinks';
+import { apiRequest } from '@/lib/api-client';
+
+type OrganizationResponse = {
+    id: number;
+    name: string;
+};
 
 export function AdminLayout({ children, hideRightPanel = false }: { children: React.ReactNode, hideRightPanel?: boolean }) {
     const router = useRouter();
@@ -22,6 +28,7 @@ export function AdminLayout({ children, hideRightPanel = false }: { children: Re
     const { isAuthenticated, loading, user } = useAuth();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+    const [workspaceName, setWorkspaceName] = useState('Workspace');
     const isMobile = useIsMobile();
 
     const desktopOnly = isDesktopOnlyPath(pathname);
@@ -34,6 +41,17 @@ export function AdminLayout({ children, hideRightPanel = false }: { children: Re
             router.replace(`/login?redirect=${redirect}`);
         }
     }, [loading, isAuthenticated, router, pathname]);
+
+    useEffect(() => {
+        if (!isAuthenticated) return;
+
+        const loadOrganization = async () => {
+            const response = await apiRequest<OrganizationResponse>('/organizations/me');
+            setWorkspaceName(response.data?.name || 'Workspace');
+        };
+
+        void loadOrganization();
+    }, [isAuthenticated]);
 
     if (loading || !isAuthenticated) {
         return (
@@ -49,10 +67,14 @@ export function AdminLayout({ children, hideRightPanel = false }: { children: Re
                 <AdminSidebar
                     isCollapsed={isSidebarCollapsed}
                     onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+                    workspaceName={workspaceName}
                 />
 
                 <div className="flex-1 flex flex-col min-w-0">
-                    <AdminHeader onOpenMobileNav={() => setMobileDrawerOpen(true)} />
+                    <AdminHeader
+                        onOpenMobileNav={() => setMobileDrawerOpen(true)}
+                        workspaceName={workspaceName}
+                    />
 
                     <main className="flex-1 p-4 sm:p-8 md:p-12 pb-24 md:pb-12">
                         <div className="flex gap-6 lg:gap-12 items-start max-w-[1600px] mx-auto">

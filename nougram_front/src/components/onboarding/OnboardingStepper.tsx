@@ -1,26 +1,30 @@
 
 import React from 'react';
+import { Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface OnboardingStepperProps {
     currentStep: number;
+    maxReachedStep?: number;
+    onStepClick?: (step: number) => void;
 }
 
 const steps = [
-    { id: 1, label: 'Identidad' },
-    { id: 2, label: 'Inventario' },
-    { id: 3, label: 'Mi Equipo' },
-    { id: 4, label: '¡Listo!' },
+    { id: 1, label: 'Identidad', sub: 'Sobre tu empresa' },
+    { id: 2, label: 'Inventario', sub: 'Gastos operativos' },
+    { id: 3, label: 'Mi Equipo', sub: 'Nómina y horas' },
+    { id: 4, label: 'Listo', sub: 'Tu costo por hora' },
 ];
 
-export function OnboardingStepper({ currentStep }: OnboardingStepperProps) {
-    const progress = ((currentStep - 1) / (steps.length - 1)) * 100;
+export function OnboardingStepper({ currentStep, maxReachedStep = currentStep, onStepClick }: OnboardingStepperProps) {
+    const progress = (currentStep / steps.length) * 100;
 
     return (
-        <div className="w-full py-4 md:py-6">
-            <div className="max-w-4xl mx-auto space-y-3 md:space-y-4 px-1">
-                <div className="relative h-2 w-full rounded-full bg-gray-200 overflow-hidden">
+        <div className="w-full border-b border-gray-100 bg-white/80 py-5 backdrop-blur">
+            <div className="mx-auto max-w-4xl space-y-3 px-1 md:space-y-4">
+                <div className="relative h-1 w-full overflow-hidden rounded-full bg-gray-100">
                     <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 ease-out"
+                        className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
                         style={{ width: `${progress}%` }}
                     />
                 </div>
@@ -29,37 +33,45 @@ export function OnboardingStepper({ currentStep }: OnboardingStepperProps) {
                     {steps.map((step) => {
                         const isCompleted = currentStep > step.id;
                         const isActive = currentStep === step.id;
+                        const isReachable = step.id <= maxReachedStep;
+                        const clickable = Boolean(onStepClick && isReachable && !isActive);
 
                         return (
-                            <div
+                            <button
                                 key={step.id}
-                                className="flex flex-col items-center text-center min-w-[4.5rem] snap-center shrink-0 md:min-w-0"
+                                type="button"
+                                disabled={!clickable}
+                                onClick={() => clickable && onStepClick?.(step.id)}
+                                className={cn(
+                                    'flex min-w-[8rem] shrink-0 snap-center items-center gap-2 rounded-2xl px-2.5 py-2 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 md:min-w-0 md:justify-center',
+                                    isActive && 'bg-primary-soft',
+                                    clickable ? 'cursor-pointer hover:bg-gray-50' : 'cursor-default',
+                                    !isReachable && 'opacity-55'
+                                )}
                             >
                                 <div
-                                    className={`flex items-center justify-center w-9 h-9 rounded-full border-2 shadow-sm transition-all duration-300 ${
+                                    className={cn(
+                                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold transition-all duration-300',
                                         isCompleted
-                                            ? 'bg-primary border-primary text-white'
+                                            ? 'border-primary bg-primary text-white'
                                             : isActive
-                                                ? 'bg-primary-soft border-primary text-primary'
-                                                : 'bg-white border-gray-300 text-gray-400'
-                                    }`}
+                                                ? 'border-primary bg-primary text-white'
+                                                : 'border-gray-200 bg-white text-gray-400'
+                                    )}
                                 >
                                     {isCompleted ? (
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                                        </svg>
+                                        <Check size={13} strokeWidth={3} />
                                     ) : (
-                                        <span className="text-xs font-semibold">{step.id}</span>
+                                        step.id
                                     )}
                                 </div>
-                                <span
-                                    className={`mt-1.5 text-[10px] md:text-xs font-semibold max-w-[5.5rem] leading-tight ${
-                                        isCompleted || isActive ? 'text-primary' : 'text-gray-500'
-                                    }`}
-                                >
-                                    {step.label}
-                                </span>
-                            </div>
+                                <div className="min-w-0">
+                                    <div className={cn('text-[12px] font-bold leading-tight', isCompleted || isActive ? 'text-primary' : 'text-gray-600')}>
+                                        {step.label}
+                                    </div>
+                                    <div className="mt-0.5 truncate text-[10.5px] text-gray-400">{step.sub}</div>
+                                </div>
+                            </button>
                         );
                     })}
                 </div>

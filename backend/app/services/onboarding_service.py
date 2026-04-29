@@ -3,7 +3,7 @@ Onboarding Service - Business logic for onboarding operations
 """
 
 import logging
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from io import BytesIO
 from typing import Any
@@ -34,6 +34,10 @@ logger = logging.getLogger(__name__)
 
 class OnboardingService:
     """Service for onboarding operations"""
+
+    ONBOARDING_DRAFT_KEY = "onboarding_draft"
+    ONBOARDING_DRAFT_META_KEY = "onboarding_draft_meta"
+    ONBOARDING_FLOW_VERSION = "ux_2.0"
 
     INVENTORY_TEMPLATE_CATALOG = [
         {
@@ -539,25 +543,47 @@ class OnboardingService:
             raise ValueError(f"Organization {self.organization_id} not found")
 
         settings = org.settings or {}
-        draft = settings.get("onboarding_draft") or {}
+        draft = settings.get(self.ONBOARDING_DRAFT_KEY) or {}
         if not isinstance(draft, dict):
             draft = {}
         return draft
 
-    async def save_onboarding_draft(self, draft_data: dict[str, Any]) -> dict[str, Any]:
+    async def get_onboarding_draft_metadata(self) -> dict[str, Any]:
+        """Return onboarding draft tracking metadata from organization settings."""
+        org = await self.org_repo.get_by_id(self.organization_id)
+        if not org:
+            raise ValueError(f"Organization {self.organization_id} not found")
+
+        settings = org.settings or {}
+        metadata = settings.get(self.ONBOARDING_DRAFT_META_KEY) or {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        return metadata
+
+    async def save_onboarding_draft(
+        self, draft_data: dict[str, Any], updated_by_user_id: int | None = None
+    ) -> dict[str, Any]:
         """Persist onboarding draft in organization settings."""
         org = await self.org_repo.get_by_id(self.organization_id)
         if not org:
             raise ValueError(f"Organization {self.organization_id} not found")
 
-        if org.settings is None:
-            org.settings = {}
+        settings = org.settings if isinstance(org.settings, dict) else {}
+        now = datetime.now(UTC).isoformat()
+        metadata = {
+            "flow_version": self.ONBOARDING_FLOW_VERSION,
+            "status": str(draft_data.get("status") or "in_progress"),
+            "last_step": int(draft_data.get("lastStep") or 1),
+            "updated_at": now,
+            "updated_by_user_id": updated_by_user_id,
+        }
 
-        org.settings["onboarding_draft"] = draft_data or {}
-        flag_modified(org, "settings")
-        await self.db.commit()
-        await self.db.refresh(org)
-        return org.settings.get("onboarding_draft") or {}
+        settings[self.ONBOARDING_DRAFT_KEY] = draft_data or {}
+        settings[self.ONBOARDING_DRAFT_META_KEY] = metadata
+        updated = await self.org_repo.update_settings(self.organization_id, settings)
+        if not updated:
+            raise ValueError(f"Organization {self.organization_id} not found")
+        return updated.settings.get(self.ONBOARDING_DRAFT_KEY) or {}
 
     async def get_benchmarks(
         self, profile_type: str, country: str = "US", currency: str = "USD"
@@ -682,7 +708,13 @@ class OnboardingService:
             org.settings["country"] = request_country
             org.settings["profile_type"] = request.profile_type
             org.settings["onboarding_completed"] = True
-            org.settings["onboarding_draft"] = {}
+            org.settings[self.ONBOARDING_DRAFT_KEY] = {}
+            org.settings[self.ONBOARDING_DRAFT_META_KEY] = {
+                "flow_version": self.ONBOARDING_FLOW_VERSION,
+                "status": "completed",
+                "last_step": 4,
+                "completed_at": datetime.now(UTC).isoformat(),
+            }
 
             if request.tax_structure:
                 org.settings["tax_structure"] = request.tax_structure

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
+import { QuoteJourneyNav } from '@/components/quotes/QuoteJourneyNav';
 
 export default function CreateQuotePage() {
     const router = useRouter();
@@ -29,6 +30,7 @@ export default function CreateQuotePage() {
                         </div>
                     </div>
 
+                    <QuoteJourneyNav currentStage="quote" />
                     <QuoteBuilderSubheader />
                     <QuoteBuilderLayout />
                 </div>

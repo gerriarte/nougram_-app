@@ -4,6 +4,7 @@ Repository for Organization model
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.models.organization import Organization
 from app.models.user import User
@@ -109,6 +110,18 @@ class OrganizationRepository(BaseRepository[Organization]):
         if status is not None:
             org.subscription_status = status
 
+        await self.db.commit()
+        await self.db.refresh(org)
+        return org
+
+    async def update_settings(self, org_id: int, settings: dict) -> Organization | None:
+        """Update organization settings JSON."""
+        org = await self.get_by_id(org_id)
+        if not org:
+            return None
+
+        org.settings = settings
+        flag_modified(org, "settings")
         await self.db.commit()
         await self.db.refresh(org)
         return org

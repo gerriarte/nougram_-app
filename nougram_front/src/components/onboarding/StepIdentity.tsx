@@ -1,16 +1,21 @@
 
 import React, { useState } from 'react';
 import { OnboardingStickyActions } from '@/components/onboarding/OnboardingStickyActions';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/Card';
+import { OnboardingStepHero } from '@/components/onboarding/OnboardingStepHero';
+import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
-import { Alert, AlertDescription } from '../ui/Alert';
 import { SUPPORTED_COUNTRIES, SUPPORTED_CURRENCIES, normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
+import type { OnboardingData } from '@/types/onboarding';
+
+type IdentityData = OnboardingData['identity'] & {
+    currency?: string;
+};
 
 interface StepIdentityProps {
-    onNext: (data: any) => void;
-    initialData?: any;
+    onNext: (data: OnboardingData['identity']) => void;
+    initialData?: IdentityData;
 }
 
 export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
@@ -21,10 +26,10 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
     const [country, setCountry] = useState(
         normalizeCountryCode(initialData?.country) || ''
     );
-    const [errors, setErrors] = useState<any>({});
+    const [errors, setErrors] = useState<Partial<Record<'organizationName' | 'currency' | 'country', string>>>({});
 
     const validate = () => {
-        const newErrors: any = {};
+        const newErrors: Partial<Record<'organizationName' | 'currency' | 'country', string>> = {};
         if (!organizationName.trim()) newErrors.organizationName = 'El nombre de la organización es requerido';
         if (!currency) newErrors.currency = 'La moneda es requerida';
         if (!country) newErrors.country = 'El país es requerido';
@@ -40,22 +45,21 @@ export function StepIdentity({ onNext, initialData }: StepIdentityProps) {
 
     return (
         <div className="space-y-6 max-w-2xl mx-auto pb-24 md:pb-6">
-            <div className="text-center space-y-2 px-1">
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">¡Bienvenido a Nougram!</h1>
-                <p className="text-sm sm:text-base text-gray-600">Vamos a configurar tu estructura de costos en menos de 10 minutos.</p>
-            </div>
+            <OnboardingStepHero
+                eyebrow="Paso 1 de 4"
+                title="Empecemos con la identidad de tu operación"
+                description="Estos datos definen la moneda base, el país y el nombre que Nougram usará para calcular costos y preparar tus cotizaciones."
+                callout="Tus datos financieros se usan solo para modelar márgenes, costos reales y recomendaciones dentro de tu workspace."
+            />
 
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
-                <span className="text-xl">🔒</span>
-                <p className="text-sm text-gray-600">
-                    <strong>Tus datos financieros están cifrados</strong> y solo se usan para calcular tus márgenes personales. Nadie más los verá.
-                </p>
-            </div>
-
-            <Card>
+            <Card className="overflow-hidden border-gray-200 shadow-sm">
+                <div className="border-b border-gray-100 bg-gradient-to-r from-primary-soft to-white px-6 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Datos base</p>
+                    <p className="mt-1 text-sm text-gray-600">Completa los campos obligatorios para continuar.</p>
+                </div>
                 <CardContent className="space-y-4 pt-6">
                     <div className="space-y-2">
-                        <Label htmlFor="orgName">Nombre de tu Organización *</Label>
+                        <Label htmlFor="orgName">Nombre de tu organización *</Label>
                         <Input
                             id="orgName"
                             placeholder="Ej: Mi Agencia Creativa"

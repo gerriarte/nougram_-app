@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -27,15 +27,18 @@ from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.ai import ExecutiveSummaryRequest, ExecutiveSummaryService
 from app.schemas.proposal import (
+    ProposalAssetUploadResponse,
     ProposalClientShareRequest,
     ProposalClientShareResponse,
     ProposalCreate,
     ProposalGenerateAIRequest,
     ProposalListResponse,
     ProposalResponse,
+    ProposalShareStatsResponse,
     ProposalUpdate,
 )
 from app.services.ai_service import ai_service
+from app.services.proposal_asset_service import ProposalAssetService
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -58,7 +61,25 @@ def _build_ai_context_payload(payload: ProposalGenerateAIRequest) -> dict[str, s
         "estimated_timeline": _normalize_context_text(payload.estimated_timeline),
         "payment_conditions": _normalize_context_text(payload.payment_conditions),
         "execution_conditions": _normalize_context_text(payload.execution_conditions),
+        "tone": _normalize_context_text(payload.tone),
+        "audience": _normalize_context_text(payload.audience),
+        "differentiators": _normalize_context_text(payload.differentiators),
     }
+
+
+def _build_section_plan_payload(payload: ProposalGenerateAIRequest) -> list[dict[str, Any]]:
+    return [item.model_dump() for item in payload.section_plan if item.id.strip()]
+
+
+def _section_plan_to_prompt(section_plan: list[dict[str, Any]]) -> str:
+    if not section_plan:
+        return ""
+    lines = []
+    for idx, item in enumerate(section_plan, start=1):
+        label = _normalize_context_text(item.get("label")) or _normalize_context_text(item.get("id"))
+        state = "incluir" if item.get("enabled", True) else "omitir"
+        lines.append(f"{idx}. {label}: {state}")
+    return "\n".join(lines)
 
 
 def _read_context_history_from_settings(settings_value: Any) -> list[dict[str, Any]]:
@@ -234,13 +255,19 @@ async def generate_proposal_with_ai(
         f"Objetivo de la propuesta: {context_payload['proposal_objective'] or 'No especificado'}\n"
         f"Tiempo estimado de desarrollo: {context_payload['estimated_timeline'] or 'No especificado'}\n"
         f"Condiciones de pago: {context_payload['payment_conditions'] or 'No especificado'}\n"
-        f"Condiciones de ejecución: {context_payload['execution_conditions'] or 'No especificado'}"
+        f"Condiciones de ejecución: {context_payload['execution_conditions'] or 'No especificado'}\n"
+        f"Tono: {context_payload['tone'] or 'No especificado'}\n"
+        f"Audiencia: {context_payload['audience'] or 'No especificado'}\n"
+        f"Diferenciadores: {context_payload['differentiators'] or 'No especificado'}"
     )
+    section_plan = _build_section_plan_payload(payload)
+    section_plan_prompt = _section_plan_to_prompt(section_plan)
     composed_extra_instructions = "\n\n".join(
         block
         for block in [
             _normalize_context_text(payload.extra_instructions),
             "Contexto actual para redactar la propuesta:\n" + current_prompt_context,
+            ("Plan de secciones solicitado:\n" + section_plan_prompt) if section_plan_prompt else "",
             ("Contexto útil de propuestas anteriores:\n" + history_prompt)
             if history_prompt
             else "",
@@ -355,6 +382,19 @@ async def generate_proposal_with_ai(
         "free_text": _normalize_context_text(generated_sections.get("free_text")),
         "extra_instructions": payload.extra_instructions or "",
         "ai_context": context_payload,
+        "ai_brief": {
+            **context_payload,
+            "extra_instructions": _normalize_context_text(payload.extra_instructions),
+        },
+        "layout": {
+            "sections": [
+                item["id"] for item in section_plan if item.get("enabled", True)
+            ],
+            "hidden": [
+                item["id"] for item in section_plan if not item.get("enabled", True)
+            ],
+            "section_plan": section_plan,
+        },
     }
 
     if payload.persist_context:
@@ -422,6 +462,119 @@ async def generate_proposal_with_ai(
         )
 
     return ProposalResponse.model_validate(created)
+
+
+@router.get(
+    "/{project_id}/proposals/{proposal_id}/share-stats",
+    response_model=ProposalShareStatsResponse,
+    summary="Get latest client portal share statistics for a proposal",
+)
+async def get_proposal_share_stats(
+    project_id: int,
+    proposal_id: int,
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(require_view_sensitive_data),
+    db: AsyncSession = Depends(get_db),
+):
+    project_repo = RepositoryFactory.create_project_repository(db, tenant.organization_id)
+    project = await project_repo.get_by_id(project_id, include_deleted=False)
+    if not project:
+        raise ResourceNotFoundError("Project", project_id)
+
+    proposal_repo = RepositoryFactory.create_proposal_repository(db, tenant.organization_id)
+    proposal = await proposal_repo.get_by_id(proposal_id)
+    if not proposal or proposal.project_id != project_id:
+        raise ResourceNotFoundError("Proposal", proposal_id)
+
+    link_repo = RepositoryFactory.create_proposal_client_link_repository(db, tenant.organization_id)
+    link = await link_repo.get_latest_by_proposal(proposal_id)
+    logger.info(
+        "Fetched proposal share stats",
+        user_id=current_user.id,
+        project_id=project_id,
+        proposal_id=proposal_id,
+        link_id=link.id if link else None,
+    )
+    if not link:
+        return ProposalShareStatsResponse(proposal_id=proposal_id)
+
+    return ProposalShareStatsResponse(
+        proposal_id=proposal_id,
+        link_id=link.id,
+        status=link.status,
+        view_count=int(link.view_count or 0),
+        viewed_at=link.viewed_at,
+        last_sent_at=link.last_sent_at,
+        decided_at=link.decided_at,
+        decision_comment=link.decision_comment,
+        access_expires_at=link.access_expires_at,
+    )
+
+
+@router.post(
+    "/{project_id}/proposals/{proposal_id}/assets",
+    response_model=ProposalAssetUploadResponse,
+    summary="Upload logo or cover asset for a proposal",
+)
+async def upload_proposal_asset(
+    project_id: int,
+    proposal_id: int,
+    asset_type: str = Form(..., pattern="^(logo|cover)$"),
+    file: UploadFile = File(...),
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(require_modify_costs),
+    db: AsyncSession = Depends(get_db),
+):
+    project_repo = RepositoryFactory.create_project_repository(db, tenant.organization_id)
+    project = await project_repo.get_by_id(project_id, include_deleted=False)
+    if not project:
+        raise ResourceNotFoundError("Project", project_id)
+
+    proposal_repo = RepositoryFactory.create_proposal_repository(db, tenant.organization_id)
+    proposal = await proposal_repo.get_by_id(proposal_id)
+    if not proposal or proposal.project_id != project_id:
+        raise ResourceNotFoundError("Proposal", proposal_id)
+    if proposal.is_locked:
+        raise HTTPException(status_code=409, detail="Proposal is locked and cannot be edited")
+
+    content = await file.read()
+    uploaded = ProposalAssetService().upload(
+        organization_id=tenant.organization_id,
+        project_id=project_id,
+        proposal_id=proposal_id,
+        asset_type=asset_type,
+        filename=file.filename or "",
+        content_type=file.content_type or "",
+        content=content,
+    )
+
+    body_json = proposal.body_json if isinstance(proposal.body_json, dict) else {}
+    branding = body_json.get("branding") if isinstance(body_json.get("branding"), dict) else {}
+    next_branding = {
+        **branding,
+        "logoUrl" if asset_type == "logo" else "coverImageUrl": uploaded.url,
+    }
+    proposal.body_json = {
+        **body_json,
+        "branding": next_branding,
+    }
+    proposal.updated_by_id = current_user.id
+    updated = await proposal_repo.update(proposal)
+
+    logger.info(
+        "Uploaded proposal asset",
+        user_id=current_user.id,
+        project_id=project_id,
+        proposal_id=proposal_id,
+        asset_type=asset_type,
+    )
+    return ProposalAssetUploadResponse(
+        success=True,
+        asset_type=asset_type,
+        asset_url=uploaded.url,
+        asset_key=uploaded.key,
+        body_json=updated.body_json if isinstance(updated.body_json, dict) else {},
+    )
 
 
 @router.post(

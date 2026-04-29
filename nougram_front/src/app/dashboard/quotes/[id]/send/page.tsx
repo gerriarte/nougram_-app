@@ -10,6 +10,7 @@ import { Quote } from '@/components/dashboard/QuoteCard';
 import { proposalService, ProposalBody, ProposalDocument } from '@/services/proposalService';
 import { trackProposalShared } from '@/lib/analytics';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
+import { QuoteJourneyNav } from '@/components/quotes/QuoteJourneyNav';
 
 /** Renders hybrid proposal body (guided sections + free_text) for preview and email. */
 function proposalBodyToText(body: ProposalBody): string {
@@ -208,11 +209,14 @@ export default function SendQuotePage() {
 
     return (
         <AdminLayout hideRightPanel>
-            <QuoteSendView
+            <div className="mx-auto w-full max-w-7xl space-y-4 px-1 sm:px-0">
+                <QuoteJourneyNav currentStage="send" quoteId={id} />
+                <QuoteSendView
                     quote={quote}
                     initialToEmail={clientEmail}
                     initialProposalTitle={proposal?.title}
                     initialProposalText={proposal ? proposalBodyToText(proposal.body_json || {}) : ''}
+                    initialProposalBranding={proposal?.body_json?.branding}
                     proposalVersion={proposal?.version}
                     initialProposalId={proposal?.id}
                     onSend={handleSend}
@@ -223,6 +227,7 @@ export default function SendQuotePage() {
                     onGoToDashboard={() => router.push('/dashboard')}
                     onCancel={() => router.back()}
                 />
+            </div>
         </AdminLayout>
     );
 }

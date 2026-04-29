@@ -92,6 +92,14 @@ class Settings(BaseSettings):
     # Frontend URL for invitation links
     FRONTEND_URL: str = "http://localhost:3000"  # Frontend URL for invitation links
 
+    # Contabo Object Storage (S3-compatible) for proposal assets
+    CONTABO_S3_ENDPOINT_URL: str = ""
+    CONTABO_S3_REGION: str = ""
+    CONTABO_S3_BUCKET: str = ""
+    CONTABO_S3_ACCESS_KEY_ID: str = ""
+    CONTABO_S3_SECRET_ACCESS_KEY: str = ""
+    CONTABO_S3_PUBLIC_BASE_URL: str = ""
+
     # Celery Configuration
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"  # Redis broker URL
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"  # Redis result backend

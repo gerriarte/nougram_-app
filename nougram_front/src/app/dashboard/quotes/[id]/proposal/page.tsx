@@ -4,11 +4,12 @@ import React, { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ProposalBuilderHybrid } from '@/components/quotes/ProposalBuilderHybrid';
 import { quoteService } from '@/services/quoteService';
-import { proposalService, ProposalBody, ProposalDocument } from '@/services/proposalService';
+import { proposalService, ProposalBody, ProposalDocument, ProposalSectionPlanItem } from '@/services/proposalService';
 import { Quote } from '@/components/dashboard/QuoteCard';
 import { getQuoteEditorMeta } from '@/lib/quote-editor-meta';
 import { trackProposalGeneratedWithAI } from '@/lib/analytics';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
+import { QuoteJourneyNav } from '@/components/quotes/QuoteJourneyNav';
 
 export default function ProposalBuilderPage() {
     const router = useRouter();
@@ -16,21 +17,22 @@ export default function ProposalBuilderPage() {
     const id = params.id as string;
     const [quote, setQuote] = useState<Quote | null>(null);
     const [proposal, setProposal] = useState<ProposalDocument | null>(null);
+    const [proposals, setProposals] = useState<ProposalDocument[]>([]);
     const [suggestedServicesText, setSuggestedServicesText] = useState<string>('');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (!id) {
-            setLoading(false);
             return;
         }
         Promise.all([
             quoteService.getByProjectId(id),
-            proposalService.getLatest(id),
+            proposalService.list(id),
             quoteService.getBuilderData(id),
-        ]).then(([q, p, builderData]) => {
+        ]).then(([q, proposalItems, builderData]) => {
             setQuote(q ?? null);
-            setProposal(p ?? null);
+            setProposals(proposalItems);
+            setProposal(proposalItems[0] ?? null);
             const services = (builderData?.items || [])
                 .map((item) => item.serviceName?.trim())
                 .filter((name): name is string => Boolean(name));
@@ -57,6 +59,10 @@ export default function ProposalBuilderPage() {
         }
         if (saved) {
             setProposal(saved);
+            setProposals((current) => {
+                const withoutSaved = current.filter((item) => item.id !== saved.id);
+                return [saved, ...withoutSaved].sort((a, b) => b.version - a.version);
+            });
             const isUpdate = !!proposal?.id;
             return {
                 proposalId: saved.id,
@@ -75,6 +81,10 @@ export default function ProposalBuilderPage() {
         estimated_timeline?: string;
         payment_conditions?: string;
         execution_conditions?: string;
+        tone?: string;
+        audience?: string;
+        differentiators?: string;
+        section_plan?: ProposalSectionPlanItem[];
         persist_context?: boolean;
     }) => {
         const generated = await proposalService.generateAI(id, payload);
@@ -82,6 +92,10 @@ export default function ProposalBuilderPage() {
             throw new Error('No se pudo generar la propuesta con IA');
         }
         setProposal(generated);
+        setProposals((current) => {
+            const withoutGenerated = current.filter((item) => item.id !== generated.id);
+            return [generated, ...withoutGenerated].sort((a, b) => b.version - a.version);
+        });
         trackProposalGeneratedWithAI({
             project_id: id,
             quote_id: quote?.quoteId != null ? String(quote.quoteId) : undefined,
@@ -123,12 +137,19 @@ export default function ProposalBuilderPage() {
     return (
         <AdminLayout hideRightPanel>
             <div className="max-w-[1200px] mx-auto w-full px-1 sm:px-0 pb-6">
+                <QuoteJourneyNav currentStage="proposal" quoteId={id} className="mb-4" />
                 <ProposalBuilderHybrid
                     projectId={id}
                     projectName={quote.project}
                     initialTitle={proposal?.title ?? `Propuesta comercial - ${quote.project}`}
                     initialBody={initialProposalBody}
                     initialProposalId={proposal?.id}
+                    currentVersion={proposal?.version}
+                    versions={proposals.map((item) => ({ version: item.version }))}
+                    onSelectVersion={(version) => {
+                        const selected = proposals.find((item) => item.version === version);
+                        if (selected) setProposal(selected);
+                    }}
                     onSave={handleSave}
                     onGenerateAI={handleGenerateAI}
                     onContinueToSend={() => router.push(`/dashboard/quotes/${id}/send`)}

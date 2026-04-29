@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/Button';
-import { History, GitBranch, Plus } from 'lucide-react';
+import { History, Plus } from 'lucide-react';
 
 interface QuoteVersion {
     version: number;
@@ -51,15 +51,17 @@ export function VersionSelector({ currentVersion, versions, onSelectVersion, onC
                 ))}
             </div>
 
-            <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 ml-1 text-gray-400 hover:text-blue-600"
-                title="Crear nueva versión"
-                onClick={onCreateNewVersion}
-            >
-                <Plus size={14} />
-            </Button>
+            {onCreateNewVersion && (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 ml-1 text-gray-400 hover:text-blue-600"
+                    title="Crear nueva versión"
+                    onClick={onCreateNewVersion}
+                >
+                    <Plus size={14} />
+                </Button>
+            )}
         </div>
     );
 }

@@ -21,6 +21,12 @@ class ProposalUpdate(BaseModel):
     is_locked: bool | None = None
 
 
+class ProposalSectionPlanItem(BaseModel):
+    id: str = Field(..., min_length=1, max_length=80)
+    label: str | None = Field(None, max_length=120)
+    enabled: bool = True
+
+
 class ProposalGenerateAIRequest(BaseModel):
     title: str | None = None
     language: str = Field(default="es", pattern="^(es|en)$")
@@ -30,6 +36,10 @@ class ProposalGenerateAIRequest(BaseModel):
     estimated_timeline: str | None = None
     payment_conditions: str | None = None
     execution_conditions: str | None = None
+    tone: str | None = Field(None, max_length=80)
+    audience: str | None = Field(None, max_length=255)
+    differentiators: str | None = Field(None, max_length=2000)
+    section_plan: list[ProposalSectionPlanItem] = Field(default_factory=list)
     persist_context: bool = Field(default=True)
     user_api_key: str | None = Field(None, max_length=256)
     ai_provider: str | None = Field(None, pattern="^(openai|anthropic)$")
@@ -86,6 +96,26 @@ class ProposalClientShareResponse(BaseModel):
     sent_email: bool = True
 
 
+class ProposalShareStatsResponse(BaseModel):
+    proposal_id: int
+    link_id: int | None = None
+    status: str | None = None
+    view_count: int = 0
+    viewed_at: datetime | None = None
+    last_sent_at: datetime | None = None
+    decided_at: datetime | None = None
+    decision_comment: str | None = None
+    access_expires_at: datetime | None = None
+
+
+class ProposalAssetUploadResponse(BaseModel):
+    success: bool
+    asset_type: Literal["logo", "cover"]
+    asset_url: str
+    asset_key: str
+    body_json: dict[str, Any]
+
+
 class ProposalClientVerifyRequest(BaseModel):
     access_code: str = Field(..., min_length=4, max_length=16)
 
@@ -105,6 +135,7 @@ class ProposalClientPortalResponse(BaseModel):
     proposal_id: int
     proposal_title: str
     proposal_body_json: dict[str, Any]
+    organization_name: str | None = None
     project_name: str
     client_name: str
     quote_id: int | None = None

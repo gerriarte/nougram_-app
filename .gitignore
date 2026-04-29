@@ -50,6 +50,10 @@ certbot-logs/
 
 # Backups
 backups/
+Backup_files/
+
+# Local design/prototype exports
+nougram_front/Nougram_front 2.0/
 
 # Logs
 *.log

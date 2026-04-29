@@ -226,3 +226,4 @@ class OnboardingDraftResponse(BaseModel):
     success: bool
     organization_id: int
     data: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)

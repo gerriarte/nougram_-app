@@ -24,12 +24,18 @@ type AccessLinkResult = {
     ok: boolean; message: string;
     publicUrl?: string; accessCode?: string; accessExpiresAt?: string;
 };
+type ProposalBranding = {
+    brandColor?: string;
+    logoUrl?: string;
+    coverImageUrl?: string;
+};
 
 interface QuoteSendViewProps {
     quote: Quote;
     initialToEmail?: string;
     initialProposalTitle?: string;
     initialProposalText?: string;
+    initialProposalBranding?: ProposalBranding;
     proposalVersion?: number;
     initialProposalId?: number;
     onSend: (data: QuoteSendPayload) => Promise<ActionResult>;
@@ -95,14 +101,24 @@ function ChoiceCard({
 
 // ── Email preview ──────────────────────────────────────────────────
 function EmailPreview({
-    to, subject, message, projectName, version, total, currency, mode,
+    to, subject, message, projectName, version, total, currency, mode, branding,
 }: {
     to: string; subject: string; message: string;
     projectName: string; version: string | number; total: number; currency: string; mode: 'standard' | 'ai';
+    branding?: ProposalBranding;
 }) {
     const firstName = to.split('@')[0] || 'cliente';
+    const brandColor = branding?.brandColor && /^#[0-9a-fA-F]{6}$/.test(branding.brandColor)
+        ? branding.brandColor
+        : '#D97757';
     return (
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow">
+            {branding?.coverImageUrl && (
+                <div
+                    className="h-20 bg-cover bg-center"
+                    style={{ backgroundImage: `linear-gradient(135deg, ${brandColor}55, rgba(17,24,39,0.25)), url(${branding.coverImageUrl})` }}
+                />
+            )}
             {/* Browser dots */}
             <div className="flex items-center gap-1.5 border-b border-gray-100 bg-surface-2 px-4 py-2.5">
                 {['#ff5f57', '#febc2e', '#28c840'].map(c => (
@@ -135,12 +151,20 @@ function EmailPreview({
                 </div>
                 {/* Proposal card */}
                 <div className="rounded-xl border border-gray-100 bg-surface-2 p-3.5 mt-2">
-                    <div className="text-[13px] font-semibold text-gray-900">{projectName}</div>
+                    <div className="flex items-center gap-2">
+                        {branding?.logoUrl && (
+                            <span
+                                className="h-5 w-5 rounded bg-contain bg-center bg-no-repeat"
+                                style={{ backgroundImage: `url(${branding.logoUrl})` }}
+                            />
+                        )}
+                        <div className="text-[13px] font-semibold text-gray-900">{projectName}</div>
+                    </div>
                     <div className="mt-0.5 text-[10.5px] text-gray-400">V{version} · Válida por 30 días</div>
                     <div className="mt-2 text-[22px] font-bold tabular-nums text-gray-900 tracking-tight">
                         {formatCurrency(total, currency)}
                     </div>
-                    <div className="mt-2.5 w-full rounded-lg bg-primary py-1.5 text-center text-[12px] font-semibold text-white">
+                    <div className="mt-2.5 w-full rounded-lg py-1.5 text-center text-[12px] font-semibold text-white" style={{ backgroundColor: brandColor }}>
                         Ver Propuesta Online →
                     </div>
                 </div>
@@ -153,7 +177,7 @@ function EmailPreview({
 // ── Main component ─────────────────────────────────────────────────
 export function QuoteSendView({
     quote, initialToEmail, initialProposalTitle, initialProposalText,
-    proposalVersion, initialProposalId,
+    initialProposalBranding, proposalVersion, initialProposalId,
     onSend, onGenerateAccessLink, onSaveProposal, onGenerateProposalAI,
     onOpenStructuredBuilder, onGoToDashboard, onCancel,
 }: QuoteSendViewProps) {
@@ -250,8 +274,8 @@ export function QuoteSendView({
                             <ArrowLeft size={16} />
                         </button>
                         <div>
-                            <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">Paso 2 de 3</div>
-                            <h1 className="text-[18px] font-semibold text-gray-900">Diseño de propuesta</h1>
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">Paso 3 de 3</div>
+                            <h1 className="text-[18px] font-semibold text-gray-900">Envío de propuesta</h1>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -494,6 +518,7 @@ export function QuoteSendView({
                             to={to} subject={subject} message={message}
                             projectName={quote.project} version={quote.version}
                             total={total} currency={quote.currency} mode={mode}
+                            branding={initialProposalBranding}
                         />
                     </div>
                 </div>

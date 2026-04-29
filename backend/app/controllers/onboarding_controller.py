@@ -155,10 +155,12 @@ class OnboardingController(BaseController):
         """Get persisted onboarding draft."""
         try:
             draft = await self.onboarding_service.get_onboarding_draft()
+            metadata = await self.onboarding_service.get_onboarding_draft_metadata()
             return OnboardingDraftResponse(
                 success=True,
                 organization_id=self.organization_id,
                 data=draft,
+                metadata=metadata,
             )
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -174,11 +176,16 @@ class OnboardingController(BaseController):
     ) -> OnboardingDraftResponse:
         """Save onboarding draft."""
         try:
-            saved = await self.onboarding_service.save_onboarding_draft(request.data)
+            saved = await self.onboarding_service.save_onboarding_draft(
+                request.data,
+                updated_by_user_id=self.current_user.id,
+            )
+            metadata = await self.onboarding_service.get_onboarding_draft_metadata()
             return OnboardingDraftResponse(
                 success=True,
                 organization_id=self.organization_id,
                 data=saved,
+                metadata=metadata,
             )
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

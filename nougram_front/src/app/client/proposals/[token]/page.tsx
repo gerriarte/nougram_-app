@@ -25,6 +25,11 @@ type PortalDataResponse = {
 type DecisionType = 'accepted' | 'rejected' | 'revision_requested';
 type ProposalBody = Record<string, unknown>;
 type ProposalDeliverable = { name: string; status?: string };
+type ProposalBranding = {
+    brandColor?: string;
+    logoUrl?: string;
+    coverImageUrl?: string;
+};
 
 const SESSION_STORAGE_PREFIX = 'nougram:proposal-portal:session:';
 
@@ -46,6 +51,18 @@ function asDeliverables(v: unknown): ProposalDeliverable[] {
         }
     }
     return out;
+}
+function asBranding(v: unknown): ProposalBranding {
+    if (!v || typeof v !== 'object') return {};
+    const raw = v as Record<string, unknown>;
+    return {
+        brandColor: asString(raw.brandColor),
+        logoUrl: asString(raw.logoUrl),
+        coverImageUrl: asString(raw.coverImageUrl),
+    };
+}
+function safeBrandColor(value: string | undefined) {
+    return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#D97757';
 }
 function formatMoney(value: string | null | undefined, currency: string | null | undefined) {
     if (!value) return '—';
@@ -144,6 +161,8 @@ export default function ClientProposalPortalPage() {
     };
 
     const body = (portalData?.proposal_body_json ?? {}) as ProposalBody;
+    const branding = asBranding(body.branding);
+    const brandColor = safeBrandColor(branding.brandColor);
     const executiveSummary = asString(body.executive_summary);
     const description = asString(body.description);
     const scope = asString(body.scope);
@@ -223,11 +242,26 @@ export default function ClientProposalPortalPage() {
 
                     {/* Hero */}
                     <div className="mb-6 overflow-hidden rounded-3xl bg-white shadow-sm">
+                        {branding.coverImageUrl && (
+                            <div
+                                className="h-44 bg-cover bg-center sm:h-56"
+                                style={{
+                                    backgroundImage: `linear-gradient(135deg, ${brandColor}55, rgba(17,24,39,0.35)), url(${branding.coverImageUrl})`,
+                                }}
+                            />
+                        )}
                         <div className="p-7 sm:p-10">
                             {/* Sender */}
                             {senderName ? (
                                 <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-surface-2 px-3 py-1.5">
-                                    <Building2 size={13} className="text-gray-500" />
+                                    {branding.logoUrl ? (
+                                        <span
+                                            className="h-4 w-4 rounded bg-contain bg-center bg-no-repeat"
+                                            style={{ backgroundImage: `url(${branding.logoUrl})` }}
+                                        />
+                                    ) : (
+                                        <Building2 size={13} className="text-gray-500" />
+                                    )}
                                     <span className="text-[12.5px] font-medium text-gray-700">{senderName}</span>
                                 </div>
                             ) : (
@@ -237,7 +271,7 @@ export default function ClientProposalPortalPage() {
                                 </div>
                             )}
 
-                            <p className="mb-2 font-mono text-[10.5px] font-semibold uppercase tracking-widest text-primary">
+                            <p className="mb-2 font-mono text-[10.5px] font-semibold uppercase tracking-widest" style={{ color: brandColor }}>
                                 Propuesta comercial
                             </p>
                             <h1 className="text-[28px] font-bold leading-tight tracking-tight text-gray-900 sm:text-[36px] lg:text-[42px]">

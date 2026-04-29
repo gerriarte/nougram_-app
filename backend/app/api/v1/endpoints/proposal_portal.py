@@ -8,14 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.email import send_email
 from app.core.security import create_access_token, decode_access_token, verify_password
-from app.models.project import Project, Quote
-from app.models.proposal import ProposalClientLink, ProposalDocument
+from app.models.project import Project
+from app.models.proposal import ProposalClientLink
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.proposal import (
@@ -108,24 +107,15 @@ async def get_proposal_portal_data(
         raise HTTPException(status_code=401, detail="Invalid client portal session")
 
     link = await _get_active_link(token, db)
-    result = await db.execute(
-        select(ProposalDocument)
-        .where(
-            ProposalDocument.id == link.proposal_id,
-            ProposalDocument.organization_id == link.organization_id,
-        )
-        .options(selectinload(ProposalDocument.project))
-    )
-    proposal = result.scalar_one_or_none()
+    proposal_repo = RepositoryFactory.create_proposal_repository(db, link.organization_id)
+    proposal = await proposal_repo.get_for_client_portal(link.proposal_id, link.organization_id)
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
     quote = None
     if link.quote_id:
-        q_res = await db.execute(
-            select(Quote).where(Quote.id == link.quote_id, Quote.project_id == link.project_id)
-        )
-        quote = q_res.scalar_one_or_none()
+        project_repo = RepositoryFactory.create_project_repository(db, link.organization_id)
+        quote = await project_repo.get_quote_with_relationships(link.quote_id, link.project_id)
 
     link.view_count = int(link.view_count or 0) + 1
     link.viewed_at = datetime.now(UTC)
@@ -137,6 +127,7 @@ async def get_proposal_portal_data(
         proposal_id=proposal.id,
         proposal_title=proposal.title,
         proposal_body_json=proposal.body_json if isinstance(proposal.body_json, dict) else {},
+        organization_name=proposal.organization.name if proposal.organization else None,
         project_name=proposal.project.name if proposal.project else "",
         client_name=proposal.project.client_name if proposal.project else "",
         quote_id=quote.id if quote else None,
@@ -198,24 +189,15 @@ async def submit_proposal_decision(
             reason=payload.decision,
         )
 
-    result = await db.execute(
-        select(ProposalDocument)
-        .where(
-            ProposalDocument.id == link.proposal_id,
-            ProposalDocument.organization_id == link.organization_id,
-        )
-        .options(selectinload(ProposalDocument.project))
-    )
-    proposal = result.scalar_one_or_none()
+    proposal_repo = RepositoryFactory.create_proposal_repository(db, link.organization_id)
+    proposal = await proposal_repo.get_for_client_portal(link.proposal_id, link.organization_id)
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
     quote = None
     if link.quote_id:
-        q_res = await db.execute(
-            select(Quote).where(Quote.id == link.quote_id, Quote.project_id == link.project_id)
-        )
-        quote = q_res.scalar_one_or_none()
+        project_repo = RepositoryFactory.create_project_repository(db, link.organization_id)
+        quote = await project_repo.get_quote_with_relationships(link.quote_id, link.project_id)
 
     creator = None
     if proposal.created_by_id:
@@ -277,6 +259,7 @@ async def submit_proposal_decision(
         proposal_id=proposal.id,
         proposal_title=proposal.title,
         proposal_body_json=proposal.body_json if isinstance(proposal.body_json, dict) else {},
+        organization_name=proposal.organization.name if proposal.organization else None,
         project_name=proposal.project.name if proposal.project else "",
         client_name=proposal.project.client_name if proposal.project else "",
         quote_id=quote.id if quote else None,

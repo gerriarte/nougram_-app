@@ -12,11 +12,24 @@ import { AdminNavigationLinks } from '@/components/admin/layout/AdminNavigationL
 interface AdminSidebarProps {
     isCollapsed: boolean;
     onToggleCollapse: () => void;
+    workspaceName?: string;
 }
 
-export function AdminSidebar({ isCollapsed, onToggleCollapse }: AdminSidebarProps) {
+function getWorkspaceInitials(name: string) {
+    const initials = name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join('');
+
+    return initials || 'NW';
+}
+
+export function AdminSidebar({ isCollapsed, onToggleCollapse, workspaceName = 'Workspace' }: AdminSidebarProps) {
     const pathname = usePathname() || '';
     const { user } = useAuth();
+    const workspaceInitials = getWorkspaceInitials(workspaceName);
 
     return (
         <aside className={cn(
@@ -55,6 +68,27 @@ export function AdminSidebar({ isCollapsed, onToggleCollapse }: AdminSidebarProp
                 />
             </nav>
 
+            <div className={cn("border-t border-white/30", isCollapsed ? "p-3" : "p-4")}>
+                <div
+                    className={cn(
+                        "rounded-2xl border border-white/50 bg-white/65 shadow-sm backdrop-blur transition-all",
+                        isCollapsed
+                            ? "flex items-center justify-center p-2"
+                            : "flex items-center gap-3 px-3 py-3"
+                    )}
+                    title={`${workspaceName} Workspace`}
+                >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-[11px] font-black tracking-wide text-white">
+                        {workspaceInitials}
+                    </div>
+                    {!isCollapsed && (
+                        <div className="min-w-0">
+                            <p className="truncate text-[13px] font-black tracking-tight text-gray-900">{workspaceName}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-system-gray">Workspace</p>
+                        </div>
+                    )}
+                </div>
+            </div>
         </aside>
     );
 }

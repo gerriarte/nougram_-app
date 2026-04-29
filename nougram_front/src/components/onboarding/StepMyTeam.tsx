@@ -6,6 +6,7 @@ import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Alert } from '../ui/Alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
+import { OnboardingStepHero } from '@/components/onboarding/OnboardingStepHero';
 import { Step3MyTeamData } from '@/types/onboarding';
 import { formatCurrency, formatLocalizedNumberInput, parseLocalizedNumberInput } from '@/lib/utils';
 
@@ -209,10 +210,12 @@ export function StepMyTeam({
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto px-1">
-            <div className="text-center space-y-2">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Configura tu propio costo</h1>
-                <p className="text-sm sm:text-base text-gray-600">Gestiona toda la nómina desde un solo modal y calcula el BCR en tiempo real.</p>
-            </div>
+            <OnboardingStepHero
+                eyebrow="Paso 3 de 4"
+                title="Modela tu equipo y horas facturables"
+                description="Carga nómina, rol y disponibilidad real. Con esto calculamos el BCR usando horas productivas, vacaciones y cargas sociales."
+                callout="Puedes empezar con una persona y agregar el resto del equipo ahora o más adelante desde Nómina."
+            />
 
             <Card className="bg-amber-50 border-amber-200">
                 <CardContent className="space-y-4 pt-6">

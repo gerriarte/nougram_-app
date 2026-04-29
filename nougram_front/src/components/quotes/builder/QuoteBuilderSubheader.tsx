@@ -1,24 +1,17 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
-import { VersionSelector } from './VersionSelector';
 import { cn } from '@/lib/utils';
-
-type QuoteBuilderSubheaderProps = {
-    quoteId?: string;
-};
 
 const BUILDER_STEPS = [
     { id: 1, label: 'Información general', section: 'quote-step-project-info' },
-    { id: 2, label: 'Tipo de cotización', section: 'quote-step-estimation' },
-    { id: 3, label: 'Diseño de propuesta', section: 'quote-final-proposal-summary' },
+    { id: 2, label: 'Servicios y alcance', section: 'quote-step-estimation' },
+    { id: 3, label: 'Validación final', section: 'quote-final-proposal-summary' },
 ];
 
-export function QuoteBuilderSubheader({ quoteId }: QuoteBuilderSubheaderProps) {
-    const router = useRouter();
+export function QuoteBuilderSubheader() {
     const { state } = useQuoteBuilder();
 
     const hasProjectName = typeof state.projectName === 'string' && state.projectName.trim().length > 0;
@@ -51,7 +44,7 @@ export function QuoteBuilderSubheader({ quoteId }: QuoteBuilderSubheaderProps) {
                                     type="button"
                                     onClick={() => scrollTo(step.section)}
                                     className={cn(
-                                        'flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition-colors',
+                                        'flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/25',
                                         done
                                             ? 'border-transparent bg-success-soft text-success'
                                             : current
@@ -78,37 +71,7 @@ export function QuoteBuilderSubheader({ quoteId }: QuoteBuilderSubheaderProps) {
                         );
                     })}
 
-                    <span className="text-gray-300">/</span>
-                    <button
-                        type="button"
-                        disabled={!quoteId}
-                        onClick={() => quoteId && router.push(`/dashboard/quotes/${quoteId}/proposal`)}
-                        className={cn(
-                            'rounded-full border px-2.5 py-1 text-[11.5px] font-semibold',
-                            quoteId
-                                ? 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                                : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
-                        )}
-                    >
-                        4. Preview
-                    </button>
-                    <span className="text-gray-300">/</span>
-                    <button
-                        type="button"
-                        disabled={!quoteId}
-                        onClick={() => quoteId && router.push(`/dashboard/quotes/${quoteId}/send`)}
-                        className={cn(
-                            'rounded-full border px-2.5 py-1 text-[11.5px] font-semibold',
-                            quoteId
-                                ? 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                                : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
-                        )}
-                    >
-                        5. Envío
-                    </button>
                 </div>
-
-                <VersionSelector currentVersion="v1" />
             </div>
         </div>
     );

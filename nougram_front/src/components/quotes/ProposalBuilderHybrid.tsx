@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import { Button } from '@/components/ui/Button';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Input } from '@/components/ui/Input';
 import {
     ArrowLeft, Save, Send, Plus, Trash2, Sparkles,
@@ -9,7 +8,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAIApiKey, type AIProvider } from '@/hooks/useAIApiKey';
-import type { ProposalBody } from '@/services/proposalService';
+import { proposalService, type ProposalBody, type ProposalBranding, type ProposalSectionPlanItem } from '@/services/proposalService';
+import { VersionSelector } from '@/components/quotes/builder/VersionSelector';
 
 const SECTION_LABELS: Record<string, string> = {
     description: 'Descripción del proyecto',
@@ -21,6 +21,24 @@ const SECTION_LABELS: Record<string, string> = {
     free_text: 'Notas adicionales',
 };
 
+const AI_TONES = [
+    { id: 'consultive', label: 'Consultivo', hint: 'Experto y estratégico' },
+    { id: 'close', label: 'Cercano', hint: 'Humano y conversacional' },
+    { id: 'formal', label: 'Formal', hint: 'Corporativo y conciso' },
+    { id: 'bold', label: 'Enérgico', hint: 'Directo y persuasivo' },
+];
+
+const AI_SECTION_PLAN: ProposalSectionPlanItem[] = [
+    { id: 'executive_summary', label: 'Resumen ejecutivo', enabled: true },
+    { id: 'description', label: 'Contexto y diagnóstico', enabled: true },
+    { id: 'objectives', label: 'Objetivos del proyecto', enabled: true },
+    { id: 'deliverables', label: 'Entregables y alcance', enabled: true },
+    { id: 'timeline', label: 'Cronograma', enabled: true },
+    { id: 'conditions', label: 'Términos y condiciones', enabled: true },
+    { id: 'team', label: 'Equipo asignado', enabled: false },
+    { id: 'case_studies', label: 'Casos de estudio', enabled: false },
+];
+
 function emptyBody(): ProposalBody {
     return {
         description: '',
@@ -30,12 +48,29 @@ function emptyBody(): ProposalBody {
         timeline: '',
         conditions: '',
         free_text: '',
+        branding: {
+            brandColor: '#D97757',
+            logoUrl: '',
+            coverImageUrl: '',
+        },
+    };
+}
+
+function brandingFromDoc(body: ProposalBody): ProposalBranding {
+    const branding = body.branding && typeof body.branding === 'object'
+        ? body.branding as ProposalBranding
+        : {};
+    return {
+        brandColor: typeof branding.brandColor === 'string' && branding.brandColor ? branding.brandColor : '#D97757',
+        logoUrl: typeof branding.logoUrl === 'string' ? branding.logoUrl : '',
+        coverImageUrl: typeof branding.coverImageUrl === 'string' ? branding.coverImageUrl : '',
     };
 }
 
 function bodyFromDoc(body: ProposalBody | undefined): ProposalBody {
     if (!body || typeof body !== 'object') return emptyBody();
     return {
+        ...body,
         description: typeof body.description === 'string' ? body.description : '',
         objectives: Array.isArray(body.objectives) ? body.objectives.filter((o): o is string => typeof o === 'string') : [],
         deliverables: Array.isArray(body.deliverables)
@@ -47,6 +82,7 @@ function bodyFromDoc(body: ProposalBody | undefined): ProposalBody {
         timeline: typeof body.timeline === 'string' ? body.timeline : '',
         conditions: typeof body.conditions === 'string' ? body.conditions : '',
         free_text: typeof body.free_text === 'string' ? body.free_text : '',
+        branding: brandingFromDoc(body),
     };
 }
 
@@ -193,6 +229,9 @@ export interface ProposalBuilderHybridProps {
     initialTitle: string;
     initialBody: ProposalBody | undefined;
     initialProposalId?: number;
+    currentVersion?: number;
+    versions?: Array<{ version: number }>;
+    onSelectVersion?: (version: number) => void;
     onSave: (payload: { title: string; body_json: ProposalBody }) => Promise<{ proposalId?: number; message: string }>;
     onGenerateAI: (payload: {
         title?: string;
@@ -203,6 +242,10 @@ export interface ProposalBuilderHybridProps {
         estimated_timeline?: string;
         payment_conditions?: string;
         execution_conditions?: string;
+        tone?: string;
+        audience?: string;
+        differentiators?: string;
+        section_plan?: ProposalSectionPlanItem[];
         persist_context?: boolean;
         user_api_key?: string;
         ai_provider?: 'openai' | 'anthropic';
@@ -218,6 +261,9 @@ export function ProposalBuilderHybrid({
     initialTitle,
     initialBody,
     initialProposalId,
+    currentVersion,
+    versions,
+    onSelectVersion,
     onSave,
     onGenerateAI,
     onContinueToSend,
@@ -230,6 +276,7 @@ export function ProposalBuilderHybrid({
     const [body, setBody] = useState<ProposalBody>(() => bodyFromDoc(initialBody));
     const [saving, setSaving] = useState(false);
     const [generatingAI, setGeneratingAI] = useState(false);
+    const [uploadingAsset, setUploadingAsset] = useState<'logo' | 'cover' | null>(null);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     // AI context fields
@@ -258,6 +305,84 @@ export function ProposalBuilderHybrid({
             ? String((body.ai_context as { execution_conditions?: string }).execution_conditions)
             : ''
     );
+    const aiBrief = body.ai_brief && typeof body.ai_brief === 'object' ? body.ai_brief as {
+        tone?: unknown;
+        audience?: unknown;
+        differentiators?: unknown;
+    } : {};
+    const initialLayout = body.layout && typeof body.layout === 'object' ? body.layout as {
+        section_plan?: unknown;
+    } : {};
+    const [aiTone, setAiTone] = useState<string>(
+        typeof aiBrief.tone === 'string' && aiBrief.tone ? aiBrief.tone : 'consultive'
+    );
+    const [aiAudience, setAiAudience] = useState<string>(
+        typeof aiBrief.audience === 'string' ? aiBrief.audience : ''
+    );
+    const [aiDifferentiators, setAiDifferentiators] = useState<string>(
+        typeof aiBrief.differentiators === 'string' ? aiBrief.differentiators : ''
+    );
+    const [aiSectionPlan, setAiSectionPlan] = useState<ProposalSectionPlanItem[]>(() => {
+        if (Array.isArray(initialLayout.section_plan)) {
+            const saved = initialLayout.section_plan
+                .filter((item): item is ProposalSectionPlanItem => (
+                    Boolean(item) &&
+                    typeof item === 'object' &&
+                    typeof (item as ProposalSectionPlanItem).id === 'string'
+                ))
+                .map((item) => ({
+                    id: item.id,
+                    label: item.label,
+                    enabled: item.enabled !== false,
+                }));
+            if (saved.length > 0) return saved;
+        }
+        return AI_SECTION_PLAN;
+    });
+
+    useEffect(() => {
+        const nextBody = bodyFromDoc(initialBody);
+        const nextContext = nextBody.ai_context && typeof nextBody.ai_context === 'object'
+            ? nextBody.ai_context as Record<string, unknown>
+            : {};
+        const nextBrief = nextBody.ai_brief && typeof nextBody.ai_brief === 'object'
+            ? nextBody.ai_brief as Record<string, unknown>
+            : {};
+        const nextLayout = nextBody.layout && typeof nextBody.layout === 'object'
+            ? nextBody.layout as { section_plan?: unknown }
+            : {};
+
+        setTitle(initialTitle || `Propuesta comercial - ${projectName}`);
+        setBody(nextBody);
+        setAiServicesContext(
+            typeof nextContext.services_context === 'string'
+                ? nextContext.services_context
+                : (suggestedServicesText || '')
+        );
+        setAiObjective(typeof nextContext.proposal_objective === 'string' ? nextContext.proposal_objective : '');
+        setAiTimeline(typeof nextContext.estimated_timeline === 'string' ? nextContext.estimated_timeline : '');
+        setAiPaymentConditions(typeof nextContext.payment_conditions === 'string' ? nextContext.payment_conditions : '');
+        setAiExecutionConditions(typeof nextContext.execution_conditions === 'string' ? nextContext.execution_conditions : '');
+        setAiTone(typeof nextBrief.tone === 'string' && nextBrief.tone ? nextBrief.tone : 'consultive');
+        setAiAudience(typeof nextBrief.audience === 'string' ? nextBrief.audience : '');
+        setAiDifferentiators(typeof nextBrief.differentiators === 'string' ? nextBrief.differentiators : '');
+        setAiSectionPlan(
+            Array.isArray(nextLayout.section_plan)
+                ? nextLayout.section_plan
+                    .filter((item): item is ProposalSectionPlanItem => (
+                        Boolean(item) &&
+                        typeof item === 'object' &&
+                        typeof (item as ProposalSectionPlanItem).id === 'string'
+                    ))
+                    .map((item) => ({
+                        id: item.id,
+                        label: item.label,
+                        enabled: item.enabled !== false,
+                    }))
+                : AI_SECTION_PLAN
+        );
+        setFeedback(null);
+    }, [initialTitle, initialBody, projectName, suggestedServicesText]);
 
     // Panel collapse states
     const [aiKeyOpen, setAiKeyOpen] = useState(false);
@@ -265,6 +390,34 @@ export function ProposalBuilderHybrid({
     const update = useCallback(<K extends keyof ProposalBody>(key: K, value: ProposalBody[K]) => {
         setBody((prev) => ({ ...prev, [key]: value }));
     }, []);
+    const updateBranding = (patch: Partial<ProposalBranding>) => {
+        setBody((prev) => ({
+            ...prev,
+            branding: {
+                ...brandingFromDoc(prev),
+                ...patch,
+            },
+        }));
+    };
+    const handleAssetUpload = async (assetType: 'logo' | 'cover', file?: File | null) => {
+        if (!file) return;
+        if (!initialProposalId) {
+            setFeedback({ type: 'error', text: 'Guarda la propuesta antes de subir logo o portada.' });
+            return;
+        }
+        setUploadingAsset(assetType);
+        setFeedback(null);
+        try {
+            const uploaded = await proposalService.uploadAsset(projectId, initialProposalId, assetType, file);
+            if (!uploaded) throw new Error('No se pudo subir el asset a Contabo');
+            setBody(bodyFromDoc(uploaded.body_json));
+            setFeedback({ type: 'success', text: assetType === 'logo' ? 'Logo actualizado.' : 'Portada actualizada.' });
+        } catch (error) {
+            setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Error subiendo asset.' });
+        } finally {
+            setUploadingAsset(null);
+        }
+    };
 
     const addObjective = () => setBody(p => ({ ...p, objectives: [...(p.objectives || []), ''] }));
     const setObjective = (i: number, v: string) => setBody(p => { const l = [...(p.objectives || [])]; l[i] = v; return { ...p, objectives: l }; });
@@ -277,6 +430,11 @@ export function ProposalBuilderHybrid({
         return { ...p, deliverables: l };
     });
     const removeDeliverable = (i: number) => setBody(p => ({ ...p, deliverables: (p.deliverables || []).filter((_, j) => j !== i) }));
+    const toggleAISection = (sectionId: string) => {
+        setAiSectionPlan((prev) => prev.map((item) => (
+            item.id === sectionId ? { ...item, enabled: !item.enabled } : item
+        )));
+    };
 
     const handleSave = async () => {
         setSaving(true);
@@ -303,6 +461,10 @@ export function ProposalBuilderHybrid({
                 estimated_timeline: aiTimeline,
                 payment_conditions: aiPaymentConditions,
                 execution_conditions: aiExecutionConditions,
+                tone: aiTone,
+                audience: aiAudience,
+                differentiators: aiDifferentiators,
+                section_plan: aiSectionPlan,
                 persist_context: true,
                 user_api_key: (loaded && apiKey) ? apiKey : undefined,
                 ai_provider: (loaded && apiKey) ? provider : undefined,
@@ -319,6 +481,7 @@ export function ProposalBuilderHybrid({
 
     const objectives = body.objectives ?? [];
     const deliverables = body.deliverables ?? [];
+    const branding = brandingFromDoc(body);
     const nonEmptySections = [
         body.description,
         objectives.filter(o => o.trim()).length ? 'obj' : '',
@@ -348,6 +511,16 @@ export function ProposalBuilderHybrid({
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    {versions && versions.length > 0 && currentVersion && (
+                        <VersionSelector
+                            currentVersion={`v${currentVersion}`}
+                            versions={versions}
+                            onSelectVersion={(version) => {
+                                const numeric = Number(version.replace(/[^0-9]/g, ''));
+                                if (Number.isFinite(numeric)) onSelectVersion?.(numeric);
+                            }}
+                        />
+                    )}
                     <button
                         type="button"
                         onClick={handleSave}
@@ -403,6 +576,100 @@ export function ProposalBuilderHybrid({
                             onChange={e => setTitle(e.target.value)}
                             placeholder="Ej: Propuesta comercial — Rediseño Ecommerce"
                         />
+                    </SectionCard>
+
+                    {/* Branding */}
+                    <SectionCard title="Personalización visual">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[120px_1fr]">
+                            <div
+                                className="min-h-[96px] overflow-hidden rounded-xl border border-gray-200 bg-surface-2"
+                                style={{
+                                    background: branding.coverImageUrl
+                                        ? `linear-gradient(135deg, ${branding.brandColor || '#D97757'}33, rgba(0,0,0,0.1)), url(${branding.coverImageUrl}) center/cover`
+                                        : `linear-gradient(135deg, ${branding.brandColor || '#D97757'}33, #fff)`,
+                                }}
+                            >
+                                <div className="flex h-full items-end p-3">
+                                    <div
+                                        className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-[11px] font-black shadow-sm"
+                                        style={{ color: branding.brandColor || '#D97757' }}
+                                    >
+                                        {branding.logoUrl ? (
+                                            <span
+                                                className="h-7 w-7 rounded bg-contain bg-center bg-no-repeat"
+                                                style={{ backgroundImage: `url(${branding.logoUrl})` }}
+                                            />
+                                        ) : 'NG'}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="grid gap-3">
+                                <div className="grid grid-cols-[auto_1fr] gap-2">
+                                    <input
+                                        type="color"
+                                        value={branding.brandColor || '#D97757'}
+                                        onChange={e => updateBranding({ brandColor: e.target.value })}
+                                        className="h-9 w-11 cursor-pointer rounded-lg border border-gray-200 bg-white p-1"
+                                        aria-label="Color de marca"
+                                    />
+                                    <Input
+                                        value={branding.brandColor || ''}
+                                        onChange={e => updateBranding({ brandColor: e.target.value })}
+                                        placeholder="#D97757"
+                                        className="font-mono text-[12.5px]"
+                                    />
+                                </div>
+                                <Input
+                                    value={branding.logoUrl || ''}
+                                    onChange={e => updateBranding({ logoUrl: e.target.value })}
+                                    placeholder="URL del logo (opcional)"
+                                    className="text-[12.5px]"
+                                />
+                                <label className={cn(
+                                    'flex h-9 cursor-pointer items-center justify-center rounded-lg border border-dashed border-gray-200 bg-surface-2 text-[12px] font-semibold text-gray-500 hover:border-primary/40 hover:text-primary',
+                                    (!initialProposalId || uploadingAsset === 'logo') && 'cursor-not-allowed opacity-60'
+                                )}>
+                                    {uploadingAsset === 'logo' ? 'Subiendo logo...' : 'Subir logo a Contabo'}
+                                    <input
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                                        className="hidden"
+                                        disabled={!initialProposalId || uploadingAsset !== null}
+                                        onChange={(event) => {
+                                            void handleAssetUpload('logo', event.target.files?.[0]);
+                                            event.target.value = '';
+                                        }}
+                                    />
+                                </label>
+                                <Input
+                                    value={branding.coverImageUrl || ''}
+                                    onChange={e => updateBranding({ coverImageUrl: e.target.value })}
+                                    placeholder="URL de imagen de portada (opcional)"
+                                    className="text-[12.5px]"
+                                />
+                                <label className={cn(
+                                    'flex h-9 cursor-pointer items-center justify-center rounded-lg border border-dashed border-gray-200 bg-surface-2 text-[12px] font-semibold text-gray-500 hover:border-primary/40 hover:text-primary',
+                                    (!initialProposalId || uploadingAsset === 'cover') && 'cursor-not-allowed opacity-60'
+                                )}>
+                                    {uploadingAsset === 'cover' ? 'Subiendo portada...' : 'Subir portada a Contabo'}
+                                    <input
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/webp"
+                                        className="hidden"
+                                        disabled={!initialProposalId || uploadingAsset !== null}
+                                        onChange={(event) => {
+                                            void handleAssetUpload('cover', event.target.files?.[0]);
+                                            event.target.value = '';
+                                        }}
+                                    />
+                                </label>
+                                {!initialProposalId && (
+                                    <p className="text-[10.5px] text-gray-400">
+                                        Guarda la propuesta antes de subir archivos.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
                     </SectionCard>
 
                     {/* Description */}
@@ -570,6 +837,48 @@ export function ProposalBuilderHybrid({
                                 />
                             </div>
                             <div className="space-y-1">
+                                <label className="text-[10.5px] font-semibold text-gray-500">Tono</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {AI_TONES.map((tone) => {
+                                        const active = aiTone === tone.id;
+                                        return (
+                                            <button
+                                                key={tone.id}
+                                                type="button"
+                                                onClick={() => setAiTone(tone.id)}
+                                                className={cn(
+                                                    'rounded-lg border px-2.5 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/25',
+                                                    active
+                                                        ? 'border-primary bg-primary-soft text-primary'
+                                                        : 'border-gray-200 bg-white text-gray-600 hover:bg-surface-2'
+                                                )}
+                                            >
+                                                <div className="text-[11.5px] font-bold">{tone.label}</div>
+                                                <div className="mt-0.5 text-[10px] text-gray-400">{tone.hint}</div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10.5px] font-semibold text-gray-500">Audiencia</label>
+                                <Input
+                                    value={aiAudience}
+                                    onChange={e => setAiAudience(e.target.value)}
+                                    placeholder="Ej: CEO y CFO de una startup fintech"
+                                    className="text-[12.5px]"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10.5px] font-semibold text-gray-500">Diferenciadores</label>
+                                <Textarea
+                                    value={aiDifferentiators}
+                                    onChange={setAiDifferentiators}
+                                    placeholder="Ej: Experiencia en fintech LATAM, equipo in-house, casos similares..."
+                                    minRows={2}
+                                />
+                            </div>
+                            <div className="space-y-1">
                                 <label className="text-[10.5px] font-semibold text-gray-500">Tiempo estimado</label>
                                 <Input
                                     value={aiTimeline}
@@ -595,6 +904,26 @@ export function ProposalBuilderHybrid({
                                     placeholder="Ej: Reunión semanal, 2 rondas de ajustes"
                                     minRows={2}
                                 />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10.5px] font-semibold text-gray-500">Secciones a incluir</label>
+                                <div className="space-y-1.5 rounded-lg border border-gray-200 bg-surface-2 p-2">
+                                    {aiSectionPlan.map((section) => (
+                                        <label
+                                            key={section.id}
+                                            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12px] text-gray-600 hover:bg-white"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={section.enabled}
+                                                onChange={() => toggleAISection(section.id)}
+                                                className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary"
+                                            />
+                                            <span className="flex-1">{section.label || section.id}</span>
+                                            {section.enabled && <span className="text-[10px] font-semibold text-primary">Incluida</span>}
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>

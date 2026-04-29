@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { OnboardingStepHero } from '@/components/onboarding/OnboardingStepHero';
 import { onboardingService } from '@/services/onboardingService';
 import { FixedCostTemplate } from '@/types/onboarding';
 import { formatCurrency, formatLocalizedNumberInput, parseLocalizedNumberInput } from '@/lib/utils';
@@ -203,13 +204,18 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto pb-32 md:pb-0">
-            <div className="text-center space-y-2 px-1">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Define tu inventario operativo</h1>
-                <p className="text-sm sm:text-base text-gray-600">Selecciona items y completa los datos. Los costos amortizables se configuran con datos de amortizacion, no con valor mensual.</p>
-                <p className="text-xs text-primary">Todos los valores se muestran y editan en {primaryCurrency}.</p>
-            </div>
+            <OnboardingStepHero
+                eyebrow="Paso 2 de 4"
+                title="Define tu inventario operativo"
+                description="Registra gastos fijos, software y herramientas para que Nougram entienda el costo mensual real de mantener tu empresa funcionando."
+                callout={`Todos los valores se muestran y editan en ${primaryCurrency}. Los activos amortizables se calculan por vida útil, no como gasto mensual directo.`}
+            />
 
-            <Card className="border-dashed border-gray-300">
+            <Card className="overflow-hidden border-dashed border-gray-300 shadow-sm">
+                <div className="border-b border-gray-100 bg-gradient-to-r from-primary-soft to-white px-5 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Carga manual</p>
+                    <p className="mt-1 text-sm text-gray-600">Agrega cualquier gasto que no aparezca en las plantillas.</p>
+                </div>
                 <CardContent className="pt-4">
                     <p className="text-sm font-medium text-gray-700 mb-3">Agregar elemento personalizado</p>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">

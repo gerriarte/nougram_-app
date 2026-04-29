@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
+import { QuoteJourneyNav } from '@/components/quotes/QuoteJourneyNav';
 
 // Inner component to access context
 function EditQuoteLoader() {
@@ -46,7 +47,8 @@ export default function EditQuotePage() {
                         </div>
                     </div>
 
-                    <QuoteBuilderSubheader quoteId={id} />
+                    <QuoteJourneyNav currentStage="quote" quoteId={id} />
+                    <QuoteBuilderSubheader />
                     <EditQuoteLoader />
                 </div>
             </QuoteBuilderProvider>

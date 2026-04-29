@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { OnboardingStepper } from '@/components/onboarding/OnboardingStepper';
+import { OnboardingStepWrapper } from '@/components/onboarding/OnboardingStepWrapper';
 import { StepIdentity } from '@/components/onboarding/StepIdentity';
 import { StepFixedCosts } from '@/components/onboarding/StepFixedCosts';
 import { StepMyTeam } from '@/components/onboarding/StepMyTeam';
@@ -64,6 +65,8 @@ type ImportPayload = {
     }>;
 };
 
+const ONBOARDING_STEP_NAMES: Record<number, string> = { 1: 'identity', 2: 'fixed_costs', 3: 'team', 4: 'ready' };
+
 export default function OnboardingPage() {
     const router = useRouter();
     const { loading: authLoading, isAuthenticated } = useAuth();
@@ -95,8 +98,6 @@ export default function OnboardingPage() {
         updateProgress
     } = useOnboarding();
 
-    const stepNames: Record<number, string> = { 1: 'identity', 2: 'fixed_costs', 3: 'team', 4: 'ready' };
-
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
             router.push('/login');
@@ -120,23 +121,22 @@ export default function OnboardingPage() {
 
     useEffect(() => {
         if (authLoading || !isAuthenticated) return;
-        const key = stepNames[currentStep];
+        const key = ONBOARDING_STEP_NAMES[currentStep];
         if (key) trackOnboardingStepViewed({ step: key });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- funnel: log per step index
     }, [currentStep, authLoading, isAuthenticated]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const onLeave = () => {
             if (currentStep >= 4) return;
-            const key = stepNames[currentStep];
+            const key = ONBOARDING_STEP_NAMES[currentStep];
             trackOnboardingAbandoned({ step: key ?? String(currentStep) });
         };
         window.addEventListener('beforeunload', onLeave);
         return () => window.removeEventListener('beforeunload', onLeave);
     }, [currentStep]);
     const handleNext = () => {
-        const completedKey = stepNames[currentStep];
+        const completedKey = ONBOARDING_STEP_NAMES[currentStep];
         if (completedKey) {
             trackOnboardingStepCompleted({ step: completedKey });
         }
@@ -146,6 +146,14 @@ export default function OnboardingPage() {
 
     const handleBackStep = () => {
         setCurrentStep((prev) => Math.max(1, prev - 1));
+        window.scrollTo(0, 0);
+    };
+
+    const maxReachedStep = Math.max(currentStep, onboardingData.lastStep || 1);
+
+    const handleStepClick = (step: number) => {
+        if (step > maxReachedStep || step === currentStep) return;
+        setCurrentStep(step);
         window.scrollTo(0, 0);
     };
 
@@ -483,9 +491,9 @@ export default function OnboardingPage() {
     }
 
     return (
-        <main className="min-h-screen bg-gray-50 pb-28 md:pb-20">
+        <main className="min-h-screen bg-background pb-28 md:pb-20">
             {/* Header / Nav */}
-            <div className="bg-white border-b border-gray-200 px-4 py-4">
+            <div className="sticky top-0 z-30 border-b border-white/40 bg-white/80 px-4 py-4 backdrop-blur-xl">
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <Image
@@ -496,7 +504,12 @@ export default function OnboardingPage() {
                             priority
                         />
                     </div>
-                    <span className="text-sm text-gray-500">Configuración Inicial</span>
+                    <div className="flex items-center gap-3">
+                        <span className="hidden rounded-full bg-primary-soft px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-primary sm:inline-flex">
+                            Configuración inicial · ~5 min
+                        </span>
+                        <span className="text-sm font-semibold text-gray-500">Paso {currentStep} de 4</span>
+                    </div>
                 </div>
                 <div className="max-w-7xl mx-auto mt-2 flex justify-end">
                     <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium border ${
@@ -526,12 +539,25 @@ export default function OnboardingPage() {
                 </div>
             </div>
 
+            <OnboardingStepper
+                currentStep={currentStep}
+                maxReachedStep={maxReachedStep}
+                onStepClick={handleStepClick}
+            />
+
             <div className="max-w-5xl mx-auto px-4">
-                <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4">
+                <div className="mt-6 overflow-hidden rounded-2xl border border-primary/10 bg-white shadow-sm">
+                    <div className="flex flex-col gap-3 bg-gradient-to-r from-primary-soft to-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Atajo opcional</p>
+                            <p className="mt-0.5 text-sm font-bold text-gray-900">Importación rápida desde Excel</p>
+                        </div>
+                        <p className="text-xs text-gray-500">Carga plantilla, revisa cambios y aplica preview.</p>
+                    </div>
+                    <div className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
-                            <p className="text-sm font-semibold text-gray-900">Importación rápida desde Excel</p>
-                            <p className="text-xs text-gray-500">Descarga plantilla, cárgala y aplica el preview sin guardar automáticamente.</p>
+                            <p className="text-xs font-semibold text-gray-700">Puedes completar los pasos manualmente o acelerar la carga con una plantilla.</p>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                             <Button variant="secondary" onClick={handleDownloadTemplate} className="w-full sm:w-auto h-11 rounded-xl font-semibold">
@@ -548,6 +574,7 @@ export default function OnboardingPage() {
                                 />
                             </label>
                         </div>
+                    </div>
                     </div>
                     {importError && (
                         <p className="mt-3 text-sm text-red-600">{importError}</p>
@@ -716,9 +743,8 @@ export default function OnboardingPage() {
                     </DialogContent>
                 </Dialog>
 
-                <OnboardingStepper currentStep={currentStep} />
-
                 <div className="mt-8 transition-all duration-300 ease-in-out">
+                    <OnboardingStepWrapper stepKey={currentStep}>
                     {currentStep === 1 && (
                         <StepIdentity
                             onNext={(data) => {
@@ -769,6 +795,7 @@ export default function OnboardingPage() {
                             onCreateQuote={handleCreateQuote}
                         />
                     )}
+                    </OnboardingStepWrapper>
                 </div>
             </div>
         </main>

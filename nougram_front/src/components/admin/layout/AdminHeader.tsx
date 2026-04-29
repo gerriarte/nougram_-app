@@ -2,26 +2,82 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, LogOut, ChevronDown, Building2, CreditCard, Menu } from 'lucide-react';
+import { Users, LogOut, ChevronDown, ChevronRight, Building2, CreditCard, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
-import { apiRequest } from '@/lib/api-client';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-
-type OrganizationResponse = {
-    id: number;
-    name: string;
-};
 
 type AdminHeaderProps = {
     onOpenMobileNav?: () => void;
+    workspaceName?: string;
 };
 
-export function AdminHeader({ onOpenMobileNav }: AdminHeaderProps) {
+type Breadcrumb = {
+    label: string;
+    href?: string;
+};
+
+function getBreadcrumbs(pathname: string): Breadcrumb[] {
+    if (pathname === '/dashboard' || pathname === '/dashboard/') {
+        return [{ label: 'Dashboard' }];
+    }
+
+    if (pathname === '/dashboard/quotes/create') {
+        return [
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Cotizaciones', href: '/dashboard/quotes' },
+            { label: 'Nueva cotización' },
+        ];
+    }
+
+    const quoteMatch = pathname.match(/^\/dashboard\/quotes\/([^/]+)(?:\/([^/]+))?/);
+    if (quoteMatch) {
+        const quoteId = quoteMatch[1];
+        const section = quoteMatch[2] || 'edit';
+        const sectionLabels: Record<string, string> = {
+            edit: 'Editar cotización',
+            proposal: 'Propuesta',
+            send: 'Envío',
+            tracking: 'Seguimiento',
+            'next-step': 'Siguiente paso',
+        };
+
+        return [
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Cotizaciones', href: '/dashboard/quotes' },
+            { label: sectionLabels[section] || 'Cotización', href: `/dashboard/quotes/${quoteId}/edit` },
+        ];
+    }
+
+    if (pathname.startsWith('/dashboard/clients')) {
+        return [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Clientes' }];
+    }
+    if (pathname.startsWith('/dashboard/resources/availability')) {
+        return [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Capacidad del equipo' }];
+    }
+    if (pathname.startsWith('/dashboard/operational-costs')) {
+        return [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Costo operacional' }];
+    }
+    if (pathname.startsWith('/admin/payroll')) {
+        return [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Nómina' }];
+    }
+    if (pathname.startsWith('/admin/overhead')) {
+        return [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Inventario de gastos' }];
+    }
+    if (pathname.startsWith('/admin/taxes')) {
+        return [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Impuestos' }];
+    }
+
+    return [{ label: 'Dashboard', href: '/dashboard' }];
+}
+
+export function AdminHeader({ onOpenMobileNav, workspaceName = 'Workspace' }: AdminHeaderProps) {
     const { user, logout } = useAuth();
+    const pathname = usePathname() || '';
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [workspaceName, setWorkspaceName] = useState('Workspace');
     const menuRef = useRef<HTMLDivElement>(null);
+    const breadcrumbs = getBreadcrumbs(pathname);
 
     // Close on click outside
     useEffect(() => {
@@ -32,18 +88,6 @@ export function AdminHeader({ onOpenMobileNav }: AdminHeaderProps) {
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    useEffect(() => {
-        const loadOrganization = async () => {
-            const response = await apiRequest<OrganizationResponse>('/organizations/me');
-            if (response.data?.name) {
-                setWorkspaceName(response.data.name);
-                return;
-            }
-            setWorkspaceName('Workspace');
-        };
-        void loadOrganization();
     }, []);
 
     const userInitials = user?.fullName
@@ -75,9 +119,28 @@ export function AdminHeader({ onOpenMobileNav }: AdminHeaderProps) {
                     </button>
                 ) : null}
                 <div className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0 hidden sm:block" />
-                <h2 className="text-system-gray text-[10px] sm:text-xs font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] truncate">
-                    {workspaceName} Workspace
-                </h2>
+                <div className="min-w-0">
+                    <h2 className="text-system-gray text-[10px] sm:text-xs font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] truncate">
+                        {workspaceName} Workspace
+                    </h2>
+                    <nav aria-label="Breadcrumb" className="mt-1 hidden items-center gap-1 text-[12px] font-semibold text-gray-500 sm:flex">
+                        {breadcrumbs.map((crumb, index) => {
+                            const current = index === breadcrumbs.length - 1;
+                            return (
+                                <React.Fragment key={`${crumb.label}-${index}`}>
+                                    {index > 0 && <ChevronRight size={12} className="text-gray-300" />}
+                                    {crumb.href && !current ? (
+                                        <Link href={crumb.href} className="truncate hover:text-secondary">
+                                            {crumb.label}
+                                        </Link>
+                                    ) : (
+                                        <span className={current ? 'truncate text-gray-900' : 'truncate'}>{crumb.label}</span>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
+                    </nav>
+                </div>
             </div>
 
             {/* Right: User Menu */}

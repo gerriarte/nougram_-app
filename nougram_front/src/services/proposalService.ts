@@ -1,4 +1,5 @@
 import { apiRequest } from '@/lib/api-client';
+import { getAuthToken } from '@/lib/auth';
 
 /** Hybrid commercial proposal: guided sections + free text */
 export type ProposalBody = {
@@ -14,7 +15,21 @@ export type ProposalBody = {
   conditions?: string;
   /** Ajustes narrativos finales */
   free_text?: string;
+  /** Visual identity for this proposal */
+  branding?: ProposalBranding;
   [key: string]: unknown;
+};
+
+export type ProposalBranding = {
+  brandColor?: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
+};
+
+export type ProposalSectionPlanItem = {
+  id: string;
+  label?: string;
+  enabled: boolean;
 };
 
 export type ProposalDocument = {
@@ -54,6 +69,26 @@ export type ProposalShareResponse = {
   sent_email?: boolean;
 };
 
+export type ProposalShareStats = {
+  proposal_id: number;
+  link_id?: number | null;
+  status?: string | null;
+  view_count: number;
+  viewed_at?: string | null;
+  last_sent_at?: string | null;
+  decided_at?: string | null;
+  decision_comment?: string | null;
+  access_expires_at?: string | null;
+};
+
+export type ProposalAssetUploadResponse = {
+  success: boolean;
+  asset_type: 'logo' | 'cover';
+  asset_url: string;
+  asset_key: string;
+  body_json: ProposalBody;
+};
+
 export type ProposalAIGeneratePayload = {
   title?: string;
   language?: 'es' | 'en';
@@ -63,6 +98,10 @@ export type ProposalAIGeneratePayload = {
   estimated_timeline?: string;
   payment_conditions?: string;
   execution_conditions?: string;
+  tone?: string;
+  audience?: string;
+  differentiators?: string;
+  section_plan?: ProposalSectionPlanItem[];
   persist_context?: boolean;
   user_api_key?: string;
   ai_provider?: 'openai' | 'anthropic';
@@ -122,5 +161,35 @@ export const proposalService = {
     );
     if (response.error || !response.data) return null;
     return response.data;
+  },
+
+  async getShareStats(projectId: string, proposalId: number): Promise<ProposalShareStats | null> {
+    const response = await apiRequest<ProposalShareStats>(
+      `/projects/${projectId}/proposals/${proposalId}/share-stats`,
+    );
+    if (response.error || !response.data) return null;
+    return response.data;
+  },
+
+  async uploadAsset(
+    projectId: string,
+    proposalId: number,
+    assetType: 'logo' | 'cover',
+    file: File,
+  ): Promise<ProposalAssetUploadResponse | null> {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '');
+    if (!baseUrl) return null;
+    const token = getAuthToken();
+    const formData = new FormData();
+    formData.append('asset_type', assetType);
+    formData.append('file', file);
+
+    const response = await fetch(`${baseUrl}/projects/${projectId}/proposals/${proposalId}/assets`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!response.ok) return null;
+    return await response.json() as ProposalAssetUploadResponse;
   },
 };
