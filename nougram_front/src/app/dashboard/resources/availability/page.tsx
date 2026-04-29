@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
-import { BarChart3, Calendar, Filter, RefreshCw } from 'lucide-react';
+import { Activity, AlertCircle, BarChart3, Calendar, CheckCircle2, Filter, RefreshCw, TrendingUp, Users } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { capacityService, type CapacityState } from '@/services/capacityService';
 import { formatDisplayNumber } from '@/lib/utils';
@@ -22,6 +22,72 @@ function currentMonthRange(): { start: string; end: string } {
 
 function formatHours(value: number): string {
     return `${formatDisplayNumber(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h`;
+}
+
+function formatPercent(value: number): string {
+    return `${formatDisplayNumber(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%`;
+}
+
+const STATE_META: Record<CapacityState, { label: string; color: string; bg: string }> = {
+    tentative: { label: 'Tentativo', color: 'bg-blue-400', bg: 'bg-blue-50 text-blue-700 border-blue-100' },
+    committed: { label: 'Comprometido', color: 'bg-emerald-500', bg: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+    actual: { label: 'Ejecutado', color: 'bg-violet-500', bg: 'bg-violet-50 text-violet-700 border-violet-100' },
+};
+
+function utilizationTone(ratio: number) {
+    if (ratio > 1) {
+        return {
+            label: 'Crítica',
+            text: 'text-red-600',
+            bg: 'bg-red-50',
+            border: 'border-red-100',
+            bar: 'bg-red-500',
+            Icon: AlertCircle,
+        };
+    }
+    if (ratio >= 0.9) {
+        return {
+            label: 'Alta',
+            text: 'text-amber-600',
+            bg: 'bg-amber-50',
+            border: 'border-amber-100',
+            bar: 'bg-amber-500',
+            Icon: TrendingUp,
+        };
+    }
+    return {
+        label: 'Normal',
+        text: 'text-emerald-600',
+        bg: 'bg-emerald-50',
+        border: 'border-emerald-100',
+        bar: 'bg-emerald-500',
+        Icon: CheckCircle2,
+    };
+}
+
+function KpiCard({
+    label,
+    value,
+    hint,
+    accent = 'text-gray-900',
+    icon,
+}: {
+    label: string;
+    value: string;
+    hint: string;
+    accent?: string;
+    icon: React.ReactNode;
+}) {
+    return (
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">{label}</p>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface-2 text-gray-500">{icon}</div>
+            </div>
+            <p className={`text-2xl font-black tracking-tight ${accent}`}>{value}</p>
+            <p className="mt-1 text-[11.5px] text-gray-400">{hint}</p>
+        </div>
+    );
 }
 
 function toISODate(d: Date): string {
@@ -133,6 +199,14 @@ export default function AvailabilityPage() {
         setPeriodEnd(toISODate(rangeEnd));
     };
 
+    const members = overview?.members || [];
+    const totalCapacity = members.reduce((sum, member) => sum + member.capacityHours, 0);
+    const utilizationRatio = totalCapacity > 0 ? (overview?.totals.totalHours || 0) / totalCapacity : 0;
+    const utilization = utilizationTone(utilizationRatio);
+    const UtilizationIcon = utilization.Icon;
+    const overloadedCount = members.filter((member) => member.utilizationRatio > 1).length;
+    const highLoadCount = members.filter((member) => member.utilizationRatio >= 0.9 && member.utilizationRatio <= 1).length;
+
     if (loading) {
         return (
             <AdminLayout>
@@ -146,23 +220,66 @@ export default function AvailabilityPage() {
     return (
         <AdminLayout>
             <div className="space-y-8 pb-20">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
                     <div>
-                        <h1 className="text-[22px] font-black text-gray-900 tracking-tight">Capacidad del Equipo</h1>
-                        <p className="text-gray-500 font-medium">Seguimiento de ocupación por periodo y estado operativo.</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Operación</p>
+                        <h1 className="mt-1 text-[28px] font-black tracking-tight text-gray-950">Capacidad del Equipo</h1>
+                        <p className="mt-1 max-w-2xl text-[14px] font-medium leading-6 text-gray-500">
+                            Seguimiento de ocupación, compromisos y capacidad disponible por periodo, miembro y equipo.
+                        </p>
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                            {[3, 6, 12].map((months) => (
+                                <button
+                                    key={months}
+                                    type="button"
+                                    onClick={() => applyQuickRange(months)}
+                                    className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-bold text-gray-600 hover:border-gray-900 hover:text-gray-900"
+                                >
+                                    Últimos {months} meses
+                                </button>
+                            ))}
+                            <span className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-gray-400">
+                                {periodStart} → {periodEnd}
+                            </span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <Button variant="secondary" className="flex items-center gap-2" onClick={() => void loadOverview()}>
-                            <RefreshCw size={16} />
-                            Actualizar
-                        </Button>
+
+                    <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 p-5 text-white shadow-sm">
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Utilización global</p>
+                                <p className="mt-1 text-sm text-slate-300">Total asignado vs capacidad disponible</p>
+                            </div>
+                            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${utilization.bg} ${utilization.text}`}>
+                                <UtilizationIcon size={18} />
+                            </div>
+                        </div>
+                        <div className="flex items-end justify-between gap-4">
+                            <div>
+                                <p className="text-4xl font-black tracking-tight">{formatPercent(utilizationRatio * 100)}</p>
+                                <p className={`mt-1 text-xs font-bold uppercase tracking-wide ${utilization.text}`}>{utilization.label}</p>
+                            </div>
+                            <div className="text-right text-xs text-slate-400">
+                                <p>{formatHours(overview?.totals.totalHours || 0)} asignadas</p>
+                                <p>{formatHours(totalCapacity)} capacidad</p>
+                            </div>
+                        </div>
+                        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                            <div className={`h-full rounded-full ${utilization.bar}`} style={{ width: `${Math.min(utilizationRatio * 100, 100)}%` }} />
+                        </div>
                     </div>
                 </div>
 
                 <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-5 shadow-sm">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Filter size={16} className="text-gray-500" />
-                        <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Filtros</h2>
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                            <Filter size={16} className="text-gray-500" />
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-gray-700">Filtros</h2>
+                        </div>
+                        <Button variant="secondary" className="flex items-center gap-2" onClick={() => void loadOverview()}>
+                            <RefreshCw size={16} />
+                            Actualizar
+                        </Button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
@@ -185,15 +302,15 @@ export default function AvailabilityPage() {
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-semibold text-gray-500">Estados</label>
-                            <div className="h-9 rounded-md border border-gray-200 px-3 flex items-center gap-3">
+                            <div className="flex min-h-9 flex-wrap items-center gap-2 rounded-md border border-gray-200 px-3 py-1">
                                 {ALL_STATES.map((state) => (
-                                    <label key={state} className="text-xs text-gray-700 flex items-center gap-1.5">
+                                    <label key={state} className={`flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-semibold ${STATE_META[state].bg}`}>
                                         <input
                                             type="checkbox"
                                             checked={selectedStates.includes(state)}
                                             onChange={() => toggleState(state)}
                                         />
-                                        {state}
+                                        {STATE_META[state].label}
                                     </label>
                                 ))}
                             </div>
@@ -205,9 +322,6 @@ export default function AvailabilityPage() {
                                 <Calendar size={14} />
                                 Aplicar filtros
                             </Button>
-                            <Button variant="secondary" onClick={() => applyQuickRange(3)}>Últimos 3 meses</Button>
-                            <Button variant="secondary" onClick={() => applyQuickRange(6)}>Últimos 6 meses</Button>
-                            <Button variant="secondary" onClick={() => applyQuickRange(12)}>Últimos 12 meses</Button>
                         </div>
                     </div>
                 </div>
@@ -218,23 +332,11 @@ export default function AvailabilityPage() {
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div className="rounded-xl border border-gray-200 bg-white p-4">
-                        <p className="text-xs text-gray-500 font-semibold uppercase">Tentative</p>
-                        <p className="text-xl font-black text-gray-900">{formatHours(overview?.totals.tentativeHours || 0)}</p>
-                    </div>
-                    <div className="rounded-xl border border-gray-200 bg-white p-4">
-                        <p className="text-xs text-gray-500 font-semibold uppercase">Committed</p>
-                        <p className="text-xl font-black text-gray-900">{formatHours(overview?.totals.committedHours || 0)}</p>
-                    </div>
-                    <div className="rounded-xl border border-gray-200 bg-white p-4">
-                        <p className="text-xs text-gray-500 font-semibold uppercase">Actual</p>
-                        <p className="text-xl font-black text-gray-900">{formatHours(overview?.totals.actualHours || 0)}</p>
-                    </div>
-                    <div className="rounded-xl border border-gray-200 bg-white p-4">
-                        <p className="text-xs text-gray-500 font-semibold uppercase">Total</p>
-                        <p className="text-xl font-black text-primary">{formatHours(overview?.totals.totalHours || 0)}</p>
-                    </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                    <KpiCard label="Tentativo" value={formatHours(overview?.totals.tentativeHours || 0)} hint="Reservas estimadas" accent="text-blue-600" icon={<Calendar size={15} />} />
+                    <KpiCard label="Comprometido" value={formatHours(overview?.totals.committedHours || 0)} hint="Trabajo confirmado" accent="text-emerald-600" icon={<CheckCircle2 size={15} />} />
+                    <KpiCard label="Ejecutado" value={formatHours(overview?.totals.actualHours || 0)} hint="Horas reales" accent="text-violet-600" icon={<Activity size={15} />} />
+                    <KpiCard label="Alertas" value={`${overloadedCount + highLoadCount}`} hint={`${overloadedCount} críticas · ${highLoadCount} altas`} accent={overloadedCount > 0 ? 'text-red-600' : 'text-gray-900'} icon={<AlertCircle size={15} />} />
                 </div>
 
                 <div className="grid grid-cols-1 gap-8">
@@ -296,48 +398,90 @@ export default function AvailabilityPage() {
                     </div>
 
                     <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-5 shadow-sm">
-                        <div className="flex items-center gap-2 px-1 mb-3">
-                            <BarChart3 size={18} className="text-gray-400" />
-                            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Resumen por Miembro</h2>
+                        <div className="mb-5 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-2">
+                                <Users size={18} className="text-gray-400" />
+                                <div>
+                                    <h2 className="text-sm font-black uppercase tracking-widest text-gray-400">Resumen por Miembro</h2>
+                                    <p className="mt-0.5 text-xs text-gray-400">Semáforo de ocupación individual</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" />Normal</span>
+                                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-500" />Alta</span>
+                                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-500" />Crítica</span>
+                            </div>
                         </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead className="bg-gray-50 text-gray-600">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left font-semibold">Miembro</th>
-                                        <th className="px-4 py-3 text-left font-semibold">Rol</th>
-                                        <th className="px-4 py-3 text-right font-semibold">Capacidad</th>
-                                        <th className="px-4 py-3 text-right font-semibold">Tentative</th>
-                                        <th className="px-4 py-3 text-right font-semibold">Committed</th>
-                                        <th className="px-4 py-3 text-right font-semibold">Actual</th>
-                                        <th className="px-4 py-3 text-right font-semibold">Utilización</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {(overview?.members || []).length === 0 ? (
-                                        <tr>
-                                            <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
-                                                No hay ocupación por miembro en el periodo seleccionado.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        (overview?.members || []).map((member) => (
-                                            <tr key={member.teamMemberId} className="border-t border-gray-100">
-                                                <td className="px-4 py-3 font-medium text-gray-900">{member.name}</td>
-                                                <td className="px-4 py-3 text-gray-600">{member.role}</td>
-                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(member.capacityHours)}</td>
-                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(member.tentativeHours)}</td>
-                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(member.committedHours)}</td>
-                                                <td className="px-4 py-3 text-right text-gray-600">{formatHours(member.actualHours)}</td>
-                                                <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                                                    {formatDisplayNumber(member.utilizationRatio * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                        {(overview?.members || []).length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-gray-200 bg-surface-2 px-4 py-8 text-center text-sm text-gray-400">
+                                No hay ocupación por miembro en el periodo seleccionado.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                {(overview?.members || []).map((member) => {
+                                    const tone = utilizationTone(member.utilizationRatio);
+                                    const Icon = tone.Icon;
+                                    const initials = member.name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase();
+                                    const overHours = Math.max(member.totalHours - member.capacityHours, 0);
+                                    return (
+                                        <div key={member.teamMemberId} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:border-primary/20 hover:shadow-md">
+                                            <div className="mb-4 flex items-start justify-between gap-3">
+                                                <div className="flex min-w-0 items-center gap-3">
+                                                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-white text-xs font-black shadow-sm ring-1 ring-gray-100 ${tone.bg} ${tone.text}`}>
+                                                        {initials || 'U'}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-sm font-black text-gray-900">{member.name}</p>
+                                                        <p className="mt-1 truncate text-[10.5px] font-bold uppercase tracking-tight text-gray-400">{member.role}</p>
+                                                    </div>
+                                                </div>
+                                                <Icon size={17} className={tone.text} />
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <div className="flex items-end justify-between">
+                                                    <div>
+                                                        <span className="text-[9px] font-black uppercase tracking-wide text-gray-400">Uso de capacidad</span>
+                                                        <p className={`text-2xl font-black leading-none ${tone.text}`}>
+                                                            {formatPercent(member.utilizationRatio * 100)}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-[11px] font-bold text-gray-600">{formatHours(member.totalHours)}</span>
+                                                        <span className="mx-1 text-[11px] text-gray-300">/</span>
+                                                        <span className="text-[11px] font-medium text-gray-400">{formatHours(member.capacityHours)}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                                                    <div className={`h-full rounded-full transition-all ${tone.bar}`} style={{ width: `${Math.min(member.utilizationRatio * 100, 100)}%` }} />
+                                                    {member.utilizationRatio > 1 && <div className="absolute inset-0 animate-pulse bg-red-500/20" />}
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2 text-[10.5px]">
+                                                    <div className="rounded-lg bg-blue-50 px-2 py-1.5 text-blue-700">
+                                                        <p className="font-bold">Tent.</p>
+                                                        <p>{formatHours(member.tentativeHours)}</p>
+                                                    </div>
+                                                    <div className="rounded-lg bg-emerald-50 px-2 py-1.5 text-emerald-700">
+                                                        <p className="font-bold">Comm.</p>
+                                                        <p>{formatHours(member.committedHours)}</p>
+                                                    </div>
+                                                    <div className="rounded-lg bg-violet-50 px-2 py-1.5 text-violet-700">
+                                                        <p className="font-bold">Actual</p>
+                                                        <p>{formatHours(member.actualHours)}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {overHours > 0 && (
+                                                <div className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-red-600">
+                                                    Requerido: {formatHours(overHours)} excedidas
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-4">
