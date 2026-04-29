@@ -5,10 +5,10 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Alert } from '../ui/Alert';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
 import { OnboardingStepHero } from '@/components/onboarding/OnboardingStepHero';
 import { Step3MyTeamData } from '@/types/onboarding';
 import { formatCurrency, formatLocalizedNumberInput, parseLocalizedNumberInput } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface StepMyTeamProps {
     onNext: (data: Step3MyTeamData) => void;
@@ -22,14 +22,19 @@ interface StepMyTeamProps {
 
 
 const ROLES = [
+    'Project Manager',
     'Diseñador UI/UX',
     'Desarrollador Frontend',
     'Desarrollador Backend',
+    'QA',
+    'UX Researcher',
+    'Director/a Creativa',
     'Product Manager',
-    'CEO/Founder'
+    'CEO/Founder',
+    'Otro'
 ];
 
-const LEVELS = ['Junior', 'Mid', 'Senior'];
+const LEVELS = ['Junior', 'Mid', 'Senior', 'Lead'];
 
 type TeamMemberDraft = {
     id: string;
@@ -41,6 +46,19 @@ type TeamMemberDraft = {
     billableHours: number;
     vacationDays: number;
     applySocialCharges: boolean;
+};
+
+type ModeledMember = {
+    id: string;
+    name: string;
+    role: string;
+    level: Step3MyTeamData['level'];
+    salary: number;
+    totalHours: number;
+    billableHours: number;
+    vacationDays: number;
+    applySocialCharges: boolean;
+    isMain?: boolean;
 };
 
 export function StepMyTeam({
@@ -58,7 +76,6 @@ export function StepMyTeam({
     const formatMoneyInput = (value: number | string | null | undefined) =>
         formatLocalizedNumberInput(value, { currencyCode: currency, maximumFractionDigits: isCopCurrency ? 0 : 2 });
 
-    const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
     const [payrollHeadcount, setPayrollHeadcount] = useState<number>(initialData?.payrollHeadcount || 1);
     // Member Info
     const [name, setName] = useState(initialData?.name || '');
@@ -85,7 +102,7 @@ export function StepMyTeam({
     const [applySocialCharges, setApplySocialCharges] = useState<boolean>(initialData?.applySocialCharges ?? true);
     const [additionalMembers, setAdditionalMembers] = useState<TeamMemberDraft[]>(
         (initialData?.teamMembers || []).slice(1).map((member, index) => ({
-            id: `member-${index + 1}`,
+            id: member.id || `member-${index + 1}`,
             name: member.name,
             role: member.role,
             level: member.level,
@@ -96,6 +113,7 @@ export function StepMyTeam({
             applySocialCharges: member.applySocialCharges ?? true,
         }))
     );
+    const [activeMemberId, setActiveMemberId] = useState<string>('main');
 
     // Calculations
     const salaryNum = parseMoneyInput(salary);
@@ -104,8 +122,9 @@ export function StepMyTeam({
     const SOCIAL_CHARGES_RATE = 0.52852; // ~52.8%
     const selectedRole = isCustomRole ? customRole : role;
 
-    const modeledMembers = [
+    const memberRows: ModeledMember[] = [
         {
+            id: 'main',
             name,
             role: selectedRole,
             level,
@@ -114,8 +133,10 @@ export function StepMyTeam({
             billableHours,
             vacationDays,
             applySocialCharges,
+            isMain: true,
         },
         ...additionalMembers.map((member) => ({
+            id: member.id,
             name: member.name,
             role: member.role,
             level: member.level,
@@ -125,7 +146,10 @@ export function StepMyTeam({
             vacationDays: member.vacationDays,
             applySocialCharges: member.applySocialCharges,
         })),
-    ].filter((member) => member.name && member.role && member.salary > 0 && member.billableHours > 0);
+    ];
+    const modeledMembers = memberRows.filter((member) => member.name && member.role && member.salary > 0 && member.billableHours > 0);
+    const activeMember = memberRows.find((member) => member.id === activeMemberId) || memberRows[0];
+    const activeAdditionalMember = additionalMembers.find((member) => member.id === activeMemberId);
 
     // True Cost Calculation (Live) with all modeled members
     const aggregateAnnualCost = modeledMembers.reduce((sum, member) => {
@@ -171,13 +195,14 @@ export function StepMyTeam({
     };
 
     const addAdditionalMember = () => {
+        const id = `member-${Date.now()}`;
         setAdditionalMembers((prev) => [
             ...prev,
             {
-                id: `member-${Date.now()}`,
+                id,
                 name: '',
                 role: '',
-                level: '',
+                level: 'Mid',
                 salary: '',
                 totalHours: 40,
                 billableHours: 28,
@@ -185,13 +210,7 @@ export function StepMyTeam({
                 applySocialCharges: true,
             },
         ]);
-    };
-
-    const openTeamManager = (createDraft: boolean) => {
-        if (createDraft) {
-            addAdditionalMember();
-        }
-        setIsTeamModalOpen(true);
+        setActiveMemberId(id);
     };
 
     const updateAdditionalMember = (id: string, updates: Partial<TeamMemberDraft>) => {
@@ -200,15 +219,8 @@ export function StepMyTeam({
 
     const removeAdditionalMember = (id: string) => {
         setAdditionalMembers((prev) => prev.filter((member) => member.id !== id));
+        if (activeMemberId === id) setActiveMemberId('main');
     };
-
-    const validAdditionalMembers = additionalMembers.filter(
-        (member) =>
-            member.name.trim() &&
-            member.role.trim() &&
-            parseMoneyInput(member.salary) > 0 &&
-            member.billableHours > 0
-    );
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto px-1">
@@ -219,127 +231,255 @@ export function StepMyTeam({
                 callout="Puedes empezar con una persona y agregar el resto del equipo ahora o más adelante desde Nómina."
             />
 
-            <Card className="bg-amber-50 border-amber-200">
-                <CardContent className="space-y-4 pt-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr] lg:items-start">
+                <Card className="overflow-hidden border-gray-200 shadow-sm lg:sticky lg:top-24">
+                    <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                         <div>
-                            <p className="text-sm font-semibold text-amber-900">Registro de equipo en nómina</p>
-                            <p className="text-xs text-amber-800">
-                                Todo el flujo de carga y edición de miembros está centralizado en el modal.
+                            <p className="text-sm font-bold text-gray-900">Miembros del equipo</p>
+                            <p className="mt-0.5 text-[11px] text-gray-400">
+                                {modeledMembers.length} válidos · {memberRows.length} total
                             </p>
                         </div>
-                        <div className="flex gap-2">
-                            {onOpenImport && (
-                                <Button type="button" variant="secondary" onClick={onOpenImport} className="whitespace-nowrap">
-                                    Importar Excel
-                                </Button>
-                            )}
-                            <Button type="button" variant="secondary" onClick={() => openTeamManager(false)} className="whitespace-nowrap">
-                                Ver miembros
+                        {onOpenImport && (
+                            <Button type="button" variant="secondary" size="sm" onClick={onOpenImport}>
+                                Excel
                             </Button>
-                            <Button type="button" onClick={() => openTeamManager(true)} className="whitespace-nowrap">
-                                + Agregar recurso
-                            </Button>
-                        </div>
-                    </div>
-
-                    <div className="space-y-2 max-w-xs">
-                        <Label>Cantidad de personas en nómina</Label>
-                        <Input
-                            type="number"
-                            min={1}
-                            value={payrollHeadcount}
-                            onChange={(e) => setPayrollHeadcount(Math.max(1, parseInt(e.target.value || '1', 10)))}
-                        />
-                    </div>
-
-                    <Alert variant="warning" className="bg-amber-100 border-amber-200">
-                        <p className="text-sm text-amber-900">
-                            Para un BCR preciso, registra todos los miembros del equipo en nómina.
-                            {payrollHeadcount > 1
-                                ? ` Actualmente estas modelando ${modeledMembers.length} de ${payrollHeadcount}.`
-                                : ' Actualmente estas modelando 1 persona.'}
-                        </p>
-                    </Alert>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardContent className="space-y-3 pt-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                        <div>
-                            <p className="text-xs uppercase tracking-wide text-gray-500">Modelados</p>
-                            <p className="font-semibold text-gray-900">{modeledMembers.length}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-wide text-gray-500">Adicionales válidos</p>
-                            <p className="font-semibold text-gray-900">{validAdditionalMembers.length}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-wide text-gray-500">Pendientes por registrar</p>
-                            <p className="font-semibold text-gray-900">
-                                {Math.max(payrollHeadcount - modeledMembers.length, 0)}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="rounded-lg border border-blue-100 bg-primary-soft p-4">
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-semibold text-blue-900">Miembros que se guardarán</p>
-                            <span className="text-xs font-bold text-primary bg-white border border-primary-soft rounded-full px-2 py-0.5">
-                                {modeledMembers.length} miembro(s)
-                            </span>
-                        </div>
-                        {modeledMembers.length === 0 ? (
-                            <p className="text-sm text-primary mt-2">
-                                Agrega al menos un miembro válido (nombre, rol, salario y horas facturables) para continuar.
-                            </p>
-                        ) : (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                                {modeledMembers.map((member, index) => (
-                                    <span
-                                        key={`${member.name}-${index}`}
-                                        className="text-xs font-medium text-blue-800 bg-white border border-primary-soft rounded-full px-3 py-1"
-                                    >
-                                        {member.name} - {member.role}
-                                    </span>
-                                ))}
-                            </div>
                         )}
                     </div>
-                </CardContent>
-            </Card>
-
-            <Card className="bg-slate-900 text-white border-slate-800">
-                <CardContent className="space-y-4 pt-6">
-                    <div className="flex items-center gap-2 text-blue-400">
-                        <span className="text-xl">💎</span>
-                        <h3 className="font-semibold">Costo real por hora (BCR)</h3>
+                    <div className="max-h-[420px] overflow-y-auto">
+                        {memberRows.map((member, index) => {
+                            const selected = member.id === activeMemberId;
+                            const valid = Boolean(member.name && member.role && member.salary > 0);
+                            const initials = member.name
+                                ? member.name.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase()
+                                : String(index + 1);
+                            return (
+                                <button
+                                    key={member.id}
+                                    type="button"
+                                    onClick={() => setActiveMemberId(member.id)}
+                                    className={cn(
+                                        'flex w-full items-center gap-3 border-b border-gray-100 px-4 py-3 text-left transition-colors',
+                                        selected ? 'border-l-4 border-l-primary bg-primary-soft' : 'border-l-4 border-l-transparent hover:bg-gray-50'
+                                    )}
+                                >
+                                    <div className={cn(
+                                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-black',
+                                        valid ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'
+                                    )}>
+                                        {initials}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-[13px] font-bold text-gray-900">
+                                            {member.name || (member.isMain ? 'Tú (miembro principal)' : `Miembro ${index + 1}`)}
+                                        </p>
+                                        <p className="mt-0.5 truncate text-[11px] text-gray-400">{member.role || 'Sin completar'}</p>
+                                    </div>
+                                    <span className={cn(
+                                        'flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black',
+                                        valid ? 'bg-success text-white' : 'bg-warning-soft text-warning'
+                                    )}>
+                                        {valid ? '✓' : '!'}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
+                    <button
+                        type="button"
+                        onClick={addAdditionalMember}
+                        className="flex w-full items-center justify-center gap-1.5 border-t border-gray-100 bg-surface-2 px-4 py-3 text-[12px] font-bold text-primary hover:bg-primary-soft"
+                    >
+                        + Agregar miembro
+                    </button>
+                </Card>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                        <div className="space-y-1">
-                            <p className="text-slate-400">Costo Total Anual</p>
-                            <p className="text-xl font-bold">{formatCurrency(trueCostAnalysis.annualCost, currency)}</p>
-                            <p className="text-xs text-slate-500">Incluye miembros modelados y cargas sociales</p>
-                        </div>
+                <div className="space-y-4">
+                    <Card className="border-gray-200 shadow-sm">
+                        <CardContent className="space-y-5 pt-6">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black tracking-tight text-gray-900">
+                                        {activeMember.isMain ? 'Tú (miembro principal)' : (activeMember.name || 'Nuevo miembro')}
+                                    </h3>
+                                    <p className="mt-1 text-sm text-gray-500">Quick-add: nombre, rol y salario son lo mínimo para continuar.</p>
+                                </div>
+                                {!activeMember.isMain && activeAdditionalMember && (
+                                    <Button type="button" variant="destructive" size="sm" onClick={() => removeAdditionalMember(activeAdditionalMember.id)}>
+                                        Eliminar
+                                    </Button>
+                                )}
+                            </div>
 
-                        <div className="space-y-1">
-                            <p className="text-slate-400">Horas Facturables/Año</p>
-                            <p className="text-xl font-bold">{trueCostAnalysis.annualBillableHours.toLocaleString()} h</p>
-                            <p className="text-xs text-slate-500">Basado en horas facturables y días no productivos</p>
-                        </div>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                <div>
+                                    <Label>Nombre completo *</Label>
+                                    <Input
+                                        value={activeMember.isMain ? name : activeAdditionalMember?.name || ''}
+                                        onChange={(event) => activeMember.isMain
+                                            ? setName(event.target.value)
+                                            : activeAdditionalMember && updateAdditionalMember(activeAdditionalMember.id, { name: event.target.value })}
+                                        placeholder="Ej. Juan Pérez"
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Rol *</Label>
+                                    <select
+                                        value={activeMember.isMain ? (isCustomRole ? 'Otro' : role) : activeAdditionalMember?.role || ''}
+                                        onChange={(event) => {
+                                            if (activeMember.isMain) {
+                                                const nextRole = event.target.value;
+                                                setIsCustomRole(nextRole === 'Otro');
+                                                setRole(nextRole === 'Otro' ? '' : nextRole);
+                                            } else if (activeAdditionalMember) {
+                                                updateAdditionalMember(activeAdditionalMember.id, { role: event.target.value });
+                                            }
+                                        }}
+                                        className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm"
+                                    >
+                                        <option value="">Seleccionar rol</option>
+                                        {ROLES.map((roleOption) => (
+                                            <option key={roleOption} value={roleOption}>{roleOption}</option>
+                                        ))}
+                                    </select>
+                                    {activeMember.isMain && isCustomRole && (
+                                        <Input
+                                            className="mt-2"
+                                            value={customRole}
+                                            onChange={(event) => setCustomRole(event.target.value)}
+                                            placeholder="Escribe el rol"
+                                        />
+                                    )}
+                                </div>
+                                <div>
+                                    <Label>Salario mensual *</Label>
+                                    <Input
+                                        type="text"
+                                        inputMode={moneyInputMode}
+                                        value={activeMember.isMain ? salary : activeAdditionalMember?.salary || ''}
+                                        onChange={(event) => activeMember.isMain
+                                            ? setSalary(event.target.value)
+                                            : activeAdditionalMember && updateAdditionalMember(activeAdditionalMember.id, { salary: event.target.value })}
+                                        placeholder={`${currency} 0`}
+                                    />
+                                </div>
+                            </div>
 
-                        <div className="space-y-1 bg-white/10 p-3 rounded-lg border border-white/20">
-                            <p className="text-blue-200 font-medium">Costo por Hora (BCR)</p>
-                            <p className="text-2xl font-bold text-white">{formatCurrency(Math.round(displayedBcr), currency)}</p>
-                            <p className="text-xs text-slate-300">
-                                {backendBcrLoading ? 'Sincronizando con motor central...' : 'Base mínima para no perder dinero'}
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                                <div>
+                                    <Label>Nivel</Label>
+                                    <select
+                                        value={activeMember.isMain ? level : activeAdditionalMember?.level || 'Mid'}
+                                        onChange={(event) => activeMember.isMain
+                                            ? setLevel(event.target.value as Step3MyTeamData['level'])
+                                            : activeAdditionalMember && updateAdditionalMember(activeAdditionalMember.id, { level: event.target.value as TeamMemberDraft['level'] })}
+                                        className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm"
+                                    >
+                                        {LEVELS.map((levelOption) => (
+                                            <option key={levelOption} value={levelOption}>{levelOption}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <Label>Horas/semana</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={activeMember.isMain ? totalHours : activeAdditionalMember?.totalHours || 40}
+                                        onChange={(event) => activeMember.isMain
+                                            ? handleTotalHoursChange(event.target.value)
+                                            : activeAdditionalMember && updateAdditionalMember(activeAdditionalMember.id, { totalHours: Math.max(1, Number(event.target.value) || 40) })}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Facturables/semana</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={activeMember.isMain ? billableHours : activeAdditionalMember?.billableHours || 28}
+                                        onChange={(event) => activeMember.isMain
+                                            ? setBillableHours(Math.max(1, Number(event.target.value) || 1))
+                                            : activeAdditionalMember && updateAdditionalMember(activeAdditionalMember.id, { billableHours: Math.max(1, Number(event.target.value) || 1) })}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Días no productivos</Label>
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        value={activeMember.isMain ? vacationDays : activeAdditionalMember?.vacationDays || 20}
+                                        onChange={(event) => activeMember.isMain
+                                            ? setVacationDays(Math.max(0, Number(event.target.value) || 0))
+                                            : activeAdditionalMember && updateAdditionalMember(activeAdditionalMember.id, { vacationDays: Math.max(0, Number(event.target.value) || 0) })}
+                                    />
+                                </div>
+                            </div>
+
+                            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-surface-2 px-3 py-2 text-sm text-gray-600">
+                                <input
+                                    type="checkbox"
+                                    checked={activeMember.isMain ? applySocialCharges : activeAdditionalMember?.applySocialCharges ?? true}
+                                    onChange={(event) => activeMember.isMain
+                                        ? setApplySocialCharges(event.target.checked)
+                                        : activeAdditionalMember && updateAdditionalMember(activeAdditionalMember.id, { applySocialCharges: event.target.checked })}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary"
+                                />
+                                Aplicar cargas sociales
+                            </label>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="overflow-hidden border-slate-800 bg-slate-900 text-white">
+                        <CardContent className="space-y-4 pt-6">
+                            <div className="flex items-center gap-2 text-blue-300">
+                                <span className="text-xl">✦</span>
+                                <h3 className="font-semibold">Costo real por hora — vista previa</h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-3">
+                                <div>
+                                    <p className="text-slate-400">Costo Total Anual</p>
+                                    <p className="mt-1 text-xl font-bold">{formatCurrency(trueCostAnalysis.annualCost, currency)}</p>
+                                    <p className="mt-1 text-xs text-slate-500">Nómina + cargas sociales</p>
+                                </div>
+                                <div>
+                                    <p className="text-slate-400">Horas Facturables/Año</p>
+                                    <p className="mt-1 text-xl font-bold">{trueCostAnalysis.annualBillableHours.toLocaleString()} h</p>
+                                    <p className="mt-1 text-xs text-slate-500">Después de días no productivos</p>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-white/10 p-4">
+                                    <p className="text-xs font-bold uppercase tracking-wide text-blue-200">Costo por Hora (BCR)</p>
+                                    <p className="mt-1 text-3xl font-black text-white">{formatCurrency(Math.round(displayedBcr), currency)}</p>
+                                    <p className="mt-1 text-xs text-slate-300">
+                                        {backendBcrLoading ? 'Sincronizando con motor central...' : 'Mínimo para no perder dinero'}
+                                    </p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Alert variant="warning" className="bg-amber-50 border-amber-200">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-sm text-amber-900">
+                                Para un BCR preciso, registra todos los miembros del equipo en nómina.
+                                {payrollHeadcount > 1
+                                    ? ` Actualmente estás modelando ${modeledMembers.length} de ${payrollHeadcount}.`
+                                    : ' Actualmente estás modelando 1 persona.'}
                             </p>
+                            <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-amber-900">
+                                Personas esperadas
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    value={payrollHeadcount}
+                                    onChange={(event) => setPayrollHeadcount(Math.max(1, Number(event.target.value) || 1))}
+                                    className="h-8 w-20 bg-white"
+                                />
+                            </label>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    </Alert>
+                </div>
+            </div>
 
             <div className="pb-24 md:pb-0">
                 <div className="fixed inset-x-0 bottom-0 z-40 md:static md:z-auto border-t border-gray-200 bg-white/95 backdrop-blur-md px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:border-0 md:bg-transparent md:backdrop-blur-none md:p-0 shadow-[0_-6px_24px_rgba(15,23,42,0.06)] md:shadow-none">
@@ -354,302 +494,6 @@ export function StepMyTeam({
                 </div>
             </div>
 
-            <Dialog open={isTeamModalOpen} onOpenChange={setIsTeamModalOpen}>
-                <DialogContent className="max-w-4xl w-[95vw] h-[90vh] p-0 flex flex-col">
-                    <div className="p-6 border-b border-gray-100">
-                        <DialogHeader>
-                            <DialogTitle>Miembros adicionales del equipo</DialogTitle>
-                            <DialogDescription>
-                                Agrega y edita aquí todos los miembros de nómina para mejorar la precisión del BCR.
-                            </DialogDescription>
-                        </DialogHeader>
-                    </div>
-
-                    <div className="p-6 min-h-0 flex-1 overflow-y-auto space-y-4">
-                        <div className="rounded-lg border border-primary-soft bg-primary-soft p-4 space-y-3">
-                            <div className="flex items-center justify-between">
-                                <p className="text-sm font-semibold text-blue-900">Miembro principal (tú)</p>
-                                <span className="text-xs font-medium text-primary bg-white border border-primary-soft rounded-full px-2 py-0.5">
-                                    Obligatorio
-                                </span>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold text-blue-900">Nombre</Label>
-                                    <Input
-                                        placeholder="Ej: Juan Pérez"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                    />
-                                    <p className="text-[11px] text-blue-800">Nombre completo del miembro de nómina.</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold text-blue-900">Rol / Cargo</Label>
-                                    <select
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                        value={isCustomRole ? '__custom__' : role}
-                                        onChange={(e) => {
-                                            if (e.target.value === '__custom__') {
-                                                setIsCustomRole(true);
-                                                setRole('');
-                                            } else {
-                                                setIsCustomRole(false);
-                                                setRole(e.target.value);
-                                            }
-                                        }}
-                                    >
-                                        <option value="">Rol/Cargo</option>
-                                        {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                                        <option value="__custom__">+ Crear nuevo rol/cargo</option>
-                                    </select>
-                                    {isCustomRole && (
-                                        <Input
-                                            value={customRole}
-                                            onChange={(e) => setCustomRole(e.target.value)}
-                                            placeholder="Rol personalizado"
-                                        />
-                                    )}
-                                    <p className="text-[11px] text-blue-800">Función principal en el equipo (ej. PM, diseñador, dev).</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold text-blue-900">Nivel</Label>
-                                    <select
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                        value={level}
-                                        onChange={(e) => setLevel(e.target.value as Step3MyTeamData['level'])}
-                                    >
-                                        <option value="">Nivel</option>
-                                        {LEVELS.map((lvl) => <option key={lvl} value={lvl}>{lvl}</option>)}
-                                    </select>
-                                    <p className="text-[11px] text-blue-800">Senioridad para contextualizar capacidades del perfil.</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold text-blue-900">Salario mensual ({currency})</Label>
-                                    <Input
-                                        type="text"
-                                        inputMode={moneyInputMode}
-                                        placeholder={`Salario mensual (${currency})`}
-                                        value={salary}
-                                        onChange={(e) => {
-                                            const next = e.target.value;
-                                            if (!next.trim()) {
-                                                setSalary('');
-                                                return;
-                                            }
-                                            const parsed = parseMoneyInput(next);
-                                            setSalary(formatMoneyInput(parsed));
-                                        }}
-                                    />
-                                    <p className="text-[11px] text-blue-800">Costo mensual bruto antes de dividir por horas productivas.</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold text-blue-900">Horas totales por semana</Label>
-                                    <Input
-                                        type="number"
-                                        min={1}
-                                        placeholder="Horas totales/semana"
-                                        value={totalHours}
-                                        onChange={(e) => handleTotalHoursChange(e.target.value)}
-                                    />
-                                    <p className="text-[11px] text-blue-800">Horas laborales semanales (facturables + no facturables).</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold text-blue-900">Horas facturables por semana</Label>
-                                    <Input
-                                        type="number"
-                                        min={1}
-                                        placeholder="Horas facturables/semana"
-                                        value={billableHours}
-                                        onChange={(e) => setBillableHours(Math.max(1, parseInt(e.target.value || '1', 10)))}
-                                    />
-                                    <p className="text-[11px] text-blue-800">Horas que realmente se pueden cobrar a clientes.</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold text-blue-900">Días no productivos al año</Label>
-                                    <Input
-                                        type="number"
-                                        min={0}
-                                        placeholder="Días no productivos/año"
-                                        value={vacationDays}
-                                        onChange={(e) => setVacationDays(Math.max(0, parseInt(e.target.value || '0', 10)))}
-                                    />
-                                    <p className="text-[11px] text-blue-800">Vacaciones, festivos, incapacidad u otros días sin facturación.</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold text-blue-900">Cargas sociales</Label>
-                                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                                        <input
-                                            type="checkbox"
-                                            checked={applySocialCharges}
-                                            onChange={(e) => setApplySocialCharges(e.target.checked)}
-                                            className="h-4 w-4 rounded"
-                                        />
-                                        Aplicar cargas sociales
-                                    </label>
-                                    <p className="text-[11px] text-blue-800">Suma parafiscales y prestaciones para un costo real más preciso.</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm text-gray-600">
-                                Registrados: <strong>{validAdditionalMembers.length}</strong> de <strong>{Math.max(payrollHeadcount - 1, 0)}</strong> adicionales esperados.
-                            </p>
-                            <Button type="button" variant="secondary" onClick={addAdditionalMember}>
-                                + Agregar miembro
-                            </Button>
-                        </div>
-
-                        {additionalMembers.length === 0 && (
-                            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-                                <p className="text-sm text-gray-600">No hay miembros adicionales todavía.</p>
-                                <p className="text-xs text-gray-500 mt-1">Empieza agregando el siguiente miembro de nómina.</p>
-                            </div>
-                        )}
-
-                        <div className="space-y-3">
-                            {additionalMembers.map((member, idx) => (
-                                <div key={member.id} className="rounded-lg border border-gray-200 p-4 space-y-3 bg-white">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-sm font-semibold text-gray-700">Miembro {idx + 2}</p>
-                                        <Button
-                                            type="button"
-                                            variant="destructive"
-                                            size="sm"
-                                            onClick={() => removeAdditionalMember(member.id)}
-                                        >
-                                            Eliminar
-                                        </Button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Nombre</Label>
-                                            <Input
-                                                placeholder="Ej: Ana Torres"
-                                                value={member.name}
-                                                onChange={(e) => updateAdditionalMember(member.id, { name: e.target.value })}
-                                            />
-                                            <p className="text-[11px] text-gray-500">Nombre completo del miembro.</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Rol / Cargo</Label>
-                                            <Input
-                                                placeholder="Ej: Diseñador UI/UX"
-                                                value={member.role}
-                                                onChange={(e) => updateAdditionalMember(member.id, { role: e.target.value })}
-                                            />
-                                            <p className="text-[11px] text-gray-500">Responsabilidad principal del perfil.</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Nivel</Label>
-                                            <select
-                                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                                value={member.level}
-                                                onChange={(e) => updateAdditionalMember(member.id, { level: e.target.value as TeamMemberDraft['level'] })}
-                                            >
-                                                <option value="">Nivel</option>
-                                                {LEVELS.map((lvl) => (
-                                                    <option key={lvl} value={lvl}>{lvl}</option>
-                                                ))}
-                                            </select>
-                                            <p className="text-[11px] text-gray-500">Senioridad del miembro.</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Salario mensual ({currency})</Label>
-                                            <Input
-                                                type="text"
-                                                inputMode={moneyInputMode}
-                                                placeholder={`Salario mensual (${currency})`}
-                                                value={member.salary}
-                                                onChange={(e) => {
-                                                    const next = e.target.value;
-                                                    if (!next.trim()) {
-                                                        updateAdditionalMember(member.id, { salary: '' });
-                                                        return;
-                                                    }
-                                                    const parsed = parseMoneyInput(next);
-                                                    updateAdditionalMember(member.id, {
-                                                        salary: formatMoneyInput(parsed),
-                                                    });
-                                                }}
-                                            />
-                                            <p className="text-[11px] text-gray-500">Costo mensual bruto del perfil.</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Horas totales por semana</Label>
-                                            <Input
-                                                type="number"
-                                                min={1}
-                                                placeholder="Horas totales/semana"
-                                                value={member.totalHours}
-                                                onChange={(e) =>
-                                                    updateAdditionalMember(member.id, {
-                                                        totalHours: Math.max(1, parseInt(e.target.value || '1', 10)),
-                                                    })
-                                                }
-                                            />
-                                            <p className="text-[11px] text-gray-500">Horas laborales semanales totales.</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Horas facturables por semana</Label>
-                                            <Input
-                                                type="number"
-                                                min={1}
-                                                placeholder="Horas facturables/semana"
-                                                value={member.billableHours}
-                                                onChange={(e) =>
-                                                    updateAdditionalMember(member.id, {
-                                                        billableHours: Math.max(1, parseInt(e.target.value || '1', 10)),
-                                                    })
-                                                }
-                                            />
-                                            <p className="text-[11px] text-gray-500">Horas que sí se cobran a cliente.</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Días no productivos al año</Label>
-                                            <Input
-                                                type="number"
-                                                min={0}
-                                                placeholder="Días no productivos/año"
-                                                value={member.vacationDays}
-                                                onChange={(e) =>
-                                                    updateAdditionalMember(member.id, {
-                                                        vacationDays: Math.max(0, parseInt(e.target.value || '0', 10)),
-                                                    })
-                                                }
-                                            />
-                                            <p className="text-[11px] text-gray-500">Vacaciones/festivos/ausencias sin facturar.</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Cargas sociales</Label>
-                                            <label className="flex items-center gap-2 text-sm text-gray-700">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={member.applySocialCharges}
-                                                    onChange={(e) =>
-                                                        updateAdditionalMember(member.id, {
-                                                            applySocialCharges: e.target.checked,
-                                                        })
-                                                    }
-                                                    className="h-4 w-4 rounded"
-                                                />
-                                                Aplicar cargas sociales
-                                            </label>
-                                            <p className="text-[11px] text-gray-500">Incluye prestaciones y parafiscales en el costo.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <DialogFooter className="p-4 border-t border-gray-100 bg-gray-50">
-                        <Button type="button" variant="secondary" onClick={() => setIsTeamModalOpen(false)}>
-                            Cerrar
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

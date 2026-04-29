@@ -49,6 +49,7 @@ export interface Step3MyTeamData {
     yearlyBillableHours: number; // Calculated
     hourlyCost: number; // Calculated
     teamMembers?: Array<{
+        id?: string;
         name: string;
         role: string;
         level: 'Junior' | 'Mid' | 'Senior' | '';
