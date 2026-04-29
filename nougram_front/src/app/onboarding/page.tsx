@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Upload } from 'lucide-react';
 import { OnboardingStepper } from '@/components/onboarding/OnboardingStepper';
 import { OnboardingStepWrapper } from '@/components/onboarding/OnboardingStepWrapper';
+import { OnboardingWelcome } from '@/components/onboarding/OnboardingWelcome';
 import { StepIdentity } from '@/components/onboarding/StepIdentity';
 import { StepFixedCosts } from '@/components/onboarding/StepFixedCosts';
 import { StepMyTeam } from '@/components/onboarding/StepMyTeam';
@@ -71,6 +72,7 @@ export default function OnboardingPage() {
     const router = useRouter();
     const { loading: authLoading, isAuthenticated } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
+    const [showWelcome, setShowWelcome] = useState(true);
     const [persistError, setPersistError] = useState<string | null>(null);
     const [persisting, setPersisting] = useState(false);
     const [backendBcr, setBackendBcr] = useState<number | null>(null);
@@ -109,6 +111,7 @@ export default function OnboardingPage() {
     useEffect(() => {
         if (isLoading) return;
         if (onboardingData.lastStep > 1 && currentStep === 1) {
+            setShowWelcome(false);
             setCurrentStep(onboardingData.lastStep);
         }
     }, [isLoading, onboardingData.lastStep, currentStep]);
@@ -143,6 +146,11 @@ export default function OnboardingPage() {
             trackOnboardingStepCompleted({ step: completedKey });
         }
         setCurrentStep((prev) => prev + 1);
+        window.scrollTo(0, 0);
+    };
+    const handleStart = () => {
+        setShowWelcome(false);
+        updateProgress(1);
         window.scrollTo(0, 0);
     };
 
@@ -770,7 +778,9 @@ export default function OnboardingPage() {
 
                 <div className="mt-8 transition-all duration-300 ease-in-out">
                     <OnboardingStepWrapper stepKey={currentStep}>
-                    {currentStep === 1 && (
+                    {showWelcome ? (
+                        <OnboardingWelcome onStart={handleStart} />
+                    ) : currentStep === 1 && (
                         <StepIdentity
                             onNext={(data) => {
                                 updateIdentity(data);

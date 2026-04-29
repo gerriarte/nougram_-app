@@ -24,6 +24,13 @@ export interface OnboardingData {
         organizationName: string;
         primaryCurrency: string;
         country?: string;
+        taxId?: string;
+        industry?: string;
+        companyType?: 'agency' | 'studio' | 'freelance' | 'consult' | '';
+        logo?: {
+            src: string;
+            name: string;
+        } | null;
     };
     fixedCosts: Step2FixedCostsData;
     team: Step3MyTeamData;

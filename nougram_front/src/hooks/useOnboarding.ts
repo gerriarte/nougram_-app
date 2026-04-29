@@ -10,7 +10,11 @@ const INITIAL_DATA: OnboardingData = {
     identity: {
         organizationName: '',
         primaryCurrency: 'COP',
-        country: 'COL'
+        country: 'COL',
+        taxId: '',
+        industry: '',
+        companyType: '',
+        logo: null,
     },
     fixedCosts: {
         selectedTemplates: [],
