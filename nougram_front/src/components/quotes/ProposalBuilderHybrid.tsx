@@ -257,6 +257,7 @@ export interface ProposalBuilderHybridProps {
 
 // ── Main component ────────────────────────────────────────────────
 export function ProposalBuilderHybrid({
+    projectId,
     projectName,
     initialTitle,
     initialBody,
