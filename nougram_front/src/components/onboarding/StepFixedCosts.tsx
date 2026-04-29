@@ -12,6 +12,7 @@ interface StepFixedCostsProps {
     onBack: () => void;
     initialData?: { selectedTemplates: FixedCostTemplate[] };
     primaryCurrency: string;
+    onOpenImport?: () => void;
 }
 
 const CATEGORY_ORDER: Array<FixedCostTemplate['category']> = ['Tools', 'Software', 'Overhead', 'Other'];
@@ -86,7 +87,7 @@ const asSafeTemplateArray = (value: unknown): FixedCostTemplate[] => {
     ));
 };
 
-export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }: StepFixedCostsProps) {
+export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency, onOpenImport }: StepFixedCostsProps) {
     const [availableTemplates, setAvailableTemplates] = useState<FixedCostTemplate[]>([]);
     const [exchangeRates, setExchangeRates] = useState<Record<string, { rate: number; lastUpdated: string }>>({});
     const [selectedCosts, setSelectedCosts] = useState<FixedCostTemplate[]>(() =>
@@ -223,6 +224,14 @@ export function StepFixedCosts({ onNext, onBack, initialData, primaryCurrency }:
                 description="Registra gastos fijos, software y herramientas para que Nougram entienda el costo mensual real de mantener tu empresa funcionando."
                 callout={`Todos los valores se muestran y editan en ${primaryCurrency}. Los activos amortizables se calculan por vida útil, no como gasto mensual directo.`}
             />
+
+            {onOpenImport && (
+                <div className="flex justify-center">
+                    <Button type="button" variant="secondary" onClick={onOpenImport} className="rounded-xl">
+                        Importar inventario desde Excel
+                    </Button>
+                </div>
+            )}
 
             <Card className="overflow-hidden border-dashed border-gray-300 shadow-sm">
                 <div className="border-b border-gray-100 bg-gradient-to-r from-primary-soft to-white px-5 py-4">

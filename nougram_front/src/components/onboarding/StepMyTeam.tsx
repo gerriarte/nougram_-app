@@ -17,6 +17,7 @@ interface StepMyTeamProps {
     currency: string;
     backendBcr?: number | null;
     backendBcrLoading?: boolean;
+    onOpenImport?: () => void;
 }
 
 
@@ -48,7 +49,8 @@ export function StepMyTeam({
     initialData,
     currency,
     backendBcr,
-    backendBcrLoading
+    backendBcrLoading,
+    onOpenImport
 }: StepMyTeamProps) {
     const isCopCurrency = String(currency || '').toUpperCase() === 'COP';
     const moneyInputMode: 'numeric' | 'decimal' = isCopCurrency ? 'numeric' : 'decimal';
@@ -227,6 +229,11 @@ export function StepMyTeam({
                             </p>
                         </div>
                         <div className="flex gap-2">
+                            {onOpenImport && (
+                                <Button type="button" variant="secondary" onClick={onOpenImport} className="whitespace-nowrap">
+                                    Importar Excel
+                                </Button>
+                            )}
                             <Button type="button" variant="secondary" onClick={() => openTeamManager(false)} className="whitespace-nowrap">
                                 Ver miembros
                             </Button>

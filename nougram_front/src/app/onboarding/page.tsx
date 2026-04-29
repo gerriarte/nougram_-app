@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Upload } from 'lucide-react';
 import { OnboardingStepper } from '@/components/onboarding/OnboardingStepper';
 import { OnboardingStepWrapper } from '@/components/onboarding/OnboardingStepWrapper';
 import { StepIdentity } from '@/components/onboarding/StepIdentity';
@@ -77,6 +77,8 @@ export default function OnboardingPage() {
     const [backendBcrLoading, setBackendBcrLoading] = useState(false);
     const [importLoading, setImportLoading] = useState(false);
     const [importError, setImportError] = useState<string | null>(null);
+    const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+    const [showImportDialog, setShowImportDialog] = useState(false);
     const [showImportReview, setShowImportReview] = useState(false);
     const [importPreview, setImportPreview] = useState<{
         success: boolean;
@@ -509,6 +511,31 @@ export default function OnboardingPage() {
                             Configuración inicial · ~5 min
                         </span>
                         <span className="text-sm font-semibold text-gray-500">Paso {currentStep} de 4</span>
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setShowHeaderMenu((open) => !open)}
+                                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-600 shadow-sm hover:bg-gray-50"
+                                aria-expanded={showHeaderMenu}
+                            >
+                                Opciones <ChevronDown size={13} />
+                            </button>
+                            {showHeaderMenu && (
+                                <div className="absolute right-0 top-11 z-40 w-64 overflow-hidden rounded-2xl border border-gray-200 bg-white p-1 shadow-xl">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowHeaderMenu(false);
+                                            setShowImportDialog(true);
+                                        }}
+                                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-gray-700 hover:bg-primary-soft hover:text-primary"
+                                    >
+                                        <Upload size={14} />
+                                        Importación rápida desde Excel
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <div className="max-w-7xl mx-auto mt-2 flex justify-end">
@@ -546,69 +573,67 @@ export default function OnboardingPage() {
             />
 
             <div className="max-w-5xl mx-auto px-4">
-                <div className="mt-6 overflow-hidden rounded-2xl border border-primary/10 bg-white shadow-sm">
-                    <div className="flex flex-col gap-3 bg-gradient-to-r from-primary-soft to-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Atajo opcional</p>
-                            <p className="mt-0.5 text-sm font-bold text-gray-900">Importación rápida desde Excel</p>
+                <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+                    <DialogContent className="max-w-2xl w-full p-0 overflow-hidden">
+                        <div className="border-b border-gray-100 bg-gradient-to-r from-primary-soft to-white p-5">
+                            <DialogHeader>
+                                <DialogTitle>Importación rápida desde Excel</DialogTitle>
+                                <DialogDescription>
+                                    Descarga la plantilla, carga el archivo y revisa el preview antes de aplicar cambios.
+                                </DialogDescription>
+                            </DialogHeader>
                         </div>
-                        <p className="text-xs text-gray-500">Carga plantilla, revisa cambios y aplica preview.</p>
-                    </div>
-                    <div className="p-4">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-semibold text-gray-700">Puedes completar los pasos manualmente o acelerar la carga con una plantilla.</p>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                            <Button variant="secondary" onClick={handleDownloadTemplate} className="w-full sm:w-auto h-11 rounded-xl font-semibold">
-                                Descargar plantilla
-                            </Button>
-                            <label className="inline-flex items-center justify-center px-4 py-2.5 text-sm font-bold rounded-xl bg-primary text-white hover:opacity-95 cursor-pointer w-full sm:w-auto min-h-11">
-                                {importLoading ? 'Procesando...' : 'Cargar Excel'}
-                                <input
-                                    type="file"
-                                    accept=".xlsx"
-                                    className="hidden"
-                                    onChange={(e) => void handleImportFile(e.target.files?.[0])}
-                                    disabled={importLoading}
-                                />
-                            </label>
-                        </div>
-                    </div>
-                    </div>
-                    {importError && (
-                        <p className="mt-3 text-sm text-red-600">{importError}</p>
-                    )}
-                    {importPreview && (
-                        <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                            <p className={`text-sm font-semibold ${importPreview.success ? 'text-green-700' : 'text-amber-700'}`}>
-                                {importPreview.success ? 'Preview válido para aplicar' : 'Preview con validaciones pendientes'}
-                            </p>
-                            {importPreview.temporary_bcr?.blended_cost_rate && (
-                                <p className="text-xs text-gray-600 mt-1">
-                                    BCR estimado del import: {formatDisplayNumber(Number(importPreview.temporary_bcr.blended_cost_rate), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </p>
+                        <div className="space-y-4 p-5">
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                <Button variant="secondary" onClick={handleDownloadTemplate} className="h-11 rounded-xl font-semibold">
+                                    Descargar plantilla
+                                </Button>
+                                <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:opacity-95">
+                                    {importLoading ? 'Procesando...' : 'Cargar Excel'}
+                                    <input
+                                        type="file"
+                                        accept=".xlsx"
+                                        className="hidden"
+                                        onChange={(e) => void handleImportFile(e.target.files?.[0])}
+                                        disabled={importLoading}
+                                    />
+                                </label>
+                            </div>
+                            {importError && (
+                                <p className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{importError}</p>
                             )}
-                            {importPreview.issues.length > 0 && (
-                                <div className="mt-2 max-h-40 overflow-auto text-xs text-amber-800 space-y-1">
-                                    {importPreview.issues.slice(0, 12).map((issue, index) => (
-                                        <p key={`${issue.sheet}-${issue.row}-${issue.field}-${index}`}>
-                                            {issue.sheet} fila {issue.row} - {issue.field}: {issue.message}
+                            {importPreview && (
+                                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                                    <p className={`text-sm font-semibold ${importPreview.success ? 'text-green-700' : 'text-amber-700'}`}>
+                                        {importPreview.success ? 'Preview válido para aplicar' : 'Preview con validaciones pendientes'}
+                                    </p>
+                                    {importPreview.temporary_bcr?.blended_cost_rate && (
+                                        <p className="text-xs text-gray-600 mt-1">
+                                            BCR estimado del import: {formatDisplayNumber(Number(importPreview.temporary_bcr.blended_cost_rate), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </p>
-                                    ))}
+                                    )}
+                                    {importPreview.issues.length > 0 && (
+                                        <div className="mt-2 max-h-40 overflow-auto text-xs text-amber-800 space-y-1">
+                                            {importPreview.issues.slice(0, 12).map((issue, index) => (
+                                                <p key={`${issue.sheet}-${issue.row}-${issue.field}-${index}`}>
+                                                    {issue.sheet} fila {issue.row} - {issue.field}: {issue.message}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <div className="mt-3 flex justify-end">
+                                        <Button
+                                            onClick={() => setShowImportReview(true)}
+                                            disabled={!importPreview.success || !importPreview.payload}
+                                        >
+                                            Revisar y aplicar
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
-                            <div className="mt-3 flex justify-end">
-                                <Button
-                                    onClick={() => setShowImportReview(true)}
-                                    disabled={!importPreview.success || !importPreview.payload}
-                                >
-                                    Revisar y aplicar
-                                </Button>
-                            </div>
                         </div>
-                    )}
-                </div>
+                    </DialogContent>
+                </Dialog>
 
                 <Dialog open={showImportReview && Boolean(importPreview?.payload)} onOpenChange={setShowImportReview}>
                     <DialogContent className="max-w-3xl w-full max-h-[88vh] overflow-hidden p-0">
@@ -766,6 +791,7 @@ export default function OnboardingPage() {
                             onBack={handleBackStep}
                             initialData={onboardingData.fixedCosts}
                             primaryCurrency={onboardingData.identity.primaryCurrency}
+                            onOpenImport={() => setShowImportDialog(true)}
                         />
                     )}
 
@@ -781,6 +807,7 @@ export default function OnboardingPage() {
                             currency={onboardingData.identity.primaryCurrency}
                             backendBcr={backendBcr}
                             backendBcrLoading={backendBcrLoading}
+                            onOpenImport={() => setShowImportDialog(true)}
                         />
                     )}
 
