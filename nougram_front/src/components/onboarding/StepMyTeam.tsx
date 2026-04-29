@@ -223,7 +223,7 @@ export function StepMyTeam({
     };
 
     return (
-        <div className="space-y-6 max-w-3xl mx-auto px-1">
+        <div className="space-y-6 mx-auto w-full max-w-6xl px-1">
             <OnboardingStepHero
                 eyebrow="Paso 3 de 4"
                 title="Modela tu equipo y horas facturables"
@@ -231,7 +231,7 @@ export function StepMyTeam({
                 callout="Puedes empezar con una persona y agregar el resto del equipo ahora o más adelante desde Nómina."
             />
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr] lg:items-start">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
                 <Card className="overflow-hidden border-gray-200 shadow-sm lg:sticky lg:top-24">
                     <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                         <div>
@@ -296,7 +296,7 @@ export function StepMyTeam({
 
                 <div className="space-y-4">
                     <Card className="border-gray-200 shadow-sm">
-                        <CardContent className="space-y-5 pt-6">
+                        <CardContent className="space-y-6 p-6 lg:p-8">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
                                     <h3 className="text-lg font-black tracking-tight text-gray-900">
@@ -311,8 +311,8 @@ export function StepMyTeam({
                                 )}
                             </div>
 
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                                <div>
+                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(220px,1.35fr)_minmax(220px,1.05fr)_minmax(180px,0.9fr)]">
+                                <div className="space-y-1.5">
                                     <Label>Nombre completo *</Label>
                                     <Input
                                         value={activeMember.isMain ? name : activeAdditionalMember?.name || ''}
@@ -322,7 +322,7 @@ export function StepMyTeam({
                                         placeholder="Ej. Juan Pérez"
                                     />
                                 </div>
-                                <div>
+                                <div className="space-y-1.5">
                                     <Label>Rol *</Label>
                                     <select
                                         value={activeMember.isMain ? (isCustomRole ? 'Otro' : role) : activeAdditionalMember?.role || ''}
@@ -351,7 +351,7 @@ export function StepMyTeam({
                                         />
                                     )}
                                 </div>
-                                <div>
+                                <div className="space-y-1.5">
                                     <Label>Salario mensual *</Label>
                                     <Input
                                         type="text"
@@ -365,8 +365,8 @@ export function StepMyTeam({
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                                <div>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                <div className="space-y-1.5">
                                     <Label>Nivel</Label>
                                     <select
                                         value={activeMember.isMain ? level : activeAdditionalMember?.level || 'Mid'}
@@ -380,7 +380,7 @@ export function StepMyTeam({
                                         ))}
                                     </select>
                                 </div>
-                                <div>
+                                <div className="space-y-1.5">
                                     <Label>Horas/semana</Label>
                                     <Input
                                         type="number"
@@ -391,7 +391,7 @@ export function StepMyTeam({
                                             : activeAdditionalMember && updateAdditionalMember(activeAdditionalMember.id, { totalHours: Math.max(1, Number(event.target.value) || 40) })}
                                     />
                                 </div>
-                                <div>
+                                <div className="space-y-1.5">
                                     <Label>Facturables/semana</Label>
                                     <Input
                                         type="number"
@@ -402,7 +402,7 @@ export function StepMyTeam({
                                             : activeAdditionalMember && updateAdditionalMember(activeAdditionalMember.id, { billableHours: Math.max(1, Number(event.target.value) || 1) })}
                                     />
                                 </div>
-                                <div>
+                                <div className="space-y-1.5">
                                     <Label>Días no productivos</Label>
                                     <Input
                                         type="number"
@@ -415,7 +415,7 @@ export function StepMyTeam({
                                 </div>
                             </div>
 
-                            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-surface-2 px-3 py-2 text-sm text-gray-600">
+                            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-surface-2 px-4 py-3 text-sm text-gray-600">
                                 <input
                                     type="checkbox"
                                     checked={activeMember.isMain ? applySocialCharges : activeAdditionalMember?.applySocialCharges ?? true}
@@ -430,13 +430,13 @@ export function StepMyTeam({
                     </Card>
 
                     <Card className="overflow-hidden border-slate-800 bg-slate-900 text-white">
-                        <CardContent className="space-y-4 pt-6">
+                        <CardContent className="space-y-5 p-6 lg:p-8">
                             <div className="flex items-center gap-2 text-blue-300">
                                 <span className="text-xl">✦</span>
                                 <h3 className="font-semibold">Costo real por hora — vista previa</h3>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-3">
+                            <div className="grid grid-cols-1 gap-5 text-sm lg:grid-cols-[1fr_1fr_1.15fr]">
                                 <div>
                                     <p className="text-slate-400">Costo Total Anual</p>
                                     <p className="mt-1 text-xl font-bold">{formatCurrency(trueCostAnalysis.annualCost, currency)}</p>
@@ -447,7 +447,7 @@ export function StepMyTeam({
                                     <p className="mt-1 text-xl font-bold">{trueCostAnalysis.annualBillableHours.toLocaleString()} h</p>
                                     <p className="mt-1 text-xs text-slate-500">Después de días no productivos</p>
                                 </div>
-                                <div className="rounded-xl border border-white/10 bg-white/10 p-4">
+                                <div className="rounded-xl border border-white/10 bg-white/10 p-5">
                                     <p className="text-xs font-bold uppercase tracking-wide text-blue-200">Costo por Hora (BCR)</p>
                                     <p className="mt-1 text-3xl font-black text-white">{formatCurrency(Math.round(displayedBcr), currency)}</p>
                                     <p className="mt-1 text-xs text-slate-300">
@@ -483,7 +483,7 @@ export function StepMyTeam({
 
             <div className="pb-24 md:pb-0">
                 <div className="fixed inset-x-0 bottom-0 z-40 md:static md:z-auto border-t border-gray-200 bg-white/95 backdrop-blur-md px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:border-0 md:bg-transparent md:backdrop-blur-none md:p-0 shadow-[0_-6px_24px_rgba(15,23,42,0.06)] md:shadow-none">
-                    <div className="max-w-5xl mx-auto flex gap-3 justify-between mt-0 md:mt-6">
+                    <div className="mx-auto mt-0 flex max-w-6xl gap-3 justify-between md:mt-6">
                         <Button variant="secondary" onClick={onBack} className="flex-1 sm:flex-none h-12 rounded-2xl font-bold md:h-10 md:rounded-md">
                             ← Atrás
                         </Button>
