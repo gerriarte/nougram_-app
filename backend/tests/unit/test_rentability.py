@@ -27,6 +27,7 @@ async def test_calculate_rentability_analysis_logic():
     quote.expenses = [expense1]
 
     project = MagicMock()
+    project.currency = "usd"
     tax1 = MagicMock()
     tax1.name = "IVA"
     tax1.percentage = 19.0
@@ -73,7 +74,10 @@ async def test_calculate_rentability_critical_status():
     quote.total_internal_cost = 900.0
     quote.items = []
     quote.expenses = []
-    quote.project.taxes = []
+    project = MagicMock()
+    project.currency = "usd"
+    project.taxes = []
+    quote.project = project
 
     mock_quote_result = MagicMock()
     mock_quote_result.scalar_one_or_none.return_value = quote
@@ -96,7 +100,10 @@ async def test_calculate_rentability_healthy_status():
     quote.total_internal_cost = 500.0
     quote.items = []
     quote.expenses = []
-    quote.project.taxes = []
+    project = MagicMock()
+    project.currency = "usd"
+    project.taxes = []
+    quote.project = project
 
     mock_quote_result = MagicMock()
     mock_quote_result.scalar_one_or_none.return_value = quote

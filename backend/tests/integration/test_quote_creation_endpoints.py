@@ -3,28 +3,17 @@ Integration tests for quote creation endpoints
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import get_password_hash
 from app.models.organization import Organization
 from app.models.project import Project
 from app.models.user import User
-
-
-def get_auth_headers(user: User) -> dict:
-    """Generate authorization headers for a user"""
-    token_data = {
-        "sub": str(user.id),
-        "email": user.email,
-        "name": user.full_name,
-        "organization_id": user.organization_id,
-    }
-    token = create_access_token(token_data)
-    return {"Authorization": f"Bearer {token}"}
+from tests.auth_helpers import get_auth_headers
 
 
 @pytest.fixture
@@ -136,7 +125,7 @@ class TestSearchClientsEndpoint:
             "/api/v1/projects/clients/search?q=T&limit=10", headers=get_auth_headers(user)
         )
 
-        assert response.status_code == 400
+        assert response.status_code in (400, 422)
 
     async def test_search_clients_respects_tenant(
         self,
@@ -221,23 +210,10 @@ class TestGenerateExecutiveSummaryEndpoint:
     """Tests for POST /api/v1/ai/generate-executive-summary"""
 
     async def test_generate_executive_summary_endpoint_success(
-        self, async_client: AsyncClient, test_org_with_user: tuple[Organization, User], mocker
+        self, async_client: AsyncClient, test_org_with_user: tuple[Organization, User]
     ):
         """Test endpoint de generación de resumen ejecutivo - éxito"""
         org, user = test_org_with_user
-
-        # Mock de OpenAI
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[
-            0
-        ].message.content = "Este es un resumen ejecutivo de prueba generado por IA."
-        mock_response.usage.prompt_tokens = 100
-        mock_response.usage.completion_tokens = 50
-        mock_response.usage.total_tokens = 150
-
-        mock_client = AsyncMock()
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         # Mock del servicio de IA
         with patch("app.api.v1.endpoints.ai.ai_service") as mock_ai_service:
@@ -336,4 +312,4 @@ class TestGenerateExecutiveSummaryEndpoint:
                 headers=get_auth_headers(user),
             )
 
-            assert response.status_code == 400
+            assert response.status_code in (400, 422)

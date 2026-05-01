@@ -92,6 +92,8 @@ class OnboardingController(BaseController):
             # Transform to response
             return self.onboarding_view.to_benchmarks_response(benchmarks_data)
 
+        except HTTPException:
+            raise
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         except Exception as e:

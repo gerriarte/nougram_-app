@@ -193,8 +193,8 @@ class TestProfitabilityCalculations:
         item = result["items"][0]
         assert item["internal_cost"] == 500.0
         assert item["client_price"] > 714.0
-        assert item["margin"] > 29.0  # Percentage
-        assert item["margin"] < 31.0
+        assert item["margin_percentage"] > 0.29
+        assert item["margin_percentage"] < 0.31
 
     async def test_multiple_items_margin(self, db_session, test_organization):
         """Test margin calculation with multiple items"""

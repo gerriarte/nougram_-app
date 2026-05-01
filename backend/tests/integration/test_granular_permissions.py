@@ -8,11 +8,13 @@ These tests validate:
 4. Credits are consumed correctly based on role
 """
 
+import uuid
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import get_password_hash
 from app.models.cost import CostFixed
 from app.models.organization import Organization
 from app.models.project import Project
@@ -20,20 +22,7 @@ from app.models.service import Service
 from app.models.tax import Tax
 from app.models.team import TeamMember
 from app.models.user import User
-
-
-def get_auth_headers(user: User) -> dict:
-    """Generate authorization headers for a user"""
-    token_data = {
-        "sub": str(user.id),
-        "email": user.email,
-        "name": user.full_name,
-        "organization_id": user.organization_id,
-        "role": user.role,
-        "role_type": user.role_type or ("support" if user.role == "super_admin" else "tenant"),
-    }
-    token = create_access_token(token_data)
-    return {"Authorization": f"Bearer {token}"}
+from tests.auth_helpers import get_auth_headers
 
 
 @pytest.fixture
@@ -52,6 +41,16 @@ async def org_a(db_session: AsyncSession) -> Organization:
     await db_session.commit()
     await db_session.refresh(org)
     return org
+
+
+@pytest.fixture
+async def org_a_credits(db_session: AsyncSession, org_a: Organization) -> None:
+    """Credits for project/quote flows in org A."""
+    from app.services.credit_service import CreditService
+
+    acc = await CreditService.get_or_create_credit_account(org_a.id, db_session)
+    acc.credits_available = 100
+    await db_session.commit()
 
 
 @pytest.fixture
@@ -257,7 +256,12 @@ async def test_project(db_session: AsyncSession, org_a: Organization) -> Project
 @pytest.fixture
 async def test_tax(db_session: AsyncSession, org_a: Organization) -> Tax:
     """Create test tax"""
-    tax = Tax(name="VAT", rate=0.20, organization_id=org_a.id)
+    tax = Tax(
+        name="VAT",
+        code=f"VAT_{org_a.id}_{uuid.uuid4().hex[:6]}",
+        percentage=20.0,
+        organization_id=org_a.id,
+    )
     db_session.add(tax)
     await db_session.commit()
     await db_session.refresh(tax)
@@ -286,7 +290,7 @@ class TestTeamMemberPermissions:
     ):
         """Admin financiero can view team members including salaries"""
         headers = get_auth_headers(admin_financiero_user)
-        response = await async_client.get("/api/v1/team/", headers=headers)
+        response = await async_client.get("/api/v1/settings/team", headers=headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -298,7 +302,7 @@ class TestTeamMemberPermissions:
     ):
         """Product manager cannot view team members (sensitive data)"""
         headers = get_auth_headers(product_manager_user)
-        response = await async_client.get("/api/v1/team/", headers=headers)
+        response = await async_client.get("/api/v1/settings/team", headers=headers)
 
         assert response.status_code == 403
 
@@ -307,7 +311,7 @@ class TestTeamMemberPermissions:
     ):
         """Collaborator cannot view team members (sensitive data)"""
         headers = get_auth_headers(collaborator_user)
-        response = await async_client.get("/api/v1/team/", headers=headers)
+        response = await async_client.get("/api/v1/settings/team", headers=headers)
 
         assert response.status_code == 403
 
@@ -421,7 +425,13 @@ class TestCostPermissions:
 class TestProjectPermissions:
     """Test permissions for project endpoints"""
 
-    async def test_owner_can_create_project(self, async_client: AsyncClient, owner_user: User):
+    async def test_owner_can_create_project(
+        self,
+        async_client: AsyncClient,
+        owner_user: User,
+        test_service: Service,
+        org_a_credits: None,
+    ):
         """Owner can create projects"""
         headers = get_auth_headers(owner_user)
         response = await async_client.post(
@@ -431,15 +441,20 @@ class TestProjectPermissions:
                 "name": "New Project",
                 "client_name": "Client Inc",
                 "client_email": "client@example.com",
-                "status": "Draft",
                 "currency": "USD",
+                "quote_items": [{"service_id": test_service.id, "estimated_hours": 10}],
+                "tax_ids": [],
             },
         )
 
         assert response.status_code == 201
 
     async def test_product_manager_can_create_project(
-        self, async_client: AsyncClient, product_manager_user: User
+        self,
+        async_client: AsyncClient,
+        product_manager_user: User,
+        test_service: Service,
+        org_a_credits: None,
     ):
         """Product manager can create projects"""
         headers = get_auth_headers(product_manager_user)
@@ -450,15 +465,20 @@ class TestProjectPermissions:
                 "name": "New Project",
                 "client_name": "Client Inc",
                 "client_email": "client@example.com",
-                "status": "Draft",
                 "currency": "USD",
+                "quote_items": [{"service_id": test_service.id, "estimated_hours": 10}],
+                "tax_ids": [],
             },
         )
 
         assert response.status_code == 201
 
     async def test_collaborator_can_create_project(
-        self, async_client: AsyncClient, collaborator_user: User
+        self,
+        async_client: AsyncClient,
+        collaborator_user: User,
+        test_service: Service,
+        org_a_credits: None,
     ):
         """Collaborator can create projects"""
         headers = get_auth_headers(collaborator_user)
@@ -469,8 +489,9 @@ class TestProjectPermissions:
                 "name": "New Project",
                 "client_name": "Client Inc",
                 "client_email": "client@example.com",
-                "status": "Draft",
                 "currency": "USD",
+                "quote_items": [{"service_id": test_service.id, "estimated_hours": 10}],
+                "tax_ids": [],
             },
         )
 
@@ -634,12 +655,12 @@ class TestOrganizationPermissions:
         """Owner can invite users to their organization"""
         headers = get_auth_headers(owner_user)
         response = await async_client.post(
-            f"/api/v1/organizations/{org_a.id}/invite",
+            f"/api/v1/organizations/{org_a.id}/invitations",
             headers=headers,
             json={"email": "newuser@test.com", "role": "product_manager"},
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 201
 
     async def test_product_manager_cannot_invite_user(
         self, async_client: AsyncClient, product_manager_user: User, org_a: Organization
@@ -647,7 +668,7 @@ class TestOrganizationPermissions:
         """Product manager cannot invite users"""
         headers = get_auth_headers(product_manager_user)
         response = await async_client.post(
-            f"/api/v1/organizations/{org_a.id}/invite",
+            f"/api/v1/organizations/{org_a.id}/invitations",
             headers=headers,
             json={"email": "newuser@test.com", "role": "product_manager"},
         )
@@ -697,7 +718,7 @@ class TestCrossTenantIsolation:
         """Owner from Org A cannot access team members from Org B"""
         headers = get_auth_headers(owner_user)
         # Try to access team members - should only see Org A's members
-        response = await async_client.get("/api/v1/team/", headers=headers)
+        response = await async_client.get("/api/v1/settings/team", headers=headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -712,7 +733,7 @@ class TestCrossTenantIsolation:
         """Owner from Org A cannot invite users to Org B"""
         headers = get_auth_headers(owner_user)
         response = await async_client.post(
-            f"/api/v1/organizations/{org_b.id}/invite",
+            f"/api/v1/organizations/{org_b.id}/invitations",
             headers=headers,
             json={"email": "newuser@test.com", "role": "product_manager"},
         )

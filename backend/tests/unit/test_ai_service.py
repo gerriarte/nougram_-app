@@ -13,6 +13,15 @@ from app.schemas.ai import ExecutiveSummaryRequest, ExecutiveSummaryService
 from app.services.ai_service import AIService
 
 
+def _apply_ai_service_settings_mock(mock_settings, *, openai_api_key="test-key-123"):
+    """MagicMock settings must expose real scalars or AIService treats provider as non-openai."""
+    mock_settings.AI_PROVIDER = "openai"
+    mock_settings.AI_MODEL = "gpt-4o-mini"
+    mock_settings.AI_TIMEOUT_SECONDS = 30
+    mock_settings.AI_MAX_RETRIES = 2
+    mock_settings.OPENAI_API_KEY = openai_api_key
+
+
 @pytest.mark.unit
 class TestAIService:
     """Tests for AIService"""
@@ -20,14 +29,14 @@ class TestAIService:
     def test_is_available_with_key(self):
         """Test is_available returns True when API key is set"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = "test-key-123"
+            _apply_ai_service_settings_mock(mock_settings)
             service = AIService()
             assert service.is_available() is True
 
     def test_is_available_without_key(self):
         """Test is_available returns False when API key is not set"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = ""
+            _apply_ai_service_settings_mock(mock_settings, openai_api_key="")
             service = AIService()
             assert service.is_available() is False
 
@@ -35,7 +44,7 @@ class TestAIService:
     async def test_suggest_onboarding_data_cache_hit(self):
         """Test suggest_onboarding_data returns cached result"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = "test-key-123"
+            _apply_ai_service_settings_mock(mock_settings)
             service = AIService()
 
             # Pre-populate cache
@@ -54,7 +63,7 @@ class TestAIService:
                 "suggested_fixed_costs": [],
                 "confidence_scores": {"roles": 0.9, "services": 0.8, "costs": 0.7},
             }
-            cache.set("ai_suggestion:marketing digital:us:usd", cached_data, ttl_seconds=86400)
+            cache.set("ai_suggestion:marketing digital:US:USD", cached_data, ttl_seconds=86400)
 
             result = await service.suggest_onboarding_data(
                 industry="Marketing Digital", region="US", currency="USD"
@@ -69,12 +78,12 @@ class TestAIService:
     async def test_suggest_onboarding_data_cache_miss(self):
         """Test suggest_onboarding_data calls OpenAI when cache miss"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = "test-key-123"
+            _apply_ai_service_settings_mock(mock_settings)
             service = AIService()
 
             # Clear cache
             cache = get_cache()
-            cache.invalidate("ai_suggestion:marketing digital:us:usd")
+            cache.invalidate("ai_suggestion:marketing digital:US:USD")
 
             # Mock OpenAI response
             mock_response = MagicMock()
@@ -118,7 +127,7 @@ class TestAIService:
     async def test_suggest_onboarding_data_not_available(self):
         """Test suggest_onboarding_data returns error when AI not available"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = ""
+            _apply_ai_service_settings_mock(mock_settings, openai_api_key="")
             service = AIService()
 
             result = await service.suggest_onboarding_data(
@@ -132,7 +141,7 @@ class TestAIService:
     async def test_suggest_onboarding_data_custom_context_no_cache(self):
         """Test suggest_onboarding_data doesn't cache when custom_context is provided"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = "test-key-123"
+            _apply_ai_service_settings_mock(mock_settings)
             service = AIService()
 
             # Mock OpenAI response
@@ -175,7 +184,7 @@ class TestAIService:
     async def test_parse_unstructured_data_basic(self):
         """Test parse_unstructured_data with valid text"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = "test-key-123"
+            _apply_ai_service_settings_mock(mock_settings)
             service = AIService()
 
             # Mock OpenAI response
@@ -217,7 +226,7 @@ class TestAIService:
     async def test_parse_unstructured_data_not_available(self):
         """Test parse_unstructured_data returns error when AI not available"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = ""
+            _apply_ai_service_settings_mock(mock_settings, openai_api_key="")
             service = AIService()
 
             result = await service.parse_unstructured_data(
@@ -231,7 +240,7 @@ class TestAIService:
     async def test_process_natural_language_command_basic(self):
         """Test process_natural_language_command with valid command"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = "test-key-123"
+            _apply_ai_service_settings_mock(mock_settings)
             service = AIService()
 
             # Mock OpenAI response
@@ -272,7 +281,7 @@ class TestAIService:
     async def test_process_natural_language_command_not_available(self):
         """Test process_natural_language_command returns error when AI not available"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = ""
+            _apply_ai_service_settings_mock(mock_settings, openai_api_key="")
             service = AIService()
 
             result = await service.process_natural_language_command(
@@ -285,7 +294,7 @@ class TestAIService:
     def test_estimate_cost(self):
         """Test cost estimation calculation"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = "test-key-123"
+            _apply_ai_service_settings_mock(mock_settings)
             service = AIService()
 
             # Mock usage object
@@ -303,7 +312,7 @@ class TestAIService:
     async def test_suggest_onboarding_data_json_decode_error(self):
         """Test suggest_onboarding_data handles JSON decode errors"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = "test-key-123"
+            _apply_ai_service_settings_mock(mock_settings)
             service = AIService()
 
             # Mock OpenAI response with invalid JSON
@@ -323,21 +332,21 @@ class TestAIService:
             assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_generate_executive_summary_success(self, mocker):
+    async def test_generate_executive_summary_success(self):
         """Test generación exitosa de resumen ejecutivo"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = "test-key-123"
+            _apply_ai_service_settings_mock(mock_settings)
 
             # Mock de OpenAI client
-            mock_client = mocker.MagicMock()
-            mock_response = mocker.MagicMock()
-            mock_response.choices = [mocker.MagicMock()]
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
             mock_response.choices[0].message.content = "Este es un resumen ejecutivo de prueba."
             mock_response.usage.prompt_tokens = 100
             mock_response.usage.completion_tokens = 50
             mock_response.usage.total_tokens = 150
 
-            mock_client.chat.completions.create = mocker.AsyncMock(return_value=mock_response)
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
             # Crear servicio con mock
             service = AIService()
@@ -375,7 +384,7 @@ class TestAIService:
     async def test_generate_executive_summary_ai_not_available(self):
         """Test que retorna error cuando IA no está disponible"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = None
+            _apply_ai_service_settings_mock(mock_settings, openai_api_key=None)
             service = AIService()
 
             request = ExecutiveSummaryRequest(
@@ -398,7 +407,7 @@ class TestAIService:
     def test_build_executive_summary_prompt(self):
         """Test construcción de prompt para resumen ejecutivo"""
         with patch("app.services.ai_service.settings") as mock_settings:
-            mock_settings.OPENAI_API_KEY = "test-key-123"
+            _apply_ai_service_settings_mock(mock_settings)
             service = AIService()
 
             request = ExecutiveSummaryRequest(

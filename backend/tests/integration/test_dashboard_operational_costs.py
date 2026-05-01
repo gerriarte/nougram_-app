@@ -7,22 +7,12 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import get_password_hash
 from app.models.cost import CostFixed
 from app.models.organization import Organization
 from app.models.team import TeamMember
 from app.models.user import User
-
-
-def get_auth_headers(user: User) -> dict:
-    """Generate authorization headers for a user."""
-    token_data = {
-        "sub": str(user.id),
-        "email": user.email,
-        "name": getattr(user, "full_name", None),
-    }
-    token = create_access_token(token_data)
-    return {"Authorization": f"Bearer {token}"}
+from tests.auth_helpers import get_auth_headers
 
 
 @pytest.fixture

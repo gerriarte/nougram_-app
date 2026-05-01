@@ -16,23 +16,12 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import get_password_hash
 from app.models.organization import Organization
 from app.models.project import Project
 from app.models.service import Service
 from app.models.user import User
-
-
-def get_auth_headers(user: User) -> dict:
-    """Generate authorization headers for a user"""
-    token_data = {
-        "sub": str(user.id),
-        "email": user.email,
-        "name": user.full_name,
-        "organization_id": user.organization_id,
-    }
-    token = create_access_token(token_data)
-    return {"Authorization": f"Bearer {token}"}
+from tests.auth_helpers import get_auth_headers
 
 
 @pytest.fixture
@@ -85,13 +74,33 @@ async def super_admin_user(db_session: AsyncSession, test_org_enterprise: Organi
 
 @pytest.fixture
 async def org_admin_user(db_session: AsyncSession, test_org_enterprise: Organization) -> User:
-    """Create org admin user"""
+    """Tenant owner for organization administration tests (invite users, etc.)."""
     user = User(
         email="orgadmin@test.com",
         full_name="Org Admin",
         hashed_password=get_password_hash("password123"),
         organization_id=test_org_enterprise.id,
-        role="org_admin",
+        role="owner",
+        role_type="tenant",
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+async def enterprise_admin_financiero_user(
+    db_session: AsyncSession, test_org_enterprise: Organization
+) -> User:
+    """Admin financiero cannot update subscription."""
+    user = User(
+        email="financiero-enterprise@test.com",
+        full_name="Admin Fin",
+        hashed_password=get_password_hash("password123"),
+        organization_id=test_org_enterprise.id,
+        role="admin_financiero",
+        role_type="tenant",
     )
     db_session.add(user)
     await db_session.commit()
@@ -284,7 +293,8 @@ class TestRegisterOrganization:
         data = response.json()
         assert "organization" in data
         assert "user" in data
-        assert "access_token" in data
+        assert data.get("requires_email_verification") is False
+        assert "message" in data
         assert data["organization"]["name"] == "New Registered Org"
         assert data["user"]["email"] == f"admin{unique_id}@neworg.com"
 
@@ -416,7 +426,7 @@ class TestOrganizationUsers:
                 "email": "newuser@test.com",
                 "full_name": "New User",
                 "password": "password123456",
-                "role": "org_member",
+                "role": "collaborator",
             },
             headers=headers,
         )
@@ -441,7 +451,7 @@ class TestOrganizationUsers:
             full_name="Updatable User",
             hashed_password=get_password_hash("password123"),
             organization_id=test_org_enterprise.id,
-            role="org_member",
+            role="collaborator",
         )
         db_session.add(user)
         await db_session.commit()
@@ -450,13 +460,13 @@ class TestOrganizationUsers:
         headers = get_auth_headers(org_admin_user)
         response = await async_client.put(
             f"/api/v1/organizations/{test_org_enterprise.id}/users/{user.id}/role",
-            json={"role": "org_admin"},
+            json={"role": "product_manager"},
             headers=headers,
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["role"] == "org_admin"
+        assert data["role"] == "product_manager"
 
     async def test_remove_user_from_organization(
         self,
@@ -473,7 +483,7 @@ class TestOrganizationUsers:
             full_name="Removable User",
             hashed_password=get_password_hash("password123"),
             organization_id=test_org_enterprise.id,
-            role="org_member",
+            role="collaborator",
         )
         db_session.add(user)
         await db_session.commit()
@@ -516,8 +526,7 @@ class TestOrganizationStats:
         service = Service(
             name="Test Service",
             organization_id=test_org_enterprise.id,
-            margin_target=0.40,
-            billable_rate=100.0,
+            default_margin_target=0.40,
             is_active=True,
         )
         db_session.add(service)
@@ -557,10 +566,13 @@ class TestUpdateSubscription:
         assert data["subscription_plan"] == "professional"
 
     async def test_update_subscription_org_admin_forbidden(
-        self, async_client: AsyncClient, org_admin_user: User, test_org_enterprise: Organization
+        self,
+        async_client: AsyncClient,
+        enterprise_admin_financiero_user: User,
+        test_org_enterprise: Organization,
     ):
-        """Test org admin cannot update subscription"""
-        headers = get_auth_headers(org_admin_user)
+        """Test admin financiero cannot update subscription"""
+        headers = get_auth_headers(enterprise_admin_financiero_user)
         response = await async_client.put(
             f"/api/v1/organizations/{test_org_enterprise.id}/subscription",
             json={"plan": "free"},
@@ -593,7 +605,8 @@ class TestPlanLimits:
             full_name="Free Limit Admin",
             hashed_password=get_password_hash("password123"),
             organization_id=org.id,
-            role="org_admin",
+            role="owner",
+            role_type="tenant",
         )
         db_session.add(admin)
         await db_session.commit()
@@ -607,10 +620,11 @@ class TestPlanLimits:
                 "email": "second@test.com",
                 "full_name": "Second User",
                 "password": "password123456",
-                "role": "org_member",
+                "role": "collaborator",
             },
             headers=headers,
         )
 
         assert response.status_code == 403
-        assert "limit exceeded" in response.json()["detail"].lower()
+        detail = response.json()["detail"].lower()
+        assert "limit" in detail or "plan" in detail

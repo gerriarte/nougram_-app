@@ -302,6 +302,7 @@ IMPORTANTE:
                     "completion_tokens": response.usage.completion_tokens,
                     "total_tokens": response.usage.total_tokens,
                     "estimated_cost": self._estimate_cost(response.usage),
+                    "cached": False,
                 },
             }
 

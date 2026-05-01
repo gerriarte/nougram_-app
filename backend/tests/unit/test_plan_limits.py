@@ -37,14 +37,14 @@ class TestPlanLimits:
     def test_get_plan_limit_starter(self):
         """Test getting limits for starter plan"""
         assert get_plan_limit("starter", "max_users") == 5
-        assert get_plan_limit("starter", "max_projects") == 25
+        assert get_plan_limit("starter", "max_projects") == 10
         assert get_plan_limit("starter", "max_services") == 50
         assert get_plan_limit("starter", "max_team_members") == 10
 
     def test_get_plan_limit_professional(self):
         """Test getting limits for professional plan"""
         assert get_plan_limit("professional", "max_users") == 20
-        assert get_plan_limit("professional", "max_projects") == 100
+        assert get_plan_limit("professional", "max_projects") == 20
         assert get_plan_limit("professional", "max_services") == 200
         assert get_plan_limit("professional", "max_team_members") == 50
 
@@ -268,7 +268,7 @@ class TestPlanLimitsEdgeCases:
                 name=f"Service {i}",
                 description=f"Service {i} description",
                 organization_id=org.id,
-                default_margin_target=30.0,
+                default_margin_target=0.30,
                 is_active=True,
             )
             db_session.add(service)
@@ -281,7 +281,7 @@ class TestPlanLimitsEdgeCases:
                 name=f"Deleted Service {i}",
                 description=f"Service {i} description",
                 organization_id=org.id,
-                default_margin_target=30.0,
+                default_margin_target=0.30,
                 is_active=True,
                 deleted_at=datetime.now(UTC),
             )

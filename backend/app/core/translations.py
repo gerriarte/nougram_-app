@@ -50,7 +50,10 @@ def load_translations(locale: str = DEFAULT_LOCALE) -> dict[str, str]:
 
 
 def translate_error(
-    error_code: ErrorCode, locale: str = DEFAULT_LOCALE, params: dict[str, any] | None = None
+    error_code: ErrorCode,
+    locale: str = DEFAULT_LOCALE,
+    params: dict[str, any] | None = None,
+    detail: str | None = None,
 ) -> str:
     """
     Translate an error code to a human-readable message
@@ -73,6 +76,9 @@ def translate_error(
         except (KeyError, ValueError):
             # If interpolation fails, return message as-is
             pass
+
+    if detail:
+        message = f"{message}: {detail}" if message else detail
 
     return message
 

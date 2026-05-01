@@ -2,6 +2,8 @@
 Unit tests for ProjectService
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from app.services.project_service import ProjectService
@@ -12,13 +14,10 @@ class TestProjectService:
     """Tests for ProjectService"""
 
     @pytest.mark.asyncio
-    async def test_search_clients_delegates_to_repository(
-        self, db_session, test_organization, mocker
-    ):
+    async def test_search_clients_delegates_to_repository(self, db_session, test_organization):
         """Test que el servicio delega correctamente al repository"""
         service = ProjectService(db_session, test_organization.id)
 
-        # Mock del repository
         mock_results = [
             {
                 "name": "Cliente Test",
@@ -28,11 +27,12 @@ class TestProjectService:
             }
         ]
 
-        mocker.patch.object(service.project_repo, "search_clients", return_value=mock_results)
+        with patch.object(
+            service.project_repo,
+            "search_clients",
+            new=AsyncMock(return_value=mock_results),
+        ) as mock_search:
+            results = await service.search_clients("Cliente", limit=10)
 
-        # Llamar al servicio
-        results = await service.search_clients("Cliente", limit=10)
-
-        # Verificar que se llamó al repository
-        service.project_repo.search_clients.assert_called_once_with("Cliente", limit=10)
-        assert results == mock_results
+            mock_search.assert_awaited_once_with(search_query="Cliente", limit=10)
+            assert results == mock_results

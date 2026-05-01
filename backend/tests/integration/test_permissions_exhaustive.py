@@ -13,27 +13,15 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import get_password_hash
 from app.models.cost import CostFixed
 from app.models.organization import Organization
 from app.models.project import Project
 from app.models.service import Service
 from app.models.team import TeamMember
 from app.models.user import User
-
-
-def get_auth_headers(user: User) -> dict:
-    """Generate auth headers for a user"""
-    token_data = {
-        "sub": str(user.id),
-        "email": user.email,
-        "name": user.full_name,
-        "organization_id": user.organization_id,
-        "role": user.role,
-        "role_type": user.role_type or ("support" if user.role == "super_admin" else "tenant"),
-    }
-    token = create_access_token(token_data)
-    return {"Authorization": f"Bearer {token}"}
+from tests.auth_helpers import get_auth_headers
+from tests.json_assertions import money_eq
 
 
 @pytest.fixture
@@ -230,7 +218,7 @@ class TestTeamEndpointsPermissions:
         team_member = next((m for m in data["items"] if m["id"] == test_team_member.id), None)
         assert team_member is not None
         assert "salary_monthly_brute" in team_member
-        assert team_member["salary_monthly_brute"] == 5000.0
+        money_eq(team_member["salary_monthly_brute"], 5000.0)
 
     async def test_product_manager_cannot_view_team_salaries(
         self, async_client: AsyncClient, product_manager_user: User, test_team_member: TeamMember
@@ -294,7 +282,7 @@ class TestCostsEndpointsPermissions:
         cost = next((c for c in data["items"] if c["id"] == test_fixed_cost.id), None)
         assert cost is not None
         assert "amount_monthly" in cost
-        assert cost["amount_monthly"] == 2000.0
+        money_eq(cost["amount_monthly"], 2000.0)
 
     async def test_product_manager_cannot_view_costs(
         self, async_client: AsyncClient, product_manager_user: User, test_fixed_cost: CostFixed

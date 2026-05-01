@@ -9,21 +9,11 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import get_password_hash
+from app.models.invitation import Invitation
 from app.models.organization import Organization
 from app.models.user import User
-
-
-def get_auth_headers(user: User) -> dict:
-    """Generate authorization headers for a user"""
-    token_data = {
-        "sub": str(user.id),
-        "email": user.email,
-        "name": user.full_name,
-        "organization_id": user.organization_id,
-    }
-    token = create_access_token(token_data)
-    return {"Authorization": f"Bearer {token}"}
+from tests.auth_helpers import get_auth_headers
 
 
 @pytest.mark.integration
@@ -227,9 +217,8 @@ class TestInvitationEndpoints:
 
         assert response.status_code == 204
 
-        # Verify invitation is cancelled
-        await db_session.refresh(invitation)
-        assert invitation.status == "cancelled"
+        result = await db_session.execute(select(Invitation).where(Invitation.id == invitation.id))
+        assert result.scalar_one_or_none() is None
 
     @pytest.mark.asyncio
     async def test_cancel_invitation_not_found(
@@ -337,11 +326,14 @@ class TestInvitationEndpoints:
         invitation = await invitation_repo.create_invitation(
             organization_id=test_organization.id,
             email="newuser@example.com",
-            role="user",
+            role="collaborator",
             token="accept-token-new",
             expires_at=datetime.now(UTC) + timedelta(days=7),
             created_by_id=test_admin_user.id,
         )
+        await db_session.commit()
+
+        test_organization.subscription_plan = "enterprise"
         await db_session.commit()
 
         # Accept invitation (public endpoint)
@@ -357,19 +349,23 @@ class TestInvitationEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
-        assert data["user"]["email"] == "newuser@example.com"
-        assert data["user"]["organization_id"] == test_organization.id
+        assert data.get("user_id") is not None
 
         # Verify user was created
         result = await db_session.execute(select(User).where(User.email == "newuser@example.com"))
         user = result.scalar_one_or_none()
         assert user is not None
         assert user.organization_id == test_organization.id
+        assert user.email == "newuser@example.com"
 
         # Verify invitation was marked as accepted
-        await db_session.refresh(invitation)
-        assert invitation.is_accepted
-        assert invitation.accepted_at is not None
+        result = await db_session.execute(
+            select(Invitation).where(Invitation.id == invitation.id)
+        )
+        inv = result.scalar_one_or_none()
+        assert inv is not None
+        assert inv.is_accepted
+        assert inv.accepted_at is not None
 
     @pytest.mark.asyncio
     async def test_accept_invitation_existing_user(
@@ -387,7 +383,7 @@ class TestInvitationEndpoints:
             email="existing@example.com",
             full_name="Existing User",
             hashed_password=get_password_hash("existingpassword123"),
-            role="user",
+            role="collaborator",
             organization_id=None,  # Not in any organization
         )
         db_session.add(existing_user)
@@ -398,11 +394,14 @@ class TestInvitationEndpoints:
         invitation = await invitation_repo.create_invitation(
             organization_id=test_organization.id,
             email="existing@example.com",
-            role="user",
+            role="product_manager",
             token="accept-token-existing",
             expires_at=datetime.now(UTC) + timedelta(days=7),
             created_by_id=test_admin_user.id,
         )
+        await db_session.commit()
+
+        test_organization.subscription_plan = "enterprise"
         await db_session.commit()
 
         # Accept invitation (no password needed for existing user)
@@ -414,15 +413,19 @@ class TestInvitationEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
-        assert data["user"]["email"] == "existing@example.com"
+        assert data.get("user_id") == existing_user.id
 
         # Verify user was added to organization
         await db_session.refresh(existing_user)
         assert existing_user.organization_id == test_organization.id
 
         # Verify invitation was marked as accepted
-        await db_session.refresh(invitation)
-        assert invitation.is_accepted
+        result = await db_session.execute(
+            select(Invitation).where(Invitation.id == invitation.id)
+        )
+        inv = result.scalar_one_or_none()
+        assert inv is not None
+        assert inv.is_accepted
 
     @pytest.mark.asyncio
     async def test_accept_invitation_already_accepted(

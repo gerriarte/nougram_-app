@@ -6,10 +6,12 @@ Tests that validate role-based access control, data leakage prevention, and cros
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import AsyncMock
 
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import get_password_hash
 from app.models.organization import Organization
 from app.models.user import User
+from tests.auth_helpers import get_auth_headers
 
 
 @pytest.fixture
@@ -91,15 +93,61 @@ async def test_users(db_session: AsyncSession):
     return users
 
 
-class TestPermissionValidation:
-    """Test that permission validations work correctly"""
+@pytest.fixture
+async def permissions_test_catalog(db_session: AsyncSession, test_users: dict):
+    """Credits + catalog services for org1/org2 (project creation consumes credits)."""
+    from decimal import Decimal
+
+    from app.models.service import Service
+    from app.services.credit_service import CreditService
+
+    org1_id = test_users["owner_org1"].organization_id
+    org2_id = test_users["owner_org2"].organization_id
+    for oid in (org1_id, org2_id):
+        acc = await CreditService.get_or_create_credit_account(oid, db_session)
+        acc.credits_available = 500
+    await db_session.commit()
+
+    svc1 = Service(
+        name="Perm Test Svc Org1",
+        description="x",
+        organization_id=org1_id,
+        default_margin_target=Decimal("0.40"),
+        is_active=True,
+    )
+    svc2 = Service(
+        name="Perm Test Svc Org2",
+        description="x",
+        organization_id=org2_id,
+        default_margin_target=Decimal("0.40"),
+        is_active=True,
+    )
+    db_session.add(svc1)
+    db_session.add(svc2)
+    await db_session.commit()
+    await db_session.refresh(svc1)
+    await db_session.refresh(svc2)
+    return {"org1_service_id": svc1.id, "org2_service_id": svc2.id}
+
+
+def _project_create_payload(service_id: int) -> dict:
+    return {
+        "name": "Test Project",
+        "client_name": "Test Client",
+        "client_email": "client@test.com",
+        "currency": "USD",
+        "quote_items": [{"service_id": service_id, "estimated_hours": 10}],
+        "tax_ids": [],
+    }
+
+
+class TestViewSensitiveDataPermissions:
+    """Tests for viewing team and fixed costs (sensitive tenant data)."""
 
     async def test_super_admin_has_all_permissions(self, async_client: AsyncClient, test_users):
         """Super admin should have access to all resources"""
-        token = create_access_token(test_users["super_admin"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["super_admin"])
 
-        # Should be able to access any endpoint
         response = await async_client.get("/api/v1/organizations/", headers=headers)
         assert response.status_code == 200
 
@@ -107,148 +155,130 @@ class TestPermissionValidation:
         self, async_client: AsyncClient, test_users, db_session: AsyncSession
     ):
         """Owner should be able to view costs and salaries"""
-        token = create_access_token(test_users["owner_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["owner_org1"])
 
-        # Should be able to view team members (with salaries)
-        response = await async_client.get("/api/v1/team/", headers=headers)
+        response = await async_client.get("/api/v1/settings/team", headers=headers)
         assert response.status_code == 200
 
-        # Should be able to view fixed costs
-        response = await async_client.get("/api/v1/costs/", headers=headers)
+        response = await async_client.get("/api/v1/settings/costs/fixed", headers=headers)
         assert response.status_code == 200
 
     async def test_product_manager_cannot_view_sensitive_data(
         self, async_client: AsyncClient, test_users
     ):
         """Product manager should NOT be able to view costs and salaries"""
-        token = create_access_token(test_users["product_manager_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["product_manager_org1"])
 
-        # Should NOT be able to view team members (contains salaries)
-        response = await async_client.get("/api/v1/team/", headers=headers)
+        response = await async_client.get("/api/v1/settings/team", headers=headers)
         assert response.status_code == 403
 
-        # Should NOT be able to view fixed costs
-        response = await async_client.get("/api/v1/costs/", headers=headers)
+        response = await async_client.get("/api/v1/settings/costs/fixed", headers=headers)
         assert response.status_code == 403
 
     async def test_collaborator_cannot_view_sensitive_data(
         self, async_client: AsyncClient, test_users
     ):
         """Collaborator should NOT be able to view costs and salaries"""
-        token = create_access_token(test_users["collaborator_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["collaborator_org1"])
 
-        # Should NOT be able to view team members
-        response = await async_client.get("/api/v1/team/", headers=headers)
+        response = await async_client.get("/api/v1/settings/team", headers=headers)
         assert response.status_code == 403
 
-        # Should NOT be able to view fixed costs
-        response = await async_client.get("/api/v1/costs/", headers=headers)
+        response = await async_client.get("/api/v1/settings/costs/fixed", headers=headers)
         assert response.status_code == 403
 
     async def test_admin_financiero_can_view_sensitive_data(
         self, async_client: AsyncClient, test_users
     ):
         """Admin financiero should be able to view costs and salaries"""
-        token = create_access_token(test_users["admin_financiero_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["admin_financiero_org1"])
 
-        # Should be able to view team members
-        response = await async_client.get("/api/v1/team/", headers=headers)
+        response = await async_client.get("/api/v1/settings/team", headers=headers)
         assert response.status_code == 200
 
-        # Should be able to view fixed costs
-        response = await async_client.get("/api/v1/costs/", headers=headers)
+        response = await async_client.get("/api/v1/settings/costs/fixed", headers=headers)
         assert response.status_code == 200
 
 
 class TestCreateResourcesPermissions:
     """Test permissions for creating resources"""
 
-    async def test_owner_can_create_projects(self, async_client: AsyncClient, test_users):
+    async def test_owner_can_create_projects(
+        self, async_client: AsyncClient, test_users, permissions_test_catalog
+    ):
         """Owner should be able to create projects"""
-        token = create_access_token(test_users["owner_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
-
-        project_data = {
-            "name": "Test Project",
-            "client_name": "Test Client",
-            "client_email": "client@test.com",
-            "currency": "USD",
-        }
-        response = await async_client.post("/api/v1/projects/", json=project_data, headers=headers)
+        headers = get_auth_headers(test_users["owner_org1"])
+        sid = permissions_test_catalog["org1_service_id"]
+        response = await async_client.post(
+            "/api/v1/projects/", json=_project_create_payload(sid), headers=headers
+        )
         assert response.status_code == 201
 
-    async def test_product_manager_can_create_projects(self, async_client: AsyncClient, test_users):
+    async def test_product_manager_can_create_projects(
+        self, async_client: AsyncClient, test_users, permissions_test_catalog
+    ):
         """Product manager should be able to create projects"""
-        token = create_access_token(test_users["product_manager_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
-
-        project_data = {
-            "name": "Test Project",
-            "client_name": "Test Client",
-            "client_email": "client@test.com",
-            "currency": "USD",
-        }
-        response = await async_client.post("/api/v1/projects/", json=project_data, headers=headers)
+        headers = get_auth_headers(test_users["product_manager_org1"])
+        sid = permissions_test_catalog["org1_service_id"]
+        response = await async_client.post(
+            "/api/v1/projects/", json=_project_create_payload(sid), headers=headers
+        )
         assert response.status_code == 201
 
-    async def test_collaborator_can_create_projects(self, async_client: AsyncClient, test_users):
+    async def test_collaborator_can_create_projects(
+        self, async_client: AsyncClient, test_users, permissions_test_catalog
+    ):
         """Collaborator should be able to create projects"""
-        token = create_access_token(test_users["collaborator_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
-
-        project_data = {
-            "name": "Test Project",
-            "client_name": "Test Client",
-            "client_email": "client@test.com",
-            "currency": "USD",
-        }
-        response = await async_client.post("/api/v1/projects/", json=project_data, headers=headers)
+        headers = get_auth_headers(test_users["collaborator_org1"])
+        sid = permissions_test_catalog["org1_service_id"]
+        response = await async_client.post(
+            "/api/v1/projects/", json=_project_create_payload(sid), headers=headers
+        )
         assert response.status_code == 201
 
     async def test_owner_can_modify_costs(self, async_client: AsyncClient, test_users):
         """Owner should be able to modify costs"""
-        token = create_access_token(test_users["owner_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["owner_org1"])
 
         cost_data = {
             "name": "Test Cost",
             "amount_monthly": 1000.0,
             "currency": "USD",
-            "category": "office",
+            "category": "Overhead",
         }
-        response = await async_client.post("/api/v1/costs/", json=cost_data, headers=headers)
+        response = await async_client.post(
+            "/api/v1/settings/costs/fixed", json=cost_data, headers=headers
+        )
         assert response.status_code == 201
 
     async def test_product_manager_cannot_modify_costs(self, async_client: AsyncClient, test_users):
         """Product manager should NOT be able to modify costs"""
-        token = create_access_token(test_users["product_manager_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["product_manager_org1"])
 
         cost_data = {
             "name": "Test Cost",
             "amount_monthly": 1000.0,
             "currency": "USD",
-            "category": "office",
+            "category": "Overhead",
         }
-        response = await async_client.post("/api/v1/costs/", json=cost_data, headers=headers)
+        response = await async_client.post(
+            "/api/v1/settings/costs/fixed", json=cost_data, headers=headers
+        )
         assert response.status_code == 403
 
     async def test_collaborator_cannot_modify_costs(self, async_client: AsyncClient, test_users):
         """Collaborator should NOT be able to modify costs"""
-        token = create_access_token(test_users["collaborator_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["collaborator_org1"])
 
         cost_data = {
             "name": "Test Cost",
             "amount_monthly": 1000.0,
             "currency": "USD",
-            "category": "office",
+            "category": "Overhead",
         }
-        response = await async_client.post("/api/v1/costs/", json=cost_data, headers=headers)
+        response = await async_client.post(
+            "/api/v1/settings/costs/fixed", json=cost_data, headers=headers
+        )
         assert response.status_code == 403
 
 
@@ -256,32 +286,26 @@ class TestSendQuotesPermissions:
     """Test permissions for sending quotes"""
 
     async def test_owner_can_send_quotes(
-        self, async_client: AsyncClient, test_users, db_session: AsyncSession
+        self,
+        async_client: AsyncClient,
+        test_users,
+        permissions_test_catalog,
+        monkeypatch: pytest.MonkeyPatch,
     ):
         """Owner should be able to send quotes"""
-        token = create_access_token(test_users["owner_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        monkeypatch.setattr("app.core.email.send_email", AsyncMock(return_value=True))
+        headers = get_auth_headers(test_users["owner_org1"])
+        sid = permissions_test_catalog["org1_service_id"]
 
-        # First create a project
-        project_data = {
-            "name": "Test Project",
-            "client_name": "Test Client",
-            "client_email": "client@test.com",
-            "currency": "USD",
-        }
         project_response = await async_client.post(
-            "/api/v1/projects/", json=project_data, headers=headers
+            "/api/v1/projects/",
+            json=_project_create_payload(sid),
+            headers=headers,
         )
         assert project_response.status_code == 201
-        project_id = project_response.json()["id"]
-
-        # Create a quote
-        quote_data = {"items": [{"service_id": 1, "estimated_hours": 10}]}
-        quote_response = await async_client.post(
-            f"/api/v1/projects/{project_id}/quotes/", json=quote_data, headers=headers
-        )
-        assert quote_response.status_code == 201
-        quote_id = quote_response.json()["id"]
+        quote_payload = project_response.json()
+        project_id = quote_payload["project_id"]
+        quote_id = quote_payload["id"]
 
         # Should be able to send quote
         send_data = {"to_email": "client@test.com", "subject": "Test Quote"}
@@ -293,33 +317,27 @@ class TestSendQuotesPermissions:
         assert response.status_code in [200, 202]  # Success or accepted
 
     async def test_product_manager_can_send_quotes(
-        self, async_client: AsyncClient, test_users, db_session: AsyncSession
+        self,
+        async_client: AsyncClient,
+        test_users,
+        permissions_test_catalog,
+        monkeypatch: pytest.MonkeyPatch,
     ):
         """Product manager should be able to send quotes"""
-        token = create_access_token(test_users["product_manager_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        monkeypatch.setattr("app.core.email.send_email", AsyncMock(return_value=True))
+        headers = get_auth_headers(test_users["product_manager_org1"])
+        sid = permissions_test_catalog["org1_service_id"]
 
-        # Create project and quote
-        project_data = {
-            "name": "Test Project",
-            "client_name": "Test Client",
-            "client_email": "client@test.com",
-            "currency": "USD",
-        }
         project_response = await async_client.post(
-            "/api/v1/projects/", json=project_data, headers=headers
+            "/api/v1/projects/",
+            json=_project_create_payload(sid),
+            headers=headers,
         )
         assert project_response.status_code == 201
-        project_id = project_response.json()["id"]
+        quote_payload = project_response.json()
+        project_id = quote_payload["project_id"]
+        quote_id = quote_payload["id"]
 
-        quote_data = {"items": [{"service_id": 1, "estimated_hours": 10}]}
-        quote_response = await async_client.post(
-            f"/api/v1/projects/{project_id}/quotes/", json=quote_data, headers=headers
-        )
-        assert quote_response.status_code == 201
-        quote_id = quote_response.json()["id"]
-
-        # Should be able to send quote
         send_data = {"to_email": "client@test.com", "subject": "Test Quote"}
         response = await async_client.post(
             f"/api/v1/projects/{project_id}/quotes/{quote_id}/send-email",
@@ -329,33 +347,22 @@ class TestSendQuotesPermissions:
         assert response.status_code in [200, 202]
 
     async def test_collaborator_cannot_send_quotes(
-        self, async_client: AsyncClient, test_users, db_session: AsyncSession
+        self, async_client: AsyncClient, test_users, permissions_test_catalog
     ):
         """Collaborator should NOT be able to send quotes"""
-        token = create_access_token(test_users["collaborator_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["collaborator_org1"])
+        sid = permissions_test_catalog["org1_service_id"]
 
-        # Create project and quote
-        project_data = {
-            "name": "Test Project",
-            "client_name": "Test Client",
-            "client_email": "client@test.com",
-            "currency": "USD",
-        }
         project_response = await async_client.post(
-            "/api/v1/projects/", json=project_data, headers=headers
+            "/api/v1/projects/",
+            json=_project_create_payload(sid),
+            headers=headers,
         )
         assert project_response.status_code == 201
-        project_id = project_response.json()["id"]
+        quote_payload = project_response.json()
+        project_id = quote_payload["project_id"]
+        quote_id = quote_payload["id"]
 
-        quote_data = {"items": [{"service_id": 1, "estimated_hours": 10}]}
-        quote_response = await async_client.post(
-            f"/api/v1/projects/{project_id}/quotes/", json=quote_data, headers=headers
-        )
-        assert quote_response.status_code == 201
-        quote_id = quote_response.json()["id"]
-
-        # Should NOT be able to send quote
         send_data = {"to_email": "client@test.com", "subject": "Test Quote"}
         response = await async_client.post(
             f"/api/v1/projects/{project_id}/quotes/{quote_id}/send-email",
@@ -370,8 +377,7 @@ class TestManageSubscriptionPermissions:
 
     async def test_owner_can_manage_subscription(self, async_client: AsyncClient, test_users):
         """Owner should be able to manage subscription"""
-        token = create_access_token(test_users["owner_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["owner_org1"])
 
         # Should be able to view billing
         response = await async_client.get("/api/v1/billing/subscription", headers=headers)
@@ -381,8 +387,6 @@ class TestManageSubscriptionPermissions:
         self, async_client: AsyncClient, test_users
     ):
         """Product manager should NOT be able to manage subscription"""
-        create_access_token(test_users["product_manager_org1"])
-
         # Should NOT be able to update subscription (if endpoint exists)
         # This depends on the actual implementation
         pass
@@ -391,8 +395,6 @@ class TestManageSubscriptionPermissions:
         self, async_client: AsyncClient, test_users
     ):
         """Collaborator should NOT be able to manage subscription"""
-        create_access_token(test_users["collaborator_org1"])
-
         # Should NOT be able to manage subscription
         pass
 
@@ -402,12 +404,11 @@ class TestInviteUsersPermissions:
 
     async def test_owner_can_invite_users(self, async_client: AsyncClient, test_users):
         """Owner should be able to invite users"""
-        token = create_access_token(test_users["owner_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["owner_org1"])
 
         invite_data = {"email": "newuser@test.com", "role": "product_manager"}
         response = await async_client.post(
-            f"/api/v1/organizations/{test_users['owner_org1'].organization_id}/invite",
+            f"/api/v1/organizations/{test_users['owner_org1'].organization_id}/invitations",
             json=invite_data,
             headers=headers,
         )
@@ -417,12 +418,11 @@ class TestInviteUsersPermissions:
         self, async_client: AsyncClient, test_users
     ):
         """Admin financiero should NOT be able to invite users"""
-        token = create_access_token(test_users["admin_financiero_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["admin_financiero_org1"])
 
         invite_data = {"email": "newuser@test.com", "role": "product_manager"}
         response = await async_client.post(
-            f"/api/v1/organizations/{test_users['admin_financiero_org1'].organization_id}/invite",
+            f"/api/v1/organizations/{test_users['admin_financiero_org1'].organization_id}/invitations",
             json=invite_data,
             headers=headers,
         )
@@ -430,12 +430,11 @@ class TestInviteUsersPermissions:
 
     async def test_product_manager_cannot_invite_users(self, async_client: AsyncClient, test_users):
         """Product manager should NOT be able to invite users"""
-        token = create_access_token(test_users["product_manager_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["product_manager_org1"])
 
         invite_data = {"email": "newuser@test.com", "role": "product_manager"}
         response = await async_client.post(
-            f"/api/v1/organizations/{test_users['product_manager_org1'].organization_id}/invite",
+            f"/api/v1/organizations/{test_users['product_manager_org1'].organization_id}/invitations",
             json=invite_data,
             headers=headers,
         )
@@ -446,51 +445,43 @@ class TestCrossTenantSecurity:
     """Test that users cannot access resources from other organizations"""
 
     async def test_owner_cannot_access_other_org_resources(
-        self, async_client: AsyncClient, test_users, db_session: AsyncSession
+        self, async_client: AsyncClient, test_users, permissions_test_catalog
     ):
         """Owner from org1 should NOT be able to access org2's resources"""
-        owner1_token = create_access_token(test_users["owner_org1"])
-        owner1_headers = {"Authorization": f"Bearer {owner1_token}"}
+        owner1_headers = get_auth_headers(test_users["owner_org1"])
+        owner2_headers = get_auth_headers(test_users["owner_org2"])
 
-        owner2_token = create_access_token(test_users["owner_org2"])
-        owner2_headers = {"Authorization": f"Bearer {owner2_token}"}
-
-        # Owner2 creates a project
-        project_data = {
-            "name": "Org2 Project",
-            "client_name": "Org2 Client",
-            "client_email": "org2@test.com",
-            "currency": "USD",
-        }
+        sid = permissions_test_catalog["org2_service_id"]
+        project_data = _project_create_payload(sid)
+        project_data["name"] = "Org2 Project"
+        project_data["client_name"] = "Org2 Client"
+        project_data["client_email"] = "org2@test.com"
         create_response = await async_client.post(
             "/api/v1/projects/", json=project_data, headers=owner2_headers
         )
         assert create_response.status_code == 201
-        project_id = create_response.json()["id"]
+        project_id = create_response.json()["project_id"]
 
         # Owner1 should NOT be able to access org2's project
         response = await async_client.get(f"/api/v1/projects/{project_id}", headers=owner1_headers)
         assert response.status_code == 404  # Not found (tenant isolation)
 
     async def test_cannot_modify_other_org_resources(
-        self, async_client: AsyncClient, test_users, db_session: AsyncSession
+        self, async_client: AsyncClient, test_users
     ):
         """Users should NOT be able to modify resources from other organizations"""
-        owner1_token = create_access_token(test_users["owner_org1"])
-        owner1_headers = {"Authorization": f"Bearer {owner1_token}"}
-
-        owner2_token = create_access_token(test_users["owner_org2"])
-        owner2_headers = {"Authorization": f"Bearer {owner2_token}"}
+        owner1_headers = get_auth_headers(test_users["owner_org1"])
+        owner2_headers = get_auth_headers(test_users["owner_org2"])
 
         # Owner2 creates a cost
         cost_data = {
             "name": "Org2 Cost",
             "amount_monthly": 500.0,
             "currency": "USD",
-            "category": "office",
+            "category": "Overhead",
         }
         create_response = await async_client.post(
-            "/api/v1/costs/", json=cost_data, headers=owner2_headers
+            "/api/v1/settings/costs/fixed", json=cost_data, headers=owner2_headers
         )
         assert create_response.status_code == 201
         cost_id = create_response.json()["id"]
@@ -500,10 +491,12 @@ class TestCrossTenantSecurity:
             "name": "Hacked Cost",
             "amount_monthly": 10000.0,
             "currency": "USD",
-            "category": "office",
+            "category": "Overhead",
         }
         response = await async_client.put(
-            f"/api/v1/costs/{cost_id}", json=update_data, headers=owner1_headers
+            f"/api/v1/settings/costs/fixed/{cost_id}",
+            json=update_data,
+            headers=owner1_headers,
         )
         assert response.status_code == 404  # Not found (tenant isolation)
 
@@ -511,19 +504,16 @@ class TestCrossTenantSecurity:
 class TestDeletePermissions:
     """Test permissions for deleting resources"""
 
-    async def test_owner_can_delete_resources(
-        self, async_client: AsyncClient, test_users, db_session: AsyncSession
-    ):
+    async def test_owner_can_delete_resources(self, async_client: AsyncClient, test_users):
         """Owner should be able to delete resources"""
-        token = create_access_token(test_users["owner_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["owner_org1"])
 
         # Create a service first
         service_data = {
             "name": "Test Service",
             "description": "Test",
-            "hourly_rate": 100.0,
-            "currency": "USD",
+            "default_margin_target": "0.35",
+            "is_active": True,
         }
         create_response = await async_client.post(
             "/api/v1/services/", json=service_data, headers=headers
@@ -536,26 +526,19 @@ class TestDeletePermissions:
         assert response.status_code in [204, 200]
 
     async def test_product_manager_cannot_delete_resources(
-        self, async_client: AsyncClient, test_users, db_session: AsyncSession
+        self, async_client: AsyncClient, test_users, permissions_test_catalog
     ):
         """Product manager should NOT be able to delete resources"""
-        token = create_access_token(test_users["product_manager_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["product_manager_org1"])
 
-        # Create a service first (if they can)
-        # Actually, product_manager might not be able to create services either
-        # Let's test with a project they created
-        project_data = {
-            "name": "Test Project",
-            "client_name": "Test Client",
-            "client_email": "client@test.com",
-            "currency": "USD",
-        }
+        sid = permissions_test_catalog["org1_service_id"]
         create_response = await async_client.post(
-            "/api/v1/projects/", json=project_data, headers=headers
+            "/api/v1/projects/",
+            json=_project_create_payload(sid),
+            headers=headers,
         )
         assert create_response.status_code == 201
-        project_id = create_response.json()["id"]
+        project_id = create_response.json()["project_id"]
 
         # Should NOT be able to delete
         response = await async_client.delete(f"/api/v1/projects/{project_id}", headers=headers)
@@ -567,24 +550,21 @@ class TestViewAnalyticsPermissions:
 
     async def test_owner_can_view_analytics(self, async_client: AsyncClient, test_users):
         """Owner should be able to view analytics"""
-        token = create_access_token(test_users["owner_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["owner_org1"])
 
         response = await async_client.get("/api/v1/insights/dashboard", headers=headers)
         assert response.status_code == 200
 
     async def test_product_manager_can_view_analytics(self, async_client: AsyncClient, test_users):
         """Product manager should be able to view analytics"""
-        token = create_access_token(test_users["product_manager_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["product_manager_org1"])
 
         response = await async_client.get("/api/v1/insights/dashboard", headers=headers)
         assert response.status_code == 200
 
     async def test_admin_financiero_can_view_analytics(self, async_client: AsyncClient, test_users):
         """Admin financiero should be able to view analytics"""
-        token = create_access_token(test_users["admin_financiero_org1"])
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = get_auth_headers(test_users["admin_financiero_org1"])
 
         response = await async_client.get("/api/v1/insights/dashboard", headers=headers)
         assert response.status_code == 200

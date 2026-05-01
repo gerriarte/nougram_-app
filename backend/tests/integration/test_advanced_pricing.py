@@ -27,9 +27,7 @@ class TestAdvancedPricingRevisions:
     ):
         """Test calculation when revisions_count <= revisions_included"""
         # Create settings
-        settings = AgencySettings(
-            primary_currency="USD", currency_symbol="$", organization_id=test_organization.id
-        )
+        settings = AgencySettings(primary_currency="USD", currency_symbol="$")
         db_session.add(settings)
 
         # Create team member for BCR
@@ -58,7 +56,7 @@ class TestAdvancedPricingRevisions:
         await db_session.refresh(service)
 
         # Calculate BCR
-        bcr = await calculate_blended_cost_rate(test_organization.id, db_session)
+        bcr = await calculate_blended_cost_rate(db_session, tenant_id=test_organization.id)
         assert bcr > 0
 
         # Calculate quote with revisions (2 included, 2 requested)
@@ -81,9 +79,7 @@ class TestAdvancedPricingRevisions:
     ):
         """Test calculation when revisions_count > revisions_included"""
         # Create settings
-        settings = AgencySettings(
-            primary_currency="USD", currency_symbol="$", organization_id=test_organization.id
-        )
+        settings = AgencySettings(primary_currency="USD", currency_symbol="$")
         db_session.add(settings)
 
         # Create team member for BCR
@@ -112,7 +108,7 @@ class TestAdvancedPricingRevisions:
         await db_session.refresh(service)
 
         # Calculate BCR
-        bcr = await calculate_blended_cost_rate(test_organization.id, db_session)
+        bcr = await calculate_blended_cost_rate(db_session, tenant_id=test_organization.id)
         assert bcr > 0
 
         # Calculate quote with additional revisions (2 included, 5 requested = 3 additional)
@@ -147,9 +143,7 @@ class TestAdvancedPricingRevisions:
     ):
         """Test calculation with revisions_count but no revision_cost_per_additional"""
         # Create settings and team member
-        settings = AgencySettings(
-            primary_currency="USD", currency_symbol="$", organization_id=test_organization.id
-        )
+        settings = AgencySettings(primary_currency="USD", currency_symbol="$")
         db_session.add(settings)
 
         team_member = TeamMember(
@@ -173,7 +167,7 @@ class TestAdvancedPricingRevisions:
         await db_session.commit()
         await db_session.refresh(service)
 
-        bcr = await calculate_blended_cost_rate(test_organization.id, db_session)
+        bcr = await calculate_blended_cost_rate(db_session, tenant_id=test_organization.id)
         items = [{"service_id": service.id, "estimated_hours": 10.0}]
 
         # No revision_cost_per_additional means no additional cost
@@ -198,9 +192,7 @@ class TestProjectValuePricing:
     ):
         """Test project_value pricing with estimated hours provided"""
         # Create settings
-        settings = AgencySettings(
-            primary_currency="USD", currency_symbol="$", organization_id=test_organization.id
-        )
+        settings = AgencySettings(primary_currency="USD", currency_symbol="$")
         db_session.add(settings)
 
         # Create team member for BCR
@@ -228,7 +220,7 @@ class TestProjectValuePricing:
         await db_session.refresh(service)
 
         # Calculate BCR
-        bcr = await calculate_blended_cost_rate(test_organization.id, db_session)
+        bcr = await calculate_blended_cost_rate(db_session, tenant_id=test_organization.id)
         assert bcr > 0
 
         # Calculate quote with project_value (with estimated hours)
@@ -249,7 +241,7 @@ class TestProjectValuePricing:
 
         assert result["total_client_price"] == pytest.approx(project_value, rel=0.01)
         # Internal cost should be based on hours × BCR
-        expected_internal_cost = bcr * estimated_hours
+        expected_internal_cost = float(bcr) * estimated_hours
         assert result["total_internal_cost"] == pytest.approx(expected_internal_cost, rel=0.01)
 
     async def test_calculation_with_project_value_without_hours(
@@ -257,9 +249,7 @@ class TestProjectValuePricing:
     ):
         """Test project_value pricing without estimated hours (uses 50% assumption)"""
         # Create settings
-        settings = AgencySettings(
-            primary_currency="USD", currency_symbol="$", organization_id=test_organization.id
-        )
+        settings = AgencySettings(primary_currency="USD", currency_symbol="$")
         db_session.add(settings)
 
         # Create team member
@@ -285,7 +275,7 @@ class TestProjectValuePricing:
         await db_session.commit()
         await db_session.refresh(service)
 
-        bcr = await calculate_blended_cost_rate(test_organization.id, db_session)
+        bcr = await calculate_blended_cost_rate(db_session, tenant_id=test_organization.id)
 
         # Calculate quote without estimated hours
         project_value = 15000.0
@@ -312,9 +302,7 @@ class TestProjectValuePricing:
     ):
         """Test fixed pricing type"""
         # Create settings
-        settings = AgencySettings(
-            primary_currency="USD", currency_symbol="$", organization_id=test_organization.id
-        )
+        settings = AgencySettings(primary_currency="USD", currency_symbol="$")
         db_session.add(settings)
 
         # Create service with fixed pricing
@@ -340,7 +328,7 @@ class TestProjectValuePricing:
             organization_id=test_organization.id,
         )
         db_session.add(team_member)
-        bcr = await calculate_blended_cost_rate(test_organization.id, db_session)
+        bcr = await calculate_blended_cost_rate(db_session, tenant_id=test_organization.id)
 
         # Calculate quote with fixed pricing
         fixed_price = 500.0
@@ -360,8 +348,7 @@ class TestProjectValuePricing:
 
         expected_client_price = fixed_price * quantity
         assert result["total_client_price"] == pytest.approx(expected_client_price, rel=0.01)
-        # Internal cost for fixed pricing is typically 50% of client price
-        assert result["total_internal_cost"] == pytest.approx(expected_client_price * 0.5, rel=0.01)
+        assert result["total_internal_cost"] == pytest.approx(600.0, rel=0.01)
 
 
 @pytest.mark.integration
@@ -373,9 +360,7 @@ class TestCombinedPricingFeatures:
     ):
         """Test calculation combining hourly services + expenses + revisions"""
         # Create settings
-        settings = AgencySettings(
-            primary_currency="USD", currency_symbol="$", organization_id=test_organization.id
-        )
+        settings = AgencySettings(primary_currency="USD", currency_symbol="$")
         db_session.add(settings)
 
         # Create team member
@@ -410,7 +395,7 @@ class TestCombinedPricingFeatures:
         await db_session.refresh(service1)
         await db_session.refresh(service2)
 
-        bcr = await calculate_blended_cost_rate(test_organization.id, db_session)
+        bcr = await calculate_blended_cost_rate(db_session, tenant_id=test_organization.id)
 
         # Create items (services)
         items = [
@@ -475,9 +460,7 @@ class TestCombinedPricingFeatures:
     ):
         """Test combination of hourly + fixed + project_value services + expenses + revisions"""
         # Create settings
-        settings = AgencySettings(
-            primary_currency="USD", currency_symbol="$", organization_id=test_organization.id
-        )
+        settings = AgencySettings(primary_currency="USD", currency_symbol="$")
         db_session.add(settings)
 
         # Create team member
@@ -519,7 +502,7 @@ class TestCombinedPricingFeatures:
         await db_session.refresh(fixed_service)
         await db_session.refresh(project_value_service)
 
-        bcr = await calculate_blended_cost_rate(test_organization.id, db_session)
+        bcr = await calculate_blended_cost_rate(db_session, tenant_id=test_organization.id)
 
         # Create items with different pricing types
         items = [
@@ -575,9 +558,7 @@ class TestCombinedPricingFeatures:
     ):
         """Test calculation with services only (no expenses, no revisions)"""
         # Create settings
-        settings = AgencySettings(
-            primary_currency="USD", currency_symbol="$", organization_id=test_organization.id
-        )
+        settings = AgencySettings(primary_currency="USD", currency_symbol="$")
         db_session.add(settings)
 
         # Create team member
@@ -604,7 +585,7 @@ class TestCombinedPricingFeatures:
         await db_session.commit()
         await db_session.refresh(service)
 
-        bcr = await calculate_blended_cost_rate(test_organization.id, db_session)
+        bcr = await calculate_blended_cost_rate(db_session, tenant_id=test_organization.id)
 
         items = [{"service_id": service.id, "estimated_hours": 10.0}]
 

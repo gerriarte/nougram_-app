@@ -823,7 +823,7 @@ async def get_organization_usage_stats(
     is_super_admin = getattr(current_user, "role", None) == "super_admin"
     is_org_admin = current_user.organization_id == organization_id and getattr(
         current_user, "role", None
-    ) in ["org_admin", "admin_financiero"]
+    ) in ["org_admin", "admin_financiero", "owner"]
 
     if not (is_super_admin or is_org_admin):
         raise HTTPException(
@@ -1206,7 +1206,7 @@ async def remove_user_from_organization(
     is_super_admin = getattr(current_user, "role", None) == "super_admin"
     is_org_admin = current_user.organization_id == organization_id and getattr(
         current_user, "role", None
-    ) in ["org_admin", "admin_financiero"]
+    ) in ["org_admin", "admin_financiero", "owner"]
 
     if not (is_super_admin or is_org_admin):
         raise HTTPException(

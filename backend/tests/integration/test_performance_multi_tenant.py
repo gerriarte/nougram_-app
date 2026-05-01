@@ -99,7 +99,7 @@ async def services_per_org(
                 name=f"Service {i}",
                 description=f"Service {i} description",
                 organization_id=org.id,
-                default_margin_target=30.0,
+                default_margin_target=0.30,
                 is_active=True,
             )
             db_session.add(service)

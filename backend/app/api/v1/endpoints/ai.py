@@ -210,10 +210,10 @@ async def suggest_onboarding_config(
     try:
         # Call AI service
         result = await ai_service.suggest_onboarding_data(
-            industry=request.industry,
-            region=request.region,
-            currency=request.currency,
-            custom_context=request.custom_context,
+            industry=payload.industry,
+            region=payload.region,
+            currency=payload.currency,
+            custom_context=payload.custom_context,
         )
 
         if not result.get("success"):
@@ -371,6 +371,8 @@ async def parse_document(
                 member_dict["salary_monthly_brute"] = Decimal(
                     str(member_dict["salary_monthly_brute"])
                 )
+            elif member_dict.get("name"):
+                member_dict["salary_monthly_brute"] = Decimal("1000")
             # Ensure required fields have defaults
             if "currency" not in member_dict:
                 member_dict["currency"] = "USD"

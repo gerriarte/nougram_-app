@@ -27,7 +27,8 @@ class TestMultiTenantJWT:
     ):
         """Test that login token includes organization_id in payload"""
         response = await async_client.post(
-            "/api/v1/auth/login", json={"email": "test@example.com", "password": "testpassword123"}
+            "/api/v1/auth/login",
+            json={"email": test_user.email, "password": "testpassword123"},
         )
 
         assert response.status_code == 200
@@ -46,7 +47,7 @@ class TestMultiTenantJWT:
         assert payload["sub"] == str(test_user.id)
 
     async def test_token_with_wrong_organization_id_rejected(
-        self, async_client: AsyncClient, db: AsyncSession, test_user: User
+        self, async_client: AsyncClient, test_user: User
     ):
         """Test that token with wrong organization_id is rejected"""
         # Create token with wrong organization_id
@@ -54,7 +55,10 @@ class TestMultiTenantJWT:
         token_data = {
             "sub": str(test_user.id),
             "email": test_user.email,
+            "name": test_user.full_name,
             "organization_id": wrong_org_id,  # Wrong org ID
+            "role": test_user.role,
+            "role_type": "tenant",
         }
         token = create_access_token(token_data)
 
@@ -75,7 +79,10 @@ class TestMultiTenantJWT:
         token_data = {
             "sub": str(test_user.id),
             "email": test_user.email,
+            "name": test_user.full_name,
             "organization_id": test_user.organization_id,
+            "role": test_user.role,
+            "role_type": "tenant",
         }
         token = create_access_token(token_data)
 
@@ -95,6 +102,9 @@ class TestMultiTenantJWT:
         token_data = {
             "sub": str(test_user.id),
             "email": test_user.email,
+            "name": test_user.full_name,
+            "role": test_user.role,
+            "role_type": "tenant",
         }
         token = create_access_token(token_data)
 
@@ -116,7 +126,7 @@ class TestMultiTenantDataIsolation:
     """Tests for data isolation between tenants"""
 
     async def test_user_cannot_access_other_tenant_projects(
-        self, async_client: AsyncClient, db: AsyncSession, test_user: User
+        self, async_client: AsyncClient, db_session: AsyncSession, test_user: User
     ):
         """Test that user from Org A cannot access projects from Org B"""
         # Create another organization
@@ -126,8 +136,8 @@ class TestMultiTenantDataIsolation:
             subscription_plan="free",
             subscription_status="active",
         )
-        db.add(org_b)
-        await db.flush()
+        db_session.add(org_b)
+        await db_session.flush()
 
         # Create user for Org B
         from app.core.security import get_password_hash
@@ -138,14 +148,14 @@ class TestMultiTenantDataIsolation:
             hashed_password=get_password_hash("password123"),
             organization_id=org_b.id,
         )
-        db.add(user_b)
-        await db.flush()
+        db_session.add(user_b)
+        await db_session.flush()
 
         # Create project for Org B
         project_b = Project(name="Project B", client_name="Client B", organization_id=org_b.id)
-        db.add(project_b)
-        await db.commit()
-        await db.refresh(project_b)
+        db_session.add(project_b)
+        await db_session.commit()
+        await db_session.refresh(project_b)
 
         # Create token for user A
         token_a = create_access_token(
@@ -165,13 +175,13 @@ class TestMultiTenantDataIsolation:
         assert response.status_code in [404, 403]
 
         # Cleanup
-        await db.delete(project_b)
-        await db.delete(user_b)
-        await db.delete(org_b)
-        await db.commit()
+        await db_session.delete(project_b)
+        await db_session.delete(user_b)
+        await db_session.delete(org_b)
+        await db_session.commit()
 
     async def test_user_cannot_access_other_tenant_services(
-        self, async_client: AsyncClient, db: AsyncSession, test_user: User
+        self, async_client: AsyncClient, db_session: AsyncSession, test_user: User
     ):
         """Test that user from Org A cannot access services from Org B"""
         # Create another organization
@@ -181,19 +191,20 @@ class TestMultiTenantDataIsolation:
             subscription_plan="free",
             subscription_status="active",
         )
-        db.add(org_b)
-        await db.flush()
+        db_session.add(org_b)
+        await db_session.flush()
 
         # Create service for Org B
         service_b = Service(
             name="Service B",
             description="Service from Org B",
             organization_id=org_b.id,
-            margin_target=30.0,
+            default_margin_target=0.30,
+            is_active=True,
         )
-        db.add(service_b)
-        await db.commit()
-        await db.refresh(service_b)
+        db_session.add(service_b)
+        await db_session.commit()
+        await db_session.refresh(service_b)
 
         # Create token for user A
         token_a = create_access_token(
@@ -213,12 +224,12 @@ class TestMultiTenantDataIsolation:
         assert response.status_code in [404, 403]
 
         # Cleanup
-        await db.delete(service_b)
-        await db.delete(org_b)
-        await db.commit()
+        await db_session.delete(service_b)
+        await db_session.delete(org_b)
+        await db_session.commit()
 
     async def test_user_can_only_list_own_tenant_data(
-        self, async_client: AsyncClient, db: AsyncSession, test_user: User
+        self, async_client: AsyncClient, db_session: AsyncSession, test_user: User
     ):
         """Test that listing endpoints only return data from user's tenant"""
         # Create another organization
@@ -228,19 +239,19 @@ class TestMultiTenantDataIsolation:
             subscription_plan="free",
             subscription_status="active",
         )
-        db.add(org_b)
-        await db.flush()
+        db_session.add(org_b)
+        await db_session.flush()
 
         # Create project for Org B
         project_b = Project(name="Project B", client_name="Client B", organization_id=org_b.id)
-        db.add(project_b)
+        db_session.add(project_b)
 
         # Create project for Org A (test_user's org)
         project_a = Project(
             name="Project A", client_name="Client A", organization_id=test_user.organization_id
         )
-        db.add(project_a)
-        await db.commit()
+        db_session.add(project_a)
+        await db_session.commit()
 
         # Create token for user A
         token_a = create_access_token(
@@ -267,10 +278,10 @@ class TestMultiTenantDataIsolation:
         assert project_b.id not in project_ids
 
         # Cleanup
-        await db.delete(project_b)
-        await db.delete(project_a)
-        await db.delete(org_b)
-        await db.commit()
+        await db_session.delete(project_b)
+        await db_session.delete(project_a)
+        await db_session.delete(org_b)
+        await db_session.commit()
 
 
 @pytest.mark.integration
@@ -278,7 +289,7 @@ class TestMultiTenantLoginValidation:
     """Tests for login validation with organization_id"""
 
     async def test_login_without_organization_fails(
-        self, async_client: AsyncClient, db: AsyncSession
+        self, async_client: AsyncClient, db_session: AsyncSession
     ):
         """Test that login fails if user has no organization_id"""
         from app.core.security import get_password_hash
@@ -291,9 +302,9 @@ class TestMultiTenantLoginValidation:
             hashed_password=get_password_hash("password123"),
             organization_id=None,  # No organization
         )
-        db.add(user_no_org)
-        await db.commit()
-        await db.refresh(user_no_org)
+        db_session.add(user_no_org)
+        await db_session.commit()
+        await db_session.refresh(user_no_org)
 
         # Try to login
         response = await async_client.post(
@@ -306,5 +317,5 @@ class TestMultiTenantLoginValidation:
         assert "organización" in data["detail"].lower() or "organization" in data["detail"].lower()
 
         # Cleanup
-        await db.delete(user_no_org)
-        await db.commit()
+        await db_session.delete(user_no_org)
+        await db_session.commit()

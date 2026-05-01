@@ -245,7 +245,9 @@ class TestSalesProjectionService:
             assert "margin_percentage" in month_data
             assert month_data["revenue"] > 0
             assert month_data["costs"] > 0
-            assert month_data["profit"] == month_data["revenue"] - month_data["costs"]
+            assert month_data["profit"] == pytest.approx(
+                month_data["revenue"] - month_data["costs"], rel=1e-9, abs=1e-6
+            )
 
         # Hours per month should be 120 / 12 = 10
         assert result["summary"]["hours_per_month"] == 10.0

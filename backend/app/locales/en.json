@@ -34,7 +34,9 @@
     "EMAIL_SEND_FAILED": "Failed to send email. Please check email provider configuration",
     "SMTP_CONFIGURATION_ERROR": "SMTP configuration error",
     "PAYMENT_PROCESSING_ERROR": "Payment processing error",
-    
+    "AI_SERVICE_UNAVAILABLE": "AI service is not configured. Set OPENAI_API_KEY in environment variables",
+    "AI_PROCESSING_ERROR": "Failed to process AI request",
+
     "INTERNAL_ERROR": "Internal server error",
     "DATABASE_ERROR": "Database error",
     "NETWORK_ERROR": "Network connection error",

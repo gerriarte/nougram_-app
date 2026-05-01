@@ -166,7 +166,7 @@ class TestInsightsKpiSummaryEndpoint:
 
         assert payload["meta"]["latest_quote_only"] is True
         assert payload["meta"]["exclude_draft"] is True
-        assert payload["meta"]["date_field"] == "quote.updated_at"
+        assert payload["meta"]["date_field"] == "quote.coalesce(updated_at,created_at)"
         assert payload["meta"]["range_mode"] == "custom"
 
         # P1 latest v2 = 200 + 10% tax => 220; P3 = 300. Draft/out-of-window excluded.

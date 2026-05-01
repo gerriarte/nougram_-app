@@ -28,7 +28,12 @@ from app.core.database import get_db
 from app.core.exceptions import ResourceNotFoundError
 from app.core.pdf_generator import generate_quote_pdf
 from app.core.permission_middleware import require_create_projects
-from app.core.permissions import PermissionError, get_user_role
+from app.core.permissions import (
+    PERM_DELETE_RESOURCES,
+    PermissionError,
+    check_permission,
+    get_user_role,
+)
 from app.core.security import get_current_user
 from app.core.tenant import TenantContext, get_tenant_context
 from app.models.project import (
@@ -667,7 +672,17 @@ async def delete_project(
     """
     Soft delete a project (move to trash)
     Projects are not permanently deleted, allowing restoration
+
+    **Permissions:**
+    - Requires `can_delete_resources` permission
     """
+    try:
+        check_permission(current_user, PERM_DELETE_RESOURCES)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to delete projects",
+        )
     # #region agent log
     try:
         import json
@@ -818,7 +833,17 @@ async def permanently_delete_project(
     This action cannot be undone. Only soft-deleted projects can be permanently deleted.
     This will cascade delete all quotes and quote items associated with the project.
     Validates ownership automatically via repository tenant scoping
+
+    **Permissions:**
+    - Requires `can_delete_resources` permission
     """
+    try:
+        check_permission(current_user, PERM_DELETE_RESOURCES)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to permanently delete projects",
+        )
     # Use RepositoryFactory to get project repository with tenant scoping
     project_repo = RepositoryFactory.create_project_repository(db, tenant.organization_id)
 

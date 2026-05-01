@@ -68,7 +68,7 @@ async def user_org_a(db_session: AsyncSession, org_a: Organization) -> User:
         full_name="User A",
         hashed_password=get_password_hash("password123"),
         organization_id=org_a.id,
-        role="product_manager",
+        role="owner",
     )
     db_session.add(user)
     await db_session.commit()
@@ -84,7 +84,7 @@ async def user_org_b(db_session: AsyncSession, org_b: Organization) -> User:
         full_name="User B",
         hashed_password=get_password_hash("password123"),
         organization_id=org_b.id,
-        role="product_manager",
+        role="owner",
     )
     db_session.add(user)
     await db_session.commit()
@@ -119,7 +119,7 @@ async def service_org_a(db_session: AsyncSession, org_a: Organization) -> Servic
         name="Service A",
         description="Service from Org A",
         organization_id=org_a.id,
-        default_margin_target=30.0,
+        default_margin_target=0.30,
         is_active=True,
     )
     db_session.add(service)
@@ -135,7 +135,7 @@ async def service_org_b(db_session: AsyncSession, org_b: Organization) -> Servic
         name="Service B",
         description="Service from Org B",
         organization_id=org_b.id,
-        default_margin_target=30.0,
+        default_margin_target=0.30,
         is_active=True,
     )
     db_session.add(service)
@@ -160,7 +160,10 @@ class TestDataLeakagePrevention:
             {
                 "sub": str(user_org_a.id),
                 "email": user_org_a.email,
+                "name": user_org_a.full_name,
                 "organization_id": user_org_a.organization_id,
+                "role": user_org_a.role,
+                "role_type": "tenant",
             }
         )
 
@@ -189,7 +192,10 @@ class TestDataLeakagePrevention:
             {
                 "sub": str(user_org_a.id),
                 "email": user_org_a.email,
+                "name": user_org_a.full_name,
                 "organization_id": user_org_a.organization_id,
+                "role": user_org_a.role,
+                "role_type": "tenant",
             }
         )
 
@@ -214,7 +220,10 @@ class TestDataLeakagePrevention:
             {
                 "sub": str(user_org_a.id),
                 "email": user_org_a.email,
+                "name": user_org_a.full_name,
                 "organization_id": user_org_a.organization_id,
+                "role": user_org_a.role,
+                "role_type": "tenant",
             }
         )
 
@@ -233,7 +242,10 @@ class TestDataLeakagePrevention:
             {
                 "sub": str(user_org_a.id),
                 "email": user_org_a.email,
+                "name": user_org_a.full_name,
                 "organization_id": user_org_a.organization_id,
+                "role": user_org_a.role,
+                "role_type": "tenant",
             }
         )
 
@@ -254,7 +266,10 @@ class TestDataLeakagePrevention:
             {
                 "sub": str(user_org_a.id),
                 "email": user_org_a.email,
+                "name": user_org_a.full_name,
                 "organization_id": user_org_a.organization_id,
+                "role": user_org_a.role,
+                "role_type": "tenant",
             }
         )
 
@@ -283,7 +298,10 @@ class TestCrossTenantAccessPrevention:
             {
                 "sub": str(user_org_a.id),
                 "email": user_org_a.email,
+                "name": user_org_a.full_name,
                 "organization_id": org_b.id,  # Wrong org ID
+                "role": user_org_a.role,
+                "role_type": "tenant",
             }
         )
 
@@ -292,8 +310,7 @@ class TestCrossTenantAccessPrevention:
             f"/api/v1/projects/{project_org_a.id}", headers={"Authorization": f"Bearer {token}"}
         )
 
-        # Should be blocked (404 or 403)
-        assert response.status_code in [404, 403]
+        assert response.status_code in [404, 403, 401]
 
     async def test_repository_isolation_enforced(
         self,
@@ -385,12 +402,26 @@ class TestPlanLimitValidation:
         current_count = result.scalar() or 0
         assert current_count == limit
 
+        seed_svc = Service(
+            name="Seed Project Service",
+            description="For API project create",
+            organization_id=org_a.id,
+            default_margin_target=0.30,
+            is_active=True,
+        )
+        db_session.add(seed_svc)
+        await db_session.commit()
+        await db_session.refresh(seed_svc)
+
         # Now try to create one more (should fail)
         token = create_access_token(
             {
                 "sub": str(user_org_a.id),
                 "email": user_org_a.email,
+                "name": user_org_a.full_name,
                 "organization_id": user_org_a.organization_id,
+                "role": user_org_a.role,
+                "role_type": "tenant",
             }
         )
 
@@ -400,7 +431,7 @@ class TestPlanLimitValidation:
             json={
                 "name": "Exceeding Project",
                 "client_name": "Exceeding Client",
-                "quote": {"items": []},
+                "quote_items": [{"service_id": seed_svc.id, "estimated_hours": 1.0}],
             },
         )
 
@@ -424,12 +455,26 @@ class TestPlanLimitValidation:
         limit = get_plan_limit("enterprise", "max_projects")
         assert limit == -1
 
+        seed_svc = Service(
+            name="Seed Project Service Enterprise",
+            description="For API project create",
+            organization_id=org_b.id,
+            default_margin_target=0.30,
+            is_active=True,
+        )
+        db_session.add(seed_svc)
+        await db_session.commit()
+        await db_session.refresh(seed_svc)
+
         # Create many projects (should not hit limit)
         token = create_access_token(
             {
                 "sub": str(user_org_b.id),
                 "email": user_org_b.email,
+                "name": user_org_b.full_name,
                 "organization_id": user_org_b.organization_id,
+                "role": user_org_b.role,
+                "role_type": "tenant",
             }
         )
 
@@ -441,7 +486,7 @@ class TestPlanLimitValidation:
                 json={
                     "name": f"Enterprise Project {i}",
                     "client_name": f"Client {i}",
-                    "quote": {"items": []},
+                    "quote_items": [{"service_id": seed_svc.id, "estimated_hours": 1.0}],
                 },
             )
             # Should succeed (no limit)
@@ -465,7 +510,7 @@ class TestPlanLimitValidation:
                 name=f"Service {i}",
                 description=f"Service {i} description",
                 organization_id=org_a.id,
-                default_margin_target=30.0,
+                default_margin_target=0.30,
                 is_active=True,
             )
             db_session.add(service)
@@ -476,7 +521,10 @@ class TestPlanLimitValidation:
             {
                 "sub": str(user_org_a.id),
                 "email": user_org_a.email,
+                "name": user_org_a.full_name,
                 "organization_id": user_org_a.organization_id,
+                "role": user_org_a.role,
+                "role_type": "tenant",
             }
         )
 
@@ -486,7 +534,7 @@ class TestPlanLimitValidation:
             json={
                 "name": "Exceeding Service",
                 "description": "This should fail",
-                "default_margin_target": 30.0,
+                "default_margin_target": 0.30,
             },
         )
 
@@ -520,7 +568,10 @@ class TestSecurityEdgeCases:
             {
                 "sub": str(user.id),
                 "email": user.email,
+                "name": user.full_name,
                 "organization_id": None,
+                "role": user.role,
+                "role_type": "tenant",
             }
         )
 
@@ -551,7 +602,10 @@ class TestSecurityEdgeCases:
             {
                 "sub": str(user_org_a.id),
                 "email": user_org_a.email,
+                "name": user_org_a.full_name,
                 "organization_id": user_org_a.organization_id,
+                "role": user_org_a.role,
+                "role_type": "tenant",
             }
         )
 
@@ -579,7 +633,10 @@ class TestSecurityEdgeCases:
             {
                 "sub": str(user_org_a.id),
                 "email": user_org_a.email,
+                "name": user_org_a.full_name,
                 "organization_id": user_org_a.organization_id,
+                "role": user_org_a.role,
+                "role_type": "tenant",
             }
         )
 

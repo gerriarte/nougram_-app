@@ -2,10 +2,11 @@
 Rate limiting configuration and utilities
 """
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request, status
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.responses import JSONResponse
 
 from app.core.logging import get_logger
 
@@ -105,6 +106,7 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
         organization_id=getattr(request.state, "organization_id", None),
     )
 
-    raise HTTPException(
-        status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Rate limit exceeded: {exc.detail}"
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={"detail": f"Rate limit exceeded: {exc.detail}"},
     )

@@ -56,7 +56,12 @@ class Invitation(Base):
         """Check if invitation has expired"""
         from datetime import datetime
 
-        return self.expires_at < datetime.now(UTC)
+        if self.expires_at is None:
+            return False
+        exp = self.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=UTC)
+        return exp < datetime.now(UTC)
 
     @property
     def is_accepted(self) -> bool:

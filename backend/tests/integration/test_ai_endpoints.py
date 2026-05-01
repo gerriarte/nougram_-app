@@ -14,21 +14,9 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token
 from app.models.organization import Organization
 from app.models.user import User
-
-
-def get_auth_headers(user: User) -> dict:
-    """Generate authorization headers for a user"""
-    token_data = {
-        "sub": str(user.id),
-        "email": user.email,
-        "name": user.full_name,
-        "organization_id": user.organization_id,
-    }
-    token = create_access_token(token_data)
-    return {"Authorization": f"Bearer {token}"}
+from tests.auth_helpers import get_auth_headers
 
 
 @pytest.mark.integration
@@ -40,53 +28,44 @@ class TestAISuggestConfigEndpoint:
         self, async_client: AsyncClient, test_user: User, test_organization: Organization
     ):
         """Test successful AI onboarding suggestion"""
-        # Mock OpenAI response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps(
-            {
-                "suggested_roles": [
-                    {
-                        "name": "John Doe",
-                        "role": "Senior Developer",
-                        "salary_monthly_brute": 5000,
-                        "currency": "USD",
-                        "billable_hours_per_week": 40,
-                        "is_active": True,
-                    }
-                ],
-                "suggested_services": [
-                    {
-                        "name": "Web Development",
-                        "description": "Custom web development",
-                        "default_margin_target": 0.30,
-                        "pricing_type": "hourly",
-                        "is_active": True,
-                    }
-                ],
-                "suggested_fixed_costs": [
-                    {
-                        "name": "AWS Hosting",
-                        "amount_monthly": 200,
-                        "currency": "USD",
-                        "category": "Tools",
-                        "description": "Cloud hosting",
-                    }
-                ],
-                "confidence_scores": {"roles": 0.9, "services": 0.85, "costs": 0.8},
-                "reasoning": "Based on industry standards",
-            }
-        )
-        mock_response.usage = MagicMock()
-        mock_response.usage.prompt_tokens = 500
-        mock_response.usage.completion_tokens = 300
-        mock_response.usage.total_tokens = 800
+        mock_data = {
+            "suggested_roles": [
+                {
+                    "name": "John Doe",
+                    "role": "Senior Developer",
+                    "salary_monthly_brute": 5000,
+                    "currency": "USD",
+                    "billable_hours_per_week": 40,
+                    "is_active": True,
+                }
+            ],
+            "suggested_services": [
+                {
+                    "name": "Web Development",
+                    "description": "Custom web development",
+                    "default_margin_target": 0.30,
+                    "pricing_type": "hourly",
+                    "is_active": True,
+                }
+            ],
+            "suggested_fixed_costs": [
+                {
+                    "name": "AWS Hosting",
+                    "amount_monthly": 200,
+                    "currency": "USD",
+                    "category": "Tools",
+                    "description": "Cloud hosting",
+                }
+            ],
+            "confidence_scores": {"roles": 0.9, "services": 0.85, "costs": 0.8},
+            "reasoning": "Based on industry standards",
+        }
 
-        with patch("app.services.ai_service.AsyncOpenAI") as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-            mock_openai_class.return_value = mock_client
-
+        with patch(
+            "app.api.v1.endpoints.ai.ai_service.suggest_onboarding_data",
+            new_callable=AsyncMock,
+            return_value={"success": True, "data": mock_data, "usage": {}},
+        ):
             headers = get_auth_headers(test_user)
             response = await async_client.post(
                 "/api/v1/ai/suggest-config",
@@ -146,7 +125,7 @@ class TestAISuggestConfigEndpoint:
             "suggested_fixed_costs": [],
             "confidence_scores": {"roles": 0.9, "services": 0.8, "costs": 0.7},
         }
-        cache.set("ai_suggestion:marketing digital:us:usd", cached_data, ttl_seconds=86400)
+        cache.set("ai_suggestion:marketing digital:US:USD", cached_data, ttl_seconds=86400)
 
         headers = get_auth_headers(test_user)
         response = await async_client.post(
@@ -171,47 +150,38 @@ class TestAIParseDocumentEndpoint:
         self, async_client: AsyncClient, test_user: User, test_organization: Organization
     ):
         """Test successful document parsing"""
-        # Mock OpenAI response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps(
-            {
-                "team_members": [
-                    {
-                        "name": "Jane Smith",
-                        "role": "Designer",
-                        "salary_monthly_brute": 4000,
-                        "currency": "USD",
-                        "billable_hours_per_week": 40,
-                    }
-                ],
-                "fixed_costs": [
-                    {
-                        "name": "Adobe Creative Cloud",
-                        "amount_monthly": 50,
-                        "currency": "USD",
-                        "category": "Tools",
-                    }
-                ],
-                "subscriptions": [],
-                "confidence_scores": {
-                    "team_members": 0.85,
-                    "fixed_costs": 0.9,
-                    "subscriptions": 0.8,
-                },
-                "warnings": [],
-            }
-        )
-        mock_response.usage = MagicMock()
-        mock_response.usage.prompt_tokens = 600
-        mock_response.usage.completion_tokens = 400
-        mock_response.usage.total_tokens = 1000
+        mock_data = {
+            "team_members": [
+                {
+                    "name": "Jane Smith",
+                    "role": "Designer",
+                    "salary_monthly_brute": 4000,
+                    "currency": "USD",
+                    "billable_hours_per_week": 40,
+                }
+            ],
+            "fixed_costs": [
+                {
+                    "name": "Adobe Creative Cloud",
+                    "amount_monthly": 50,
+                    "currency": "USD",
+                    "category": "Tools",
+                }
+            ],
+            "subscriptions": [],
+            "confidence_scores": {
+                "team_members": 0.85,
+                "fixed_costs": 0.9,
+                "subscriptions": 0.8,
+            },
+            "warnings": [],
+        }
 
-        with patch("app.services.ai_service.AsyncOpenAI") as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-            mock_openai_class.return_value = mock_client
-
+        with patch(
+            "app.api.v1.endpoints.ai.ai_service.parse_unstructured_data",
+            new_callable=AsyncMock,
+            return_value={"success": True, "data": mock_data, "usage": {}},
+        ):
             headers = get_auth_headers(test_user)
             response = await async_client.post(
                 "/api/v1/ai/parse-document",
@@ -279,33 +249,24 @@ class TestAIProcessCommandEndpoint:
         self, async_client: AsyncClient, test_user: User, test_organization: Organization
     ):
         """Test successful natural language command processing"""
-        # Mock OpenAI response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps(
-            {
-                "action": "add_team_member",
-                "data": {
-                    "name": "Bob Johnson",
-                    "role": "Senior Designer",
-                    "salary_monthly_brute": 4500,
-                    "currency": "USD",
-                    "billable_hours_per_week": 40,
-                },
-                "confidence": 0.9,
-                "reasoning": "Command clearly requests adding a team member",
-            }
-        )
-        mock_response.usage = MagicMock()
-        mock_response.usage.prompt_tokens = 400
-        mock_response.usage.completion_tokens = 200
-        mock_response.usage.total_tokens = 600
+        mock_cmd = {
+            "action_type": "add_team_member",
+            "action_data": {
+                "name": "Bob Johnson",
+                "role": "Senior Designer",
+                "salary_monthly_brute": 4500,
+                "currency": "USD",
+                "billable_hours_per_week": 40,
+            },
+            "confidence": 0.9,
+            "reasoning": "Command clearly requests adding a team member",
+        }
 
-        with patch("app.services.ai_service.AsyncOpenAI") as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-            mock_openai_class.return_value = mock_client
-
+        with patch(
+            "app.api.v1.endpoints.ai.ai_service.process_natural_language_command",
+            new_callable=AsyncMock,
+            return_value={"success": True, "data": mock_cmd, "usage": {}},
+        ):
             headers = get_auth_headers(test_user)
             response = await async_client.post(
                 "/api/v1/ai/process-command",
@@ -318,11 +279,9 @@ class TestAIProcessCommandEndpoint:
 
             assert response.status_code == 200
             data = response.json()
-            assert "action" in data
-            assert "data" in data
-            assert "confidence" in data
-            assert data["action"] == "add_team_member"
-            assert data["data"]["name"] == "Bob Johnson"
+            assert data["action_type"] == "add_team_member"
+            assert "action_data" in data
+            assert data["action_data"]["name"] == "Bob Johnson"
 
     @pytest.mark.asyncio
     async def test_process_command_empty_command(self, async_client: AsyncClient, test_user: User):
@@ -341,30 +300,21 @@ class TestAIProcessCommandEndpoint:
         self, async_client: AsyncClient, test_user: User, test_organization: Organization
     ):
         """Test process-command with context provided"""
-        # Mock OpenAI response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps(
-            {
-                "action": "add_service",
-                "data": {
-                    "name": "Social Media Management",
-                    "default_margin_target": 0.35,
-                    "pricing_type": "recurring",
-                },
-                "confidence": 0.85,
-            }
-        )
-        mock_response.usage = MagicMock()
-        mock_response.usage.prompt_tokens = 500
-        mock_response.usage.completion_tokens = 250
-        mock_response.usage.total_tokens = 750
+        mock_cmd = {
+            "action_type": "add_service",
+            "action_data": {
+                "name": "Social Media Management",
+                "default_margin_target": 0.35,
+                "pricing_type": "recurring",
+            },
+            "confidence": 0.85,
+        }
 
-        with patch("app.services.ai_service.AsyncOpenAI") as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-            mock_openai_class.return_value = mock_client
-
+        with patch(
+            "app.api.v1.endpoints.ai.ai_service.process_natural_language_command",
+            new_callable=AsyncMock,
+            return_value={"success": True, "data": mock_cmd, "usage": {}},
+        ):
             headers = get_auth_headers(test_user)
             response = await async_client.post(
                 "/api/v1/ai/process-command",
@@ -377,8 +327,7 @@ class TestAIProcessCommandEndpoint:
 
             assert response.status_code == 200
             data = response.json()
-            assert "action" in data
-            assert data["action"] == "add_service"
+            assert data["action_type"] == "add_service"
 
     @pytest.mark.asyncio
     async def test_process_command_without_auth(self, async_client: AsyncClient):
@@ -467,32 +416,23 @@ class TestAIDataAnonymization:
         db_session.add(team_member)
         await db_session.commit()
 
-        # Mock OpenAI response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps(
-            {
-                "action": "add_team_member",
-                "data": {
-                    "name": "New Member",
-                    "role": "Designer",
-                    "salary_monthly_brute": 4000,
-                    "currency": "USD",
-                    "billable_hours_per_week": 40,
-                },
-                "confidence": 0.9,
-            }
-        )
-        mock_response.usage = MagicMock()
-        mock_response.usage.prompt_tokens = 300
-        mock_response.usage.completion_tokens = 150
-        mock_response.usage.total_tokens = 450
+        mock_cmd = {
+            "action_type": "add_team_member",
+            "action_data": {
+                "name": "New Member",
+                "role": "Designer",
+                "salary_monthly_brute": 4000,
+                "currency": "USD",
+                "billable_hours_per_week": 40,
+            },
+            "confidence": 0.9,
+        }
 
-        with patch("app.services.ai_service.AsyncOpenAI") as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-            mock_openai_class.return_value = mock_client
-
+        with patch(
+            "app.api.v1.endpoints.ai.ai_service.process_natural_language_command",
+            new_callable=AsyncMock,
+            return_value={"success": True, "data": mock_cmd, "usage": {}},
+        ) as mock_proc:
             headers = get_auth_headers(test_user)
             response = await async_client.post(
                 "/api/v1/ai/process-command",
@@ -504,7 +444,4 @@ class TestAIDataAnonymization:
             )
 
             assert response.status_code == 200
-            # Verify that the OpenAI call was made (names should be anonymized in context)
-            assert mock_client.chat.completions.create.called
-            # The actual anonymization is verified by checking the prompt content
-            # but we can't easily access that in integration tests without more complex mocking
+            assert mock_proc.await_count >= 1

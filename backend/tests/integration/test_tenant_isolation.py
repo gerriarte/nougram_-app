@@ -20,6 +20,7 @@ from app.models.project import Project
 from app.models.service import Service
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
+from tests.auth_helpers import get_auth_headers
 
 
 @pytest.fixture
@@ -69,7 +70,7 @@ async def user_org_a(db_session: AsyncSession, org_a: Organization) -> User:
         full_name="User A",
         hashed_password=get_password_hash("password123"),
         organization_id=org_a.id,
-        role="admin",
+        role="owner",
     )
     db_session.add(user)
     await db_session.commit()
@@ -88,7 +89,7 @@ async def user_org_b(db_session: AsyncSession, org_b: Organization) -> User:
         full_name="User B",
         hashed_password=get_password_hash("password123"),
         organization_id=org_b.id,
-        role="admin",
+        role="owner",
     )
     db_session.add(user)
     await db_session.commit()
@@ -186,18 +187,6 @@ async def cost_org_b(db_session: AsyncSession, org_b: Organization) -> CostFixed
     await db_session.commit()
     await db_session.refresh(cost)
     return cost
-
-
-def get_auth_headers(user: User) -> dict:
-    """Generate authorization headers for a user"""
-    token_data = {
-        "sub": str(user.id),
-        "email": user.email,
-        "name": user.full_name,
-        "organization_id": user.organization_id,
-    }
-    token = create_access_token(token_data)
-    return {"Authorization": f"Bearer {token}"}
 
 
 class TestJWTOrganizationValidation:

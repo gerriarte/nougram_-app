@@ -45,6 +45,7 @@ class TestFinancialPrecision:
                 name=f"Test Cost {i + 1}",
                 amount_monthly=Decimal("0.10"),
                 currency="USD",
+                category="overhead",
                 organization_id=test_organization.id,
             )
             db_session.add(cost)

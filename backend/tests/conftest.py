@@ -30,6 +30,29 @@ from app.models.user import User
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
+@pytest.fixture(autouse=True)
+def _reset_in_memory_rate_counters():
+    """Clear shared limiter/AI buckets so integration tests do not inherit 429s."""
+    try:
+        from app.api.v1.endpoints import ai as ai_endpoints
+
+        ai_endpoints._ai_requests_by_tenant.clear()
+    except Exception:
+        pass
+    try:
+        from main import app
+
+        lim = getattr(app.state, "limiter", None)
+        storage = getattr(lim, "_storage", None) if lim else None
+        if storage is not None:
+            data = getattr(storage, "storage", None)
+            if isinstance(data, dict):
+                data.clear()
+    except Exception:
+        pass
+    yield
+
+
 @pytest.fixture
 async def test_engine():
     """Create an isolated in-memory SQLite engine per test (avoids UNIQUE leaks)."""

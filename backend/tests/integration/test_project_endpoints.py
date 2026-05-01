@@ -4,9 +4,11 @@ Integration tests for project endpoints
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token
 from app.models.user import User
+from app.services.credit_service import CreditService
+from tests.auth_helpers import get_auth_headers
 
 
 @pytest.mark.integration
@@ -16,15 +18,20 @@ class TestProjectEndpoints:
     async def test_create_project_success(
         self,
         async_client: AsyncClient,
+        db_session: AsyncSession,
         test_admin_user: User,
         test_service,
         test_settings,
         test_team_member,
     ):
         """Test successful project creation"""
-        token = create_access_token(
-            {"sub": str(test_admin_user.id), "email": test_admin_user.email}
+        account = await CreditService.get_or_create_credit_account(
+            test_admin_user.organization_id, db_session
         )
+        account.credits_available = 100
+        await db_session.commit()
+
+        headers = get_auth_headers(test_admin_user)
 
         response = await async_client.post(
             "/api/v1/projects/",
@@ -36,7 +43,7 @@ class TestProjectEndpoints:
                 "quote_items": [{"service_id": test_service.id, "estimated_hours": 20.0}],
                 "tax_ids": [],
             },
-            headers={"Authorization": f"Bearer {token}"},
+            headers=headers,
         )
 
         assert response.status_code == 201
@@ -51,13 +58,20 @@ class TestProjectEndpoints:
     async def test_create_project_with_product_manager_constraints(
         self,
         async_client: AsyncClient,
+        db_session: AsyncSession,
         test_user: User,
         test_service,
         test_settings,
         test_team_member,
     ):
         """Product manager may be blocked by credits/subscription constraints."""
-        token = create_access_token({"sub": str(test_user.id), "email": test_user.email})
+        account = await CreditService.get_or_create_credit_account(
+            test_user.organization_id, db_session
+        )
+        account.credits_available = 100
+        await db_session.commit()
+
+        headers = get_auth_headers(test_user)
 
         response = await async_client.post(
             "/api/v1/projects/",
@@ -69,7 +83,7 @@ class TestProjectEndpoints:
                 "quote_items": [{"service_id": test_service.id, "estimated_hours": 20.0}],
                 "tax_ids": [],
             },
-            headers={"Authorization": f"Bearer {token}"},
+            headers=headers,
         )
 
         # Current behavior: product_manager can create projects if plan/credits allow it.
@@ -77,12 +91,21 @@ class TestProjectEndpoints:
         assert response.status_code in [201, 402, 403, 401]
 
     async def test_create_project_invalid_service(
-        self, async_client: AsyncClient, test_admin_user: User, test_settings, test_team_member
+        self,
+        async_client: AsyncClient,
+        db_session: AsyncSession,
+        test_admin_user: User,
+        test_settings,
+        test_team_member,
     ):
         """Test project creation with invalid service"""
-        token = create_access_token(
-            {"sub": str(test_admin_user.id), "email": test_admin_user.email}
+        account = await CreditService.get_or_create_credit_account(
+            test_admin_user.organization_id, db_session
         )
+        account.credits_available = 100
+        await db_session.commit()
+
+        headers = get_auth_headers(test_admin_user)
 
         response = await async_client.post(
             "/api/v1/projects/",
@@ -94,7 +117,7 @@ class TestProjectEndpoints:
                 "quote_items": [{"service_id": 99999, "estimated_hours": 20.0}],
                 "tax_ids": [],
             },
-            headers={"Authorization": f"Bearer {token}"},
+            headers=headers,
         )
 
         assert response.status_code == 404

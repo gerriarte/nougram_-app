@@ -3,6 +3,7 @@ Unit tests for calculation functions
 """
 
 import uuid
+from decimal import Decimal
 
 import pytest
 
@@ -68,8 +69,8 @@ class TestBlendedCostRate:
         assert result > 0, (
             f"BCR should be > 0, got {result}. Found {len(found_members)} members in query check"
         )
-        assert isinstance(result, float)
-        assert abs(result - 36.08) < 1.0  # Allow small rounding differences
+        assert isinstance(result, Decimal)
+        assert abs(float(result) - 36.08) < 1.0  # Allow small rounding differences
 
     async def test_blended_cost_rate_with_fixed_costs(self, db_session, test_organization):
         """Test blended cost rate including fixed costs"""
@@ -107,7 +108,7 @@ class TestBlendedCostRate:
 
         # Expected: (5000 + 2000) / (32 * 4.33) = 7000 / 138.56 = 50.52
         assert result > 0
-        assert isinstance(result, float)
+        assert isinstance(result, Decimal)
         # Should be higher than without fixed costs
         assert result > 36.0
 
@@ -181,7 +182,7 @@ class TestBlendedCostRate:
 
         # Should calculate correctly with currency conversion
         assert result > 0
-        assert isinstance(result, float)
+        assert isinstance(result, Decimal)
 
     async def test_blended_cost_rate_with_social_charges(self, db_session, test_organization):
         """Test blended cost rate with social charges (Sprint 18)"""
@@ -220,7 +221,7 @@ class TestBlendedCostRate:
         # Without social charges: 5000 / (40 * 4.33) = 5000 / 173.2 = 28.87
         # With 50% social charges: (5000 * 1.5) / 173.2 = 7500 / 173.2 = 43.30
         assert result_with_charges > 0
-        assert isinstance(result_with_charges, float)
+        assert isinstance(result_with_charges, Decimal)
         # Should be higher than without social charges
         assert result_with_charges > 28.0
 
@@ -254,9 +255,9 @@ class TestBlendedCostRate:
             db_session, "USD", use_cache=True, tenant_id=test_organization.id
         )
 
-        # Results should be the same
-        assert result1 == result2
+        # Cache round-trip may widen Decimal precision; values must be materially equal
         assert result1 > 0
+        assert abs(Decimal(str(result1)) - Decimal(str(result2))) < Decimal("1e-9")
 
     async def test_blended_cost_rate_zero_costs(self, db_session):
         """Test blended cost rate with zero costs"""
@@ -305,7 +306,7 @@ class TestBlendedCostRate:
 
         # Expected: 5000 / (40 * 4.33 * 0.8) = 5000 / 138.56 = 36.08
         assert result > 0
-        assert isinstance(result, float)
+        assert isinstance(result, Decimal)
         # Should be higher than without non-billable hours adjustment
         assert result > 28.0
 

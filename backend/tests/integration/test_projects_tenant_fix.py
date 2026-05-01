@@ -9,11 +9,12 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import get_password_hash
 from app.models.organization import Organization
 from app.models.project import Project
 from app.models.service import Service
 from app.models.user import User
+from tests.auth_helpers import get_auth_headers
 
 
 @pytest.fixture
@@ -54,7 +55,7 @@ async def user_org_a(db_session: AsyncSession, org_a: Organization) -> User:
         full_name="User A",
         hashed_password=get_password_hash("password123"),
         organization_id=org_a.id,
-        role="admin",
+        role="owner",
     )
     db_session.add(user)
     await db_session.commit()
@@ -70,7 +71,7 @@ async def user_org_b(db_session: AsyncSession, org_b: Organization) -> User:
         full_name="User B",
         hashed_password=get_password_hash("password123"),
         organization_id=org_b.id,
-        role="admin",
+        role="owner",
     )
     db_session.add(user)
     await db_session.commit()
@@ -85,8 +86,7 @@ async def service_org_a(db_session: AsyncSession, org_a: Organization) -> Servic
         name="Service Org A",
         description="Test service",
         organization_id=org_a.id,
-        margin_target=0.40,
-        billable_rate=100.0,
+        default_margin_target=0.40,
         is_active=True,
     )
     db_session.add(service)
@@ -125,18 +125,6 @@ async def project_org_b(db_session: AsyncSession, org_b: Organization) -> Projec
     await db_session.commit()
     await db_session.refresh(project)
     return project
-
-
-def get_auth_headers(user: User) -> dict:
-    """Generate authorization headers for a user"""
-    token_data = {
-        "sub": str(user.id),
-        "email": user.email,
-        "name": user.full_name,
-        "organization_id": user.organization_id,
-    }
-    token = create_access_token(token_data)
-    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.mark.integration
@@ -182,7 +170,11 @@ class TestDeleteProjectTenantFix:
     """Test that delete_project() works correctly with TenantContext"""
 
     async def test_delete_project_with_tenant_context(
-        self, async_client: AsyncClient, user_org_a: User, project_org_a: Project
+        self,
+        async_client: AsyncClient,
+        db_session: AsyncSession,
+        user_org_a: User,
+        project_org_a: Project,
     ):
         """Test that delete_project() works correctly with TenantContext"""
         headers = get_auth_headers(user_org_a)
@@ -195,18 +187,18 @@ class TestDeleteProjectTenantFix:
         # Should succeed (not NameError)
         assert response.status_code == 204
 
-        # Verify project is soft deleted
-        from app.core.database import get_db
-
-        async for db in get_db():
-            result = await db.execute(select(Project).where(Project.id == project_org_a.id))
-            project = result.scalar_one_or_none()
-            assert project is not None
-            assert project.deleted_at is not None
-            break
+        # Verify project is soft deleted (same DB session as test fixtures)
+        result = await db_session.execute(select(Project).where(Project.id == project_org_a.id))
+        project = result.scalar_one_or_none()
+        assert project is not None
+        assert project.deleted_at is not None
 
     async def test_delete_project_other_organization(
-        self, async_client: AsyncClient, user_org_a: User, project_org_b: Project
+        self,
+        async_client: AsyncClient,
+        db_session: AsyncSession,
+        user_org_a: User,
+        project_org_b: Project,
     ):
         """Test that delete_project() cannot delete projects from other organizations"""
         headers = get_auth_headers(user_org_a)
@@ -219,14 +211,10 @@ class TestDeleteProjectTenantFix:
         assert response.status_code == 404
 
         # Verify project is NOT deleted
-        from app.core.database import get_db
-
-        async for db in get_db():
-            result = await db.execute(select(Project).where(Project.id == project_org_b.id))
-            project = result.scalar_one_or_none()
-            assert project is not None
-            assert project.deleted_at is None
-            break
+        result = await db_session.execute(select(Project).where(Project.id == project_org_b.id))
+        project = result.scalar_one_or_none()
+        assert project is not None
+        assert project.deleted_at is None
 
     async def test_delete_nonexistent_project(self, async_client: AsyncClient, user_org_a: User):
         """Test delete_project with non-existent project ID"""

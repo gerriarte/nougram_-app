@@ -203,7 +203,7 @@ class TestOrganizationRepository:
             full_name="User 2",
             hashed_password="hashed",
             organization_id=created_org.id,
-            role="admin",
+            role="owner",
             role_type="tenant",
         )
         db_session.add(user1)
