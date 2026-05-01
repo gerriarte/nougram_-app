@@ -76,7 +76,9 @@ def _section_plan_to_prompt(section_plan: list[dict[str, Any]]) -> str:
         return ""
     lines = []
     for idx, item in enumerate(section_plan, start=1):
-        label = _normalize_context_text(item.get("label")) or _normalize_context_text(item.get("id"))
+        label = _normalize_context_text(item.get("label")) or _normalize_context_text(
+            item.get("id")
+        )
         state = "incluir" if item.get("enabled", True) else "omitir"
         lines.append(f"{idx}. {label}: {state}")
     return "\n".join(lines)
@@ -267,7 +269,9 @@ async def generate_proposal_with_ai(
         for block in [
             _normalize_context_text(payload.extra_instructions),
             "Contexto actual para redactar la propuesta:\n" + current_prompt_context,
-            ("Plan de secciones solicitado:\n" + section_plan_prompt) if section_plan_prompt else "",
+            ("Plan de secciones solicitado:\n" + section_plan_prompt)
+            if section_plan_prompt
+            else "",
             ("Contexto útil de propuestas anteriores:\n" + history_prompt)
             if history_prompt
             else "",
@@ -387,12 +391,8 @@ async def generate_proposal_with_ai(
             "extra_instructions": _normalize_context_text(payload.extra_instructions),
         },
         "layout": {
-            "sections": [
-                item["id"] for item in section_plan if item.get("enabled", True)
-            ],
-            "hidden": [
-                item["id"] for item in section_plan if not item.get("enabled", True)
-            ],
+            "sections": [item["id"] for item in section_plan if item.get("enabled", True)],
+            "hidden": [item["id"] for item in section_plan if not item.get("enabled", True)],
             "section_plan": section_plan,
         },
     }
