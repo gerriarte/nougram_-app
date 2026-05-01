@@ -25,6 +25,35 @@ NOUGRAM_BRAND_DARK = "#262537"
 NOUGRAM_BRAND_ACCENT = "#F35D0A"
 
 
+def _resend_template_variables(data: dict[str, Any] | None) -> dict[str, Any]:
+    """Build Resend `template.variables` object (keys: letters, digits, underscore only)."""
+    out: dict[str, Any] = {}
+    if not data:
+        return out
+    for raw_k, v in data.items():
+        key = str(raw_k).strip()
+        if not key:
+            continue
+        normalized = []
+        for i, c in enumerate(key):
+            if c.isalnum() or c == "_":
+                normalized.append(c)
+            elif c in ("-", " ", "."):
+                normalized.append("_")
+        k2 = "".join(normalized)
+        if not k2:
+            continue
+        if k2[0].isdigit():
+            k2 = f"var_{k2}"
+        if isinstance(v, bool):
+            out[k2] = "true" if v else "false"
+        elif isinstance(v, (int, float)) and not isinstance(v, bool):
+            out[k2] = v
+        else:
+            out[k2] = str(v) if v is not None else ""
+    return out
+
+
 def _get_from_identity() -> tuple[str, str]:
     provider = (settings.EMAIL_PROVIDER or "smtp").strip().lower()
     if provider == "mailersend":
@@ -182,16 +211,9 @@ async def _send_email_via_resend(
     bcc: list[str] | None = None,
     template_id: str | None = None,
     template_data: dict[str, Any] | None = None,
+    resend_template_id: str | None = None,
 ) -> bool:
-    if template_id:
-        logger.info(
-            "Resend does not use MailerSend template_id; sending built-in HTML body.",
-            level="info",
-            module=__name__,
-            function="_send_email_via_resend",
-            template_id=template_id,
-        )
-
+    """Send via Resend. Use either dashboard template (resend_template_id) or HTML body, not both."""
     api_key = (settings.RESEND_API_KEY or "").strip()
     from_email, from_name = _get_from_identity()
     if not api_key or not from_email:
@@ -204,35 +226,60 @@ async def _send_email_via_resend(
         return False
 
     from_field = f"{from_name} <{from_email}>" if from_name else from_email
-    payload: dict[str, Any] = {
-        "from": from_field,
-        "to": [to_email],
-        "subject": subject,
-        "html": body_html,
-    }
-    if body_text:
-        payload["text"] = body_text
-    if cc:
-        payload["cc"] = [e for e in cc if e]
-    if bcc:
-        payload["bcc"] = [e for e in bcc if e]
+    rtid = (resend_template_id or "").strip()
 
-    if attachments:
-        encoded_attachments: list[dict] = []
-        for attachment in attachments:
-            filename = str(attachment.get("filename") or "attachment")
-            content = attachment.get("content")
-            if not content:
-                continue
-            raw_bytes = _read_attachment_bytes(content)
-            encoded_attachments.append(
-                {
-                    "filename": filename,
-                    "content": base64.b64encode(raw_bytes).decode("utf-8"),
-                }
+    if rtid:
+        payload: dict[str, Any] = {
+            "from": from_field,
+            "to": [to_email],
+            "subject": subject,
+            "template": {
+                "id": rtid,
+                "variables": _resend_template_variables(template_data),
+            },
+        }
+        if cc:
+            payload["cc"] = [e for e in cc if e]
+        if bcc:
+            payload["bcc"] = [e for e in bcc if e]
+    else:
+        if template_id:
+            logger.info(
+                "MailerSend template_id ignored when sending via Resend without resend_template_id; using HTML body.",
+                level="info",
+                module=__name__,
+                function="_send_email_via_resend",
+                template_id=template_id,
             )
-        if encoded_attachments:
-            payload["attachments"] = encoded_attachments
+        payload = {
+            "from": from_field,
+            "to": [to_email],
+            "subject": subject,
+            "html": body_html,
+        }
+        if body_text:
+            payload["text"] = body_text
+        if cc:
+            payload["cc"] = [e for e in cc if e]
+        if bcc:
+            payload["bcc"] = [e for e in bcc if e]
+
+        if attachments:
+            encoded_attachments: list[dict] = []
+            for attachment in attachments:
+                filename = str(attachment.get("filename") or "attachment")
+                content = attachment.get("content")
+                if not content:
+                    continue
+                raw_bytes = _read_attachment_bytes(content)
+                encoded_attachments.append(
+                    {
+                        "filename": filename,
+                        "content": base64.b64encode(raw_bytes).decode("utf-8"),
+                    }
+                )
+            if encoded_attachments:
+                payload["attachments"] = encoded_attachments
 
     url = f"{settings.RESEND_BASE_URL.rstrip('/')}/emails"
     headers = {
@@ -250,6 +297,7 @@ async def _send_email_via_resend(
                 module=__name__,
                 function="_send_email_via_resend",
                 subject=subject,
+                resend_template=bool(rtid),
             )
             return True
 
@@ -373,6 +421,7 @@ async def send_email(
     bcc: list[str] | None = None,
     template_id: str | None = None,
     template_data: dict[str, Any] | None = None,
+    resend_template_id: str | None = None,
 ) -> bool:
     """
     Send an email using the configured provider (SMTP, MailerSend API, or Resend API).
@@ -413,6 +462,7 @@ async def send_email(
             bcc=bcc,
             template_id=template_id,
             template_data=template_data,
+            resend_template_id=resend_template_id,
         )
 
     return await _send_email_via_smtp(

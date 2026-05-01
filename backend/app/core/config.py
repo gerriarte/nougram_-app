@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     RESEND_BASE_URL: str = "https://api.resend.com"
     RESEND_FROM_EMAIL: str = ""
     RESEND_FROM_NAME: str = "Nougram"
+    # Optional: Resend dashboard template id (or published alias) for password reset
+    RESEND_TEMPLATE_PASSWORD_RESET_ID: str = ""
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5000"

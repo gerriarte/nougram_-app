@@ -271,12 +271,27 @@ async def forgot_password(
         expiration_minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
     )
 
-    email_sent = await send_email(
-        to_email=user.email,
-        subject="Recuperacion de contrasena - Nougram",
-        body_html=html_body,
-        body_text=text_body,
-    )
+    resend_reset_tpl = (settings.RESEND_TEMPLATE_PASSWORD_RESET_ID or "").strip()
+    if (settings.EMAIL_PROVIDER or "").strip().lower() == "resend" and resend_reset_tpl:
+        email_sent = await send_email(
+            to_email=user.email,
+            subject="Recuperacion de contrasena - Nougram",
+            body_html="",
+            body_text=None,
+            resend_template_id=resend_reset_tpl,
+            template_data={
+                "full_name": user.full_name or "",
+                "reset_url": reset_url,
+                "expiration_minutes": settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
+            },
+        )
+    else:
+        email_sent = await send_email(
+            to_email=user.email,
+            subject="Recuperacion de contrasena - Nougram",
+            body_html=html_body,
+            body_text=text_body,
+        )
     if not email_sent:
         logger.warning(
             "Failed to send password reset email",
