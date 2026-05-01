@@ -17,7 +17,12 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-MAILERSEND_TIMEOUT_SECONDS = 20
+HTTP_EMAIL_TIMEOUT_SECONDS = 20
+
+NOUGRAM_BRAND_LOGO_URL = "https://www.nougram.co/logo-nougram.png"
+NOUGRAM_SITE_URL = "https://www.nougram.co"
+NOUGRAM_BRAND_DARK = "#262537"
+NOUGRAM_BRAND_ACCENT = "#F35D0A"
 
 
 def _get_from_identity() -> tuple[str, str]:
@@ -26,7 +31,27 @@ def _get_from_identity() -> tuple[str, str]:
         from_email = (settings.MAILERSEND_FROM_EMAIL or settings.SMTP_FROM_EMAIL or "").strip()
         from_name = (settings.MAILERSEND_FROM_NAME or settings.SMTP_FROM_NAME or "Nougram").strip()
         return from_email, from_name
+    if provider == "resend":
+        from_email = (
+            settings.RESEND_FROM_EMAIL
+            or settings.MAILERSEND_FROM_EMAIL
+            or settings.SMTP_FROM_EMAIL
+            or ""
+        ).strip()
+        from_name = (
+            settings.RESEND_FROM_NAME
+            or settings.MAILERSEND_FROM_NAME
+            or settings.SMTP_FROM_NAME
+            or "Nougram"
+        ).strip()
+        return from_email, from_name
     return (settings.SMTP_FROM_EMAIL or "").strip(), (settings.SMTP_FROM_NAME or "Nougram").strip()
+
+
+def get_brand_sender_name() -> str:
+    """Display name for transactional emails (matches active provider identity)."""
+    _, name = _get_from_identity()
+    return name if name else "Nougram"
 
 
 def _read_attachment_bytes(content: object) -> bytes:
@@ -114,7 +139,7 @@ async def _send_email_via_mailersend(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=MAILERSEND_TIMEOUT_SECONDS) as client:
+        async with httpx.AsyncClient(timeout=HTTP_EMAIL_TIMEOUT_SECONDS) as client:
             response = await client.post(url, json=payload, headers=headers)
         if response.status_code in (200, 201, 202):
             logger.info(
@@ -141,6 +166,108 @@ async def _send_email_via_mailersend(
             level="error",
             module=__name__,
             function="_send_email_via_mailersend",
+            error=str(e),
+            exc_info=True,
+        )
+        return False
+
+
+async def _send_email_via_resend(
+    to_email: str,
+    subject: str,
+    body_html: str,
+    body_text: str | None = None,
+    attachments: list[dict] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
+    template_id: str | None = None,
+    template_data: dict[str, Any] | None = None,
+) -> bool:
+    if template_id:
+        logger.info(
+            "Resend does not use MailerSend template_id; sending built-in HTML body.",
+            level="info",
+            module=__name__,
+            function="_send_email_via_resend",
+            template_id=template_id,
+        )
+
+    api_key = (settings.RESEND_API_KEY or "").strip()
+    from_email, from_name = _get_from_identity()
+    if not api_key or not from_email:
+        logger.warning(
+            "Resend not configured. Missing API key or from email.",
+            level="warning",
+            module=__name__,
+            function="_send_email_via_resend",
+        )
+        return False
+
+    from_field = f"{from_name} <{from_email}>" if from_name else from_email
+    payload: dict[str, Any] = {
+        "from": from_field,
+        "to": [to_email],
+        "subject": subject,
+        "html": body_html,
+    }
+    if body_text:
+        payload["text"] = body_text
+    if cc:
+        payload["cc"] = [e for e in cc if e]
+    if bcc:
+        payload["bcc"] = [e for e in bcc if e]
+
+    if attachments:
+        encoded_attachments: list[dict] = []
+        for attachment in attachments:
+            filename = str(attachment.get("filename") or "attachment")
+            content = attachment.get("content")
+            if not content:
+                continue
+            raw_bytes = _read_attachment_bytes(content)
+            encoded_attachments.append(
+                {
+                    "filename": filename,
+                    "content": base64.b64encode(raw_bytes).decode("utf-8"),
+                }
+            )
+        if encoded_attachments:
+            payload["attachments"] = encoded_attachments
+
+    url = f"{settings.RESEND_BASE_URL.rstrip('/')}/emails"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_EMAIL_TIMEOUT_SECONDS) as client:
+            response = await client.post(url, json=payload, headers=headers)
+        if response.status_code in (200, 201):
+            logger.info(
+                f"Email sent successfully to {to_email}",
+                level="info",
+                module=__name__,
+                function="_send_email_via_resend",
+                subject=subject,
+            )
+            return True
+
+        logger.error(
+            f"Resend request failed for {to_email}",
+            level="error",
+            module=__name__,
+            function="_send_email_via_resend",
+            status_code=response.status_code,
+            response_body=response.text[:800],
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            f"Error sending email to {to_email} via Resend",
+            level="error",
+            module=__name__,
+            function="_send_email_via_resend",
             error=str(e),
             exc_info=True,
         )
@@ -248,7 +375,7 @@ async def send_email(
     template_data: dict[str, Any] | None = None,
 ) -> bool:
     """
-    Send an email using the configured provider (SMTP or MailerSend API).
+    Send an email using the configured provider (SMTP, MailerSend API, or Resend API).
 
     Args:
         to_email: Recipient email address
@@ -265,6 +392,18 @@ async def send_email(
     provider = (settings.EMAIL_PROVIDER or "smtp").strip().lower()
     if provider == "mailersend":
         return await _send_email_via_mailersend(
+            to_email=to_email,
+            subject=subject,
+            body_html=body_html,
+            body_text=body_text,
+            attachments=attachments,
+            cc=cc,
+            bcc=bcc,
+            template_id=template_id,
+            template_data=template_data,
+        )
+    if provider == "resend":
+        return await _send_email_via_resend(
             to_email=to_email,
             subject=subject,
             body_html=body_html,
@@ -315,86 +454,37 @@ def generate_quote_email_html(
     symbol = currency_symbols.get(currency, "$")
     formatted_amount = f"{symbol} {total_with_taxes:,.2f}"
 
+    notes_block = f"<p><strong>Notes:</strong><br>{notes}</p>" if notes else ""
+    d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-            }}
-            .header {{
-                background-color: #2c3e50;
-                color: white;
-                padding: 20px;
-                text-align: center;
-                border-radius: 5px 5px 0 0;
-            }}
-            .content {{
-                background-color: #f9f9f9;
-                padding: 20px;
-                border: 1px solid #ddd;
-            }}
-            .quote-info {{
-                background-color: white;
-                padding: 15px;
-                margin: 15px 0;
-                border-left: 4px solid #3498db;
-            }}
-            .total {{
-                font-size: 24px;
-                font-weight: bold;
-                color: #2c3e50;
-                text-align: center;
-                padding: 20px;
-                background-color: #ecf0f1;
-                border-radius: 5px;
-            }}
-            .footer {{
-                text-align: center;
-                color: #7f8c8d;
-                font-size: 12px;
-                margin-top: 20px;
-                padding-top: 20px;
-                border-top: 1px solid #ddd;
-            }}
-        </style>
     </head>
-    <body>
-        <div class="header">
-            <h1>{agency_name}</h1>
-            <p>Quote #{quote_version}</p>
-        </div>
-        <div class="content">
-            <p>Dear {client_name},</p>
-            <p>Thank you for your interest in our services. Please find attached the quote for <strong>{project_name}</strong>.</p>
-
-            <div class="quote-info">
-                <p><strong>Project:</strong> {project_name}</p>
-                <p><strong>Quote Version:</strong> {quote_version}</p>
-            </div>
-
-            <div class="total">
-                Total: {formatted_amount}
-            </div>
-
-            {f"<p><strong>Notes:</strong><br>{notes}</p>" if notes else ""}
-
-            <p>The detailed quote is attached as a PDF document. Please review it and let us know if you have any questions.</p>
-
-            <p>This quote is valid for 30 days from the date of issue.</p>
-
-            <p>Best regards,<br>{agency_name} Team</p>
-        </div>
-        <div class="footer">
-            <p>This is an automated email. Please do not reply directly to this message.</p>
-        </div>
+    <body style="margin:0;padding:0;background-color:#ebebf0;font-family:Arial,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ebebf0;padding:24px 16px;"><tr><td align="center">
+    <table role="presentation" width="100%" style="max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #d4d4dc;"><tr>
+    <td style="padding:20px 24px;text-align:center;background:{d};">
+    <a href="{site}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+    <img src="{logo}" alt="Nougram" width="140" style="display:block;margin:0 auto;border:0;max-width:140px;width:140px;height:auto;" /></a></td></tr><tr>
+    <td style="background:{d};color:#ffffff;padding:20px 24px;text-align:center;border-top:1px solid rgba(243,93,10,.25);">
+    <h1 style="margin:0;font-size:18px;font-weight:600;">{agency_name}</h1>
+    <p style="margin:8px 0 0;font-size:14px;opacity:.92;">Quote #{quote_version}</p></td></tr><tr>
+    <td style="padding:24px;color:{d};line-height:1.6;font-size:15px;">
+    <p style="margin:0 0 12px;">Dear {client_name},</p>
+    <p style="margin:0 0 16px;">Thank you for your interest. Please find attached the quote for <strong>{project_name}</strong>.</p>
+    <table role="presentation" width="100%" style="background:#fafafa;border-left:4px solid {a};margin:16px 0;padding:14px 16px;"><tr><td>
+    <p style="margin:0 0 6px;font-size:14px;"><strong>Project:</strong> {project_name}</p>
+    <p style="margin:0;font-size:14px;"><strong>Quote Version:</strong> {quote_version}</p></td></tr></table>
+    <div style="text-align:center;padding:20px 16px;margin:16px 0;background:#f4f4f6;border-radius:8px;border:1px solid #e8e8ec;">
+    <p style="margin:0;font-size:22px;font-weight:700;color:{d};">Total: {formatted_amount}</p></div>
+    {notes_block}
+    <p style="margin:20px 0 8px;">The detailed quote is attached as a PDF document. Please review it and let us know if you have any questions.</p>
+    <p style="margin:0 0 8px;">This quote is valid for 30 days from the date of issue.</p>
+    <p style="margin:0;">Best regards,<br><strong>{agency_name}</strong></p></td></tr><tr>
+    <td style="padding:16px 24px;border-top:1px solid #e8e8ec;text-align:center;font-size:11px;color:#5c5d70;">Automated message · please do not reply directly</td></tr>
+    </table></td></tr></table>
     </body>
     </html>
     """
@@ -461,64 +551,31 @@ def generate_welcome_email_html(
     login_url: str,
 ) -> str:
     """Generate HTML welcome email template."""
+    d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
     return f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-            }}
-            .header {{
-                background: linear-gradient(135deg, #2563eb, #1d4ed8);
-                color: white;
-                padding: 20px;
-                text-align: center;
-                border-radius: 8px 8px 0 0;
-            }}
-            .content {{
-                border: 1px solid #e5e7eb;
-                border-top: none;
-                padding: 24px;
-                border-radius: 0 0 8px 8px;
-                background-color: #ffffff;
-            }}
-            .button {{
-                display: inline-block;
-                margin-top: 16px;
-                padding: 10px 16px;
-                background-color: #2563eb;
-                color: #ffffff !important;
-                text-decoration: none;
-                border-radius: 6px;
-                font-weight: 600;
-            }}
-            .footer {{
-                margin-top: 20px;
-                color: #6b7280;
-                font-size: 12px;
-            }}
-        </style>
     </head>
-    <body>
-        <div class="header">
-            <h2>Bienvenido a Nougram</h2>
-        </div>
-        <div class="content">
-            <p>Hola <strong>{full_name}</strong>,</p>
-            <p>Tu organización <strong>{organization_name}</strong> fue creada exitosamente.</p>
-            <p>Ya puedes ingresar y completar tu configuración inicial.</p>
-            <p>
-                <a class="button" href="{login_url}">Ir a Nougram</a>
-            </p>
-            <p class="footer">Si no reconoces este registro, responde a este correo o contacta soporte.</p>
-        </div>
+    <body style="margin:0;padding:0;background-color:#ebebf0;font-family:Arial,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ebebf0;padding:24px 16px;"><tr><td align="center">
+    <table role="presentation" width="100%" style="max-width:600px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #d4d4dc;"><tr>
+    <td style="padding:20px 24px;text-align:center;background:{d};">
+    <a href="{site}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+    <img src="{logo}" alt="Nougram" width="140" style="display:block;margin:0 auto;border:0;max-width:140px;width:140px;height:auto;" /></a></td></tr><tr>
+    <td style="background:{d};color:#fff;padding:24px 24px 28px;text-align:center;border-top:1px solid rgba(243,93,10,.25);">
+    <h1 style="margin:0;font-size:22px;font-weight:600;">Bienvenido a Nougram</h1></td></tr><tr>
+    <td style="padding:28px 24px;color:{d};line-height:1.6;font-size:15px;">
+    <p style="margin:0 0 16px;">Hola <strong>{full_name}</strong>,</p>
+    <p style="margin:0 0 16px;">Tu organización <strong>{organization_name}</strong> fue creada exitosamente.</p>
+    <p style="margin:0 0 24px;">Ya puedes ingresar y completar tu configuración inicial.</p>
+    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto;"><tr>
+    <td style="border-radius:8px;background:{a};">
+    <a href="{login_url}" style="display:inline-block;padding:12px 24px;color:#ffffff !important;text-decoration:none;font-weight:600;font-size:15px;">Ir a Nougram</a>
+    </td></tr></table>
+    <p style="margin:28px 0 0;font-size:12px;color:#5c5d70;">Si no reconoces este registro, contacta soporte.</p>
+    </td></tr></table></td></tr></table>
     </body>
     </html>
     """
@@ -548,54 +605,31 @@ def generate_password_reset_email_html(
     expiration_minutes: int,
 ) -> str:
     """Generate HTML password reset email template."""
+    d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
     return f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-            }}
-            .container {{
-                border: 1px solid #e5e7eb;
-                border-radius: 8px;
-                padding: 24px;
-                background-color: #ffffff;
-            }}
-            .button {{
-                display: inline-block;
-                margin: 16px 0;
-                padding: 10px 16px;
-                background-color: #2563eb;
-                color: #ffffff !important;
-                text-decoration: none;
-                border-radius: 6px;
-                font-weight: 600;
-            }}
-            .small {{
-                color: #6b7280;
-                font-size: 12px;
-                word-break: break-word;
-            }}
-        </style>
     </head>
-    <body>
-        <div class="container">
-            <p>Hola <strong>{full_name}</strong>,</p>
-            <p>Recibimos una solicitud para restablecer tu contraseña en Nougram.</p>
-            <p>
-                <a class="button" href="{reset_url}">Restablecer contraseña</a>
-            </p>
-            <p>Este enlace expira en <strong>{expiration_minutes} minutos</strong>.</p>
-            <p class="small">Si el botón no funciona, copia este enlace en tu navegador:</p>
-            <p class="small">{reset_url}</p>
-        </div>
+    <body style="margin:0;padding:0;background:#ebebf0;font-family:Arial,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ebebf0;padding:24px 16px;"><tr><td align="center">
+    <table role="presentation" width="100%" style="max-width:600px;background:#fff;border-radius:12px;border:1px solid #d4d4dc;overflow:hidden;"><tr>
+    <td style="padding:20px 24px;text-align:center;background:{d};">
+    <a href="{site}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+    <img src="{logo}" alt="Nougram" width="140" style="display:block;margin:0 auto;border:0;max-width:140px;width:140px;height:auto;" /></a></td></tr><tr>
+    <td style="padding:28px 24px;color:{d};line-height:1.6;font-size:15px;">
+    <p style="margin:0 0 16px;">Hola <strong>{full_name}</strong>,</p>
+    <p style="margin:0 0 20px;">Recibimos una solicitud para restablecer tu contraseña en Nougram.</p>
+    <table role="presentation" cellspacing="0" cellpadding="0"><tr>
+    <td style="border-radius:8px;background:{a};">
+    <a href="{reset_url}" style="display:inline-block;padding:12px 24px;color:#ffffff !important;text-decoration:none;font-weight:600;font-size:15px;">Restablecer contraseña</a>
+    </td></tr></table>
+    <p style="margin:24px 0 8px;">Este enlace expira en <strong>{expiration_minutes} minutos</strong>.</p>
+    <p style="margin:0;font-size:12px;color:#5c5d70;word-break:break-all;">Si el botón no funciona, copia este enlace:<br>
+    <a href="{reset_url}" style="color:{a};">{reset_url}</a></p>
+    <p style="margin:20px 0 0;font-size:12px;color:#5c5d70;">Si no solicitaste este cambio, puedes ignorar este correo.</p>
+    </td></tr></table></td></tr></table>
     </body>
     </html>
     """
@@ -626,54 +660,29 @@ def generate_email_verification_email_html(
     expiration_minutes: int,
 ) -> str:
     """Generate HTML email verification template."""
+    d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
     return f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-            }}
-            .container {{
-                border: 1px solid #e5e7eb;
-                border-radius: 8px;
-                padding: 24px;
-                background-color: #ffffff;
-            }}
-            .button {{
-                display: inline-block;
-                margin: 16px 0;
-                padding: 10px 16px;
-                background-color: #2563eb;
-                color: #ffffff !important;
-                text-decoration: none;
-                border-radius: 6px;
-                font-weight: 600;
-            }}
-            .small {{
-                color: #6b7280;
-                font-size: 12px;
-                word-break: break-word;
-            }}
-        </style>
     </head>
-    <body>
-        <div class="container">
-            <p>Hola <strong>{full_name}</strong>,</p>
-            <p>Gracias por registrarte en Nougram. Para activar tu cuenta, confirma tu correo:</p>
-            <p>
-                <a class="button" href="{verification_url}">Verificar correo</a>
-            </p>
-            <p>Este enlace expira en <strong>{expiration_minutes} minutos</strong>.</p>
-            <p class="small">Si el botón no funciona, copia este enlace en tu navegador:</p>
-            <p class="small">{verification_url}</p>
-        </div>
+    <body style="margin:0;padding:0;background:#ebebf0;font-family:Arial,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ebebf0;padding:24px 16px;"><tr><td align="center">
+    <table role="presentation" width="100%" style="max-width:600px;background:#fff;border-radius:12px;border:1px solid #d4d4dc;overflow:hidden;"><tr>
+    <td style="padding:20px 24px;text-align:center;background:{d};">
+    <a href="{site}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+    <img src="{logo}" alt="Nougram" width="140" style="display:block;margin:0 auto;border:0;max-width:140px;width:140px;height:auto;" /></a></td></tr><tr>
+    <td style="padding:28px 24px;color:{d};line-height:1.6;font-size:15px;">
+    <p style="margin:0 0 16px;">Hola <strong>{full_name}</strong>,</p>
+    <p style="margin:0 0 20px;">Gracias por registrarte en Nougram. Para activar tu cuenta, confirma tu correo:</p>
+    <table role="presentation" cellspacing="0" cellpadding="0"><tr>
+    <td style="border-radius:8px;background:{a};">
+    <a href="{verification_url}" style="display:inline-block;padding:12px 24px;color:#ffffff !important;text-decoration:none;font-weight:600;font-size:15px;">Verificar correo</a>
+    </td></tr></table>
+    <p style="margin:24px 0 8px;">Este enlace expira en <strong>{expiration_minutes} minutos</strong>.</p>
+    <p style="margin:0;font-size:12px;color:#5c5d70;word-break:break-all;"><a href="{verification_url}" style="color:{a};">{verification_url}</a></p>
+    </td></tr></table></td></tr></table>
     </body>
     </html>
     """

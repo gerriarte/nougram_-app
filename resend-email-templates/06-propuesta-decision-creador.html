@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Respuesta del cliente</title>
+</head>
+<body style="margin:0;padding:0;background-color:#ebebf0;font-family:Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ebebf0;padding:24px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:600px;background:#ffffff;border-radius:12px;border:1px solid #d4d4dc;overflow:hidden;">
+          <tr>
+            <td style="padding:20px 24px;text-align:center;background:#262537;">
+              <a href="https://www.nougram.co" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+                <img src="https://www.nougram.co/logo-nougram.png" alt="Nougram" width="140" style="display:block;margin:0 auto;border:0;outline:none;max-width:140px;width:140px;height:auto;font-size:14px;color:#F35D0A;" />
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;color:#262537;background:#fafafa;border-top:1px solid rgba(243,93,10,.2);">
+              <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Actualización de propuesta</h2>
+              <p style="margin:0;font-size:14px;color:#5c5d70;">{{proposal_title}}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 24px;color:#262537;line-height:1.6;font-size:15px;">
+              <p style="margin:0 0 16px;">El cliente respondió en el portal de propuestas.</p>
+              <p style="margin:0 0 6px;"><strong>Proyecto:</strong> {{project_name}}</p>
+              <p style="margin:0 0 6px;"><strong>Cliente:</strong> {{client_name}}</p>
+              <p style="margin:0 0 6px;"><strong>Respuesta:</strong> <span style="color:#F35D0A;font-weight:600;">{{decision_label}}</span></p>
+              <p style="margin:0 0 6px;"><strong>Fecha:</strong> {{decision_date}}</p>
+              <p style="margin:0;"><strong>Comentario:</strong> {{comment_text}}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Propuesta / cotización</title>
+</head>
+<body style="margin:0;padding:0;background-color:#ebebf0;font-family:Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ebebf0;padding:24px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #d4d4dc;">
+          <tr>
+            <td style="padding:20px 24px;text-align:center;background:#262537;">
+              <a href="https://www.nougram.co" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+                <img src="https://www.nougram.co/logo-nougram.png" alt="Nougram" width="140" style="display:block;margin:0 auto;border:0;outline:none;max-width:140px;width:140px;height:auto;font-size:14px;color:#F35D0A;" />
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#262537;color:#ffffff;padding:20px 24px;text-align:center;border-top:1px solid rgba(243,93,10,.25);">
+              <h1 style="margin:0;font-size:18px;font-weight:600;">{{agency_name}}</h1>
+              <p style="margin:8px 0 0;font-size:14px;opacity:.92;">Cotización #{{quote_version}}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;color:#262537;line-height:1.6;font-size:15px;">
+              <p style="margin:0 0 12px;">Estimado/a {{client_name}},</p>
+              <p style="margin:0 0 16px;">Gracias por tu interés. Adjunto encontrarás la propuesta para <strong>{{project_name}}</strong>.</p>
+              <table role="presentation" width="100%" style="background:#fafafa;border-left:4px solid #F35D0A;margin:16px 0;padding:14px 16px;">
+                <tr>
+                  <td>
+                    <p style="margin:0 0 6px;font-size:14px;"><strong>Proyecto:</strong> {{project_name}}</p>
+                    <p style="margin:0;font-size:14px;"><strong>Versión:</strong> {{quote_version}}</p>
+                  </td>
+                </tr>
+              </table>
+              <div style="text-align:center;padding:20px 16px;margin:16px 0;background:#f4f4f6;border-radius:8px;border:1px solid #e8e8ec;">
+                <p style="margin:0;font-size:22px;font-weight:700;color:#262537;">Total: {{formatted_total}}</p>
+              </div>
+              {{notes_block_html}}
+              <p style="margin:20px 0 8px;">El detalle completo va en el documento adjunto (PDF u otro formato enviado por la aplicación).</p>
+              <p style="margin:0 0 8px;">Esta cotización es válida 30 días desde su emisión.</p>
+              <p style="margin:0;">Saludos,<br><strong>{{agency_name}}</strong></p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;border-top:1px solid #e8e8ec;text-align:center;font-size:11px;color:#5c5d70;">Correo automático · no respondas directamente a este mensaje</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

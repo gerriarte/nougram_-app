@@ -11,7 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.email import send_email
+from app.core.email import (
+    NOUGRAM_BRAND_ACCENT,
+    NOUGRAM_BRAND_DARK,
+    NOUGRAM_BRAND_LOGO_URL,
+    NOUGRAM_SITE_URL,
+    get_brand_sender_name,
+    send_email,
+)
 from app.core.security import create_access_token, decode_access_token, verify_password
 from app.models.project import Project
 from app.models.proposal import ProposalClientLink
@@ -209,18 +216,28 @@ async def submit_proposal_decision(
         decision_label = _decision_label(link.status)
         comment_text = (link.decision_comment or "").strip()
         decision_date = now.strftime("%Y-%m-%d %H:%M UTC")
-        sender_company_name = (settings.MAILERSEND_FROM_NAME or "Nougram").strip() or "Nougram"
+        sender_company_name = get_brand_sender_name()
         creator_subject = f'Respuesta de cliente: {decision_label} - "{proposal.title}"'
+        d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
         creator_html = f"""
-        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-          <h2>Actualización de propuesta</h2>
+        <!DOCTYPE html><html><head><meta charset="utf-8"></head>
+        <body style="margin:0;padding:0;background:#ebebf0;font-family:Arial,sans-serif;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ebebf0;padding:24px 16px;"><tr><td align="center">
+        <table role="presentation" width="100%" style="max-width:600px;background:#fff;border-radius:12px;border:1px solid #d4d4dc;overflow:hidden;"><tr>
+        <td style="padding:20px 24px;text-align:center;background:{d};">
+        <a href="{site}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+        <img src="{logo}" alt="Nougram" width="140" style="display:block;margin:0 auto;border:0;max-width:140px;width:140px;height:auto;" /></a></td></tr><tr>
+        <td style="padding:24px;background:#fafafa;border-top:1px solid rgba(243,93,10,.2);color:{d};">
+        <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Actualización de propuesta</h2></td></tr><tr>
+        <td style="padding:0 24px 24px;color:{d};line-height:1.6;">
           <p>El cliente respondió la propuesta enviada desde el portal.</p>
           <p><strong>Proyecto:</strong> {proposal.project.name if proposal.project else ""}</p>
           <p><strong>Cliente:</strong> {proposal.project.client_name if proposal.project else ""}</p>
-          <p><strong>Respuesta:</strong> {decision_label}</p>
+          <p><strong>Respuesta:</strong> <span style="color:{a};font-weight:600;">{decision_label}</span></p>
           <p><strong>Fecha:</strong> {decision_date}</p>
           <p><strong>Comentario:</strong> {comment_text or "Sin comentario"}</p>
-        </div>
+        </td></tr></table></td></tr></table>
+        </body></html>
         """
         creator_text = (
             "Actualización de propuesta\n"

@@ -1,0 +1,35 @@
+Marca (todas las plantillas HTML)
+  Logo fijo: https://www.nougram.co/logo-nougram.png
+  Enlace del logo: https://www.nougram.co
+  Colores: fondo oscuro / texto principal #262537 · acento y CTAs #F35D0A
+  Fondo exterior del correo: #ebebf0 · texto secundario: #5c5d70
+
+Placeholders {{variable}} para Resend / API (sintaxis de merge según tu integración).
+
+---
+
+01-bienvenida.html
+  {{full_name}} {{organization_name}} {{login_url}}
+
+02-recuperacion-contrasena.html
+  {{full_name}} {{reset_url}} {{expiration_minutes}}
+
+03-invitacion-usuario.html
+  {{organization_name}} {{invitation_role}} {{invitation_link}} {{invitation_expires_at}}
+
+04-cotizacion-cliente.html
+  {{agency_name}} {{client_name}} {{project_name}} {{quote_version}} {{formatted_total}} {{notes_block_html}}
+  Nota: notes_block_html puede ser vacio o HTML, ej. <p><strong>Notas:</strong><br>...</p>
+
+05-propuesta-compartir-cliente.html
+  {{sender_company_name}} {{project_name}} {{client_name}} {{access_expires_at_label}}
+  {{access_code}} {{otp_expiration_minutes}} {{public_url}} {{optional_message_html}}
+
+06-propuesta-decision-creador.html
+  {{proposal_title}} {{project_name}} {{client_name}} {{decision_label}} {{decision_date}} {{comment_text}}
+
+07-verificacion-correo.html
+  {{full_name}} {{verification_url}} {{expiration_minutes}}
+
+08-super-admin-accion-tenant.html
+  {{organization_name}} {{organization_id}} {{actor_full_name}} {{actor_email}} {{action_label}} {{details_block_html}}

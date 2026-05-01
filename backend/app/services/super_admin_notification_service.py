@@ -9,7 +9,13 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.email import send_email
+from app.core.email import (
+    NOUGRAM_BRAND_ACCENT,
+    NOUGRAM_BRAND_DARK,
+    NOUGRAM_BRAND_LOGO_URL,
+    NOUGRAM_SITE_URL,
+    send_email,
+)
 from app.core.logging import get_logger
 from app.core.permissions import get_allowed_super_admin_emails
 from app.models.organization import Organization
@@ -41,8 +47,9 @@ class SuperAdminNotificationService:
     def _render_details(details: dict[str, Any]) -> tuple[str, str]:
         details_json = json.dumps(details, ensure_ascii=False, indent=2, default=str)
         details_html = (
-            "<pre style='background:#f6f8fa;padding:12px;border-radius:6px;"
-            "border:1px solid #e5e7eb;overflow:auto;'>"
+            "<pre style='background:#fafafa;padding:12px;border-radius:6px;"
+            "border:1px solid #e8e8ec;border-left:4px solid "
+            f"{NOUGRAM_BRAND_ACCENT};overflow:auto;color:{NOUGRAM_BRAND_DARK};'>"
             f"{details_json}"
             "</pre>"
         )
@@ -75,12 +82,20 @@ class SuperAdminNotificationService:
 
         details_text, details_html = SuperAdminNotificationService._render_details(details)
         subject = f"[Nougram] Tenant action: {action_label} ({organization.name})"
+        d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
         body_html = (
-            "<p>Se registró una acción de facturación/cuenta a nivel tenant.</p>"
-            f"<p><strong>Organización:</strong> {organization.name} (ID: {organization.id})</p>"
-            f"<p><strong>Usuario:</strong> {actor.full_name} ({actor.email})</p>"
-            f"<p><strong>Acción:</strong> {action_label}</p>"
+            f"<table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='max-width:640px;'>"
+            f"<tr><td style='padding:16px 0;text-align:center;background:{d};border-radius:8px 8px 0 0;'>"
+            f"<a href='{site}' target='_blank' rel='noopener noreferrer' style='text-decoration:none;'>"
+            f"<img src='{logo}' alt='Nougram' width='120' style='display:block;margin:0 auto;border:0;max-width:120px;height:auto;'/>"
+            f"</a></td></tr>"
+            "<tr><td style='padding:16px 0 8px;'>"
+            "<p style='margin:0 0 12px;'>Se registró una acción de facturación/cuenta a nivel tenant.</p>"
+            f"<p style='margin:0 0 8px;'><strong>Organización:</strong> {organization.name} (ID: {organization.id})</p>"
+            f"<p style='margin:0 0 8px;'><strong>Usuario:</strong> {actor.full_name} ({actor.email})</p>"
+            f"<p style='margin:0 0 12px;'><strong>Acción:</strong> <span style='color:{a};font-weight:600;'>{action_label}</span></p>"
             f"{details_html}"
+            "</td></tr></table>"
         )
         body_text = (
             "Se registró una acción de facturación/cuenta a nivel tenant.\n\n"

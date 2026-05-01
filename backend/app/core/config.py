@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = ""
     SMTP_FROM_NAME: str = "Nougram"
     SMTP_USE_TLS: bool = True
-    # Supported values: "smtp", "mailersend"
+    # Supported values: "smtp", "mailersend", "resend"
     EMAIL_PROVIDER: str = "smtp"
     MAILERSEND_API_KEY: str = ""
     MAILERSEND_BASE_URL: str = "https://api.mailersend.com/v1"
@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     MAILERSEND_TEMPLATE_QUOTE_ID: str = ""
     MAILERSEND_TEMPLATE_PROPOSAL_SHARE_ID: str = ""
     MAILERSEND_TEMPLATE_PROPOSAL_DECISION_ID: str = ""
+    RESEND_API_KEY: str = ""
+    RESEND_BASE_URL: str = "https://api.resend.com"
+    RESEND_FROM_EMAIL: str = ""
+    RESEND_FROM_NAME: str = "Nougram"
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5000"

@@ -13,7 +13,13 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.email import send_email
+from app.core.email import (
+    NOUGRAM_BRAND_ACCENT,
+    NOUGRAM_BRAND_DARK,
+    NOUGRAM_BRAND_LOGO_URL,
+    NOUGRAM_SITE_URL,
+    send_email,
+)
 from app.core.exceptions import ResourceNotFoundError
 from app.core.logging import get_logger
 from app.core.permission_middleware import (
@@ -680,18 +686,30 @@ async def share_proposal_with_client(
     access_expires_at_label = access_expires_at.strftime("%Y-%m-%d %H:%M UTC")
 
     if payload.send_email:
+        d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
         email_html = f"""
-        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-          <h2>Tienes una Propuesta de "{sender_company_name}"</h2>
-          <p>Hola, tienes una propuesta comercial disponible para revisar.</p>
-          <p><strong>Proyecto:</strong> {project.name}</p>
-          <p><strong>Cliente:</strong> {project.client_name}</p>
-          <p><strong>Vigencia del acceso:</strong> hasta {access_expires_at_label}</p>
-          <p><strong>Clave temporal:</strong> <span style="font-size: 18px;">{access_code}</span> (expira en {OTP_EXPIRATION_MINUTES} minutos)</p>
-          <p><a href="{public_url}" style="display:inline-block;padding:10px 14px;background:#111827;color:#fff;text-decoration:none;border-radius:6px;">Ver propuesta</a></p>
-          <p>También podrás aceptar, rechazar o solicitar revisión.</p>
+        <!DOCTYPE html><html><head><meta charset="utf-8"></head>
+        <body style="margin:0;padding:0;background:#ebebf0;font-family:Arial,sans-serif;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ebebf0;padding:24px 16px;"><tr><td align="center">
+        <table role="presentation" width="100%" style="max-width:600px;background:#fff;border-radius:12px;border:1px solid #d4d4dc;overflow:hidden;"><tr>
+        <td style="padding:20px 24px;text-align:center;background:{d};">
+        <a href="{site}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+        <img src="{logo}" alt="Nougram" width="140" style="display:block;margin:0 auto;border:0;max-width:140px;width:140px;height:auto;" /></a></td></tr><tr>
+        <td style="padding:24px;color:{d};">
+          <h2 style="margin:0 0 16px;font-size:20px;font-weight:600;">Tienes una propuesta de «{sender_company_name}»</h2>
+          <p style="margin:0 0 16px;line-height:1.6;">Hola, tienes una propuesta comercial disponible para revisar.</p>
+          <p style="margin:0 0 8px;"><strong>Proyecto:</strong> {project.name}</p>
+          <p style="margin:0 0 8px;"><strong>Cliente:</strong> {project.client_name}</p>
+          <p style="margin:0 0 8px;"><strong>Vigencia del acceso:</strong> hasta {access_expires_at_label}</p>
+          <p style="margin:0 0 20px;"><strong>Clave temporal:</strong> <span style="font-size:18px;font-weight:700;color:{a};">{access_code}</span> (expira en {OTP_EXPIRATION_MINUTES} minutos)</p>
+          <table role="presentation" cellspacing="0" cellpadding="0"><tr>
+          <td style="border-radius:8px;background:{a};">
+          <a href="{public_url}" style="display:inline-block;padding:12px 20px;color:#fff !important;text-decoration:none;font-weight:600;">Ver propuesta</a>
+          </td></tr></table>
+          <p style="margin:20px 0 8px;line-height:1.6;">También podrás aceptar, rechazar o solicitar revisión.</p>
           <p>{payload.message or ""}</p>
-        </div>
+        </td></tr></table></td></tr></table>
+        </body></html>
         """
         email_text = (
             f'Tienes una Propuesta de "{sender_company_name}"\n'

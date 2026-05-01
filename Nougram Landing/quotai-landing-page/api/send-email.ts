@@ -2,6 +2,39 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import nodemailer from 'nodemailer';
 import { google } from 'googleapis';
 
+async function sendViaResend(params: {
+    from: string;
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+}): Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    if (!apiKey) {
+        throw new Error('RESEND_API_KEY is not set');
+    }
+
+    const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            from: params.from,
+            to: [params.to],
+            subject: params.subject,
+            text: params.text,
+            html: params.html,
+        }),
+    });
+
+    if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Resend error ${res.status}: ${errText.slice(0, 500)}`);
+    }
+}
+
 export default async function handler(
     req: VercelRequest,
     res: VercelResponse
@@ -37,37 +70,21 @@ export default async function handler(
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    try {
-        // 1. Send Email via SMTP
-        const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: Number(process.env.SMTP_PORT) || 587,
-            secure: false, // true for 465, false for other ports
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-            },
-            tls: {
-                rejectUnauthorized: false
-            }
-        });
+    const leadTo = process.env.LEAD_NOTIFICATION_TO || 'business@nougram.co';
+    const subject = `Nuevo Lead Beta: ${name}`;
 
-        const mailOptions = {
-            from: `"Nougram Lead" <${process.env.SMTP_USER}>`,
-            to: 'business@nougram.co',
-            subject: `Nuevo Lead Beta: ${name}`,
-            text: `
+    const text = `
         Nuevo registro para la Beta de Nougram:
-        
+
         Nombre: ${name}
         Email: ${email}
         Profesión: ${profession}
         Teléfono: ${phone || 'No especificado'}
-        Teléfono: ${phone || 'No especificado'}
         WhatsApp Consent: ${whatsappConsent ? 'Sí' : 'No'}
         Dará Feedback: ${feedbackConsent ? 'Sí' : 'No'}
-      `,
-            html: `
+      `;
+
+    const html = `
         <h2>Nuevo registro para la Beta de Nougram</h2>
         <p><strong>Nombre:</strong> ${name}</p>
         <p><strong>Email:</strong> ${email}</p>
@@ -75,12 +92,42 @@ export default async function handler(
         <p><strong>Teléfono:</strong> ${phone || 'No especificado'}</p>
         <p><strong>Acepta WhatsApp:</strong> ${whatsappConsent ? 'Sí' : 'No'}</p>
         <p><strong>Dará Feedback:</strong> ${feedbackConsent ? 'Sí' : 'No'}</p>
-      `,
-        };
+      `;
 
-        await transporter.sendMail(mailOptions);
+    try {
+        if (process.env.RESEND_API_KEY?.trim()) {
+            const fromEmail = process.env.RESEND_FROM_EMAIL?.trim();
+            if (!fromEmail) {
+                console.error('RESEND_FROM_EMAIL is required when using Resend.');
+                return res.status(500).json({ error: 'Email misconfigured' });
+            }
+            const fromName = (process.env.RESEND_FROM_NAME || 'Nougram Lead').trim();
+            const from = `${fromName} <${fromEmail}>`;
+            await sendViaResend({ from, to: leadTo, subject, text, html });
+        } else {
+            const transporter = nodemailer.createTransport({
+                host: process.env.SMTP_HOST,
+                port: Number(process.env.SMTP_PORT) || 587,
+                secure: false,
+                auth: {
+                    user: process.env.SMTP_USER,
+                    pass: process.env.SMTP_PASS,
+                },
+                tls: {
+                    rejectUnauthorized: false
+                }
+            });
 
-        // 2. Save to Google Sheets
+            await transporter.sendMail({
+                from: `"Nougram Lead" <${process.env.SMTP_USER}>`,
+                to: leadTo,
+                subject,
+                text,
+                html,
+            });
+        }
+
+        // Save to Google Sheets
         if (process.env.GOOGLE_SHEET_ID && process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
             try {
                 const auth = new google.auth.GoogleAuth({
@@ -100,11 +147,10 @@ export default async function handler(
                     requestBody: {
                         values: [
                             [
-                                new Date().toISOString(), // Timestamp
+                                new Date().toISOString(),
                                 name,
                                 email,
                                 profession,
-                                phone || '',
                                 phone || '',
                                 whatsappConsent ? 'Sí' : 'No',
                                 feedbackConsent ? 'Sí' : 'No'
@@ -114,7 +160,6 @@ export default async function handler(
                 });
             } catch (sheetError) {
                 console.error('Error saving to Google Sheets:', sheetError);
-                // We don't fail the request if sheets fails, but we log the error.
             }
         }
 

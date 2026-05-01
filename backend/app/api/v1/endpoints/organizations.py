@@ -8,7 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
+from app.core.email import (
+    generate_welcome_email_html,
+    generate_welcome_email_text,
+    send_email,
+)
 from app.core.logging import get_logger
 from app.core.permissions import (
     PERM_INVITE_USERS,
@@ -447,6 +453,28 @@ async def register_organization(
     await db.refresh(admin_user)
 
     logger.info(f"Organization registered: {org.id} ({org.name}) with admin user {admin_user.id}")
+
+    login_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
+    welcome_sent = await send_email(
+        to_email=admin_user.email,
+        subject="Bienvenido a Nougram",
+        body_html=generate_welcome_email_html(
+            full_name=admin_user.full_name,
+            organization_name=org.name,
+            login_url=login_url,
+        ),
+        body_text=generate_welcome_email_text(
+            full_name=admin_user.full_name,
+            organization_name=org.name,
+            login_url=login_url,
+        ),
+    )
+    if not welcome_sent:
+        logger.warning(
+            "Failed to send welcome email after organization registration",
+            user_id=admin_user.id,
+            email=admin_user.email,
+        )
 
     # Grant initial subscription credits
     try:

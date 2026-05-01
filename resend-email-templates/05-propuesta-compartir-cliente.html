@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Propuesta comercial</title>
+</head>
+<body style="margin:0;padding:0;background-color:#ebebf0;font-family:Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ebebf0;padding:24px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #d4d4dc;">
+          <tr>
+            <td style="padding:20px 24px;text-align:center;background:#262537;">
+              <a href="https://www.nougram.co" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+                <img src="https://www.nougram.co/logo-nougram.png" alt="Nougram" width="140" style="display:block;margin:0 auto;border:0;outline:none;max-width:140px;width:140px;height:auto;font-size:14px;color:#F35D0A;" />
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 24px 8px;color:#262537;">
+              <h2 style="margin:0;font-size:20px;font-weight:600;">Tienes una propuesta de «{{sender_company_name}}»</h2>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 24px 24px;color:#262537;line-height:1.6;font-size:15px;">
+              <p style="margin:0 0 16px;">Hola, tienes una propuesta comercial disponible para revisar.</p>
+              <p style="margin:0 0 6px;"><strong>Proyecto:</strong> {{project_name}}</p>
+              <p style="margin:0 0 6px;"><strong>Cliente:</strong> {{client_name}}</p>
+              <p style="margin:0 0 6px;"><strong>Vigencia del acceso:</strong> hasta {{access_expires_at_label}}</p>
+              <p style="margin:0 0 20px;"><strong>Clave temporal:</strong> <span style="font-size:18px;font-weight:700;letter-spacing:0.05em;color:#F35D0A;">{{access_code}}</span> (expira en {{otp_expiration_minutes}} minutos)</p>
+              <table role="presentation" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="border-radius:8px;background:#F35D0A;">
+                    <a href="{{public_url}}" style="display:inline-block;padding:12px 20px;color:#ffffff !important;text-decoration:none;font-weight:600;font-size:15px;">Ver propuesta</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:20px 0 8px;">Podrás aceptar, rechazar o solicitar revisión desde el portal.</p>
+              {{optional_message_html}}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

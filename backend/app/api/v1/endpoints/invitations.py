@@ -11,7 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.email import send_email
+from app.core.email import (
+    NOUGRAM_BRAND_ACCENT,
+    NOUGRAM_BRAND_DARK,
+    NOUGRAM_BRAND_LOGO_URL,
+    NOUGRAM_SITE_URL,
+    send_email,
+)
 from app.core.logging import get_logger
 from app.core.permissions import PERM_INVITE_USERS, check_permission, get_user_role
 from app.core.plan_limits import validate_user_limit
@@ -66,41 +72,36 @@ async def _send_invitation_email(
 
     subject = f"Invitation to join {organization.name}"
 
+    d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
     body_html = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background-color: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }}
-            .content {{ background-color: #f9fafb; padding: 30px; border-radius: 0 0 5px 5px; }}
-            .button {{ display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
-            .footer {{ text-align: center; margin-top: 20px; color: #6b7280; font-size: 12px; }}
-        </style>
     </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>You're Invited!</h1>
-            </div>
-            <div class="content">
-                <p>Hello,</p>
-                <p>You have been invited to join <strong>{organization.name}</strong> on Nougram.</p>
-                <p>Your role will be: <strong>{invitation.role}</strong></p>
-                <p style="text-align: center;">
-                    <a href="{invitation_link}" class="button">Accept Invitation</a>
-                </p>
-                <p>Or copy and paste this link into your browser:</p>
-                <p style="word-break: break-all; color: #4F46E5;">{invitation_link}</p>
-                <p><strong>This invitation expires on:</strong> {invitation.expires_at.strftime("%B %d, %Y at %I:%M %p")}</p>
-                <p>If you didn't expect this invitation, you can safely ignore this email.</p>
-            </div>
-            <div class="footer">
-                <p>This is an automated message from Nougram. Please do not reply to this email.</p>
-            </div>
-        </div>
+    <body style="margin:0;padding:0;background:#ebebf0;font-family:Arial,sans-serif;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ebebf0;padding:24px 16px;"><tr><td align="center">
+        <table role="presentation" width="100%" style="max-width:600px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #d4d4dc;"><tr>
+        <td style="padding:20px 24px;text-align:center;background:{d};">
+        <a href="{site}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+        <img src="{logo}" alt="Nougram" width="140" style="display:block;margin:0 auto;border:0;max-width:140px;width:140px;height:auto;" /></a></td></tr><tr>
+        <td style="background:{d};color:#fff;padding:20px 24px;text-align:center;border-top:1px solid rgba(243,93,10,.25);">
+        <h1 style="margin:0;font-size:20px;font-weight:600;">Invitación a Nougram</h1></td></tr><tr>
+        <td style="padding:28px 24px;color:{d};line-height:1.6;font-size:15px;background:#fafafa;">
+            <p>Hola,</p>
+            <p>Te invitaron a unirte a <strong>{organization.name}</strong> en Nougram.</p>
+            <p>Tu rol será: <strong>{invitation.role}</strong></p>
+            <table role="presentation" cellspacing="0" cellpadding="0" style="margin:20px auto;"><tr>
+            <td style="border-radius:8px;background:{a};">
+            <a href="{invitation_link}" style="display:inline-block;padding:12px 24px;color:#fff !important;text-decoration:none;font-weight:600;">Aceptar invitación</a>
+            </td></tr></table>
+            <p style="font-size:13px;color:#5c5d70;">O copia este enlace:</p>
+            <p style="word-break:break-all;font-size:12px;"><a href="{invitation_link}" style="color:{a};">{invitation_link}</a></p>
+            <p><strong>Vence:</strong> {invitation.expires_at.strftime("%B %d, %Y at %I:%M %p")}</p>
+            <p style="font-size:13px;color:#5c5d70;">Si no esperabas esta invitación, ignora este correo.</p>
+        </td></tr><tr>
+        <td style="padding:16px 24px;text-align:center;font-size:11px;color:#5c5d70;background:#fff;">Correo automático · Nougram</td></tr>
+        </table></td></tr></table>
     </body>
     </html>
     """
