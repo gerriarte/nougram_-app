@@ -239,7 +239,8 @@ async def forgot_password(
     """Request password reset email for an account."""
     normalized_email = payload.email.strip().lower()
     generic_message = (
-        "Si el correo existe, enviaremos instrucciones para restablecer la contrasena."
+        "Si hay una cuenta con ese correo, deberias recibir un enlace para restablecer "
+        "la contrasena en unos minutos. Revisa tambien spam."
     )
 
     result = await db.execute(select(User).where(User.email == normalized_email))
@@ -272,7 +273,14 @@ async def forgot_password(
     )
 
     resend_reset_tpl = (settings.RESEND_TEMPLATE_PASSWORD_RESET_ID or "").strip()
-    if (settings.EMAIL_PROVIDER or "").strip().lower() == "resend" and resend_reset_tpl:
+    provider_lc = (settings.EMAIL_PROVIDER or "smtp").strip().lower()
+    logger.info(
+        "Password reset: invoking email sender",
+        user_id=user.id,
+        email_provider=provider_lc,
+        using_published_resend_template=bool(provider_lc == "resend" and resend_reset_tpl),
+    )
+    if provider_lc == "resend" and resend_reset_tpl:
         email_sent = await send_email(
             to_email=user.email,
             subject="Recuperacion de contrasena - Nougram",
@@ -297,6 +305,8 @@ async def forgot_password(
             "Failed to send password reset email",
             user_id=user.id,
             email=user.email,
+            email_provider=provider_lc,
+            resend_template_password_reset_configured=bool(resend_reset_tpl),
         )
 
     return ForgotPasswordResponse(message=generic_message)

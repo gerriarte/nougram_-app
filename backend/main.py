@@ -52,6 +52,37 @@ async def lifespan(app: FastAPI):
     if not origins:
         logger.warning("CORS_ORIGINS is empty or invalid; cross-origin requests will be blocked")
 
+    email_provider = (settings.EMAIL_PROVIDER or "smtp").strip().lower()
+    from_any = bool(
+        (
+            settings.RESEND_FROM_EMAIL
+            or settings.MAILERSEND_FROM_EMAIL
+            or settings.SMTP_FROM_EMAIL
+            or ""
+        ).strip()
+    )
+    logger.info(
+        "Email delivery provider",
+        email_provider=email_provider,
+        resend_api_key_present=bool((settings.RESEND_API_KEY or "").strip()),
+        transactional_from_email_present=from_any,
+    )
+    if email_provider == "resend":
+        if not (settings.RESEND_API_KEY or "").strip():
+            logger.warning(
+                "EMAIL_PROVIDER is resend but RESEND_API_KEY is empty; emails will never reach Resend"
+            )
+        if not from_any:
+            logger.warning(
+                "EMAIL_PROVIDER is resend but no from address is set "
+                "(RESEND_FROM_EMAIL or SMTP_FROM_EMAIL); Resend sends will fail"
+            )
+    elif (settings.RESEND_API_KEY or "").strip() and email_provider != "resend":
+        logger.warning(
+            "RESEND_API_KEY is set but EMAIL_PROVIDER is not resend; "
+            "password reset and other mail go to the other provider — Resend dashboard will stay empty"
+        )
+
     # Optional startup bootstrap for super admin account.
     try:
         async with AsyncSessionLocal() as db:

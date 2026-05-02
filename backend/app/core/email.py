@@ -291,13 +291,19 @@ async def _send_email_via_resend(
         async with httpx.AsyncClient(timeout=HTTP_EMAIL_TIMEOUT_SECONDS) as client:
             response = await client.post(url, json=payload, headers=headers)
         if response.status_code in (200, 201):
+            resend_email_id: str | None = None
+            try:
+                body = response.json()
+                if isinstance(body, dict):
+                    raw_id = body.get("id")
+                    resend_email_id = str(raw_id) if raw_id else None
+            except Exception:
+                pass
             logger.info(
-                f"Email sent successfully to {to_email}",
-                level="info",
-                module=__name__,
-                function="_send_email_via_resend",
+                f"Email accepted by Resend API for {to_email}",
                 subject=subject,
                 resend_template=bool(rtid),
+                resend_email_id=resend_email_id,
             )
             return True
 

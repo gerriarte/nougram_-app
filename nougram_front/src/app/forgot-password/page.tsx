@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -17,12 +17,12 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [submittedMessage, setSubmittedMessage] = useState<string | null>(null);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
-    setSuccess(null);
+    setSubmittedMessage(null);
     setSubmitting(true);
 
     const response = await apiRequest<ForgotPasswordResponse>('/auth/forgot-password', {
@@ -36,9 +36,9 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    setSuccess(
+    setSubmittedMessage(
       response.data?.message ||
-      'Si el correo existe, enviaremos instrucciones para restablecer tu contraseña.'
+        'Si hay una cuenta con ese correo, deberías recibir un enlace en unos minutos. Revisa también spam.'
     );
   };
 
@@ -48,7 +48,7 @@ export default function ForgotPasswordPage() {
         <div className="space-y-2 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Recuperar contraseña</h1>
           <p className="text-sm text-system-gray">
-            Ingresa tu correo y te enviaremos un enlace para restablecerla.
+            Ingresa el correo de tu cuenta. Si está registrado, te enviaremos un enlace para restablecerla.
           </p>
         </div>
 
@@ -62,12 +62,9 @@ export default function ForgotPasswordPage() {
             </Alert>
           )}
 
-          {success && (
-            <Alert variant="success">
-              <div className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 mt-0.5" />
-                <span>{success}</span>
-              </div>
+          {submittedMessage && (
+            <Alert variant="info">
+              <span>{submittedMessage}</span>
             </Alert>
           )}
 
