@@ -49,10 +49,19 @@ export const pricingService = {
                 internalCost = totalResourceCost;
                 break;
 
-            case 'recurring':
-                // Cost is derived purely from resources
-                internalCost = totalResourceCost;
+            case 'recurring': {
+                // If resources are assigned, they drive the internal cost.
+                // Otherwise estimate from the user-defined recurring price minus margin.
+                if (totalResourceCost > 0) {
+                    internalCost = totalResourceCost;
+                } else {
+                    const recurringTotal = (item.recurringPrice || 0) * Math.max(1, duration);
+                    internalCost = recurringTotal > 0
+                        ? recurringTotal * (1 - Math.max(0, Math.min(1, globalTargetMargin)))
+                        : 0;
+                }
                 break;
+            }
 
             case 'project_value':
                 // Cost is 60% of value (legacy rule) OR resource cost if higher?
@@ -67,31 +76,25 @@ export const pricingService = {
         }
 
         // 2. Calculate Client Price
-        if (item.pricingType === 'recurring' && item.manualPrice) {
-            clientPrice = item.manualPrice;
-        } else {
-            switch (item.pricingType) {
-                case 'hourly':
-                    // Price = Cost * (1 + Margin)
-                    clientPrice = internalCost * (1 + globalTargetMargin);
-                    break;
+        switch (item.pricingType) {
+            case 'hourly':
+                clientPrice = internalCost * (1 + globalTargetMargin);
+                break;
 
-                case 'fixed':
-                    // Price is independent of cost (it's fixed)
-                    clientPrice = (item.fixedPrice || 0) * item.quantity;
-                    break;
+            case 'fixed':
+                clientPrice = (item.fixedPrice || 0) * item.quantity;
+                break;
 
-                case 'recurring':
-                    // Price = (Monthly Cost * (1 + Margin)) * Duration
-                    // If internalCost is Total Cost (Monthly * Duration), then:
-                    // Price = (Total Cost * (1 + Margin))
-                    clientPrice = internalCost * (1 + globalTargetMargin);
-                    break;
+            case 'recurring':
+                // Client price is always user-defined: recurringPrice × durationMonths.
+                // It must NOT be derived from internalCost so the amount is stable across
+                // save/load cycles regardless of resource allocations or BCR changes.
+                clientPrice = (item.recurringPrice || 0) * Math.max(1, duration);
+                break;
 
-                case 'project_value':
-                    clientPrice = item.projectValue || 0;
-                    break;
-            }
+            case 'project_value':
+                clientPrice = item.projectValue || 0;
+                break;
         }
 
         // 3. Calculate Margin

@@ -238,14 +238,13 @@ function getAllocatedHours(item: QuoteItem): number {
 
 function resolveEstimatedHours(item: QuoteItem): number {
     const allocated = getAllocatedHours(item);
-    if (allocated > 0) {
-        if (item.pricingType === 'recurring') {
-            const duration = Math.max(1, Number(item.durationMonths || item.quantity || 1));
-            return allocated * duration;
-        }
-        return allocated;
-    }
-    return Number(item.estimatedHours || 0);
+    // For recurring, estimatedHours in state represents per-period hours (h/mes).
+    // The backend expects total hours (per-period × duration) for correct internal cost.
+    const duration = item.pricingType === 'recurring'
+        ? Math.max(1, Number(item.durationMonths || item.quantity || 1))
+        : 1;
+    const perPeriodHours = allocated > 0 ? allocated : Number(item.estimatedHours || 0);
+    return perPeriodHours * duration;
 }
 
 function resolveQuantity(item: QuoteItem): number {
@@ -797,7 +796,11 @@ export const quoteService = {
                 serviceId: item.service_id,
                 serviceName: item.custom_service_name || item.service_name || service?.name || `Servicio ${item.service_id}`,
                 pricingType: resolvedPricingType,
-                estimatedHours: Number(item.estimated_hours || 0),
+                // For recurring items, estimated_hours in DB is total (per-period × duration).
+                // Restore per-period hours so the UI "H/mes" field shows the correct value.
+                estimatedHours: resolvedPricingType === 'recurring'
+                    ? Math.round(Number(item.estimated_hours || 0) / Math.max(1, quantity))
+                    : Number(item.estimated_hours || 0),
                 fixedPrice: resolvedPricingType === 'fixed' ? fixedPrice : undefined,
                 quantity,
                 recurringPrice: resolvedPricingType === 'recurring' ? recurringPrice : undefined,
