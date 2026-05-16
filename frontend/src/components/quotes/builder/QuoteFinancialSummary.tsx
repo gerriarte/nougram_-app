@@ -3,7 +3,7 @@
 import React from 'react';
 import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
 import { formatDisplayNumber, formatMoneyAmount } from '@/lib/utils';
-import { AlertTriangle, ArrowUpRight } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
@@ -164,6 +164,10 @@ export function QuoteFinancialSummary() {
     const currency = state.currency || 'COP';
     const fmt = (n: number) => `$${formatMoneyAmount(n)}`;
 
+    const itemsWithUnknownCost = state.items.filter(
+        item => (item.clientPrice || 0) > 0 && (item.internalCost || 0) === 0
+    ).length;
+
     return (
         <aside className="sticky top-4 flex flex-col gap-3 self-start max-h-[calc(100vh-6rem)] overflow-y-auto pb-4">
 
@@ -234,6 +238,19 @@ export function QuoteFinancialSummary() {
                 </div>
 
                 {/* Alerts */}
+                {itemsWithUnknownCost > 0 && (
+                    <div className="mx-3 mb-3 flex items-start gap-2.5 rounded-lg border border-amber-100 bg-amber-50/80 px-3 py-2.5">
+                        <AlertCircle size={13} className="mt-0.5 shrink-0 text-amber-600" />
+                        <div>
+                            <p className="text-[11.5px] font-semibold text-amber-800">
+                                {itemsWithUnknownCost} ítem{itemsWithUnknownCost > 1 ? 's' : ''} sin horas estimadas
+                            </p>
+                            <p className="text-[10.5px] text-amber-700/90">
+                                El margen está sobreestimado. Asigna horas o recursos para un análisis real.
+                            </p>
+                        </div>
+                    </div>
+                )}
                 {summary.totalClientPrice < summary.totalInternalCost && summary.totalInternalCost > 0 && (
                     <div className="mx-3 mb-3 flex items-start gap-2.5 rounded-lg border border-red-100 bg-critical-soft px-3 py-2.5">
                         <AlertTriangle size={13} className="mt-0.5 shrink-0 text-critical" />

@@ -49,6 +49,16 @@ function marginToneClass(marginPct: number, hasValue: boolean) {
     return { text: 'text-success', pct: 'text-green-300' };
 }
 
+// Read-only field that signals "cost is unknown — assign hours or resources"
+function UnknownCostField() {
+    return (
+        <div className="flex h-9 items-center gap-1.5 rounded-lg border border-amber-200/80 bg-amber-50/60 px-3 text-[11px] font-medium text-amber-700">
+            <AlertCircle size={11} strokeWidth={2.2} className="shrink-0" />
+            Sin horas
+        </div>
+    );
+}
+
 // ── Props ──────────────────────────────────────────────────────────
 interface QuoteItemRowProps {
     item: QuoteItem;
@@ -80,7 +90,10 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
     const subtotal = item.clientPrice || 0;
     const cost = item.internalCost || 0;
     const marginPct = subtotal > 0 ? ((subtotal - cost) / subtotal) * 100 : 0;
-    const toneClass = marginToneClass(marginPct, subtotal > 0);
+    // costUnknown: item has a client price but zero internal cost (no hours/allocations assigned).
+    // The 100% margin it would display is fictitious, so we suppress the percentage.
+    const costUnknown = subtotal > 0 && cost === 0;
+    const toneClass = marginToneClass(marginPct, subtotal > 0 && !costUnknown);
 
     // ── Resource handlers ──────────────────────────────────────────
     const handleAddResource = () => {
@@ -190,7 +203,7 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                                 </span>
                                 {subtotal > 0 && (
                                     <span className={cn('text-[9.5px] font-semibold', toneClass.pct)}>
-                                        {marginPct.toFixed(0)}%
+                                        {costUnknown ? '—' : `${marginPct.toFixed(0)}%`}
                                     </span>
                                 )}
                             </div>
@@ -202,9 +215,11 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                 {item.pricingType === 'fixed' && (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <LabeledField label="Costo base">
-                            <div className="flex h-9 items-center rounded-lg border border-gray-100 bg-surface-2 px-3 text-[12px] tabular-nums text-gray-500">
-                                {formatCurrency(cost, currency)}
-                            </div>
+                            {costUnknown ? <UnknownCostField /> : (
+                                <div className="flex h-9 items-center rounded-lg border border-gray-100 bg-surface-2 px-3 text-[12px] tabular-nums text-gray-500">
+                                    {formatCurrency(cost, currency)}
+                                </div>
+                            )}
                         </LabeledField>
                         <LabeledField label="Cantidad">
                             <NumInput
@@ -230,7 +245,7 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                                 </span>
                                 {subtotal > 0 && (
                                     <span className={cn('text-[9.5px] font-semibold', toneClass.pct)}>
-                                        {marginPct.toFixed(0)}%
+                                        {costUnknown ? '—' : `${marginPct.toFixed(0)}%`}
                                     </span>
                                 )}
                             </div>
@@ -258,9 +273,11 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                             />
                         </LabeledField>
                         <LabeledField label="Costo total">
-                            <div className="flex h-9 items-center rounded-lg border border-gray-100 bg-surface-2 px-3 text-[12px] tabular-nums text-gray-500">
-                                {formatCurrency(totalResourceCost, currency)}
-                            </div>
+                            {costUnknown ? <UnknownCostField /> : (
+                                <div className="flex h-9 items-center rounded-lg border border-gray-100 bg-surface-2 px-3 text-[12px] tabular-nums text-gray-500">
+                                    {formatCurrency(totalResourceCost, currency)}
+                                </div>
+                            )}
                         </LabeledField>
                         <LabeledField label="$/mes (cliente)">
                             <NumInput
@@ -281,7 +298,7 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                                 </span>
                                 {subtotal > 0 && (
                                     <span className={cn('text-[9.5px] font-semibold', toneClass.pct)}>
-                                        {marginPct.toFixed(0)}%
+                                        {costUnknown ? '—' : `${marginPct.toFixed(0)}%`}
                                     </span>
                                 )}
                             </div>
@@ -293,9 +310,11 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                 {item.pricingType === 'project_value' && (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                         <LabeledField label="Costo base">
-                            <div className="flex h-9 items-center rounded-lg border border-gray-100 bg-surface-2 px-3 text-[12px] tabular-nums text-gray-500">
-                                {formatCurrency(cost, currency)}
-                            </div>
+                            {costUnknown ? <UnknownCostField /> : (
+                                <div className="flex h-9 items-center rounded-lg border border-gray-100 bg-surface-2 px-3 text-[12px] tabular-nums text-gray-500">
+                                    {formatCurrency(cost, currency)}
+                                </div>
+                            )}
                         </LabeledField>
                         <LabeledField label="Valor proyecto (venta)">
                             <NumInput
@@ -314,7 +333,7 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                                 </span>
                                 {subtotal > 0 && (
                                     <span className={cn('text-[9.5px] font-semibold', toneClass.pct)}>
-                                        {marginPct.toFixed(0)}%
+                                        {costUnknown ? '—' : `${marginPct.toFixed(0)}%`}
                                     </span>
                                 )}
                             </div>
