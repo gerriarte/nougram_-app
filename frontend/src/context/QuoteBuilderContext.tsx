@@ -494,6 +494,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
                 selectedTaxIds: q.selectedTaxIds || [],
                 contingency: q.contingency,
                 items: q.items || [],
+                expenses: q.expenses || [],
             }));
         }
     }, []);

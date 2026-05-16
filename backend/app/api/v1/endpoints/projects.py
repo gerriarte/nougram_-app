@@ -39,6 +39,7 @@ from app.core.tenant import TenantContext, get_tenant_context
 from app.models.project import (
     Project,
     Quote,
+    QuoteExpense,
     QuoteItem,
     QuoteItemAllocation,
     QuoteItemCellAssignment,
@@ -69,6 +70,7 @@ from app.schemas.quote import (
     MarginSummary,
     QuoteEmailRequest,
     QuoteEmailResponse,
+    QuoteExpenseResponse,
 )
 from app.services.capacity_service import CapacityService
 from app.services.settings_service import SettingsService
@@ -943,6 +945,21 @@ async def get_quote(
 
     total_taxes, total_with_taxes = _compute_quote_tax_totals(quote, project)
 
+    expenses_response = [
+        QuoteExpenseResponse(
+            id=exp.id,
+            quote_id=exp.quote_id,
+            name=exp.name,
+            description=exp.description,
+            cost=exp.cost,
+            markup_percentage=exp.markup_percentage,
+            client_price=exp.client_price,
+            category=exp.category,
+            quantity=exp.quantity,
+        )
+        for exp in (quote.expenses or [])
+    ]
+
     return QuoteResponseWithItems(
         id=quote.id,
         project_id=quote.project_id,
@@ -970,6 +987,7 @@ async def get_quote(
         created_at=quote.created_at,
         updated_at=quote.updated_at,
         items=items_response,
+        expenses=expenses_response,
     )
 
 
@@ -1399,6 +1417,25 @@ async def update_quote(
             db.add_all(quote_allocations)
         if quote_cell_assignments:
             db.add_all(quote_cell_assignments)
+
+        # Replace expenses when provided
+        if quote_data.expenses is not None:
+            await db.execute(
+                sql_delete(QuoteExpense).where(QuoteExpense.quote_id == quote_id)
+            )
+            for exp_data in quote_data.expenses:
+                client_price = exp_data.cost * exp_data.quantity * (1 + exp_data.markup_percentage)
+                db.add(QuoteExpense(
+                    quote_id=quote_id,
+                    name=exp_data.name,
+                    description=exp_data.description,
+                    cost=exp_data.cost,
+                    markup_percentage=exp_data.markup_percentage,
+                    category=exp_data.category,
+                    quantity=exp_data.quantity,
+                    client_price=client_price,
+                ))
+
         await db.commit()
         await db.refresh(quote)
 
@@ -1422,6 +1459,7 @@ async def update_quote(
                 selectinload(Quote.items).selectinload(QuoteItem.service),
                 selectinload(Quote.items).selectinload(QuoteItem.allocations),
                 selectinload(Quote.items).selectinload(QuoteItem.cell_assignment),
+                selectinload(Quote.expenses),
             )
         )
         updated_quote = quote_result.scalar_one()
@@ -1478,6 +1516,21 @@ async def update_quote(
 
         total_taxes, total_with_taxes = _compute_quote_tax_totals(updated_quote, project)
 
+        expenses_response = [
+            QuoteExpenseResponse(
+                id=exp.id,
+                quote_id=exp.quote_id,
+                name=exp.name,
+                description=exp.description,
+                cost=exp.cost,
+                markup_percentage=exp.markup_percentage,
+                client_price=exp.client_price,
+                category=exp.category,
+                quantity=exp.quantity,
+            )
+            for exp in (updated_quote.expenses or [])
+        ]
+
         return QuoteResponseWithItems(
             id=updated_quote.id,
             project_id=updated_quote.project_id,
@@ -1511,6 +1564,7 @@ async def update_quote(
             created_at=updated_quote.created_at,
             updated_at=updated_quote.updated_at,
             items=items_response,
+            expenses=expenses_response,
         )
     except HTTPException:
         raise

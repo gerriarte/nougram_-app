@@ -1,6 +1,6 @@
 
 import { Quote } from '@/components/dashboard/QuoteCard';
-import { QuoteBuilderState, CalculationSummary, Service, QuoteItem, TaxConfig } from '@/types/quote-builder';
+import { QuoteBuilderState, CalculationSummary, Service, QuoteItem, QuoteExpense, TaxConfig } from '@/types/quote-builder';
 import { apiRequest } from '@/lib/api-client';
 import { CreditsRequiredError } from '@/lib/errors';
 
@@ -77,6 +77,17 @@ type ProjectQuoteResponse = {
         internal_cost?: string | number;
         client_price?: string | number;
         margin_percentage?: string | number;
+    }>;
+    expenses?: Array<{
+        id: number;
+        quote_id: number;
+        name: string;
+        description?: string | null;
+        cost: string | number;
+        markup_percentage: string | number;
+        quantity: string | number;
+        category?: string | null;
+        client_price: string | number;
     }>;
 };
 
@@ -536,6 +547,15 @@ export const quoteService = {
 
         const payloadItems = (data.items || []).map((item: QuoteItem) => mapQuoteItemToApi(item));
 
+        const expensesPayload = (data.expenses || []).map((e: QuoteExpense) => ({
+            name: e.name,
+            description: e.vendorName ?? null,
+            cost: String(e.cost),
+            markup_percentage: String(e.markupPercentage),
+            quantity: String(e.quantity),
+            category: e.category || null,
+        }));
+
         const response = await apiRequest(
             `/projects/${id}/quotes/${latestQuote.id}`,
             {
@@ -547,6 +567,7 @@ export const quoteService = {
                     contingency_type: data.contingency ? data.contingency.type : null,
                     contingency_value: data.contingency ? (data.contingency.value ?? 0) : null,
                     allow_low_margin: Boolean(data.allowLowMargin),
+                    expenses: expensesPayload,
                 }),
             }
         );
@@ -771,6 +792,7 @@ export const quoteService = {
         selectedTaxes: TaxConfig[];
         contingency?: QuoteBuilderState['contingency'];
         items: QuoteItem[];
+        expenses: QuoteExpense[];
     } | null> => {
         const projectResponse = await apiRequest<ProjectResponse>(`/projects/${projectId}`);
         if (projectResponse.error || !projectResponse.data) return null;
@@ -830,6 +852,17 @@ export const quoteService = {
             };
         });
 
+        const expenses: QuoteExpense[] = (detail?.expenses || []).map((exp) => ({
+            id: String(exp.id),
+            name: exp.name,
+            vendorName: exp.description ?? undefined,
+            cost: Number(exp.cost || 0),
+            markupPercentage: Number(exp.markup_percentage || 0),
+            quantity: Number(exp.quantity || 1),
+            category: exp.category ?? '',
+            clientPrice: Number(exp.client_price || 0),
+        }));
+
         return {
             id: String(projectResponse.data.id),
             version: Number(detail?.version || latestQuote.version || 1),
@@ -857,6 +890,7 @@ export const quoteService = {
                 }
                 : undefined,
             items,
+            expenses,
         };
     },
     // Public Proposal System
