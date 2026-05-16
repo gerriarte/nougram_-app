@@ -293,9 +293,9 @@ class TestProjectValuePricing:
         )
 
         assert result["total_client_price"] == pytest.approx(project_value, rel=0.01)
-        # Internal cost should be 50% of project value when no hours provided
-        expected_internal_cost = project_value * 0.5
-        assert result["total_internal_cost"] == pytest.approx(expected_internal_cost, rel=0.01)
+        # No hours provided → internal_cost is zero (unknown); client_price is still included
+        assert result["total_internal_cost"] == 0.0
+        assert len(result["items"]) == 1
 
     async def test_calculation_with_fixed_pricing(
         self, db_session: AsyncSession, test_organization: Organization
@@ -348,7 +348,8 @@ class TestProjectValuePricing:
 
         expected_client_price = fixed_price * quantity
         assert result["total_client_price"] == pytest.approx(expected_client_price, rel=0.01)
-        assert result["total_internal_cost"] == pytest.approx(600.0, rel=0.01)
+        # No hours provided → internal_cost is zero (unknown); client_price is still included
+        assert result["total_internal_cost"] == 0.0
 
 
 @pytest.mark.integration

@@ -336,8 +336,7 @@ class TestQuoteTotalsEnhanced:
         assert len(result["items"]) == 1
 
     async def test_fixed_pricing(self, db_session, test_organization, test_service):
-        """Test fixed pricing calculation"""
-        # Set up service with fixed pricing
+        """Fixed pricing with no hours: client_price is included, internal_cost is zero."""
         test_service.pricing_type = "fixed"
         test_service.fixed_price = 1000.0
         db_session.add(test_service)
@@ -348,10 +347,8 @@ class TestQuoteTotalsEnhanced:
 
         result = await calculate_quote_totals_enhanced(db_session, items, blended_cost_rate)
 
-        # Client price: 1000 * 2 = 2000
-        # Internal cost: 2000 * 0.6 = 1200 (default 60% if no hours)
         assert result["total_client_price"] == 2000.0
-        assert result["total_internal_cost"] == 1200.0
+        assert result["total_internal_cost"] == 0.0
         assert len(result["items"]) == 1
 
     async def test_fixed_pricing_with_hours(self, db_session, test_organization, test_service):
@@ -379,7 +376,7 @@ class TestQuoteTotalsEnhanced:
         assert result["total_internal_cost"] == 750.0
 
     async def test_recurring_pricing(self, db_session, test_organization, test_service):
-        """Test recurring pricing calculation"""
+        """Recurring pricing with no hours: client_price is user-defined, internal_cost is zero."""
         test_service.pricing_type = "recurring"
         test_service.recurring_price = 500.0
         test_service.billing_frequency = "monthly"
@@ -398,13 +395,39 @@ class TestQuoteTotalsEnhanced:
 
         result = await calculate_quote_totals_enhanced(db_session, items, blended_cost_rate)
 
-        # Client price: 500 * 1 = 500
-        # Internal cost: 50 * 32 * 1 = 1600 (estimated 32 hours/month)
         assert result["total_client_price"] == 500.0
-        assert result["total_internal_cost"] == 1600.0
+        assert result["total_internal_cost"] == 0.0
+
+    async def test_recurring_client_price_stable_with_target_margin(
+        self, db_session, test_organization, test_service
+    ):
+        """recurring client_price must not be overridden when target_margin_percentage is set."""
+        test_service.pricing_type = "recurring"
+        test_service.recurring_price = 500.0
+        test_service.billing_frequency = "monthly"
+        db_session.add(test_service)
+        await db_session.commit()
+
+        items = [
+            {
+                "service_id": test_service.id,
+                "recurring_price": 500.0,
+                "quantity": 3.0,  # 3 months
+                "estimated_hours": 60.0,  # 20 h/mes × 3
+            }
+        ]
+
+        result = await calculate_quote_totals_enhanced(
+            db_session, items, blended_cost_rate=50.0, target_margin_percentage=Decimal("0.40")
+        )
+
+        # client_price must always be recurring_price × quantity, never cost × margin
+        assert result["total_client_price"] == 1500.0  # 500 × 3
+        # internal_cost = 50 × 60 = 3000
+        assert result["total_internal_cost"] == 3000.0
 
     async def test_project_value_pricing(self, db_session, test_organization, test_service):
-        """Test project value pricing calculation"""
+        """project_value with no hours: client_price is user-defined, internal_cost is zero."""
         test_service.pricing_type = "project_value"
         db_session.add(test_service)
         await db_session.commit()
@@ -414,10 +437,8 @@ class TestQuoteTotalsEnhanced:
 
         result = await calculate_quote_totals_enhanced(db_session, items, blended_cost_rate)
 
-        # Client price: 5000 * 1 = 5000
-        # Internal cost: 5000 * 0.5 = 2500 (default 50% if no hours)
         assert result["total_client_price"] == 5000.0
-        assert result["total_internal_cost"] == 2500.0
+        assert result["total_internal_cost"] == 0.0
 
     async def test_expenses_with_markup(self, db_session, test_organization, test_service):
         """Test expenses with markup calculation"""
