@@ -511,7 +511,12 @@ def generate_quote_email_html(
     formatted_amount = f"{symbol} {total_with_taxes:,.2f}"
 
     notes_block = f"<p><strong>Notes:</strong><br>{notes}</p>" if notes else ""
-    d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
+    d, a, logo, site = (
+        NOUGRAM_BRAND_DARK,
+        NOUGRAM_BRAND_ACCENT,
+        NOUGRAM_BRAND_LOGO_URL,
+        NOUGRAM_SITE_URL,
+    )
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -607,7 +612,12 @@ def generate_welcome_email_html(
     login_url: str,
 ) -> str:
     """Generate HTML welcome email template."""
-    d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
+    d, a, logo, site = (
+        NOUGRAM_BRAND_DARK,
+        NOUGRAM_BRAND_ACCENT,
+        NOUGRAM_BRAND_LOGO_URL,
+        NOUGRAM_SITE_URL,
+    )
     return f"""
     <!DOCTYPE html>
     <html>
@@ -661,7 +671,12 @@ def generate_password_reset_email_html(
     expiration_minutes: int,
 ) -> str:
     """Generate HTML password reset email template."""
-    d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
+    d, a, logo, site = (
+        NOUGRAM_BRAND_DARK,
+        NOUGRAM_BRAND_ACCENT,
+        NOUGRAM_BRAND_LOGO_URL,
+        NOUGRAM_SITE_URL,
+    )
     return f"""
     <!DOCTYPE html>
     <html>
@@ -716,7 +731,12 @@ def generate_email_verification_email_html(
     expiration_minutes: int,
 ) -> str:
     """Generate HTML email verification template."""
-    d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
+    d, a, logo, site = (
+        NOUGRAM_BRAND_DARK,
+        NOUGRAM_BRAND_ACCENT,
+        NOUGRAM_BRAND_LOGO_URL,
+        NOUGRAM_SITE_URL,
+    )
     return f"""
     <!DOCTYPE html>
     <html>

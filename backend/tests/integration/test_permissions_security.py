@@ -467,9 +467,7 @@ class TestCrossTenantSecurity:
         response = await async_client.get(f"/api/v1/projects/{project_id}", headers=owner1_headers)
         assert response.status_code == 404  # Not found (tenant isolation)
 
-    async def test_cannot_modify_other_org_resources(
-        self, async_client: AsyncClient, test_users
-    ):
+    async def test_cannot_modify_other_org_resources(self, async_client: AsyncClient, test_users):
         """Users should NOT be able to modify resources from other organizations"""
         owner1_headers = get_auth_headers(test_users["owner_org1"])
         owner2_headers = get_auth_headers(test_users["owner_org2"])
