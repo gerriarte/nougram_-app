@@ -777,17 +777,6 @@ class ProjectService:
             currency=project.currency,
             notes=quote.notes or email_data.message,
         )
-        quote_template_id = (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip() or None
-        quote_template_data = {
-            "project_name": project.name,
-            "client_name": project.client_name,
-            "quote_version": quote.version,
-            "total_with_taxes": str(total_with_taxes),
-            "currency": project.currency,
-            "notes": str(quote.notes or email_data.message or ""),
-            "sender_company_name": sender_company_name,
-        }
-
         # Prepare attachments
         attachments = []
 
@@ -820,8 +809,6 @@ class ProjectService:
             attachments=attachments if attachments else None,
             cc=email_data.cc if email_data.cc else None,
             bcc=email_data.bcc if email_data.bcc else None,
-            template_id=quote_template_id,
-            template_data=quote_template_data,
         )
 
         if success:

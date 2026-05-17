@@ -39,23 +39,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     GOOGLE_AI_API_KEY: str = ""
 
-    # Email Configuration (SMTP)
-    SMTP_HOST: str = ""
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    SMTP_FROM_EMAIL: str = ""
-    SMTP_FROM_NAME: str = "Nougram"
-    SMTP_USE_TLS: bool = True
-    # Supported values: "smtp", "mailersend", "resend"
-    EMAIL_PROVIDER: str = "smtp"
-    MAILERSEND_API_KEY: str = ""
-    MAILERSEND_BASE_URL: str = "https://api.mailersend.com/v1"
-    MAILERSEND_FROM_EMAIL: str = ""
-    MAILERSEND_FROM_NAME: str = "Nougram"
-    MAILERSEND_TEMPLATE_QUOTE_ID: str = ""
-    MAILERSEND_TEMPLATE_PROPOSAL_SHARE_ID: str = ""
-    MAILERSEND_TEMPLATE_PROPOSAL_DECISION_ID: str = ""
+    # Email — Resend
     RESEND_API_KEY: str = ""
     RESEND_BASE_URL: str = "https://api.resend.com"
     RESEND_FROM_EMAIL: str = ""

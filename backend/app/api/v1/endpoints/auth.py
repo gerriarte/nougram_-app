@@ -274,14 +274,8 @@ async def forgot_password(
     )
 
     resend_reset_tpl = (settings.RESEND_TEMPLATE_PASSWORD_RESET_ID or "").strip()
-    provider_lc = (settings.EMAIL_PROVIDER or "smtp").strip().lower()
-    logger.info(
-        "Password reset: invoking email sender",
-        user_id=user.id,
-        email_provider=provider_lc,
-        using_published_resend_template=bool(provider_lc == "resend" and resend_reset_tpl),
-    )
-    if provider_lc == "resend" and resend_reset_tpl:
+    email_log_ctx = {"email_event": "password_reset", "user_id": user.id}
+    if resend_reset_tpl:
         background_tasks.add_task(
             send_email,
             to_email=user.email,
@@ -294,6 +288,7 @@ async def forgot_password(
                 "reset_url": reset_url,
                 "expiration_minutes": settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
             },
+            log_context=email_log_ctx,
         )
     else:
         background_tasks.add_task(
@@ -302,6 +297,7 @@ async def forgot_password(
             subject="Recuperacion de contrasena - Nougram",
             body_html=html_body,
             body_text=text_body,
+            log_context=email_log_ctx,
         )
 
     return ForgotPasswordResponse(message=generic_message)

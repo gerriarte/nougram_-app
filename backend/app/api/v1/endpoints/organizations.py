@@ -470,6 +470,7 @@ async def register_organization(
             organization_name=org.name,
             login_url=login_url,
         ),
+        log_context={"email_event": "welcome", "user_id": admin_user.id, "org_id": org.id},
     )
 
     # Grant initial subscription credits

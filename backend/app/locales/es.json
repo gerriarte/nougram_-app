@@ -31,8 +31,7 @@
     "SERVICE_NOT_FOUND": "El servicio no existe, está inactivo o ha sido eliminado",
     "TAX_NOT_FOUND": "El impuesto no existe, está inactivo o ha sido eliminado",
     
-    "EMAIL_SEND_FAILED": "Error al enviar el correo electrónico. Por favor, verifica la configuración SMTP",
-    "SMTP_CONFIGURATION_ERROR": "Error en la configuración SMTP",
+    "EMAIL_SEND_FAILED": "Error al enviar el correo electrónico. Por favor, verifica la configuración de Resend",
     "PAYMENT_PROCESSING_ERROR": "Error al procesar el pago",
     "AI_SERVICE_UNAVAILABLE": "El servicio de IA no está configurado. Define OPENAI_API_KEY en las variables de entorno",
     "AI_PROCESSING_ERROR": "Error al procesar la solicitud de IA",

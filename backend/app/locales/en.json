@@ -31,8 +31,7 @@
     "SERVICE_NOT_FOUND": "The service does not exist, is inactive, or has been deleted",
     "TAX_NOT_FOUND": "The tax does not exist, is inactive, or has been deleted",
     
-    "EMAIL_SEND_FAILED": "Failed to send email. Please check email provider configuration",
-    "SMTP_CONFIGURATION_ERROR": "SMTP configuration error",
+    "EMAIL_SEND_FAILED": "Failed to send email. Please check Resend configuration",
     "PAYMENT_PROCESSING_ERROR": "Payment processing error",
     "AI_SERVICE_UNAVAILABLE": "AI service is not configured. Set OPENAI_API_KEY in environment variables",
     "AI_PROCESSING_ERROR": "Failed to process AI request",
