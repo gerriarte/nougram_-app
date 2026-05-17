@@ -735,29 +735,18 @@ async def share_proposal_with_client(
             f"Clave válida por {OTP_EXPIRATION_MINUTES} minutos\n"
             f"Acceso disponible hasta: {access_expires_at_label}\n"
         )
-        proposal_share_template_id = (
-            (settings.MAILERSEND_TEMPLATE_PROPOSAL_SHARE_ID or "").strip()
-            or (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip()
-            or None
-        )
-        proposal_share_template_data = {
-            "sender_company_name": sender_company_name,
-            "project_name": project.name,
-            "client_name": project.client_name,
-            "access_code": access_code,
-            "public_url": public_url,
-            "access_expires_at": access_expires_at_label,
-            "message": payload.message or "",
-        }
-
         background_tasks.add_task(
             send_email,
             to_email=payload.to_email or "",
             subject=f'Tienes una Propuesta de "{sender_company_name}"',
             body_html=email_html,
             body_text=email_text,
-            template_id=proposal_share_template_id,
-            template_data=proposal_share_template_data,
+            log_context={
+                "email_event": "proposal_share",
+                "proposal_id": proposal_id,
+                "project_id": project_id,
+                "org_id": tenant.organization_id,
+            },
         )
 
     await db.commit()

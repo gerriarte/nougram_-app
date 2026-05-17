@@ -110,6 +110,11 @@ class SuperAdminNotificationService:
             f"Detalles:\n{details_text}\n"
         )
 
+        log_ctx = {
+            "email_event": "super_admin_notification",
+            "org_id": organization.id,
+            "action": action_label,
+        }
         sent_count = 0
         for email in recipients:
             sent = await send_email(
@@ -117,6 +122,7 @@ class SuperAdminNotificationService:
                 subject=subject,
                 body_html=body_html,
                 body_text=body_text,
+                log_context=log_ctx,
             )
             if sent:
                 sent_count += 1

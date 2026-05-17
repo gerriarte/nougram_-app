@@ -9,14 +9,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.database import get_db
 from app.core.email import (
     NOUGRAM_BRAND_ACCENT,
     NOUGRAM_BRAND_DARK,
     NOUGRAM_BRAND_LOGO_URL,
     NOUGRAM_SITE_URL,
-    get_brand_sender_name,
     send_email,
 )
 from app.core.security import create_access_token, decode_access_token, verify_password
@@ -217,7 +215,6 @@ async def submit_proposal_decision(
         decision_label = _decision_label(link.status)
         comment_text = (link.decision_comment or "").strip()
         decision_date = now.strftime("%Y-%m-%d %H:%M UTC")
-        sender_company_name = get_brand_sender_name()
         creator_subject = f'Respuesta de cliente: {decision_label} - "{proposal.title}"'
         d, a, logo, site = (
             NOUGRAM_BRAND_DARK,
@@ -253,30 +250,17 @@ async def submit_proposal_decision(
             f"Fecha: {decision_date}\n"
             f"Comentario: {comment_text or 'Sin comentario'}\n"
         )
-        decision_template_id = (
-            (settings.MAILERSEND_TEMPLATE_PROPOSAL_DECISION_ID or "").strip()
-            or (settings.MAILERSEND_TEMPLATE_QUOTE_ID or "").strip()
-            or None
-        )
-        decision_template_data = {
-            "proposal_id": str(proposal.id),
-            "proposal_title": proposal.title or "",
-            "project_name": proposal.project.name if proposal.project else "",
-            "client_name": proposal.project.client_name if proposal.project else "",
-            "decision_label": decision_label,
-            "decision_status": link.status or "",
-            "decision_date": decision_date,
-            "decision_comment": comment_text or "Sin comentario",
-            "sender_company_name": sender_company_name,
-        }
         background_tasks.add_task(
             send_email,
             to_email=creator_email,
             subject=creator_subject,
             body_html=creator_html,
             body_text=creator_text,
-            template_id=decision_template_id,
-            template_data=decision_template_data,
+            log_context={
+                "email_event": "proposal_decision",
+                "proposal_id": proposal.id,
+                "decision": link.status,
+            },
         )
 
     return ProposalClientPortalResponse(

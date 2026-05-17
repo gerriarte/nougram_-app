@@ -55,6 +55,7 @@ def _send_invitation_email(
     organization: Organization,
     background_tasks: BackgroundTasks,
     frontend_url: str | None = None,
+    org_id: int | None = None,
 ) -> None:
     """
     Send invitation email to user
@@ -139,6 +140,11 @@ def _send_invitation_email(
         subject=subject,
         body_html=body_html,
         body_text=body_text,
+        log_context={
+            "email_event": "invitation",
+            "invitation_id": invitation.id,
+            "org_id": org_id or organization.id,
+        },
     )
 
 
@@ -228,7 +234,7 @@ async def create_invitation(
     await db.refresh(invitation)
 
     # Queue invitation email in background
-    _send_invitation_email(invitation, org, background_tasks)
+    _send_invitation_email(invitation, org, background_tasks, org_id=organization_id)
 
     logger.info(
         f"Invitation created for {invitation_data.email} to organization {organization_id}",
