@@ -37,6 +37,7 @@ from app.api.v1.endpoints import (
     team_cells,
     templates,
     users,
+    vendors,
 )
 
 api_router = APIRouter()
@@ -59,6 +60,7 @@ api_router.include_router(insights.router, prefix="/insights", tags=["insights"]
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 api_router.include_router(taxes.router, prefix="/taxes", tags=["taxes"])
+api_router.include_router(vendors.router, prefix="/vendors", tags=["vendors"])
 api_router.include_router(maintenance.router, prefix="", tags=["maintenance"])
 api_router.include_router(
     delete_requests.router, prefix="/delete-requests", tags=["delete-requests"]

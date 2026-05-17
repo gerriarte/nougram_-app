@@ -19,6 +19,7 @@ from app.models.organization import Organization
 from app.models.project import (
     Project,
     Quote,
+    QuoteExpense,
     QuoteItem,
     QuoteItemAllocation,
     QuoteItemCellAssignment,
@@ -627,6 +628,27 @@ class ProjectService:
             self.db.add_all(quote_allocations)
         if quote_cell_assignments:
             self.db.add_all(quote_cell_assignments)
+
+        # Copy expenses from the source quote to the new version
+        existing_expenses_result = await self.db.execute(
+            select(QuoteExpense).where(QuoteExpense.quote_id == existing_quote.id)
+        )
+        existing_expenses = existing_expenses_result.scalars().all()
+        if existing_expenses:
+            new_expenses = [
+                QuoteExpense(
+                    quote_id=new_quote.id,
+                    name=exp.name,
+                    description=exp.description,
+                    cost=exp.cost,
+                    markup_percentage=exp.markup_percentage,
+                    client_price=exp.client_price,
+                    category=exp.category,
+                    quantity=exp.quantity,
+                )
+                for exp in existing_expenses
+            ]
+            self.db.add_all(new_expenses)
 
         # 1 new quote version = 1 credit consumption
         await CreditService.validate_and_consume_credits(

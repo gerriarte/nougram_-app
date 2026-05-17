@@ -73,7 +73,7 @@ class TestFixedPricingStrategy:
     """Tests for FixedPricingStrategy"""
 
     def test_calculate_with_fixed_price(self):
-        """Test fixed pricing calculation"""
+        """Test fixed pricing with no hours: client_price is defined, internal_cost is zero (unknown)."""
         strategy = FixedPricingStrategy()
         service = Mock(spec=Service)
         service.fixed_price = 1000.0
@@ -83,10 +83,8 @@ class TestFixedPricingStrategy:
 
         result = strategy.calculate(item, service, blended_cost_rate)
 
-        # Client price: 1000 * 2 = 2000
-        # Internal cost (no hours): 2000 * 0.6 = 1200
         assert result["client_price"] == 2000.0
-        assert result["internal_cost"] == 1200.0
+        assert result["internal_cost"] == 0
 
     def test_calculate_with_estimated_hours(self):
         """Test fixed pricing with estimated hours"""
@@ -123,8 +121,8 @@ class TestFixedPricingStrategy:
 class TestRecurringPricingStrategy:
     """Tests for RecurringPricingStrategy"""
 
-    def test_calculate_monthly_recurring(self):
-        """Test recurring pricing for monthly billing"""
+    def test_calculate_monthly_recurring_no_hours(self):
+        """Recurring with no hours: client_price is user-defined, internal_cost is zero (unknown)."""
         strategy = RecurringPricingStrategy()
         service = Mock(spec=Service)
         service.recurring_price = 500.0
@@ -135,27 +133,24 @@ class TestRecurringPricingStrategy:
 
         result = strategy.calculate(item, service, blended_cost_rate)
 
-        # Client price: 500 * 1 = 500
-        # Internal cost (estimated): 50 * 32 * 1 = 1600 (32 hours/month estimate)
         assert result["client_price"] == 500.0
-        assert result["internal_cost"] == 1600.0
+        assert result["internal_cost"] == 0
 
-    def test_calculate_annual_recurring(self):
-        """Test recurring pricing for annual billing"""
+    def test_calculate_recurring_multi_month(self):
+        """Recurring over multiple months: client_price = recurring_price × durationMonths."""
         strategy = RecurringPricingStrategy()
         service = Mock(spec=Service)
-        service.recurring_price = 5000.0
-        service.billing_frequency = "annual"
+        service.recurring_price = 500.0
+        service.billing_frequency = "monthly"
 
-        item = {"recurring_price": 5000.0, "quantity": 1.0}
+        # quantity = durationMonths = 6
+        item = {"recurring_price": 500.0, "quantity": 6.0}
         blended_cost_rate = 50.0
 
         result = strategy.calculate(item, service, blended_cost_rate)
 
-        # Client price: 5000 * 1 = 5000
-        # Internal cost (estimated): 50 * 32 * 12 * 1 = 19200 (annual estimate)
-        assert result["client_price"] == 5000.0
-        assert result["internal_cost"] == 19200.0
+        assert result["client_price"] == 3000.0  # 500 × 6
+        assert result["internal_cost"] == 0
 
     def test_calculate_with_estimated_hours(self):
         """Test recurring pricing with estimated hours"""
@@ -179,7 +174,7 @@ class TestProjectValuePricingStrategy:
     """Tests for ProjectValuePricingStrategy"""
 
     def test_calculate_with_project_value(self):
-        """Test project value pricing calculation"""
+        """Project value with no hours: client_price is user-defined, internal_cost is zero (unknown)."""
         strategy = ProjectValuePricingStrategy()
         service = Mock(spec=Service)
 
@@ -188,10 +183,8 @@ class TestProjectValuePricingStrategy:
 
         result = strategy.calculate(item, service, blended_cost_rate)
 
-        # Client price: 5000 * 1 = 5000
-        # Internal cost (no hours): 5000 * 0.5 = 2500
         assert result["client_price"] == 5000.0
-        assert result["internal_cost"] == 2500.0
+        assert result["internal_cost"] == 0
 
     def test_calculate_with_estimated_hours(self):
         """Test project value pricing with estimated hours"""
@@ -209,7 +202,7 @@ class TestProjectValuePricingStrategy:
         assert result["internal_cost"] == 2000.0
 
     def test_calculate_with_fixed_price_fallback(self):
-        """Test project value pricing using fixed_price as fallback"""
+        """project_value uses fixed_price as fallback; no hours → internal_cost is zero."""
         strategy = ProjectValuePricingStrategy()
         service = Mock(spec=Service)
 
@@ -218,9 +211,8 @@ class TestProjectValuePricingStrategy:
 
         result = strategy.calculate(item, service, blended_cost_rate)
 
-        # Should use fixed_price as project_value
         assert result["client_price"] == 3000.0
-        assert result["internal_cost"] == 1500.0  # 50% of 3000
+        assert result["internal_cost"] == 0
 
 
 @pytest.mark.unit

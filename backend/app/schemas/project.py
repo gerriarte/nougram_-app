@@ -9,7 +9,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_serializer
 
 from app.core.pydantic_config import DECIMAL_CONFIG
-from app.schemas.quote import MarginSummary
+from app.schemas.quote import MarginSummary, QuoteExpenseCreate, QuoteExpenseResponse
 
 
 class ProjectBase(BaseModel):
@@ -301,6 +301,7 @@ class QuoteResponseWithItems(QuoteResponse):
     """Schema for quote response with items"""
 
     items: list[QuoteItemResponse] = Field(default_factory=list)
+    expenses: list[QuoteExpenseResponse] = Field(default_factory=list)
 
 
 class QuoteUpdate(BaseModel):
@@ -322,6 +323,9 @@ class QuoteUpdate(BaseModel):
     )
     allow_low_margin: bool | None = Field(
         False, description="Allow creating quote even if margin is below threshold"
+    )
+    expenses: list[QuoteExpenseCreate] | None = Field(
+        default=None, description="Vendor/third-party expenses (replaces all existing when provided)"
     )
 
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string

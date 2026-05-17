@@ -136,54 +136,17 @@ async def calculate_blended_cost_rate(
     # Calculate total salaries with social charges using Money
     salary_amounts = []
     for member in team_members:
-        # Ensure currency has a value (default to USD if None)
         member_currency = member.currency or "USD"
         normalized = normalize_to_primary_currency(
             member.salary_monthly_brute, member_currency, primary_currency
         )
         salary_money = Money(normalized, primary_currency)
-        # Per-member: skip org multiplier when member opted out of social charges
         effective_mult = (
             social_charges_multiplier
             if getattr(member, "apply_social_charges", True)
             else Decimal("1")
         )
-        salary_with_charges = salary_money.multiply(effective_mult)
-        salary_amounts.append(salary_with_charges)
-
-        # #region agent log
-        import json
-        import os
-
-        try:
-            log_data = {
-                "location": "calculations.py:131",
-                "message": "Team member salary in calculate_blended_cost_rate",
-                "data": {
-                    "member_id": member.id,
-                    "member_name": member.name,
-                    "salary_monthly_brute": str(member.salary_monthly_brute),
-                    "member_currency": member_currency,
-                    "normalized": str(normalized)
-                    if not isinstance(normalized, Money)
-                    else str(normalized.amount),
-                    "salary_with_charges": str(salary_with_charges.amount),
-                    "social_charges_multiplier": str(social_charges_multiplier),
-                },
-                "timestamp": __import__("time").time() * 1000,
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "D",
-            }
-            log_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".cursor", "debug.log"
-            )
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-        except:
-            pass
-        # #endregion
+        salary_amounts.append(salary_money.multiply(effective_mult))
 
     # Get amortization assets and include monthly depreciation in fixed costs.
     equipment_query = select(EquipmentAmortization).where(
@@ -212,41 +175,13 @@ async def calculate_blended_cost_rate(
         else:
             equipment_amortization_money.append(Money(normalized, primary_currency))
 
-    # Sum all costs using Money
     all_costs = fixed_costs_money + equipment_amortization_money + salary_amounts
     total_monthly_costs_money = sum_money(all_costs)
-
-    # #region agent log
-    try:
-        log_data = {
-            "location": "calculations.py:135",
-            "message": "Total costs calculated",
-            "data": {
-                "fixed_costs_count": len(fixed_costs_money),
-                "salary_amounts_count": len(salary_amounts),
-                "total_monthly_costs_money": str(total_monthly_costs_money.amount)
-                if total_monthly_costs_money
-                else "None",
-                "total_monthly_costs_money_currency": total_monthly_costs_money.currency
-                if total_monthly_costs_money
-                else "None",
-            },
-            "timestamp": __import__("time").time() * 1000,
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "D",
-        }
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(log_data) + "\n")
-    except:
-        pass
-    # #endregion
 
     if total_monthly_costs_money is None:
         return Decimal("0")
 
-    # Calculate total billable hours per month (assuming 4.33 weeks per month)
-    # Adjust for non-billable hours percentage (Sprint 14)
+    # Calculate total billable hours per month (4.33 weeks/month average)
     hours_per_month = Decimal("0")
     for member in team_members:
         non_billable = getattr(member, "non_billable_hours_percentage", 0.0) or 0.0
@@ -254,51 +189,11 @@ async def calculate_blended_cost_rate(
         hours = Decimal(str(member.billable_hours_per_week)) * Decimal("4.33") * billable_factor
         hours_per_month += hours
 
-    # Calculate cost per hour using Money
     if hours_per_month > 0:
         cost_per_hour_money = total_monthly_costs_money.divide(float(hours_per_month))
-        cost_per_hour = cost_per_hour_money.amount  # Return Decimal
-
-        # #region agent log
-        try:
-            log_data = {
-                "location": "calculations.py:152",
-                "message": "BCR calculated",
-                "data": {
-                    "hours_per_month": str(hours_per_month),
-                    "cost_per_hour": str(cost_per_hour),
-                    "cost_per_hour_money_amount": str(cost_per_hour_money.amount),
-                    "cost_per_hour_money_currency": cost_per_hour_money.currency,
-                },
-                "timestamp": __import__("time").time() * 1000,
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "D",
-            }
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-        except:
-            pass
-        # #endregion
+        cost_per_hour = cost_per_hour_money.amount
     else:
         cost_per_hour = Decimal("0")
-
-        # #region agent log
-        try:
-            log_data = {
-                "location": "calculations.py:154",
-                "message": "BCR is zero (no hours)",
-                "data": {"hours_per_month": str(hours_per_month), "cost_per_hour": "0"},
-                "timestamp": __import__("time").time() * 1000,
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "D",
-            }
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-        except:
-            pass
-        # #endregion
 
     # Cache the result (5 minutes TTL) - cache as float for compatibility
     if use_cache:
@@ -504,65 +399,31 @@ async def calculate_quote_totals_enhanced(
         pricing_result = strategy.calculate(item, service, bcr_decimal)
 
         internal_cost = pricing_result["internal_cost"]
-        client_price = pricing_result.get("client_price", 0.0)  # Get client_price from strategy
+        client_price = pricing_result.get("client_price", Decimal("0"))
 
-        # Skip items with zero cost
-        if internal_cost == 0.0:
+        # Skip only when both cost and price are zero (item has no data at all).
+        # Items with zero internal_cost but a defined client_price (fixed, recurring,
+        # project_value without hours) must still be included in the totals.
+        if not internal_cost and not client_price:
             continue
 
-        # Convert to Money
         internal_cost_money = Money(internal_cost, currency)
         client_price_money = Money(client_price, currency)
 
         total_internal_cost_money = total_internal_cost_money.add(internal_cost_money)
 
-        # Apply target margin only to margin-driven pricing types.
-        # Fixed/project-value items keep their explicit client prices.
+        # Apply target margin only to hourly items, where price is derived from cost.
+        # Fixed/project-value prices are always user-defined.
+        # Recurring prices are always user-defined (recurring_price × durationMonths)
+        # and must never be recalculated from cost × margin.
         if (
             target_margin_percentage is not None
             and Decimal("0") < target_margin_percentage < Decimal("1")
-            and effective_pricing_type in ("hourly", "recurring")
+            and effective_pricing_type == "hourly"
         ):
-            margin_percent_decimal = target_margin_percentage
-            # #region agent log
-            try:
-                import json
-                import os
-
-                log_data = {
-                    "location": "calculations.py:365",
-                    "message": "before apply_margin (per item)",
-                    "data": {
-                        "target_margin_percentage": str(target_margin_percentage),
-                        "target_margin_percentage_type": str(
-                            type(target_margin_percentage).__name__
-                        ),
-                        "margin_percent_decimal": str(margin_percent_decimal),
-                        "margin_percent_decimal_type": str(type(margin_percent_decimal).__name__),
-                        "margin_percent_decimal_x_100": str(
-                            margin_percent_decimal * Decimal("100")
-                        ),
-                        "margin_percent_decimal_x_100_type": str(
-                            type(margin_percent_decimal * Decimal("100")).__name__
-                        ),
-                    },
-                    "timestamp": __import__("time").time() * 1000,
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "B",
-                }
-                log_path = os.path.join(
-                    os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log"
-                )
-                os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(log_data) + "\n")
-            except:
-                pass
-            # #endregion
             client_price_money = internal_cost_money.apply_margin(
-                margin_percent_decimal * Decimal("100")
-            )  # Convert to percentage
+                target_margin_percentage * Decimal("100")
+            )
 
         total_client_price_money = total_client_price_money.add(client_price_money)
 

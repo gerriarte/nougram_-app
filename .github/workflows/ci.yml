@@ -21,6 +21,6 @@ jobs:
           echo "- backend-tests.yml runs on push/PR to backend/**"
           echo "- backend-lint.yml runs on push/PR to backend/**"
           echo "- backend-docker.yml runs on push/PR to backend/**"
-          echo "- frontend-ci.yml runs on push/PR to nougram_front/** (lint, tsc, build)"
+          echo "- frontend-ci.yml runs on push/PR to frontend/** (lint, tsc, build)"
           echo ""
           echo "All workflows run automatically on push and pull_request events."

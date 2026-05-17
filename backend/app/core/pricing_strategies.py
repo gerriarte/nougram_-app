@@ -111,15 +111,12 @@ class FixedPricingStrategy(PricingStrategy):
 
         client_price = fixed_price * quantity
 
-        # For fixed pricing, internal cost is calculated based on estimated hours if provided
-        # Otherwise, we use a conservative estimate
         estimated_hours = _to_decimal(item.get("estimated_hours"))
         if estimated_hours > 0:
             bcr = _to_decimal(blended_cost_rate)
             internal_cost = bcr * estimated_hours * quantity
         else:
-            # If no hours provided, assume internal cost is 60% of fixed price (conservative)
-            internal_cost = (fixed_price * quantity) * Decimal("0.6")
+            internal_cost = Decimal("0")
 
         return {"internal_cost": internal_cost, "client_price": client_price}
 
@@ -144,28 +141,21 @@ class RecurringPricingStrategy(PricingStrategy):
             Dictionary with internal_cost and client_price
         """
         recurring_price = _to_decimal(item.get("recurring_price") or service.recurring_price)
-        billing_frequency = item.get("billing_frequency") or service.billing_frequency or "monthly"
         quantity = _to_decimal(item.get("quantity", Decimal("1")), Decimal("1"))
 
         if recurring_price <= 0:
             return {"internal_cost": Decimal("0"), "client_price": Decimal("0")}
 
+        # client_price is always user-defined: recurring_price × quantity (durationMonths).
+        # It must never be derived from cost × margin so it stays stable across recalculations.
         client_price = recurring_price * quantity
 
-        # For recurring services, internal cost is based on estimated hours if provided
-        # Otherwise, estimate based on typical allocation
         estimated_hours = _to_decimal(item.get("estimated_hours"))
         if estimated_hours > 0:
             bcr = _to_decimal(blended_cost_rate)
             internal_cost = bcr * estimated_hours
         else:
-            # Estimate: monthly retainer typically uses ~20% of monthly billable hours
-            # Assuming 160 billable hours/month, 20% = 32 hours
-            estimated_monthly_hours = Decimal("32")
-            if billing_frequency == "annual":
-                estimated_monthly_hours *= Decimal("12")
-            bcr = _to_decimal(blended_cost_rate)
-            internal_cost = bcr * estimated_monthly_hours * quantity
+            internal_cost = Decimal("0")
 
         return {"internal_cost": internal_cost, "client_price": client_price}
 
@@ -197,14 +187,12 @@ class ProjectValuePricingStrategy(PricingStrategy):
 
         client_price = project_value * quantity
 
-        # For project value, internal cost is based on estimated hours if provided
         estimated_hours = _to_decimal(item.get("estimated_hours"))
         if estimated_hours > 0:
             bcr = _to_decimal(blended_cost_rate)
             internal_cost = bcr * estimated_hours * quantity
         else:
-            # If no hours, assume internal cost is 50% of project value
-            internal_cost = (project_value * quantity) * Decimal("0.5")
+            internal_cost = Decimal("0")
 
         return {"internal_cost": internal_cost, "client_price": client_price}
 

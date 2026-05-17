@@ -27,6 +27,7 @@ from app.repositories.tax_repository import TaxRepository
 from app.repositories.team_cell_repository import TeamCellRepository
 from app.repositories.team_repository import TeamRepository
 from app.repositories.user_repository import UserRepository
+from app.repositories.vendor_repository import VendorRepository
 
 T = TypeVar("T", bound=BaseRepository)
 
@@ -176,3 +177,8 @@ class RepositoryFactory:
     def create_financial_ledger_repository(db: AsyncSession) -> FinancialLedgerRepository:
         """Create FinancialLedgerRepository (no tenant scoping; used for cross-tenant ledger)."""
         return FinancialLedgerRepository(db, tenant_id=None)
+
+    @staticmethod
+    def create_vendor_repository(db: AsyncSession, tenant_id: int) -> VendorRepository:
+        """Create VendorRepository with tenant context"""
+        return VendorRepository(db, tenant_id=tenant_id)
