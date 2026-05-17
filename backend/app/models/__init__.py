@@ -28,6 +28,7 @@ from app.models.settings import AgencySettings
 from app.models.subscription import Subscription
 from app.models.tax import Tax
 from app.models.team import TeamMember
+from app.models.vendor import Vendor
 from app.models.team_cells import TeamCell, TeamCellMemberVersion, TeamCellVersion, TeamGroup
 from app.models.template import IndustryTemplate
 from app.models.user import User
@@ -69,6 +70,7 @@ __all__ = [
     "TeamCellMemberVersion",
     "CapacityCommitment",
     "CapacityEvent",
+    "Vendor",
     # "DeleteRequest",
     # "UserRole",
     # "DeleteRequestStatus",
