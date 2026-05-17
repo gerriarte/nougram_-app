@@ -686,7 +686,12 @@ async def share_proposal_with_client(
     access_expires_at_label = access_expires_at.strftime("%Y-%m-%d %H:%M UTC")
 
     if payload.send_email:
-        d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
+        d, a, logo, site = (
+            NOUGRAM_BRAND_DARK,
+            NOUGRAM_BRAND_ACCENT,
+            NOUGRAM_BRAND_LOGO_URL,
+            NOUGRAM_SITE_URL,
+        )
         email_html = f"""
         <!DOCTYPE html><html><head><meta charset="utf-8"></head>
         <body style="margin:0;padding:0;background:#ebebf0;font-family:Arial,sans-serif;">

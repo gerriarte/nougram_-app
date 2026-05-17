@@ -82,7 +82,12 @@ class SuperAdminNotificationService:
 
         details_text, details_html = SuperAdminNotificationService._render_details(details)
         subject = f"[Nougram] Tenant action: {action_label} ({organization.name})"
-        d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
+        d, a, logo, site = (
+            NOUGRAM_BRAND_DARK,
+            NOUGRAM_BRAND_ACCENT,
+            NOUGRAM_BRAND_LOGO_URL,
+            NOUGRAM_SITE_URL,
+        )
         body_html = (
             f"<table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='max-width:640px;'>"
             f"<tr><td style='padding:16px 0;text-align:center;background:{d};border-radius:8px 8px 0 0;'>"

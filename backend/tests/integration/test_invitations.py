@@ -359,9 +359,7 @@ class TestInvitationEndpoints:
         assert user.email == "newuser@example.com"
 
         # Verify invitation was marked as accepted
-        result = await db_session.execute(
-            select(Invitation).where(Invitation.id == invitation.id)
-        )
+        result = await db_session.execute(select(Invitation).where(Invitation.id == invitation.id))
         inv = result.scalar_one_or_none()
         assert inv is not None
         assert inv.is_accepted
@@ -420,9 +418,7 @@ class TestInvitationEndpoints:
         assert existing_user.organization_id == test_organization.id
 
         # Verify invitation was marked as accepted
-        result = await db_session.execute(
-            select(Invitation).where(Invitation.id == invitation.id)
-        )
+        result = await db_session.execute(select(Invitation).where(Invitation.id == invitation.id))
         inv = result.scalar_one_or_none()
         assert inv is not None
         assert inv.is_accepted
