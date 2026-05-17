@@ -7,8 +7,7 @@ Tests all AI endpoints including:
 - /ai/process-command (natural language commands)
 """
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -17,6 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.organization import Organization
 from app.models.user import User
 from tests.auth_helpers import get_auth_headers
+
+
+@pytest.fixture(autouse=True)
+def mock_ai_available():
+    """Ensure AI service reports as available in all tests (no API key required)."""
+    with patch("app.api.v1.endpoints.ai.ai_service.is_available", return_value=True):
+        yield
 
 
 @pytest.mark.integration
@@ -348,27 +354,19 @@ class TestAIRateLimiting:
         self, async_client: AsyncClient, test_user: User, test_organization: Organization
     ):
         """Test rate limiting on suggest-config endpoint"""
-        # Mock OpenAI to avoid actual API calls
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps(
-            {
-                "suggested_roles": [],
-                "suggested_services": [],
-                "suggested_fixed_costs": [],
-                "confidence_scores": {"roles": 0.5, "services": 0.5, "costs": 0.5},
+        mock_suggest = AsyncMock(
+            return_value={
+                "success": True,
+                "data": {
+                    "suggested_roles": [],
+                    "suggested_services": [],
+                    "suggested_fixed_costs": [],
+                    "confidence_scores": {"roles": 0.5, "services": 0.5, "costs": 0.5},
+                },
+                "usage": {},
             }
         )
-        mock_response.usage = MagicMock()
-        mock_response.usage.prompt_tokens = 100
-        mock_response.usage.completion_tokens = 100
-        mock_response.usage.total_tokens = 200
-
-        with patch("app.services.ai_service.AsyncOpenAI") as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-            mock_openai_class.return_value = mock_client
-
+        with patch("app.api.v1.endpoints.ai.ai_service.suggest_onboarding_data", mock_suggest):
             headers = get_auth_headers(test_user)
 
             # Make multiple requests quickly (exceeding rate limit)
