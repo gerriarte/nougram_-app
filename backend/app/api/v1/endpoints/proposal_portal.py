@@ -4,7 +4,7 @@ Public client portal endpoints for proposal access/decision.
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -154,6 +154,7 @@ async def get_proposal_portal_data(
 async def submit_proposal_decision(
     token: str,
     payload: ProposalClientDecisionRequest,
+    background_tasks: BackgroundTasks,
     credentials: HTTPAuthorizationCredentials | None = Depends(portal_security),
     db: AsyncSession = Depends(get_db),
 ):
@@ -268,7 +269,8 @@ async def submit_proposal_decision(
             "decision_comment": comment_text or "Sin comentario",
             "sender_company_name": sender_company_name,
         }
-        await send_email(
+        background_tasks.add_task(
+            send_email,
             to_email=creator_email,
             subject=creator_subject,
             body_html=creator_html,

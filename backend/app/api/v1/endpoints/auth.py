@@ -4,7 +4,7 @@ Authentication endpoints
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -234,6 +234,7 @@ async def refresh_session_token(
 async def forgot_password(
     request: Request,
     payload: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     """Request password reset email for an account."""
@@ -281,7 +282,8 @@ async def forgot_password(
         using_published_resend_template=bool(provider_lc == "resend" and resend_reset_tpl),
     )
     if provider_lc == "resend" and resend_reset_tpl:
-        email_sent = await send_email(
+        background_tasks.add_task(
+            send_email,
             to_email=user.email,
             subject="Recuperacion de contrasena - Nougram",
             body_html="",
@@ -294,19 +296,12 @@ async def forgot_password(
             },
         )
     else:
-        email_sent = await send_email(
+        background_tasks.add_task(
+            send_email,
             to_email=user.email,
             subject="Recuperacion de contrasena - Nougram",
             body_html=html_body,
             body_text=text_body,
-        )
-    if not email_sent:
-        logger.warning(
-            "Failed to send password reset email",
-            user_id=user.id,
-            email=user.email,
-            email_provider=provider_lc,
-            resend_template_password_reset_configured=bool(resend_reset_tpl),
         )
 
     return ForgotPasswordResponse(message=generic_message)

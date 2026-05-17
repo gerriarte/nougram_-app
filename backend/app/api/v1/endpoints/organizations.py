@@ -4,7 +4,7 @@ Organization management endpoints
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -355,6 +355,7 @@ async def create_organization(
 async def register_organization(
     request: Request,
     registration_data: OrganizationRegisterRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -455,7 +456,8 @@ async def register_organization(
     logger.info(f"Organization registered: {org.id} ({org.name}) with admin user {admin_user.id}")
 
     login_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
-    welcome_sent = await send_email(
+    background_tasks.add_task(
+        send_email,
         to_email=admin_user.email,
         subject="Bienvenido a Nougram",
         body_html=generate_welcome_email_html(
@@ -469,12 +471,6 @@ async def register_organization(
             login_url=login_url,
         ),
     )
-    if not welcome_sent:
-        logger.warning(
-            "Failed to send welcome email after organization registration",
-            user_id=admin_user.id,
-            email=admin_user.email,
-        )
 
     # Grant initial subscription credits
     try:

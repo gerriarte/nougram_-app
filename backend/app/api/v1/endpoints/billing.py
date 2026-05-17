@@ -4,7 +4,7 @@ Billing and subscription endpoints
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditAction, AuditService
@@ -45,6 +45,7 @@ ALLOWED_MANUAL_REQUEST_TYPES = {
 )
 async def create_checkout_session(
     checkout_data: CheckoutSessionCreate,
+    background_tasks: BackgroundTasks,
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(require_manage_subscription),
     db: AsyncSession = Depends(get_db),
@@ -120,7 +121,8 @@ async def create_checkout_session(
             "session_id": session.session_id,
             "billing_provider": gateway.provider_name,
         }
-        notified_count = await SuperAdminNotificationService.notify_super_admins(
+        background_tasks.add_task(
+            SuperAdminNotificationService.notify_super_admins,
             db=db,
             organization=organization,
             actor=current_user,
@@ -133,7 +135,7 @@ async def create_checkout_session(
             user_id=current_user.id,
             organization_id=tenant.organization_id,
             resource_type="subscription",
-            details={**notification_details, "super_admin_notified_count": notified_count},
+            details=notification_details,
             status="success",
         )
 
@@ -207,6 +209,7 @@ async def get_subscription(
 @router.put("/subscription", response_model=SubscriptionResponse)
 async def update_subscription(
     subscription_data: SubscriptionUpdate,
+    background_tasks: BackgroundTasks,
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(require_manage_subscription),
     db: AsyncSession = Depends(get_db),
@@ -268,7 +271,8 @@ async def update_subscription(
             "cancel_at_period_end": subscription.cancel_at_period_end,
             "billing_provider": gateway.provider_name,
         }
-        notified_count = await SuperAdminNotificationService.notify_super_admins(
+        background_tasks.add_task(
+            SuperAdminNotificationService.notify_super_admins,
             db=db,
             organization=organization,
             actor=current_user,
@@ -282,7 +286,7 @@ async def update_subscription(
             organization_id=tenant.organization_id,
             resource_type="subscription",
             resource_id=subscription.id,
-            details={**notification_details, "super_admin_notified_count": notified_count},
+            details=notification_details,
             status="success",
         )
 
@@ -302,6 +306,7 @@ async def update_subscription(
 @router.post("/subscription/cancel", response_model=SubscriptionResponse)
 async def cancel_subscription(
     cancel_data: SubscriptionCancel,
+    background_tasks: BackgroundTasks,
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(require_manage_subscription),
     db: AsyncSession = Depends(get_db),
@@ -361,7 +366,8 @@ async def cancel_subscription(
             "cancel_at_period_end": subscription.cancel_at_period_end,
             "billing_provider": gateway.provider_name,
         }
-        notified_count = await SuperAdminNotificationService.notify_super_admins(
+        background_tasks.add_task(
+            SuperAdminNotificationService.notify_super_admins,
             db=db,
             organization=organization,
             actor=current_user,
@@ -375,7 +381,7 @@ async def cancel_subscription(
             organization_id=tenant.organization_id,
             resource_type="subscription",
             resource_id=subscription.id,
-            details={**notification_details, "super_admin_notified_count": notified_count},
+            details=notification_details,
             status="success",
         )
 
@@ -427,6 +433,7 @@ async def list_plans(current_user: User = Depends(get_current_user)):
 )
 async def create_manual_billing_request(
     request_data: ManualBillingRequestCreate,
+    background_tasks: BackgroundTasks,
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(require_manage_subscription),
     db: AsyncSession = Depends(get_db),
@@ -471,7 +478,8 @@ async def create_manual_billing_request(
         "notes": created.notes,
         "status": created.status,
     }
-    notified_count = await SuperAdminNotificationService.notify_super_admins(
+    background_tasks.add_task(
+        SuperAdminNotificationService.notify_super_admins,
         db=db,
         organization=organization,
         actor=current_user,
@@ -486,7 +494,7 @@ async def create_manual_billing_request(
         organization_id=tenant.organization_id,
         resource_type="billing_request",
         resource_id=created.id,
-        details={**notification_details, "super_admin_notified_count": notified_count},
+        details=notification_details,
         status="success",
     )
 
