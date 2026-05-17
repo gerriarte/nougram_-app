@@ -3,10 +3,11 @@ Integration tests for granular permissions system
 Tests that validate role-based access control, data leakage prevention, and cross-tenant security
 """
 
+from unittest.mock import AsyncMock
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from unittest.mock import AsyncMock
 
 from app.core.security import get_password_hash
 from app.models.organization import Organization

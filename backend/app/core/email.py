@@ -35,7 +35,7 @@ def _resend_template_variables(data: dict[str, Any] | None) -> dict[str, Any]:
         if not key:
             continue
         normalized = []
-        for i, c in enumerate(key):
+        for _i, c in enumerate(key):
             if c.isalnum() or c == "_":
                 normalized.append(c)
             elif c in ("-", " ", "."):
