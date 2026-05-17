@@ -314,12 +314,29 @@ export function QuoteFinancialSummary() {
                         hint="Precio base al cliente"
                         value={fmt(summary.totalClientPrice)}
                     />
-                    <StatRow
-                        label="Costo de ejecución"
-                        hint="Recursos + gastos directos"
-                        value={`–${fmt(summary.totalInternalCost)}`}
-                        muted
-                    />
+                    {summary.expensesInternalCost > 0 ? (
+                        <>
+                            <StatRow
+                                label="Servicios internos"
+                                hint="Horas × BCR"
+                                value={`–${fmt(summary.totalInternalCost - summary.expensesInternalCost)}`}
+                                muted
+                            />
+                            <StatRow
+                                label="Proveedores"
+                                hint={`costo ${fmt(summary.expensesInternalCost)} → cliente ${fmt(summary.expensesClientPrice)}`}
+                                value={`–${fmt(summary.expensesInternalCost)}`}
+                                muted
+                            />
+                        </>
+                    ) : (
+                        <StatRow
+                            label="Costo de ejecución"
+                            hint="Recursos + gastos directos"
+                            value={`–${fmt(summary.totalInternalCost)}`}
+                            muted
+                        />
+                    )}
                     {hasTaxes && (
                         <StatRow
                             label="Impuestos"

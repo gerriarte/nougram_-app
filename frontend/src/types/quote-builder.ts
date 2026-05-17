@@ -78,10 +78,21 @@ export interface Contingency {
     value: number;
 }
 
+export interface Vendor {
+    id: number;
+    name: string;
+    description?: string;
+    category?: string;
+    defaultCost?: number;
+    defaultMarkupPercentage?: number;
+    isActive: boolean;
+}
+
 export interface QuoteExpense {
     id: string;           // Temporary UI ID
     name: string;
     vendorName?: string;
+    vendorId?: number;    // FK to Vendor catalog (optional)
     cost: number;
     markupPercentage: number; // 0.10 = 10%
     quantity: number;
@@ -138,6 +149,10 @@ export interface CalculationSummary {
     netMarginAmount: number;
     netMarginPercent: number;
     realIncome: number;
+
+    // Expense breakdown (internal cost vs client price from vendor expenses)
+    expensesInternalCost: number;
+    expensesClientPrice: number;
 
     // Contingency Results
     contingencyAmount: number;

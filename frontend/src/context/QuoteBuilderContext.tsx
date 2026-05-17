@@ -107,7 +107,8 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     const [teamMembers, setTeamMembers] = useState<import('@/types/quote-builder').TeamMemberMock[]>([]); // Load from service
     const [summary, setSummary] = useState<CalculationSummary>({
         totalInternalCost: 0, totalClientPrice: 0, totalTaxes: 0, totalWithTaxes: 0, netMarginAmount: 0, netMarginPercent: 0, realIncome: 0,
-        contingencyAmount: 0, contingencyTotal: 0
+        contingencyAmount: 0, contingencyTotal: 0,
+        expensesInternalCost: 0, expensesClientPrice: 0,
     });
     const [paywall, setPaywall] = useState<{
         open: boolean;

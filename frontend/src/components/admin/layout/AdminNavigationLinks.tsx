@@ -13,6 +13,7 @@ import {
   Receipt,
   Calculator,
   BarChart3,
+  Truck,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -51,6 +52,7 @@ export function AdminNavigationLinks({
     { label: 'Capacidad del Equipo', href: '/dashboard/resources/availability', icon: BarChart3 },
     { label: 'Inventario de Gastos', href: '/admin/overhead', icon: Building2 },
     { label: 'Impuestos', href: '/admin/taxes', icon: Receipt },
+    { label: 'Proveedores', href: '/admin/vendors', icon: Truck },
     ...(showOperationalCosts
       ? [{ label: 'Costo operacional', href: '/dashboard/operational-costs', icon: Calculator }]
       : []),

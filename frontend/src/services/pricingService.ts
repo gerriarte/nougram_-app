@@ -122,6 +122,8 @@ export const pricingService = {
     ): QuoteCalculationResult => {
         let totalInternalCost = 0;
         let totalClientPrice = 0;
+        let expensesInternalCost = 0;
+        let expensesClientPrice = 0;
 
         // Sum up service items
         items.forEach(item => {
@@ -129,10 +131,14 @@ export const pricingService = {
             totalClientPrice += item.clientPrice;
         });
 
-        // Sum up vendor/pass-through expenses
+        // Sum up vendor/pass-through expenses (tracked separately for breakdown)
         (expenses || []).forEach(expense => {
-            totalInternalCost += expense.cost * expense.quantity;
-            totalClientPrice += expense.cost * expense.quantity * (1 + expense.markupPercentage);
+            const expCost = expense.cost * expense.quantity;
+            const expClient = expense.cost * expense.quantity * (1 + expense.markupPercentage);
+            expensesInternalCost += expCost;
+            expensesClientPrice += expClient;
+            totalInternalCost += expCost;
+            totalClientPrice += expClient;
         });
 
         // Calculate Contingency
@@ -167,6 +173,9 @@ export const pricingService = {
         return {
             totalInternalCost: Math.round(totalInternalCost),
             totalClientPrice: Math.round(totalClientPrice),
+
+            expensesInternalCost: Math.round(expensesInternalCost),
+            expensesClientPrice: Math.round(expensesClientPrice),
 
             contingencyAmount: Math.round(contingencyAmount),
             contingencyTotal: Math.round(totalClientPriceWithContingency),
