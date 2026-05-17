@@ -7,7 +7,16 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -592,6 +601,7 @@ async def share_proposal_with_client(
     project_id: int,
     proposal_id: int,
     payload: ProposalClientShareRequest,
+    background_tasks: BackgroundTasks,
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(require_send_quotes),
     db: AsyncSession = Depends(get_db),
@@ -740,7 +750,8 @@ async def share_proposal_with_client(
             "message": payload.message or "",
         }
 
-        success = await send_email(
+        background_tasks.add_task(
+            send_email,
             to_email=payload.to_email or "",
             subject=f'Tienes una Propuesta de "{sender_company_name}"',
             body_html=email_html,
@@ -748,8 +759,6 @@ async def share_proposal_with_client(
             template_id=proposal_share_template_id,
             template_data=proposal_share_template_data,
         )
-        if not success:
-            raise HTTPException(status_code=500, detail="Failed to send proposal access email")
 
     await db.commit()
     await db.refresh(link)

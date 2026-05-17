@@ -5,7 +5,7 @@ Invitation endpoints for organization user invitations
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,9 +50,12 @@ def _get_invitation_expiry_days() -> int:
     return 7
 
 
-async def _send_invitation_email(
-    invitation: Invitation, organization: Organization, frontend_url: str | None = None
-) -> bool:
+def _send_invitation_email(
+    invitation: Invitation,
+    organization: Organization,
+    background_tasks: BackgroundTasks,
+    frontend_url: str | None = None,
+) -> None:
     """
     Send invitation email to user
 
@@ -130,8 +133,12 @@ async def _send_invitation_email(
     This is an automated message from Nougram. Please do not reply to this email.
     """
 
-    return await send_email(
-        to_email=invitation.email, subject=subject, body_html=body_html, body_text=body_text
+    background_tasks.add_task(
+        send_email,
+        to_email=invitation.email,
+        subject=subject,
+        body_html=body_html,
+        body_text=body_text,
     )
 
 
@@ -143,6 +150,7 @@ async def _send_invitation_email(
 async def create_invitation(
     organization_id: int,
     invitation_data: InvitationCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -219,14 +227,8 @@ async def create_invitation(
     await db.commit()
     await db.refresh(invitation)
 
-    # Send invitation email
-    email_sent = await _send_invitation_email(invitation, org)
-    if not email_sent:
-        logger.warning(
-            f"Failed to send invitation email to {invitation_data.email}",
-            invitation_id=invitation.id,
-            organization_id=organization_id,
-        )
+    # Queue invitation email in background
+    _send_invitation_email(invitation, org, background_tasks)
 
     logger.info(
         f"Invitation created for {invitation_data.email} to organization {organization_id}",

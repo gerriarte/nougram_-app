@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -1783,6 +1783,7 @@ async def send_quote_email(
     project_id: int,
     quote_id: int,
     email_data: QuoteEmailRequest,
+    background_tasks: BackgroundTasks,
     tenant: TenantContext = Depends(get_tenant_context),
     current_user: User = Depends(
         get_current_user
@@ -1929,8 +1930,13 @@ async def send_quote_email(
             docx_filename = f"cotizacion_{safe_project_name}_v{quote.version}.docx"
             attachments.append({"filename": docx_filename, "content": docx_buffer})
 
-        # Send email
-        success = await send_email(
+        # Update status before queuing email so it's reflected immediately
+        if project.status != "Sent":
+            project.status = "Sent"
+        await db.commit()
+
+        background_tasks.add_task(
+            send_email,
             to_email=email_data.to_email,
             subject=subject,
             body_html=html_body,
@@ -1941,30 +1947,14 @@ async def send_quote_email(
             template_id=quote_template_id,
             template_data=quote_template_data,
         )
-
-        if success:
-            if project.status != "Sent":
-                project.status = "Sent"
-            await db.commit()
-            logger.info(
-                f"Quote {quote_id} sent by email to {email_data.to_email}",
-                user_id=current_user.id,
-                project_id=project_id,
-            )
-            return QuoteEmailResponse(
-                success=True, message=f"Quote sent successfully to {email_data.to_email}"
-            )
-        else:
-            logger.error(
-                f"Failed to send quote {quote_id} by email",
-                user_id=current_user.id,
-                project_id=project_id,
-                to_email=email_data.to_email,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to send email. Please check email provider configuration.",
-            )
+        logger.info(
+            f"Quote {quote_id} queued for email delivery to {email_data.to_email}",
+            user_id=current_user.id,
+            project_id=project_id,
+        )
+        return QuoteEmailResponse(
+            success=True, message=f"Quote sent successfully to {email_data.to_email}"
+        )
 
     except HTTPException:
         raise
