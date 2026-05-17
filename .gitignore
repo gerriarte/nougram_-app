@@ -1,8 +1,7 @@
 # ============================================
 # IP Protection - Protocolo de Exclusión
-# docs/, manuals/, *.pdf gestionados externamente
+# manuals/, *.pdf gestionados externamente
 # ============================================
-docs/
 manuals/
 *.pdf
 
