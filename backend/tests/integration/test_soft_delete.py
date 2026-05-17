@@ -27,9 +27,7 @@ class TestSoftDelete:
         """Test soft delete of a service"""
         headers = get_auth_headers(test_admin_user)
 
-        response = await async_client.delete(
-            f"/api/v1/services/{test_service.id}", headers=headers
-        )
+        response = await async_client.delete(f"/api/v1/services/{test_service.id}", headers=headers)
 
         assert response.status_code == 204
 

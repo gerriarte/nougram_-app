@@ -325,7 +325,8 @@ class QuoteUpdate(BaseModel):
         False, description="Allow creating quote even if margin is below threshold"
     )
     expenses: list[QuoteExpenseCreate] | None = Field(
-        default=None, description="Vendor/third-party expenses (replaces all existing when provided)"
+        default=None,
+        description="Vendor/third-party expenses (replaces all existing when provided)",
     )
 
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string

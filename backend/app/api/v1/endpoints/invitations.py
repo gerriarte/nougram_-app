@@ -72,7 +72,12 @@ async def _send_invitation_email(
 
     subject = f"Invitation to join {organization.name}"
 
-    d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
+    d, a, logo, site = (
+        NOUGRAM_BRAND_DARK,
+        NOUGRAM_BRAND_ACCENT,
+        NOUGRAM_BRAND_LOGO_URL,
+        NOUGRAM_SITE_URL,
+    )
     body_html = f"""
     <!DOCTYPE html>
     <html>

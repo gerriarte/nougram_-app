@@ -1420,21 +1420,21 @@ async def update_quote(
 
         # Replace expenses when provided
         if quote_data.expenses is not None:
-            await db.execute(
-                sql_delete(QuoteExpense).where(QuoteExpense.quote_id == quote_id)
-            )
+            await db.execute(sql_delete(QuoteExpense).where(QuoteExpense.quote_id == quote_id))
             for exp_data in quote_data.expenses:
                 client_price = exp_data.cost * exp_data.quantity * (1 + exp_data.markup_percentage)
-                db.add(QuoteExpense(
-                    quote_id=quote_id,
-                    name=exp_data.name,
-                    description=exp_data.description,
-                    cost=exp_data.cost,
-                    markup_percentage=exp_data.markup_percentage,
-                    category=exp_data.category,
-                    quantity=exp_data.quantity,
-                    client_price=client_price,
-                ))
+                db.add(
+                    QuoteExpense(
+                        quote_id=quote_id,
+                        name=exp_data.name,
+                        description=exp_data.description,
+                        cost=exp_data.cost,
+                        markup_percentage=exp_data.markup_percentage,
+                        category=exp_data.category,
+                        quantity=exp_data.quantity,
+                        client_price=client_price,
+                    )
+                )
 
         await db.commit()
         await db.refresh(quote)

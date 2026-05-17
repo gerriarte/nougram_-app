@@ -218,7 +218,12 @@ async def submit_proposal_decision(
         decision_date = now.strftime("%Y-%m-%d %H:%M UTC")
         sender_company_name = get_brand_sender_name()
         creator_subject = f'Respuesta de cliente: {decision_label} - "{proposal.title}"'
-        d, a, logo, site = NOUGRAM_BRAND_DARK, NOUGRAM_BRAND_ACCENT, NOUGRAM_BRAND_LOGO_URL, NOUGRAM_SITE_URL
+        d, a, logo, site = (
+            NOUGRAM_BRAND_DARK,
+            NOUGRAM_BRAND_ACCENT,
+            NOUGRAM_BRAND_LOGO_URL,
+            NOUGRAM_SITE_URL,
+        )
         creator_html = f"""
         <!DOCTYPE html><html><head><meta charset="utf-8"></head>
         <body style="margin:0;padding:0;background:#ebebf0;font-family:Arial,sans-serif;">
