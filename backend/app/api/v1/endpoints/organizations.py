@@ -671,6 +671,7 @@ async def list_organization_users(
 async def invite_user_to_organization(
     organization_id: int,
     invite_data: OrganizationInviteRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -765,14 +766,7 @@ async def invite_user_to_organization(
     await db.commit()
     await db.refresh(invitation)
 
-    # Send invitation email
-    email_sent = await _send_invitation_email(invitation, org)
-    if not email_sent:
-        logger.warning(
-            f"Failed to send invitation email to {invite_data.email}",
-            invitation_id=invitation.id,
-            organization_id=organization_id,
-        )
+    _send_invitation_email(invitation, org, background_tasks, org_id=organization_id)
 
     logger.info(
         f"Invitation created for {invite_data.email} to organization {organization_id}",
