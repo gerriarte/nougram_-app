@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -24,8 +25,9 @@ from app.core.permissions import PermissionError
 from app.core.rate_limiting import limiter, rate_limit_exceeded_handler
 from app.services.super_admin_bootstrap_service import ensure_super_admin_bootstrap
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging — INFO in dev, WARNING in production to reduce Railway log volume
+_log_level = logging.INFO if settings.ENVIRONMENT.lower() != "production" else logging.WARNING
+logging.basicConfig(level=_log_level)
 logger = get_logger(__name__)
 
 
@@ -149,6 +151,9 @@ class CORSFallbackMiddleware(BaseHTTPMiddleware):
             response.headers["Access-Control-Max-Age"] = "3600"
         return response
 
+
+# GZip compression for all responses ≥ 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Configure CORS (add fallback first so it runs outermost and can fix responses)
 app.add_middleware(CORSFallbackMiddleware)

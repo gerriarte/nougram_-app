@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/Toaster';
 import { GoogleTagManager } from '@/components/analytics/GoogleTagManager';
 import { RouteTrackerClient } from '@/components/analytics/RouteTrackerClient';
 import { AuthSessionExpiredDialog } from '@/components/auth/AuthSessionExpiredDialog';
+import { SWRConfig } from 'swr';
 
 export const metadata: Metadata = {
   title: "Nougram Cotizador",
@@ -25,14 +26,16 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className="font-sans antialiased bg-background text-slate-900" suppressHydrationWarning>
         <GoogleTagManager />
-        <NougramCoreProvider>
-          <AdminProvider>
-            <RouteTrackerClient />
-            {children}
-            <AuthSessionExpiredDialog />
-            <Toaster />
-          </AdminProvider>
-        </NougramCoreProvider>
+        <SWRConfig value={{ revalidateOnFocus: false, dedupingInterval: 5000 }}>
+          <NougramCoreProvider>
+            <AdminProvider>
+              <RouteTrackerClient />
+              {children}
+              <AuthSessionExpiredDialog />
+              <Toaster />
+            </AdminProvider>
+          </NougramCoreProvider>
+        </SWRConfig>
       </body>
     </html>
   );
