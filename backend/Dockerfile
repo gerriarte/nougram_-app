@@ -19,7 +19,7 @@ COPY . .
 EXPOSE 8000
 
 # Run migrations then start the app (Railway uses PORT env var)
-CMD ["sh", "-c", "alembic upgrade head && exec gunicorn main:app -c gunicorn_config.py -w 1 -b 0.0.0.0:${PORT:-8000}"]
+CMD ["sh", "-c", "alembic upgrade head && exec gunicorn main:app -c gunicorn_config.py -b 0.0.0.0:${PORT:-8000}"]
 
 
 
