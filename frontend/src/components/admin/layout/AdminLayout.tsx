@@ -4,7 +4,6 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { AdminProvider } from '@/context/AdminContext';
 import { AdminSidebar } from './AdminSidebar';
 import { BCRSummaryCard } from './BCRSummaryCard';
 import { AdminHeader } from './AdminHeader';
@@ -62,8 +61,7 @@ export function AdminLayout({ children, hideRightPanel = false }: { children: Re
     }
 
     return (
-        <AdminProvider>
-            <div className="flex min-h-screen bg-background">
+        <div className="flex min-h-screen bg-background">
                 <AdminSidebar
                     isCollapsed={isSidebarCollapsed}
                     onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
@@ -120,6 +118,5 @@ export function AdminLayout({ children, hideRightPanel = false }: { children: Re
 
                 <MobileBottomNav onOpenMenu={() => setMobileDrawerOpen(true)} />
             </div>
-        </AdminProvider>
     );
 }

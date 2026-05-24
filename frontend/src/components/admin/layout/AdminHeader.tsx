@@ -2,11 +2,12 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, LogOut, ChevronDown, ChevronRight, Building2, CreditCard, Menu } from 'lucide-react';
+import { Users, LogOut, ChevronDown, ChevronRight, Building2, CreditCard, Menu, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { HelpPanel } from './HelpPanel';
 
 type AdminHeaderProps = {
     onOpenMobileNav?: () => void;
@@ -76,6 +77,7 @@ export function AdminHeader({ onOpenMobileNav, workspaceName = 'Workspace' }: Ad
     const { user, logout } = useAuth();
     const pathname = usePathname() || '';
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isHelpOpen, setIsHelpOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const breadcrumbs = getBreadcrumbs(pathname);
 
@@ -143,7 +145,19 @@ export function AdminHeader({ onOpenMobileNav, workspaceName = 'Workspace' }: Ad
                 </div>
             </div>
 
-            {/* Right: User Menu */}
+            {/* Right: Help + User Menu */}
+            <div className="flex items-center gap-3">
+            <button
+                type="button"
+                onClick={() => setIsHelpOpen(true)}
+                className="h-10 w-10 rounded-2xl border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-secondary transition-all hidden sm:flex"
+                aria-label="Abrir guía de uso"
+            >
+                <HelpCircle size={18} strokeWidth={2} />
+            </button>
+            <HelpPanel open={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+            {/* User Menu */}
             <div className="relative" ref={menuRef}>
                 <button
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -214,6 +228,7 @@ export function AdminHeader({ onOpenMobileNav, workspaceName = 'Workspace' }: Ad
                         </motion.div>
                     )}
                 </AnimatePresence>
+            </div>
             </div>
         </header>
     );
