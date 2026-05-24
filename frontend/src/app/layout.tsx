@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { NougramCoreProvider } from '@/context/NougramCoreContext';
+import { AdminProvider } from '@/context/AdminContext';
 import { Toaster } from '@/components/ui/Toaster';
 import { GoogleTagManager } from '@/components/analytics/GoogleTagManager';
 import { RouteTrackerClient } from '@/components/analytics/RouteTrackerClient';
@@ -25,10 +26,12 @@ export default function RootLayout({
       <body className="font-sans antialiased bg-background text-slate-900" suppressHydrationWarning>
         <GoogleTagManager />
         <NougramCoreProvider>
-          <RouteTrackerClient />
-          {children}
-          <AuthSessionExpiredDialog />
-          <Toaster />
+          <AdminProvider>
+            <RouteTrackerClient />
+            {children}
+            <AuthSessionExpiredDialog />
+            <Toaster />
+          </AdminProvider>
         </NougramCoreProvider>
       </body>
     </html>

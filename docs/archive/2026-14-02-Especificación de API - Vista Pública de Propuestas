@@ -1,0 +1,79 @@
+Especificación de API - Vista Pública de Propuestas
+Este documento detalla los endpoints necesarios para el sistema de propuestas públicas, donde los clientes pueden visualizar y responder a las cotizaciones sin necesidad de autenticación (acceso por token).
+
+Consideraciones de Seguridad
+Acceso Público: Estos endpoints NO requieren autenticación de usuario (JWT/Session).
+Validación de Token: El backend debe verificar que el token exista y que expiresAt sea mayor a la fecha actual.
+Rate Limiting: Se recomienda limitar las peticiones por IP para evitar ataques de fuerza bruta sobre los tokens.
+Sanitización: La respuesta NO debe incluir datos sensibles internos como internalCost, margin, kpis, o notas internas. Solo datos comerciales para el cliente.
+Endpoints
+1. Obtener Propuesta Pública
+Método: `GET`
+Ruta: `/api/public/quotes/:token`
+Descripción: Obtiene los detalles de la cotización para mostrar en la página pública.
+Side Effect: Debe incrementar el contador viewedCount y actualizar lastViewedAt en el registro de la cotización.
+Respuesta JSON (Ejemplo)
+{
+  "project": "Desarrollo E-commerce",
+  "client": "Juan Pérez",
+  "clientCompany": "Tech Solutions",
+  "amount": 25000000,
+  "currency": "COP",
+  "status": "sent", // o 'viewed', 'accepted', 'rejected', 'expired'
+  "tokenExpiresAt": "2024-03-20T10:00:00Z",
+  "publicToken": "abc-123-uuid", // Retornar para usar en acciones
+  
+  // Lista de Ítems (Sanitizada para el cliente)
+  "items": [
+    {
+      "serviceName": "Desarrollo Backend",
+      "description": "Implementación de API REST...",
+      "quantity": 1,
+      "totalPrice": 15000000 // Precio Cliente (Unit * Qty)
+    },
+    {
+      "serviceName": "Licencia Server",
+      "description": "Licencia anual...",
+      "quantity": 2,
+      "totalPrice": 10000000
+    }
+  ],
+  
+  // Impuestos (Opcional, si se muestra desglose)
+  "taxes": [
+    { "name": "IVA 19%", "amount": 4750000 }
+  ],
+  "totalWithTax": 29750000
+}
+2. Aceptar Propuesta
+Método: `POST`
+Ruta: `/api/public/quotes/:token/accept`
+Descripción: Marca la cotización como accepted.
+Side Effect:
+Cambia estado de cotización a accepted.
+Notifica al administrador (Email / Notificación Dashboard).
+Registra fecha de aceptación.
+Respuesta JSON
+{
+  "success": true,
+  "message": "Propuesta aceptada correctamente."
+}
+3. Rechazar Propuesta
+Método: `POST`
+Ruta: `/api/public/quotes/:token/reject`
+Descripción: Marca la cotización como rejected y guarda el motivo.
+Payload (Body)
+{
+  "reason": "El presupuesto excede nuestras expectativas."
+}
+Respuesta JSON
+{
+  "success": true,
+  "message": "Propuesta rechazada."
+}
+Flujo de Estados
+Creada (Draft): No tiene token público.
+Enviada (Sent): Se genera token y se envía link.
+Vista (Viewed): Cliente abre el link -> GET /api/public/quotes/:token activa este estado (si estaba en sent).
+Aceptada/Rechazada: Cliente acciona botones.
+Expirada: Si tokenExpiresAt < now, el endpoint GET debe retornar 404 o un status especial indicando expiración.

@@ -1,0 +1,114 @@
+Especificación de API - Dashboard y Pipeline
+Este documento detalla los endpoints necesarios para alimentar el Dashboard Principal y el Pipeline de Cotizaciones.
+
+1. KPIs y Estadísticas (Widgets)
+El Dashboard consume estadísticas agregadas para mostrar en la parte superior (Ingresos, Cotizaciones Activas, Tasa de Cierre).
+
+Endpoint: Obtener Estadísticas
+Método: `GET`
+Ruta: `/api/dashboard/kpis`
+Query Params:
+`period`: 'month', 'quarter', 'year' (Opcional, defecto 'month')
+Respuesta JSON (Ejemplo)
+{
+  "totalRevenue": 150000000,       // Ingresos Totales (Cotizaciones Aceptadas)
+  "totalRevenueChange": 12.5,      // % Cambio vs periodo anterior
+  
+  "activeQuotesCount": 24,         // Cantidad de cotizaciones en curso (No draft, no closed)
+  "activeQuotesChange": 5.0,       // % Cambio
+  
+  "closeRate": 45.2,               // Tasa de Cierre (%)
+  "closeRateChange": -2.1,         // % Cambio
+  
+  "averageTicket": 8500000,        // Ticket Promedio
+  "averageTicketChange": 1.5       // % Cambio
+}
+2. Pipeline de Cotizaciones
+La tabla principal de cotizaciones requiere un endpoint con capacidad de filtrado y paginación.
+
+Endpoint: Listar Cotizaciones
+Método: `GET`
+Ruta: `/api/quotes`
+Query Params:
+`status`: 'draft' | 'sent' | 'viewed' | 'accepted' | 'rejected' (Opcional)
+`search`: string (Busca por cliente o proyecto)
+`page`: number (Defecto 1)
+`limit`: number (Defecto 20)
+`sortBy`: 'date' | 'amount' | 'status'
+`order`: 'asc' | 'desc'
+Respuesta JSON (Ejemplo)
+{
+  "data": [
+    {
+      "id": "uuid-1234",
+      "project": "App E-commerce",
+      "client": "TechCorp",
+      "amount": 25000000,
+      "currency": "COP",
+      "margin": 42,            // Margen calculado (%)
+      "status": "sent",
+      "version": 2,
+      "createdAt": "2024-02-14T10:00:00Z",
+      "updatedAt": "2024-02-15T14:30:00Z",
+      "sentAt": "2024-02-15T14:30:00Z",
+      "viewedCount": 3,        // Veces que el cliente abrió el link
+      "publicToken": "abc-123" // Token para generar link público
+    },
+    {
+      "id": "uuid-5678",
+      "project": "Landing Page",
+      "client": "StartupX",
+      "amount": 5000000,
+      "currency": "COP",
+      "margin": 25,
+      "status": "draft",
+      "version": 1,
+      "createdAt": "2024-02-16T09:00:00Z"
+    }
+  ],
+  "meta": {
+    "total": 45,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 3
+  }
+}
+3. Finanzas y Administrativo (BCR)
+El panel derecho del Dashboard muestra información financiera clave de la empresa (Costos Fijos, Nómina, BCR).
+
+Endpoint: Obtener Resumen Financiero
+Método: `GET`
+Ruta: `/api/admin/financial-summary`
+Respuesta JSON (Ejemplo)
+{
+  "monthlyFixedCosts": 15000000,   // Costos Fijos (Arriendo, Servicios, etc.)
+  "monthlyPayroll": 45000000,      // Nómina Total
+  "totalBillableHours": 6400,      // Capacidad Total de Horas (Equipo)
+  
+  "blendedCostRate": 65000,        // BCR Calculado (Costo por hora promedio)
+  
+  "activeTeamMembers": 12,         // Cantidad de empleados activos
+  
+  "currency": "COP"
+}
+4. Acciones sobre Cotizaciones
+Endpoint: Cambiar Estado
+Método: `PATCH`
+Ruta: `/api/quotes/:id/status`
+Body:
+{
+  "status": "accepted" // o 'rejected', 'sent', etc.
+}
+Endpoint: Generar Enlace Público
+Método: `POST`
+Ruta: `/api/quotes/:id/public-link`
+Body:
+{
+  "daysValid": 30
+}
+Respuesta:
+{
+  "token": "nuev-token-uuid",
+  "url": "https://app.nougram.com/proposal/nuev-token-uuid",
+  "expiresAt": "2024-03-16T10:00:00Z"
+}
