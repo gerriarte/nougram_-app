@@ -4,6 +4,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { QuotePipeline } from '@/components/dashboard/QuotePipeline';
+import { BusinessHealthSection } from '@/components/dashboard/BusinessHealthSection';
 import { Button } from '@/components/ui/Button';
 import { AdminLayout } from '@/components/admin/layout/AdminLayout';
 import { Plus } from 'lucide-react';
@@ -33,6 +34,8 @@ export default function DashboardPage() {
                         Nueva cotización
                     </Button>
                 </div>
+
+                <BusinessHealthSection />
 
                 <QuotePipeline />
             </motion.div>

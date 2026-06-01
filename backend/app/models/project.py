@@ -63,9 +63,22 @@ class Project(Base):
         Integer, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
+    # The quote version accepted by the client when the project is Won. Drives
+    # committed revenue and resource utilization in the dashboard. Nullable FK.
+    accepted_quote_id = Column(
+        Integer,
+        ForeignKey("quotes.id", use_alter=True, name="fk_projects_accepted_quote"),
+        nullable=True,
+    )
+
     # Relationships
     client = relationship("Client", backref="projects")
-    quotes = relationship("Quote", back_populates="project", cascade="all, delete-orphan")
+    quotes = relationship(
+        "Quote",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        foreign_keys="Quote.project_id",
+    )
     taxes = relationship("Tax", secondary="project_taxes", back_populates="projects")
     deleted_by = relationship("User", foreign_keys=[deleted_by_id])
 
@@ -110,7 +123,7 @@ class Quote(Base):
     deletion_request_reason = Column(String, nullable=True)
 
     # Relationships
-    project = relationship("Project", back_populates="quotes")
+    project = relationship("Project", back_populates="quotes", foreign_keys=[project_id])
     items = relationship("QuoteItem", back_populates="quote", cascade="all, delete-orphan")
     expenses = relationship("QuoteExpense", back_populates="quote", cascade="all, delete-orphan")
     deletion_requested_by = relationship("User", foreign_keys=[deletion_requested_by_id])

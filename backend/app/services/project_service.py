@@ -1250,6 +1250,26 @@ class ProjectService:
         for field, value in update_data.items():
             setattr(project, field, value)
 
+        # Approval side-effect: when a project becomes "Won", record which quote
+        # version was accepted so its resources/revenue feed the dashboard; clear
+        # it when the project leaves the "Won" state.
+        new_status = update_data.get("status")
+        if new_status is not None:
+            if new_status == "Won":
+                from app.models.project import Quote as _Quote
+
+                latest = await self.db.execute(
+                    select(_Quote.id)
+                    .where(_Quote.project_id == project_id)
+                    .order_by(_Quote.version.desc())
+                    .limit(1)
+                )
+                latest_quote_id = latest.scalar_one_or_none()
+                if latest_quote_id is not None:
+                    project.accepted_quote_id = latest_quote_id
+            else:
+                project.accepted_quote_id = None
+
         # Update taxes if provided
         if tax_ids is not None:
             # Remove existing tax associations

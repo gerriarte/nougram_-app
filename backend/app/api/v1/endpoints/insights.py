@@ -491,3 +491,66 @@ async def ask_ai_advisor_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error querying AI advisor: {str(e)}",
         )
+
+
+def _parse_iso_date(value: str | None):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        try:
+            return datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            return None
+
+
+async def _currency_and_social(db: AsyncSession, organization_id: int):
+    from app.models.organization import Organization
+
+    settings_service = SettingsService(db)
+    primary_currency = await settings_service.get_primary_currency(organization_id)
+    org = (
+        await db.execute(select(Organization).where(Organization.id == organization_id))
+    ).scalar_one_or_none()
+    social = (org.settings or {}).get("social_charges_config") if org and org.settings else None
+    return primary_currency, social
+
+
+@router.get("/break-even", summary="Monthly break-even point")
+async def get_break_even(
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(require_view_analytics),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Monthly break-even analysis: operating cost (fixed + equipment + payroll w/
+    social charges) vs committed revenue (MRR + prorated one-time) from approved
+    (Won) projects. Requires `can_view_analytics`.
+    """
+    from app.core.business_health import calculate_break_even
+
+    primary_currency, social = await _currency_and_social(db, tenant.organization_id)
+    return await calculate_break_even(
+        db, tenant.organization_id, primary_currency=primary_currency, social_charges_config=social
+    )
+
+
+@router.get("/resource-utilization", summary="Team resource utilization")
+async def get_resource_utilization(
+    start_date: str | None = Query(None, description="Window start (YYYY-MM-DD)"),
+    end_date: str | None = Query(None, description="Window end (YYYY-MM-DD)"),
+    tenant: TenantContext = Depends(get_tenant_context),
+    current_user: User = Depends(require_view_analytics),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Allocated hours per team member across the accepted quotes of Won projects,
+    compared against monthly billable capacity. Requires `can_view_analytics`.
+    """
+    from app.core.business_health import calculate_resource_utilization
+
+    return await calculate_resource_utilization(
+        db, tenant.organization_id,
+        start=_parse_iso_date(start_date), end=_parse_iso_date(end_date),
+    )
