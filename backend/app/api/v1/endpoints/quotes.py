@@ -179,9 +179,19 @@ async def calculate_quote(
         organization_id=tenant.organization_id,
     )
 
+    # Apply contingency using the SAME canonical helper as the save flow so the
+    # preview equals the persisted/charged total (contingency added after taxes).
+    from app.services.project_service import _apply_contingency_to_totals
+
+    base_client_price = Decimal(str(totals.get("total_client_price", 0.0)))
+    totals = _apply_contingency_to_totals(
+        totals, request.contingency_type, request.contingency_value
+    )
+
     # ESTÁNDAR NOUGRAM: Convertir valores float a Decimal para el schema
     total_internal_cost = Decimal(str(totals["total_internal_cost"]))
     total_client_price = Decimal(str(totals["total_client_price"]))
+    contingency_amount = total_client_price - base_client_price
     total_taxes = Decimal(str(totals["total_taxes"]))
     gross_margin_ratio = Decimal(str(totals["margin_percentage"]))
     target_margin_ratio = (
@@ -200,7 +210,9 @@ async def calculate_quote(
         total_expenses_cost=Decimal(str(totals.get("total_expenses_cost", 0.0))),
         total_expenses_client_price=Decimal(str(totals.get("total_expenses_client_price", 0.0))),
         total_taxes=total_taxes,
-        total_with_taxes=Decimal(str(totals["total_with_taxes"])),
+        # Contingency is added after taxes (taxes are not applied to it), matching
+        # the save flow; total_with_taxes reflects price (incl. contingency) + taxes.
+        total_with_taxes=total_client_price + total_taxes,
         margin_percentage=gross_margin_ratio,
         target_margin_percentage=target_margin_ratio,  # Legacy field kept for compatibility
         margin=MarginSummary(
@@ -217,6 +229,7 @@ async def calculate_quote(
         ),  # Revisions breakdown (Sprint 16)
         revisions_included=totals.get("revisions_included", 2),
         revisions_count=totals.get("revisions_count"),
+        contingency_amount=contingency_amount,
     )
 
 

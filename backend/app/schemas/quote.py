@@ -165,9 +165,15 @@ class QuoteCalculateRequest(BaseModel):
     revisions_count: int | None = Field(
         None, description="Actual number of revisions requested (for calculation)", ge=0
     )
+    contingency_type: str | None = Field(
+        None, description="Contingency type: 'fixed' | 'percentage'"
+    )
+    contingency_value: Decimal | None = Field(
+        None, ge=0, description="Contingency amount (fixed) or percentage (e.g. 10 = 10%)"
+    )
 
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
-    @field_serializer("target_margin_percentage", "revision_cost_per_additional")
+    @field_serializer("target_margin_percentage", "revision_cost_per_additional", "contingency_value")
     def serialize_decimal(self, value: Decimal | None) -> str | None:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None
@@ -209,6 +215,9 @@ class QuoteCalculateResponse(BaseModel):
     )
     revisions_included: int = Field(default=2, description="Number of included revisions")
     revisions_count: int | None = Field(None, description="Actual number of revisions requested")
+    contingency_amount: Decimal = Field(
+        default=Decimal("0"), description="Resolved contingency amount added to client price"
+    )
 
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
     @field_serializer(
@@ -221,6 +230,7 @@ class QuoteCalculateResponse(BaseModel):
         "margin_percentage",
         "target_margin_percentage",
         "revisions_cost",
+        "contingency_amount",
     )
     def serialize_decimal(self, value: Decimal) -> str:
         """Serializa Decimal como string para mantener precisión"""

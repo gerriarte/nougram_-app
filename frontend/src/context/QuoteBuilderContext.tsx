@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNougram } from '@/context/NougramCoreContext';
 import {
     QuoteBuilderState, QuoteItem, QuoteExpense, TaxConfig, CalculationSummary,
@@ -10,7 +10,6 @@ import {
 import { taxService } from '@/services/taxService';
 
 import { resourceService } from '@/services/resourceService';
-import { pricingService } from '@/services/pricingService';
 import { CreditsRequiredError } from '@/lib/errors';
 import type { PaywallReason } from '@/components/billing/PaywallModal';
 import { getQuoteEditorMeta, saveQuoteEditorMeta } from '@/lib/quote-editor-meta';
@@ -155,26 +154,10 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     }, [coreState.identity.primaryCurrency]);
 
     // --- CALCULATION ENGINE ---
-    // Recalculate all item costs when BCR changes (e.g. after hydration or team/equipment update).
-    const prevBcrRef = useRef<number>(0);
-    useEffect(() => {
-        const currentBcr = coreState.financials.bcr;
-        if (currentBcr === 0 || currentBcr === prevBcrRef.current) return;
-        prevBcrRef.current = currentBcr;
-        setState(prev => {
-            if (prev.items.length === 0) return prev;
-            const nextItems = prev.items.map(item => {
-                const calculated = pricingService.calculateItem(item, currentBcr, prev.targetMargin);
-                return { ...item, internalCost: calculated.internalCost, clientPrice: calculated.clientPrice, marginPercentage: calculated.marginPercentage };
-            });
-            return { ...prev, items: nextItems };
-        });
-    }, [coreState.financials.bcr]);
+    // Fuente de verdad: el BACKEND. El frontend NO calcula precios; envía los inputs
+    // a POST /quotes/calculate (con debounce) y renderiza lo que devuelve.
 
-    useEffect(() => {
-        calculateTotals();
-    }, [state.items, state.expenses, state.selectedTaxIds, state.targetMargin, coreState.financials.bcr, state.contingency, taxes]);
-
+    // Normalize selected taxes against the loaded (real) taxes.
     useEffect(() => {
         if (!state.selectedTaxIds.length) return;
         const activeTaxIds = new Set(
@@ -188,20 +171,61 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         }
     }, [taxes, state.selectedTaxIds]);
 
-    const calculateTotals = () => {
-        const totals = pricingService.calculateQuoteTotals(
-            state.items,
-            taxes,
-            state.selectedTaxIds,
-            state.contingency,
-            state.expenses
-        );
+    // Signature of the pricing INPUTS only, so writing the backend results back to
+    // the items does not retrigger the effect (avoids an infinite recompute loop).
+    const itemsInputSignature = JSON.stringify(
+        state.items.map(i => ({
+            id: i.id, s: i.serviceId, p: i.pricingType, f: i.fixedPrice, q: i.quantity,
+            r: i.recurringPrice, b: i.billingFrequency, v: i.projectValue,
+            d: i.durationMonths, e: i.estimatedHours,
+            a: (i.allocations || []).map(x => [x.teamMemberId, x.hours]),
+        }))
+    );
+    const expensesSignature = JSON.stringify(
+        (state.expenses || []).map(e => [e.cost, e.markupPercentage, e.quantity])
+    );
+    const contingencySignature = state.contingency ? `${state.contingency.type}:${state.contingency.value}` : '';
+    const taxSignature = (state.selectedTaxIds || []).join(',');
 
-        setSummary(totals);
-    };
-
-    // Moved to pricingService
-    // const calculateItemFinancials = ...
+    useEffect(() => {
+        if (state.items.length === 0 && (state.expenses || []).length === 0) {
+            setSummary({
+                totalInternalCost: 0, totalClientPrice: 0, totalTaxes: 0, totalWithTaxes: 0,
+                netMarginAmount: 0, netMarginPercent: 0, realIncome: 0,
+                contingencyAmount: 0, contingencyTotal: 0,
+                expensesInternalCost: 0, expensesClientPrice: 0,
+            });
+            return;
+        }
+        let cancelled = false;
+        const handle = setTimeout(async () => {
+            try {
+                const { quoteService } = await import('@/services/quoteService');
+                const { summary: backendSummary, itemsById } = await quoteService.calculate({
+                    items: state.items,
+                    expenses: state.expenses,
+                    selectedTaxIds: state.selectedTaxIds,
+                    targetMargin: state.targetMargin,
+                    contingency: state.contingency,
+                });
+                if (cancelled) return;
+                setSummary(backendSummary);
+                setState(prev => ({
+                    ...prev,
+                    items: prev.items.map(item => {
+                        const calc = itemsById[item.id];
+                        return calc
+                            ? { ...item, internalCost: calc.internalCost, clientPrice: calc.clientPrice, marginPercentage: calc.marginPercentage }
+                            : item;
+                    }),
+                }));
+            } catch (err) {
+                if (!cancelled) console.error('Error calculando cotización en backend', err);
+            }
+        }, 350);
+        return () => { cancelled = true; clearTimeout(handle); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [itemsInputSignature, expensesSignature, taxSignature, state.targetMargin, contingencySignature]);
 
     // --- RESOURCE ALLOCATION HELPERS ---
     const getMemberUtilization = (memberId: number) => {
@@ -238,37 +262,19 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             durationMonths: effectivePricingType === 'recurring' ? 1 : undefined, // Default 1 month
             allocations: [], // Start empty as per unified logic
 
-            // Initial placeholders
+            // Placeholders; the backend calculation effect fills these in.
             internalCost: 0, clientPrice: 0, marginPercentage: 0
         };
-
-        // Calculate initial values
-        const calculated = pricingService.calculateItem(newItem, coreState.financials.bcr, state.targetMargin);
-        newItem.internalCost = calculated.internalCost;
-        newItem.clientPrice = calculated.clientPrice;
-        newItem.marginPercentage = calculated.marginPercentage;
 
         setState(prev => ({ ...prev, items: [...prev.items, newItem] }));
     };
 
     const updateItem = (itemId: string, updates: Partial<QuoteItem>) => {
-        setState(prev => {
-            const nextItems = prev.items.map(i => {
-                if (i.id !== itemId) return i;
-
-                const updatedItem = { ...i, ...updates };
-                // Recalculate financing for this item
-                const calculated = pricingService.calculateItem(updatedItem, coreState.financials.bcr, prev.targetMargin);
-
-                return {
-                    ...updatedItem,
-                    internalCost: calculated.internalCost,
-                    clientPrice: calculated.clientPrice,
-                    marginPercentage: calculated.marginPercentage
-                };
-            });
-            return { ...prev, items: nextItems };
-        });
+        // No client-side pricing: just merge inputs; the backend effect recalculates.
+        setState(prev => ({
+            ...prev,
+            items: prev.items.map(i => (i.id === itemId ? { ...i, ...updates } : i)),
+        }));
     };
 
     const removeItem = (itemId: string) =>
@@ -320,23 +326,9 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
         setState(prev => ({ ...prev, resourceAllocations: prev.resourceAllocations.filter(a => a.id !== id) }));
 
 
+    // No client-side pricing: just set the target; the backend effect recalculates.
     const setTargetMargin = (margin: number) =>
-        setState((prev) => {
-            const nextItems = prev.items.map((item) => {
-                const calculated = pricingService.calculateItem(item, coreState.financials.bcr, margin);
-                return {
-                    ...item,
-                    internalCost: calculated.internalCost,
-                    clientPrice: calculated.clientPrice,
-                    marginPercentage: calculated.marginPercentage,
-                };
-            });
-            return {
-                ...prev,
-                targetMargin: margin,
-                items: nextItems,
-            };
-        });
+        setState((prev) => ({ ...prev, targetMargin: margin }));
     const setContingency = (contingency: Contingency | undefined) => setState(prev => ({ ...prev, contingency }));
 
     // --- VALIDATION ---

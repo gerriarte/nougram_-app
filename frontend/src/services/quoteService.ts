@@ -4,6 +4,29 @@ import { QuoteBuilderState, CalculationSummary, Service, QuoteItem, QuoteExpense
 import { apiRequest } from '@/lib/api-client';
 import { CreditsRequiredError } from '@/lib/errors';
 
+export type ItemCalcResult = {
+    internalCost: number;
+    clientPrice: number;
+    marginPercentage: number;
+};
+
+type QuoteCalculateApiResponse = {
+    total_internal_cost?: string | number;
+    total_client_price?: string | number;
+    total_expenses_cost?: string | number;
+    total_expenses_client_price?: string | number;
+    total_taxes?: string | number;
+    total_with_taxes?: string | number;
+    margin_percentage?: string | number;
+    contingency_amount?: string | number;
+    items?: Array<{
+        service_id: number;
+        internal_cost?: string | number;
+        client_price?: string | number;
+        margin_percentage?: string | number;
+    }>;
+};
+
 type ProjectListItem = {
     id: number;
     name: string;
@@ -646,11 +669,100 @@ export const quoteService = {
         }
     },
 
-    // Server-side calculation simulation
-    calculate: async (): Promise<CalculationSummary> => {
-        // This returns the same structure as the context calculates, useful for server-side verification
-        // For now we assume client-side context does the heavy lifting for "Real-time"
-        return {} as CalculationSummary;
+    // Backend is the single source of truth for pricing. The frontend NEVER
+    // calculates; it sends inputs to POST /quotes/calculate and renders the result.
+    calculate: async (input: {
+        items: QuoteItem[];
+        expenses?: QuoteExpense[];
+        selectedTaxIds: number[];
+        targetMargin: number;
+        contingency?: { type: 'fixed' | 'percentage'; value: number };
+    }): Promise<{ summary: CalculationSummary; itemsById: Record<string, ItemCalcResult> }> => {
+        const requestItems = (input.items || []).map((item) => ({
+            service_id: item.serviceId,
+            custom_service_name:
+                typeof item.serviceName === 'string' && item.serviceName.trim()
+                    ? item.serviceName.trim()
+                    : undefined,
+            estimated_hours: resolveEstimatedHours(item),
+            pricing_type: item.pricingType,
+            fixed_price: item.fixedPrice,
+            quantity: resolveQuantity(item),
+            recurring_price: resolveRecurringPrice(item),
+            billing_frequency: item.billingFrequency,
+            project_value: item.projectValue,
+        }));
+
+        const requestExpenses = (input.expenses || [])
+            .filter((e) => Number(e.cost) > 0)
+            .map((e) => ({
+                name: e.name || 'Gasto',
+                description: e.vendorName,
+                cost: String(e.cost),
+                markup_percentage: String(e.markupPercentage ?? 0),
+                quantity: String(e.quantity ?? 1),
+                category: e.category,
+            }));
+
+        const body: Record<string, unknown> = {
+            items: requestItems,
+            expenses: requestExpenses,
+            tax_ids: input.selectedTaxIds || [],
+            target_margin_percentage: typeof input.targetMargin === 'number' ? input.targetMargin : undefined,
+        };
+        if (input.contingency && input.contingency.value > 0) {
+            body.contingency_type = input.contingency.type;
+            body.contingency_value = input.contingency.value;
+        }
+
+        const response = await apiRequest<QuoteCalculateApiResponse>('/quotes/calculate', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+        if (response.error || !response.data) {
+            throw new Error(response.error || 'No se pudo calcular la cotización');
+        }
+
+        const data = response.data;
+        const totalInternalCost = Number(data.total_internal_cost || 0);
+        const contingencyTotal = Number(data.total_client_price || 0); // backend total incl. contingency
+        const contingencyAmount = Number(data.contingency_amount || 0);
+        const totalClientPrice = contingencyTotal - contingencyAmount; // base, before contingency
+        const totalTaxes = Number(data.total_taxes || 0);
+        const totalWithTaxes = Number(data.total_with_taxes || 0);
+        const realIncome = contingencyTotal - totalTaxes;
+        const netMarginAmount = realIncome - totalInternalCost;
+        const netMarginPercent = realIncome > 0 ? (netMarginAmount / realIncome) * 100 : 0;
+
+        const summary: CalculationSummary = {
+            totalInternalCost: Math.round(totalInternalCost),
+            totalClientPrice: Math.round(totalClientPrice),
+            totalTaxes: Math.round(totalTaxes),
+            totalWithTaxes: Math.round(totalWithTaxes),
+            netMarginAmount: Math.round(netMarginAmount),
+            netMarginPercent,
+            realIncome: Math.round(realIncome),
+            contingencyAmount: Math.round(contingencyAmount),
+            contingencyTotal: Math.round(contingencyTotal),
+            expensesInternalCost: Math.round(Number(data.total_expenses_cost || 0)),
+            expensesClientPrice: Math.round(Number(data.total_expenses_client_price || 0)),
+        };
+
+        // Map per-item backend breakdown to UI items by position (backend preserves order).
+        const itemsById: Record<string, ItemCalcResult> = {};
+        const breakdown = data.items || [];
+        (input.items || []).forEach((item, idx) => {
+            const b = breakdown[idx];
+            if (b) {
+                itemsById[item.id] = {
+                    internalCost: Math.round(Number(b.internal_cost || 0)),
+                    clientPrice: Math.round(Number(b.client_price || 0)),
+                    marginPercentage: Number(b.margin_percentage || 0) * 100,
+                };
+            }
+        });
+
+        return { summary, itemsById };
     },
 
     sendEmail: async (id: string, data: SendEmailPayload, quoteId?: number): Promise<QuoteEmailApiResponse> => {
