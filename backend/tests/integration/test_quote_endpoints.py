@@ -50,6 +50,41 @@ class TestQuoteEndpoints:
         assert Decimal(str(data["total_client_price"])) > 0
         assert Decimal(str(data["margin_percentage"])) > 0
 
+    async def test_calculate_quote_with_contingency(
+        self,
+        async_client: AsyncClient,
+        test_user: User,
+        test_service,
+        test_settings,
+    ):
+        """Contingency is applied in the preview (front no longer calculates)."""
+        token = create_access_token({"sub": str(test_user.id), "email": test_user.email})
+
+        response = await async_client.post(
+            "/api/v1/quotes/calculate",
+            json={
+                "items": [
+                    {
+                        "service_id": test_service.id,
+                        "pricing_type": "fixed",
+                        "fixed_price": "1000",
+                        "quantity": "1",
+                    }
+                ],
+                "tax_ids": [],
+                "contingency_type": "fixed",
+                "contingency_value": "200",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        # Base price 1000 (fixed) + 200 contingency = 1200; amount surfaced; no taxes.
+        assert Decimal(str(data["total_client_price"])) == Decimal("1200")
+        assert Decimal(str(data["contingency_amount"])) == Decimal("200")
+        assert Decimal(str(data["total_with_taxes"])) == Decimal("1200")
+
     async def test_calculate_quote_invalid_service(
         self, async_client: AsyncClient, test_user: User
     ):
