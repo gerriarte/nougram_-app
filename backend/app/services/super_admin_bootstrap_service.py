@@ -67,12 +67,13 @@ async def ensure_super_admin_bootstrap(db: AsyncSession) -> None:
             await db.commit()
             logger.info("Super admin auto-provision created user", email=email)
             return
-        except IntegrityError:
+        except IntegrityError as exc:
             await db.rollback()
             logger.warning(
                 "Super admin auto-provision create failed, retrying lookup",
                 email=email,
                 reason="integrity_error",
+                detail=str(exc.orig) if getattr(exc, "orig", None) else str(exc),
             )
             result = await db.execute(select(User).where(User.email == email))
             user = result.scalar_one_or_none()
@@ -106,11 +107,12 @@ async def ensure_super_admin_bootstrap(db: AsyncSession) -> None:
                         organization_id=fallback_org_id,
                     )
                     return
-                except IntegrityError:
+                except IntegrityError as exc:
                     await db.rollback()
                     logger.error(
                         "Super admin auto-provision failed after fallback create attempt",
                         email=email,
+                        detail=str(exc.orig) if getattr(exc, "orig", None) else str(exc),
                     )
                     return
 
