@@ -107,10 +107,11 @@ HTTP → FastAPI → Depends(get_current_user) → Router → Endpoint → Servi
 
 ### Email System
 
-`app/core/email.py` supports three providers, selected via `EMAIL_PROVIDER` env var:
-- `"resend"` — current default for production (httpx, Resend API)
-- `"smtp"` — traditional SMTP (aiosmtplib)
-- `"mailersend"` — European alternative
+`app/core/email.py` sends transactional email exclusively through **Resend** (httpx against the Resend API) — the previous multi-provider abstraction (SMTP/MailerSend, selected via `EMAIL_PROVIDER`) was removed. All sends run as FastAPI background tasks. Configured via `RESEND_*` env vars in `app/core/config.py`:
+- `RESEND_API_KEY` — API key
+- `RESEND_FROM_EMAIL` / `RESEND_FROM_NAME` — sender identity (name defaults to `"Nougram"`)
+- `RESEND_BASE_URL` — API base (defaults to `https://api.resend.com`)
+- `RESEND_TEMPLATE_*_ID` — Resend template IDs (e.g. password reset)
 
 ### Database
 
@@ -130,7 +131,8 @@ Settings are in `app/core/config.py` (Pydantic `BaseSettings`). Required env var
 | `SECRET_KEY` | JWT signing key (32+ chars) |
 | `CORS_ORIGINS` | Comma-separated frontend URLs |
 | `FRONTEND_URL` | For invitation/reset links |
-| `EMAIL_PROVIDER` | `smtp` \| `resend` \| `mailersend` |
+| `RESEND_API_KEY` | Resend API key (transactional email) |
+| `RESEND_FROM_EMAIL` | Verified sender address |
 | `ENVIRONMENT` | `development` \| `staging` \| `production` |
 
 Copy `backend/.env.production.example` to `backend/.env` for local setup.

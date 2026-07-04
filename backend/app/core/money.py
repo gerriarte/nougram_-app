@@ -114,81 +114,11 @@ class Money:
         Calcula precio con margen: cost / (1 - margin)
         Ejemplo: cost = $100, margin = 40% → price = $100 / (1 - 0.40) = $166.67
         """
-        # #region agent log
-        import json
-        import os
-
-        try:
-            log_data = {
-                "location": "money.py:116",
-                "message": "apply_margin called",
-                "data": {
-                    "margin_percentage": str(margin_percentage),
-                    "margin_percentage_type": str(type(margin_percentage).__name__),
-                    "amount": str(self._amount),
-                    "currency": self._currency,
-                },
-                "timestamp": __import__("time").time() * 1000,
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "A",
-            }
-            log_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".cursor", "debug.log"
-            )
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-        except:
-            pass
-        # #endregion
-
         if isinstance(margin_percentage, float):
             margin_percentage = Decimal(str(margin_percentage))
 
-        # #region agent log
-        try:
-            log_data = {
-                "location": "money.py:140",
-                "message": "after float conversion",
-                "data": {
-                    "margin_percentage": str(margin_percentage),
-                    "margin_percentage_type": str(type(margin_percentage).__name__),
-                },
-                "timestamp": __import__("time").time() * 1000,
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "A",
-            }
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-        except:
-            pass
-        # #endregion
-
         if margin_percentage >= 100:
             raise ValueError("Margin cannot be >= 100%")
-
-        # #region agent log
-        try:
-            log_data = {
-                "location": "money.py:155",
-                "message": "before division",
-                "data": {
-                    "margin_percentage": str(margin_percentage),
-                    "margin_percentage_type": str(type(margin_percentage).__name__),
-                    "dividing_by": "100 (Decimal)",
-                },
-                "timestamp": __import__("time").time() * 1000,
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "A",
-            }
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-        except:
-            pass
-        # #endregion
 
         margin_decimal = margin_percentage / Decimal("100")
         divisor = Decimal("1") - margin_decimal
