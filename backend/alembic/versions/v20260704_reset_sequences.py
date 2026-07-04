@@ -11,7 +11,7 @@ current MAX(id) of its table. It is idempotent and PostgreSQL-only; on SQLite
 (used by the test suite) it is a no-op.
 
 Revision ID: v20260704_reset_sequences
-Revises: v20260517_add_vendors
+Revises: w20260601_accepted
 Create Date: 2026-07-04
 """
 
@@ -20,7 +20,7 @@ from __future__ import annotations
 from alembic import op
 
 revision: str = "v20260704_reset_sequences"
-down_revision: str | None = "v20260517_add_vendors"
+down_revision: str | None = "w20260601_accepted"
 branch_labels = None
 depends_on = None
 
