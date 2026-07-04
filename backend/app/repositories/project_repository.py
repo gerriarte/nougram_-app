@@ -112,7 +112,9 @@ class ProjectRepository(BaseRepository[Project]):
 
         # Join with project to apply tenant filter
         if self.tenant_id is not None:
-            query = query.join(Project).where(Project.organization_id == self.tenant_id)
+            query = query.join(Project, Quote.project_id == Project.id).where(
+                Project.organization_id == self.tenant_id
+            )
 
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
@@ -131,7 +133,9 @@ class ProjectRepository(BaseRepository[Project]):
 
         # Apply tenant filter via project
         if self.tenant_id is not None:
-            query = query.join(Project).where(Project.organization_id == self.tenant_id)
+            query = query.join(Project, Quote.project_id == Project.id).where(
+                Project.organization_id == self.tenant_id
+            )
 
         query = query.order_by(desc(Quote.version)).limit(1)
 
@@ -211,7 +215,9 @@ class ProjectRepository(BaseRepository[Project]):
 
         # Apply tenant filter via project
         if self.tenant_id is not None:
-            query = query.join(Project).where(Project.organization_id == self.tenant_id)
+            query = query.join(Project, Quote.project_id == Project.id).where(
+                Project.organization_id == self.tenant_id
+            )
 
         result = await self.db.execute(query)
         max_version = result.scalar() or 0
@@ -240,7 +246,9 @@ class ProjectRepository(BaseRepository[Project]):
 
         # Apply tenant filter via project
         if self.tenant_id is not None:
-            query = query.join(Project).where(Project.organization_id == self.tenant_id)
+            query = query.join(Project, Quote.project_id == Project.id).where(
+                Project.organization_id == self.tenant_id
+            )
 
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
