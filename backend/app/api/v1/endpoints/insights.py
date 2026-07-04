@@ -477,7 +477,10 @@ async def ask_ai_advisor_endpoint(
     """
     try:
         result = await query_ai_advisor(
-            question=request.question, db=db, ai_provider=request.ai_provider
+            question=request.question,
+            db=db,
+            organization_id=tenant.organization_id,
+            ai_provider=request.ai_provider,
         )
 
         return AIAdvisorResponse(

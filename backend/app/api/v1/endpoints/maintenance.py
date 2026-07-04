@@ -52,6 +52,7 @@ async def cleanup_old_trash(
         CleanupResponse with counts of deleted items
     """
     cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+    org_id = current_user.organization_id
 
     services_deleted = 0
     costs_deleted = 0
@@ -59,10 +60,14 @@ async def cleanup_old_trash(
     projects_deleted = 0
 
     try:
-        # Delete old services
+        # Delete old services (scoped to the caller's organization)
         result = await db.execute(
             select(Service).where(
-                and_(Service.deleted_at.isnot(None), Service.deleted_at <= cutoff_date)
+                and_(
+                    Service.organization_id == org_id,
+                    Service.deleted_at.isnot(None),
+                    Service.deleted_at <= cutoff_date,
+                )
             )
         )
         old_services = result.scalars().all()
@@ -70,10 +75,14 @@ async def cleanup_old_trash(
             await db.delete(service)
         services_deleted = len(old_services)
 
-        # Delete old fixed costs
+        # Delete old fixed costs (scoped to the caller's organization)
         result = await db.execute(
             select(CostFixed).where(
-                and_(CostFixed.deleted_at.isnot(None), CostFixed.deleted_at <= cutoff_date)
+                and_(
+                    CostFixed.organization_id == org_id,
+                    CostFixed.deleted_at.isnot(None),
+                    CostFixed.deleted_at <= cutoff_date,
+                )
             )
         )
         old_costs = result.scalars().all()
@@ -81,9 +90,15 @@ async def cleanup_old_trash(
             await db.delete(cost)
         costs_deleted = len(old_costs)
 
-        # Delete old taxes
+        # Delete old taxes (scoped to the caller's organization)
         result = await db.execute(
-            select(Tax).where(and_(Tax.deleted_at.isnot(None), Tax.deleted_at <= cutoff_date))
+            select(Tax).where(
+                and_(
+                    Tax.organization_id == org_id,
+                    Tax.deleted_at.isnot(None),
+                    Tax.deleted_at <= cutoff_date,
+                )
+            )
         )
         old_taxes = result.scalars().all()
         for tax in old_taxes:
@@ -93,7 +108,11 @@ async def cleanup_old_trash(
         # Delete old projects (this will cascade to quotes and quote items)
         result = await db.execute(
             select(Project).where(
-                and_(Project.deleted_at.isnot(None), Project.deleted_at <= cutoff_date)
+                and_(
+                    Project.organization_id == org_id,
+                    Project.deleted_at.isnot(None),
+                    Project.deleted_at <= cutoff_date,
+                )
             )
         )
         old_projects = result.scalars().all()
@@ -133,17 +152,33 @@ async def get_trash_stats(
     Returns:
         Dictionary with total counts of deleted items by type
     """
-    # Count all deleted items
-    services_result = await db.execute(select(Service).where(Service.deleted_at.isnot(None)))
+    # Count deleted items scoped to the caller's organization
+    org_id = current_user.organization_id
+
+    services_result = await db.execute(
+        select(Service).where(
+            and_(Service.organization_id == org_id, Service.deleted_at.isnot(None))
+        )
+    )
     services_count = len(services_result.scalars().all())
 
-    costs_result = await db.execute(select(CostFixed).where(CostFixed.deleted_at.isnot(None)))
+    costs_result = await db.execute(
+        select(CostFixed).where(
+            and_(CostFixed.organization_id == org_id, CostFixed.deleted_at.isnot(None))
+        )
+    )
     costs_count = len(costs_result.scalars().all())
 
-    taxes_result = await db.execute(select(Tax).where(Tax.deleted_at.isnot(None)))
+    taxes_result = await db.execute(
+        select(Tax).where(and_(Tax.organization_id == org_id, Tax.deleted_at.isnot(None)))
+    )
     taxes_count = len(taxes_result.scalars().all())
 
-    projects_result = await db.execute(select(Project).where(Project.deleted_at.isnot(None)))
+    projects_result = await db.execute(
+        select(Project).where(
+            and_(Project.organization_id == org_id, Project.deleted_at.isnot(None))
+        )
+    )
     projects_count = len(projects_result.scalars().all())
 
     return {

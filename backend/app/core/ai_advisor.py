@@ -50,12 +50,15 @@ def anonymize_project_data(project: Project) -> dict:
     }
 
 
-async def get_anonimized_project_context(db: AsyncSession, limit: int = 5) -> list[dict]:
+async def get_anonimized_project_context(
+    db: AsyncSession, organization_id: int, limit: int = 5
+) -> list[dict]:
     """
     Get anonymized project context for AI analysis
 
     Args:
         db: Database session
+        organization_id: Tenant scope — only this organization's projects are read
         limit: Maximum number of projects to include
 
     Returns:
@@ -63,6 +66,10 @@ async def get_anonimized_project_context(db: AsyncSession, limit: int = 5) -> li
     """
     result = await db.execute(
         select(Project)
+        .where(
+            Project.organization_id == organization_id,
+            Project.deleted_at.is_(None),
+        )
         .options(
             selectinload(Project.quotes).selectinload(Quote.items).selectinload(QuoteItem.service)
         )
@@ -186,20 +193,23 @@ Please provide a CFO-level analysis and recommendation."""
         return f"Error querying Gemini: {str(e)}"
 
 
-async def query_ai_advisor(question: str, db: AsyncSession, ai_provider: str = "openai") -> dict:
+async def query_ai_advisor(
+    question: str, db: AsyncSession, organization_id: int, ai_provider: str = "openai"
+) -> dict:
     """
     Query AI advisor with project context
 
     Args:
         question: User question
         db: Database session
+        organization_id: Tenant scope for the project context
         ai_provider: AI provider to use ("openai" or "gemini")
 
     Returns:
         Dict with AI response
     """
-    # Get anonymized context
-    context = await get_anonimized_project_context(db, limit=5)
+    # Get anonymized context (scoped to the requesting tenant)
+    context = await get_anonimized_project_context(db, organization_id, limit=5)
 
     # Query AI based on provider
     if ai_provider == "gemini" or (ai_provider == "openai" and not settings.OPENAI_API_KEY):
