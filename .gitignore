@@ -9,6 +9,7 @@ manuals/
 .env
 .env.*
 !.env*.example
+coolify.env
 
 # Python
 __pycache__/
