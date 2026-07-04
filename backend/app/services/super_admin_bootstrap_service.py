@@ -61,6 +61,7 @@ async def ensure_super_admin_bootstrap(db: AsyncSession) -> None:
             role="super_admin",
             role_type="support",
             organization_id=None,
+            email_verified=True,
         )
         db.add(user)
         try:
@@ -97,6 +98,7 @@ async def ensure_super_admin_bootstrap(db: AsyncSession) -> None:
                     role="super_admin",
                     role_type="support",
                     organization_id=fallback_org_id,
+                    email_verified=True,
                 )
                 db.add(legacy_user)
                 try:
