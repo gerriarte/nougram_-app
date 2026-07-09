@@ -4,6 +4,10 @@ type PresetMeta = {
   countryCode: string;
   countryLabel: string;
   presetKey: string;
+  // Total patronal curado (fuente de verdad para el BCR). Si se omite, se usa
+  // la suma del desglose. Se declara explícito cuando el headline oficial no
+  // coincide con la suma de los componentes (ej. Colombia: 52.852 vs 46.852).
+  totalPercentage?: number;
   percentages: Omit<SocialChargesConfig, 'enable_social_charges' | 'total_percentage'>;
 };
 
@@ -12,6 +16,9 @@ const PRESETS_BY_COUNTRY: Record<string, PresetMeta> = {
     countryCode: 'CO',
     countryLabel: 'Colombia',
     presetKey: 'CO',
+    // Headline patronal Colombia (incluye SENA+ICBF+Caja completos). El desglose
+    // de abajo es informativo/aproximado y no suma exactamente este total.
+    totalPercentage: 52.852,
     percentages: {
       health_percentage: 8.5,
       pension_percentage: 12.0,
@@ -109,6 +116,33 @@ const COUNTRY_BY_CURRENCY: Record<Currency, string> = {
   EUR: 'EU',
 };
 
+// Año de vigencia de las tasas curadas en este archivo. Para actualizar las
+// cargas: editar los porcentajes de PRESETS_BY_COUNTRY y subir este año.
+// Se persiste en el config de cada org para poder señalar staleness en la UI.
+export const SOCIAL_CHARGES_EFFECTIVE_YEAR = 2026;
+
+// Alias de códigos de país: el onboarding usa ISO-3 (COL, MEX, ARG, USA, PER,
+// ESP) mientras los presets se indexan por ISO-2/región (CO, MX, AR, US, PE, EU).
+const COUNTRY_CODE_ALIASES: Record<string, string> = {
+  COL: 'CO',
+  COLOMBIA: 'CO',
+  MEX: 'MX',
+  MEXICO: 'MX',
+  ARG: 'AR',
+  ARGENTINA: 'AR',
+  USA: 'US',
+  PER: 'PE',
+  PERU: 'PE',
+  ESP: 'EU', // España usa el preset de la Eurozona
+  SPAIN: 'EU',
+};
+
+function resolvePresetKey(countryCode: string): string {
+  const normalized = countryCode.toUpperCase();
+  if (PRESETS_BY_COUNTRY[normalized]) return normalized;
+  return COUNTRY_CODE_ALIASES[normalized] || normalized;
+}
+
 function computeTotal(
   percentages: Omit<SocialChargesConfig, 'enable_social_charges' | 'total_percentage'>
 ): number {
@@ -131,8 +165,14 @@ export function getSocialChargesPresetMeta(currency: Currency): PresetMeta {
 
 export function getSocialChargesPresetMetaByCountry(countryCode?: string): PresetMeta {
   if (!countryCode) return PRESETS_BY_COUNTRY.US;
-  const normalized = countryCode.toUpperCase();
-  return PRESETS_BY_COUNTRY[normalized] || PRESETS_BY_COUNTRY.US;
+  const resolved = resolvePresetKey(countryCode);
+  return PRESETS_BY_COUNTRY[resolved] || PRESETS_BY_COUNTRY.US;
+}
+
+/** True si el país (ISO-2/3) tiene un preset de cargas sociales curado. */
+export function hasSocialChargesPreset(countryCode?: string): boolean {
+  if (!countryCode) return false;
+  return Boolean(PRESETS_BY_COUNTRY[resolvePresetKey(countryCode)]);
 }
 
 export function listSocialChargesPresetMeta(): PresetMeta[] {
@@ -147,9 +187,10 @@ export function buildSocialChargesConfigFromCurrency(
   return {
     enable_social_charges: enabled,
     ...preset.percentages,
-    total_percentage: computeTotal(preset.percentages),
+    total_percentage: preset.totalPercentage ?? computeTotal(preset.percentages),
     country_code: preset.countryCode,
     preset_key: preset.presetKey,
+    effective_year: SOCIAL_CHARGES_EFFECTIVE_YEAR,
     version: 1,
     updated_at: new Date().toISOString(),
   };
@@ -163,9 +204,10 @@ export function buildSocialChargesConfigFromCountry(
   return {
     enable_social_charges: enabled,
     ...preset.percentages,
-    total_percentage: computeTotal(preset.percentages),
+    total_percentage: preset.totalPercentage ?? computeTotal(preset.percentages),
     country_code: preset.countryCode,
     preset_key: preset.presetKey,
+    effective_year: SOCIAL_CHARGES_EFFECTIVE_YEAR,
     version: 1,
     updated_at: new Date().toISOString(),
   };

@@ -204,6 +204,12 @@ class SocialChargesConfig(BaseModel):
     country_source: str | None = Field(
         None, max_length=16, description="Source of country selection: account or custom"
     )
+    effective_year: int | None = Field(
+        None,
+        ge=2000,
+        le=2100,
+        description="Year the sourced social-charge rates are effective (staleness signal)",
+    )
     version: int | None = Field(
         None, ge=1, description="Client-managed config version for future change tracking"
     )

@@ -40,6 +40,7 @@ export interface SocialChargesConfig {
     country_code?: string;
     preset_key?: string;
     country_source?: 'account' | 'custom';
+    effective_year?: number;
     version?: number;
     updated_at?: string;
 }
