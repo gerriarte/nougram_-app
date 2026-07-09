@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -169,8 +170,29 @@ class CreditService:
             )
             return True
 
-        # Check if sufficient credits
-        if account.credits_available < amount:
+        # Decremento atómico condicional: previene doble gasto bajo concurrencia
+        # (varios workers Gunicorn / cotizaciones en paralelo). El
+        # `WHERE credits_available >= :amount` hace que dos requests concurrentes
+        # se serialicen a nivel DB: el segundo no matchea filas si el saldo ya no
+        # alcanza y se rechaza con 402. Reemplaza el patrón read→check→decrement
+        # en Python, que permitía que dos lecturas de credits_available=1 pasaran
+        # el check y decrementaran a -1.
+        result = await db.execute(
+            update(CreditAccount)
+            .where(
+                CreditAccount.organization_id == organization_id,
+                CreditAccount.credits_available >= amount,
+            )
+            .values(
+                credits_available=CreditAccount.credits_available - amount,
+                credits_used_total=CreditAccount.credits_used_total + amount,
+                credits_used_this_month=CreditAccount.credits_used_this_month + amount,
+            )
+            .execution_options(synchronize_session=False)
+        )
+
+        if result.rowcount == 0:
+            # Ninguna fila matcheó → saldo insuficiente (posible carrera perdida)
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail=(
@@ -179,12 +201,7 @@ class CreditService:
                 ),
             )
 
-        # Consume credits
-        account.credits_available -= amount
-        account.credits_used_total += amount
-        account.credits_used_this_month += amount
-
-        # Create transaction record
+        # Create transaction record (misma transacción que el decremento)
         transaction_repo = CreditTransactionRepository(db)
         await transaction_repo.create_transaction(
             organization_id=organization_id,
@@ -196,7 +213,11 @@ class CreditService:
             auto_commit=False,
         )
 
-        await db.commit()
+        # El commit lo hace el orquestador (creación del quote) para que el consumo
+        # y la persistencia del quote sean atómicos: si algo posterior falla, se
+        # revierte todo. Aquí solo flush + refresh para sincronizar el objeto ORM
+        # (que quedó desincronizado por el UPDATE crudo con synchronize_session=False).
+        await db.flush()
         await db.refresh(account)
 
         logger.info(

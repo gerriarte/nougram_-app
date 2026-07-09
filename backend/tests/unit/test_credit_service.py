@@ -173,6 +173,35 @@ class TestCreditService:
                 db_session,
             )
 
+    async def test_consume_exact_balance_then_reject(
+        self, db_session, test_organization, test_user
+    ):
+        """Consumir el saldo exacto deja 0; el siguiente consumo se rechaza.
+
+        Ejercita la condición atómica `credits_available >= amount` en el borde.
+        """
+        account = await CreditService.get_or_create_credit_account(test_organization.id, db_session)
+        account.credits_available = 5
+        account.credits_per_month = 100
+        account.credits_used_total = 0
+        account.credits_used_this_month = 0
+        db_session.add(account)
+        await db_session.commit()
+
+        ok = await CreditService.validate_and_consume_credits(
+            test_organization.id, 5, test_user.id, "Exact", db_session
+        )
+        assert ok is True
+        await db_session.commit()
+        await db_session.refresh(account)
+        assert account.credits_available == 0
+
+        with pytest.raises(HTTPException) as exc:
+            await CreditService.validate_and_consume_credits(
+                test_organization.id, 1, test_user.id, "Over", db_session
+            )
+        assert exc.value.status_code == status.HTTP_402_PAYMENT_REQUIRED
+
     async def test_grant_subscription_credits(self, db_session, test_organization):
         """Test granting subscription credits"""
         # Set organization plan
