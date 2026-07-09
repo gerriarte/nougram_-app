@@ -118,6 +118,33 @@ export function useQuotePipeline() {
         dedupingInterval: 30000,
     });
 
+    // --- SWR: KPI del periodo PREVIO (para tendencia) ---
+    // Ventana previa = misma duración que la actual, terminando justo antes de su
+    // inicio. Se deriva de meta.applied_start/end para que ambas ventanas abutten
+    // exactamente con la lógica de rango del backend. Graceful: null si no aplica.
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const kpiPrevKey = useMemo(() => {
+        const meta = kpiSummary?.meta;
+        if (!meta) return null;
+        const start = new Date(meta.applied_start);
+        const end = new Date(meta.applied_end);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+        const durationDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS));
+        const prevEnd = new Date(start.getTime() - DAY_MS); // día anterior al inicio actual
+        const prevStart = new Date(prevEnd.getTime() - durationDays * DAY_MS);
+        const params = new URLSearchParams();
+        params.set('range_mode', 'custom');
+        params.set('start_date', prevStart.toISOString().slice(0, 10));
+        params.set('end_date', prevEnd.toISOString().slice(0, 10));
+        params.set('timezone', DEFAULT_TZ);
+        return `/insights/dashboard/kpi-summary?${params.toString()}`;
+    }, [kpiSummary?.meta, DAY_MS]);
+
+    const { data: kpiPreviousSummary = null } = useSWR(kpiPrevKey, fetchKpiSummary, {
+        revalidateOnFocus: false,
+        dedupingInterval: 30000,
+    });
+
     const kpiError: string | null = kpiSWRError instanceof Error
         ? kpiSWRError.message
         : kpiSWRError
@@ -213,6 +240,7 @@ export function useQuotePipeline() {
         updateFilter,
         clearFilters,
         kpiSummary,
+        kpiPreviousSummary,
         kpiLoading,
         kpiError,
         kpiFilter,

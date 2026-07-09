@@ -5,6 +5,10 @@ import React from 'react';
 import { Card } from '@/components/ui/Card';
 import {
     TrendingUp,
+    TrendingDown,
+    Minus,
+    Target,
+    Percent,
     DollarSign,
     PieChart,
     Activity,
@@ -19,8 +23,80 @@ import type { DashboardKpiSummaryResponse } from '@/types/dashboard';
 
 interface KPIWidgetsProps {
     kpiSummary: DashboardKpiSummaryResponse | null;
+    kpiPreviousSummary?: DashboardKpiSummaryResponse | null;
     kpiLoading: boolean;
     kpiError: string | null;
+}
+
+type HealthBand = 'red' | 'amber' | 'green' | 'neutral';
+
+/** Semáforo a partir del margen % (umbrales 15/25, consistentes con el cotizador). */
+function marginBand(marginPct: number): HealthBand {
+    if (marginPct < 15) return 'red';
+    if (marginPct < 25) return 'amber';
+    return 'green';
+}
+
+/** Semáforo a partir del win-rate %. */
+function winRateBand(winRate: number): HealthBand {
+    if (winRate < 20) return 'red';
+    if (winRate < 40) return 'amber';
+    return 'green';
+}
+
+/** Peor de dos bandas (rojo domina). 'neutral' solo si ambas lo son. */
+function worstBand(a: HealthBand, b: HealthBand): HealthBand {
+    const rank: Record<HealthBand, number> = { red: 0, amber: 1, green: 2, neutral: 3 };
+    return rank[a] <= rank[b] ? a : b;
+}
+
+const HEALTH_CONFIG: Record<HealthBand, { label: string; desc: string; box: string; dot: string }> = {
+    green: {
+        label: 'Negocio saludable',
+        desc: 'Margen y conversión por encima del objetivo en la ventana.',
+        box: 'border-emerald-200 bg-emerald-50/70 text-emerald-900',
+        dot: 'bg-emerald-500',
+    },
+    amber: {
+        label: 'Requiere atención',
+        desc: 'Margen o conversión por debajo del objetivo. Revisa el pipeline.',
+        box: 'border-amber-200 bg-amber-50/70 text-amber-900',
+        dot: 'bg-amber-500',
+    },
+    red: {
+        label: 'En riesgo',
+        desc: 'Margen o conversión en nivel crítico. Prioriza revisar cotizaciones.',
+        box: 'border-red-200 bg-red-50/70 text-red-900',
+        dot: 'bg-red-500',
+    },
+    neutral: {
+        label: 'Sin datos suficientes',
+        desc: 'Aún no hay propuestas en la ventana seleccionada.',
+        box: 'border-gray-200 bg-gray-50 text-gray-600',
+        dot: 'bg-gray-400',
+    },
+};
+
+/** Flecha + variación en puntos vs. el periodo previo (null → no se muestra). */
+function TrendBadge({ current, previous }: { current: number; previous: number | null }) {
+    if (previous === null || !Number.isFinite(previous)) return null;
+    const diff = Math.round((current - previous) * 10) / 10;
+    if (Math.abs(diff) < 0.1) {
+        return (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-400">
+                <Minus size={12} strokeWidth={2.5} /> sin cambio vs. previo
+            </span>
+        );
+    }
+    const up = diff > 0;
+    return (
+        <span
+            className={`inline-flex items-center gap-1 text-[11px] font-bold ${up ? 'text-emerald-600' : 'text-red-500'}`}
+        >
+            {up ? <TrendingUp size={12} strokeWidth={2.5} /> : <TrendingDown size={12} strokeWidth={2.5} />}
+            {up ? '+' : ''}{diff} pts vs. previo
+        </span>
+    );
 }
 
 function formatRangeLabel(isoStart: string, isoEnd: string): string {
@@ -33,7 +109,7 @@ function formatRangeLabel(isoStart: string, isoEnd: string): string {
     }
 }
 
-export function KPIWidgets({ kpiSummary, kpiLoading, kpiError }: KPIWidgetsProps) {
+export function KPIWidgets({ kpiSummary, kpiPreviousSummary, kpiLoading, kpiError }: KPIWidgetsProps) {
     type KpiCard = {
         title: string;
         value: string;
@@ -41,6 +117,7 @@ export function KPIWidgets({ kpiSummary, kpiLoading, kpiError }: KPIWidgetsProps
         color: string;
         bg: string;
         subtitle?: string;
+        trend?: React.ReactNode;
     };
 
     if (kpiLoading) {
@@ -69,7 +146,50 @@ export function KPIWidgets({ kpiSummary, kpiLoading, kpiError }: KPIWidgetsProps
     const { kpis, currency, meta } = kpiSummary;
     const rangeHint = formatRangeLabel(meta.applied_start, meta.applied_end);
 
+    // --- KPIs derivados (responden "¿gano o pierdo?") ---
+    const hasData = kpis.numeroPropuestasRealizadas > 0;
+    const winRate = hasData
+        ? (kpis.numeroPropuestasGanadas / kpis.numeroPropuestasRealizadas) * 100
+        : 0;
+    const marginPct = kpis.totalCotizadoConImpuestos > 0
+        ? (kpis.margenNetoTotal / kpis.totalCotizadoConImpuestos) * 100
+        : 0;
+
+    // --- Comparación vs. periodo previo (tendencia) ---
+    const prev = kpiPreviousSummary?.kpis ?? null;
+    const prevWinRate = prev && prev.numeroPropuestasRealizadas > 0
+        ? (prev.numeroPropuestasGanadas / prev.numeroPropuestasRealizadas) * 100
+        : null;
+    const prevMarginPct = prev && prev.totalCotizadoConImpuestos > 0
+        ? (prev.margenNetoTotal / prev.totalCotizadoConImpuestos) * 100
+        : null;
+
+    // --- Semáforo de salud (peor entre margen y win-rate) ---
+    const health: HealthBand = hasData
+        ? worstBand(marginBand(marginPct), winRateBand(winRate))
+        : 'neutral';
+    const healthCfg = HEALTH_CONFIG[health];
+    const mBand = marginBand(marginPct);
+
     const cards: KpiCard[] = [
+        {
+            title: 'Win-rate (conversión)',
+            value: hasData ? `${winRate.toFixed(0)}%` : '—',
+            icon: Target,
+            color: 'text-indigo-600',
+            bg: 'bg-indigo-50/70',
+            subtitle: `${kpis.numeroPropuestasGanadas}/${kpis.numeroPropuestasRealizadas} ganadas`,
+            trend: <TrendBadge current={winRate} previous={prevWinRate} />,
+        },
+        {
+            title: 'Margen % promedio',
+            value: hasData ? `${marginPct.toFixed(1)}%` : '—',
+            icon: Percent,
+            color: mBand === 'red' ? 'text-red-600' : mBand === 'amber' ? 'text-amber-600' : 'text-emerald-600',
+            bg: mBand === 'red' ? 'bg-red-50/70' : mBand === 'amber' ? 'bg-amber-50/70' : 'bg-emerald-50/70',
+            subtitle: 'Margen neto / total cotizado',
+            trend: <TrendBadge current={marginPct} previous={prevMarginPct} />,
+        },
         {
             title: 'Total cotizado (impuestos)',
             value: `${currency} ${formatMoneyAmount(kpis.totalCotizadoConImpuestos)}`,
@@ -115,6 +235,28 @@ export function KPIWidgets({ kpiSummary, kpiLoading, kpiError }: KPIWidgetsProps
             <p className="text-[11px] font-semibold text-gray-500 tracking-wide">
                 KPI por actualización de cotización · {rangeHint} · {meta.timezone}
             </p>
+
+            {/* Semáforo de salud: responde "¿gano o pierdo?" de un vistazo */}
+            <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${healthCfg.box}`}>
+                <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${healthCfg.dot}`} />
+                <div className="min-w-0">
+                    <p className="text-[13.5px] font-bold leading-tight">{healthCfg.label}</p>
+                    <p className="text-[12px] opacity-80 leading-snug">{healthCfg.desc}</p>
+                </div>
+                {hasData && (
+                    <div className="ml-auto flex items-center gap-4 text-right flex-shrink-0">
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Margen</p>
+                            <p className="text-[15px] font-bold leading-none">{marginPct.toFixed(1)}%</p>
+                        </div>
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Win-rate</p>
+                            <p className="text-[15px] font-bold leading-none">{winRate.toFixed(0)}%</p>
+                        </div>
+                    </div>
+                )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 {cards.map((metric, index) => (
                     <motion.div
@@ -142,6 +284,7 @@ export function KPIWidgets({ kpiSummary, kpiLoading, kpiError }: KPIWidgetsProps
                                         {metric.subtitle}
                                     </p>
                                 )}
+                                {metric.trend && <div className="mt-2">{metric.trend}</div>}
                             </div>
                         </Card>
                     </motion.div>
