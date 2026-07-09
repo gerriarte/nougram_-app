@@ -36,6 +36,7 @@ from app.schemas.organization import (
     OrganizationInviteRequest,
     OrganizationInviteResponse,
     OrganizationListResponse,
+    OrganizationModulesUpdate,
     OrganizationRegisterRequest,
     OrganizationResponse,
     OrganizationUpdate,
@@ -571,6 +572,58 @@ async def update_organization(
 
     user_count = await org_repo.get_user_count(organization_id)
 
+    return OrganizationResponse(
+        id=org.id,
+        name=org.name,
+        slug=org.slug,
+        subscription_plan=org.subscription_plan,
+        subscription_status=org.subscription_status,
+        settings=org.settings,
+        created_at=org.created_at,
+        updated_at=org.updated_at,
+        user_count=user_count,
+    )
+
+
+@router.put("/{organization_id}/modules", response_model=OrganizationResponse)
+async def update_organization_modules(
+    organization_id: int,
+    modules_data: OrganizationModulesUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Enable/disable per-tenant modules (e.g. the AI quote agent).
+
+    Super admin only — module assignment is a platform-level decision and must not
+    be editable by tenant org-admins (unlike the generic ``PUT /organizations/{id}``
+    which lets org-admins edit their own settings).
+    """
+    if getattr(current_user, "role", None) != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only super admins can change organization modules",
+        )
+
+    org_repo = OrganizationRepository(db)
+    org = await org_repo.get_by_id(organization_id)
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    updated_settings = dict(org.settings) if isinstance(org.settings, dict) else {}
+    modules = dict(updated_settings.get("modules", {}) or {})
+    if modules_data.quote_agent is not None:
+        modules["quote_agent"] = bool(modules_data.quote_agent)
+    updated_settings["modules"] = modules
+
+    await org_repo.update_settings(organization_id, updated_settings)
+    await db.refresh(org)
+
+    logger.info(
+        f"Organization {organization_id} modules updated by super_admin {current_user.id}: {modules}"
+    )
+
+    user_count = await org_repo.get_user_count(organization_id)
     return OrganizationResponse(
         id=org.id,
         name=org.name,

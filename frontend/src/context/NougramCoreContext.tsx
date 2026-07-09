@@ -37,6 +37,7 @@ export interface NougramState {
         teamCellsEnabled: boolean;
         resourceOccupancyEnabled: boolean;
         resourcePlanningMode: 'simple' | 'advanced';
+        quoteAgentEnabled: boolean;
     };
     user: {
         role: UserRole;
@@ -78,6 +79,7 @@ const DEFAULT_STATE: NougramState = {
         teamCellsEnabled: false,
         resourceOccupancyEnabled: true,
         resourcePlanningMode: 'simple',
+        quoteAgentEnabled: false,
     },
     user: { role: 'owner', credits: 100 },
     isHydrated: false
@@ -117,6 +119,7 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         team_cells_enabled?: boolean;
         resource_occupancy_enabled?: boolean;
         resource_planning_mode?: 'simple' | 'advanced';
+        quote_agent_enabled?: boolean;
     };
 
     // Initial hydration from backend-only sources (skip when logged out to avoid 401 storms).
@@ -163,6 +166,7 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
                     teamCellsEnabled: Boolean(backendFeatures?.team_cells_enabled),
                     resourceOccupancyEnabled: backendFeatures?.resource_occupancy_enabled !== false,
                     resourcePlanningMode: backendFeatures?.resource_planning_mode === 'advanced' ? 'advanced' : 'simple',
+                    quoteAgentEnabled: Boolean(backendFeatures?.quote_agent_enabled),
                 },
             }));
         };
