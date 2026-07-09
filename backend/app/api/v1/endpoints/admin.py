@@ -16,6 +16,7 @@ from app.core.permission_middleware import require_view_financial_projections
 from app.core.tenant import TenantContext, get_tenant_context
 from app.models.cost import CostFixed
 from app.models.organization import Organization
+from app.models.service import Service
 from app.models.team import TeamMember
 from app.models.user import User
 from app.services.settings_service import SettingsService
@@ -128,11 +129,40 @@ async def get_financial_summary(
         social_charges_config=social_config,
     )
 
+    # Blended target margin = promedio del default_margin_target de los servicios
+    # activos de la org (fallback 40%). Se usa para derivar la tasa de FACTURACIÓN
+    # (precio/hora), que el break-even necesita — sin ella colapsa a margen cero.
+    margins_result = await db.execute(
+        select(Service.default_margin_target).where(
+            Service.organization_id == tenant.organization_id,
+            Service.is_active.is_(True),
+            Service.deleted_at.is_(None),
+        )
+    )
+    service_margins = [
+        Decimal(str(m)) for (m,) in margins_result.all() if m is not None
+    ]
+    if service_margins:
+        blended_margin = sum(service_margins) / Decimal(len(service_margins))
+    else:
+        blended_margin = Decimal("0.40")
+    # Clamp defensivo: margen en [0, 0.95) para evitar división por cero/negativa.
+    if blended_margin < 0:
+        blended_margin = Decimal("0")
+    elif blended_margin >= Decimal("0.95"):
+        blended_margin = Decimal("0.95")
+
+    # Tasa de facturación blended: precio/hora = costo/hora / (1 - margen).
+    # Misma convención de margen que el motor de cotización (Money.apply_margin).
+    blended_bill_rate = blended_rate / (Decimal("1") - blended_margin)
+
     response = {
         "monthlyFixedCosts": float(monthly_fixed_costs),
         "monthlyPayroll": float(monthly_payroll),
         "totalBillableHours": float(total_billable_hours),
         "blendedCostRate": float(blended_rate),
+        "blendedBillRate": float(blended_bill_rate),
+        "targetMargin": float(blended_margin),
         "activeTeamMembers": active_team_members,
         "currency": primary_currency,
     }

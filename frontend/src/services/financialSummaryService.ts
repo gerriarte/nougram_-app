@@ -5,6 +5,10 @@ type FinancialSummaryResponse = {
   monthlyPayroll: number;
   totalBillableHours: number;
   blendedCostRate: number;
+  // Tasa de facturación blended (precio/hora) y margen objetivo promedio.
+  // Opcionales por compatibilidad con respuestas cacheadas anteriores al fix.
+  blendedBillRate?: number;
+  targetMargin?: number;
   activeTeamMembers: number;
   currency: string;
 };
