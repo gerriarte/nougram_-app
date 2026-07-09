@@ -34,6 +34,7 @@ export function QuotePipeline() {
         updateFilter,
         clearFilters,
         kpiSummary,
+        kpiPreviousSummary,
         kpiLoading,
         kpiError,
         kpiFilter,
@@ -172,7 +173,7 @@ export function QuotePipeline() {
                     </div>
                 </div>
 
-                <KPIWidgets kpiSummary={kpiSummary} kpiLoading={kpiLoading} kpiError={kpiError} />
+                <KPIWidgets kpiSummary={kpiSummary} kpiPreviousSummary={kpiPreviousSummary} kpiLoading={kpiLoading} kpiError={kpiError} />
             </div>
 
             {/* 2. Pipeline Controls */}
