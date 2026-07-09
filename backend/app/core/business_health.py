@@ -7,6 +7,7 @@ cost replicates the same aggregation used by `calculate_blended_cost_rate`
 (fixed costs + equipment amortization + payroll with social charges) so the
 break-even figure is consistent with the BCR.
 """
+
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -48,9 +49,14 @@ async def _social_charges_multiplier(
         return Decimal("1.0")
 
     components = [
-        "health_percentage", "pension_percentage", "arl_percentage",
-        "parafiscales_percentage", "prima_services_percentage",
-        "cesantias_percentage", "int_cesantias_percentage", "vacations_percentage",
+        "health_percentage",
+        "pension_percentage",
+        "arl_percentage",
+        "parafiscales_percentage",
+        "prima_services_percentage",
+        "cesantias_percentage",
+        "int_cesantias_percentage",
+        "vacations_percentage",
     ]
     total_percentage = Decimal("0")
     for key in components:
@@ -83,7 +89,9 @@ async def calculate_monthly_operating_cost(
         normalized = normalize_to_primary_currency(
             Decimal(str(cost.amount_monthly)), cost.currency or "USD", primary_currency
         )
-        fixed_money.append(normalized if isinstance(normalized, Money) else Money(normalized, primary_currency))
+        fixed_money.append(
+            normalized if isinstance(normalized, Money) else Money(normalized, primary_currency)
+        )
     total_fixed = (sum_money(fixed_money) or Money(0, primary_currency)).amount
 
     # Equipment amortization (monthly depreciation)
@@ -98,11 +106,17 @@ async def calculate_monthly_operating_cost(
         useful_life = int(asset.useful_life_months or 0)
         if useful_life <= 0:
             continue
-        monthly_dep = (Decimal(str(asset.purchase_price or 0)) - Decimal(str(asset.salvage_value or 0))) / Decimal(str(useful_life))
+        monthly_dep = (
+            Decimal(str(asset.purchase_price or 0)) - Decimal(str(asset.salvage_value or 0))
+        ) / Decimal(str(useful_life))
         if monthly_dep <= 0:
             continue
-        normalized = normalize_to_primary_currency(monthly_dep, asset.currency or "USD", primary_currency)
-        eq_money.append(normalized if isinstance(normalized, Money) else Money(normalized, primary_currency))
+        normalized = normalize_to_primary_currency(
+            monthly_dep, asset.currency or "USD", primary_currency
+        )
+        eq_money.append(
+            normalized if isinstance(normalized, Money) else Money(normalized, primary_currency)
+        )
     total_equipment = (sum_money(eq_money) or Money(0, primary_currency)).amount
 
     # Payroll with social charges (respecting per-member apply_social_charges flag)
@@ -118,10 +132,16 @@ async def calculate_monthly_operating_cost(
             member.salary_monthly_brute, member.currency or "USD", primary_currency
         )
         money = normalized if isinstance(normalized, Money) else Money(normalized, primary_currency)
-        effective_mult = multiplier if getattr(member, "apply_social_charges", True) else Decimal("1")
+        effective_mult = (
+            multiplier if getattr(member, "apply_social_charges", True) else Decimal("1")
+        )
         salary_money.append(money.multiply(effective_mult))
         non_billable = getattr(member, "non_billable_hours_percentage", 0.0) or 0.0
-        billable_hours += Decimal(str(member.billable_hours_per_week)) * Decimal("4.33") * (Decimal("1") - Decimal(str(non_billable)))
+        billable_hours += (
+            Decimal(str(member.billable_hours_per_week))
+            * Decimal("4.33")
+            * (Decimal("1") - Decimal(str(non_billable)))
+        )
     total_payroll = (sum_money(salary_money) or Money(0, primary_currency)).amount
 
     total_monthly_cost = total_fixed + total_equipment + total_payroll
@@ -156,7 +176,10 @@ async def _accepted_quote_ids(db: AsyncSession, tenant_id: int) -> list[int]:
             quote_ids.append(accepted_id)
             continue
         latest = await db.execute(
-            select(Quote.id).where(Quote.project_id == project.id).order_by(Quote.version.desc()).limit(1)
+            select(Quote.id)
+            .where(Quote.project_id == project.id)
+            .order_by(Quote.version.desc())
+            .limit(1)
         )
         latest_id = latest.scalar_one_or_none()
         if latest_id:
@@ -178,7 +201,11 @@ async def calculate_committed_monthly_revenue(
     one_time = Money(0, primary_currency)
 
     if quote_ids:
-        items = (await db.execute(select(QuoteItem).where(QuoteItem.quote_id.in_(quote_ids)))).scalars().all()
+        items = (
+            (await db.execute(select(QuoteItem).where(QuoteItem.quote_id.in_(quote_ids))))
+            .scalars()
+            .all()
+        )
         for item in items:
             pricing_type = item.pricing_type or "hourly"
             if pricing_type == "recurring":
@@ -187,9 +214,15 @@ async def calculate_committed_monthly_revenue(
                     monthly = monthly / Decimal("12")
                 mrr = mrr.add(Money(monthly, primary_currency))
             else:
-                one_time = one_time.add(Money(Decimal(str(item.client_price or 0)), primary_currency))
+                one_time = one_time.add(
+                    Money(Decimal(str(item.client_price or 0)), primary_currency)
+                )
 
-    proration = Decimal(str(one_time_proration_months)) if one_time_proration_months and one_time_proration_months > 0 else Decimal("1")
+    proration = (
+        Decimal(str(one_time_proration_months))
+        if one_time_proration_months and one_time_proration_months > 0
+        else Decimal("1")
+    )
     one_time_monthly = one_time.amount / proration
     committed = mrr.amount + one_time_monthly
 
@@ -210,10 +243,16 @@ async def calculate_break_even(
 ) -> dict:
     """Monthly break-even: operating cost vs committed revenue."""
     operating = await calculate_monthly_operating_cost(
-        db, primary_currency=primary_currency, tenant_id=tenant_id, social_charges_config=social_charges_config
+        db,
+        primary_currency=primary_currency,
+        tenant_id=tenant_id,
+        social_charges_config=social_charges_config,
     )
     revenue = await calculate_committed_monthly_revenue(
-        db, tenant_id=tenant_id, primary_currency=primary_currency, one_time_proration_months=one_time_proration_months
+        db,
+        tenant_id=tenant_id,
+        primary_currency=primary_currency,
+        one_time_proration_months=one_time_proration_months,
     )
 
     break_even_cost = operating["total_monthly_cost"]
@@ -222,7 +261,9 @@ async def calculate_break_even(
     surplus = committed - break_even_cost
 
     coverage_pct = float(committed / break_even_cost) if break_even_cost > 0 else 0.0
-    break_even_rate_per_hour = float(break_even_cost / capacity_hours) if capacity_hours > 0 else 0.0
+    break_even_rate_per_hour = (
+        float(break_even_cost / capacity_hours) if capacity_hours > 0 else 0.0
+    )
     status = "profit" if surplus > 0 else ("break_even" if surplus == 0 else "deficit")
 
     return {
@@ -272,44 +313,62 @@ async def calculate_resource_utilization(
     allocated: dict[int, Decimal] = {}
     if quote_ids:
         allocations = (
-            await db.execute(
-                select(QuoteItemAllocation)
-                .join(QuoteItem, QuoteItemAllocation.quote_item_id == QuoteItem.id)
-                .where(QuoteItem.quote_id.in_(quote_ids))
+            (
+                await db.execute(
+                    select(QuoteItemAllocation)
+                    .join(QuoteItem, QuoteItemAllocation.quote_item_id == QuoteItem.id)
+                    .where(QuoteItem.quote_id.in_(quote_ids))
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for alloc in allocations:
             if (start is not None or end is not None) and not _periods_overlap(
                 alloc.start_date, alloc.end_date, start, end
             ):
                 continue
-            allocated[alloc.team_member_id] = allocated.get(alloc.team_member_id, Decimal("0")) + Decimal(str(alloc.hours or 0))
+            allocated[alloc.team_member_id] = allocated.get(
+                alloc.team_member_id, Decimal("0")
+            ) + Decimal(str(alloc.hours or 0))
 
     members = (
-        await db.execute(
-            select(TeamMember).where(TeamMember.is_active, TeamMember.organization_id == tenant_id)
+        (
+            await db.execute(
+                select(TeamMember).where(
+                    TeamMember.is_active, TeamMember.organization_id == tenant_id
+                )
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     members_out = []
     total_capacity = Decimal("0")
     total_allocated = Decimal("0")
     for member in members:
         non_billable = getattr(member, "non_billable_hours_percentage", 0.0) or 0.0
-        capacity = Decimal(str(member.billable_hours_per_week)) * Decimal("4.33") * (Decimal("1") - Decimal(str(non_billable)))
+        capacity = (
+            Decimal(str(member.billable_hours_per_week))
+            * Decimal("4.33")
+            * (Decimal("1") - Decimal(str(non_billable)))
+        )
         used = allocated.get(member.id, Decimal("0"))
         total_capacity += capacity
         total_allocated += used
-        members_out.append({
-            "team_member_id": member.id,
-            "name": member.name,
-            "role": member.role,
-            "capacity_hours": float(capacity),
-            "allocated_hours": float(used),
-            "remaining_hours": float(capacity - used),
-            "utilization_percentage": float(used / capacity * 100) if capacity > 0 else 0.0,
-            "over_allocated": used > capacity,
-        })
+        members_out.append(
+            {
+                "team_member_id": member.id,
+                "name": member.name,
+                "role": member.role,
+                "capacity_hours": float(capacity),
+                "allocated_hours": float(used),
+                "remaining_hours": float(capacity - used),
+                "utilization_percentage": float(used / capacity * 100) if capacity > 0 else 0.0,
+                "over_allocated": used > capacity,
+            }
+        )
 
     overall = float(total_allocated / total_capacity * 100) if total_capacity > 0 else 0.0
     return {

@@ -97,9 +97,7 @@ async def calculate_blended_cost_rate(
                     # recargo patronal (1 + total/100). El desglose (campos
                     # individuales, estilo Colombia) es opcional/informativo y solo
                     # se usa como fallback para configs legacy sin total_percentage.
-                    total_percentage = Decimal(
-                        str(social_config.get("total_percentage", 0) or 0)
-                    )
+                    total_percentage = Decimal(str(social_config.get("total_percentage", 0) or 0))
 
                     if total_percentage == 0:
                         # Fallback legacy: sumar el desglose si no hay total guardado.

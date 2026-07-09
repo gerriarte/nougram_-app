@@ -51,9 +51,7 @@ async def get_feature_flags(
 
         from app.models.organization import Organization
 
-        result = await db.execute(
-            select(Organization).where(Organization.id == organization_id)
-        )
+        result = await db.execute(select(Organization).where(Organization.id == organization_id))
         org = result.scalar_one_or_none()
         org_settings = getattr(org, "settings", None) or {}
         if isinstance(org_settings, dict):

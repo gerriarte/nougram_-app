@@ -554,6 +554,8 @@ async def get_resource_utilization(
     from app.core.business_health import calculate_resource_utilization
 
     return await calculate_resource_utilization(
-        db, tenant.organization_id,
-        start=_parse_iso_date(start_date), end=_parse_iso_date(end_date),
+        db,
+        tenant.organization_id,
+        start=_parse_iso_date(start_date),
+        end=_parse_iso_date(end_date),
     )
