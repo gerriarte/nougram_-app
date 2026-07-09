@@ -14,11 +14,13 @@ import {
   Calculator,
   BarChart3,
   Truck,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { UserProfileExtended } from '@/types/user';
 import { CANONICAL_NEW_QUOTE_PATH } from '@/lib/mobile-routes';
+import { useNougram } from '@/context/NougramCoreContext';
 
 export type AdminNavItem = { label: string; href: string; icon: LucideIcon };
 
@@ -40,9 +42,14 @@ export function AdminNavigationLinks({
 }: AdminNavigationLinksProps) {
   const allowedOperationalRoles = ['owner', 'admin_financiero', 'super_admin'];
   const showOperationalCosts = user?.role && allowedOperationalRoles.includes(user.role);
+  const { state } = useNougram();
+  const quoteAgentEnabled = state.features.quoteAgentEnabled;
 
   const MAIN_ITEMS: AdminNavItem[] = [
     { label: 'Nueva Cotización', href: CANONICAL_NEW_QUOTE_PATH, icon: PlusCircle },
+    ...(quoteAgentEnabled
+      ? [{ label: 'Cotizar con IA ✨', href: '/dashboard/quotes/agent', icon: Sparkles }]
+      : []),
   ];
 
   const BUSINESS_ITEMS: AdminNavItem[] = [

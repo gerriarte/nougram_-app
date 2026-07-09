@@ -2,6 +2,7 @@
 Database models
 """
 
+from app.models.agent_conversation import AgentConversation, AgentMessage
 from app.models.ai_usage import AIUsageEvent
 from app.models.annual_sales_projection import AnnualSalesProjection, AnnualSalesProjectionEntry
 from app.models.audit_log import AuditLog
@@ -37,6 +38,8 @@ from app.models.vendor import Vendor
 # from app.models.role import DeleteRequest, UserRole, DeleteRequestStatus
 
 __all__ = [
+    "AgentConversation",
+    "AgentMessage",
     "AIUsageEvent",
     "AnnualSalesProjection",
     "AnnualSalesProjectionEntry",

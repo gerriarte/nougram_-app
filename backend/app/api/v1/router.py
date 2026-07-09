@@ -26,6 +26,7 @@ from app.api.v1.endpoints import (
     projects,
     proposal_portal,
     proposals,
+    quote_agent,
     quotes,
     sales_projection,
     services,
@@ -51,6 +52,7 @@ api_router.include_router(equipment.router, prefix="/settings", tags=["equipment
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
 api_router.include_router(services.router, prefix="/services", tags=["services"])
 api_router.include_router(quotes.router, prefix="/quotes", tags=["quotes"])
+api_router.include_router(quote_agent.router, prefix="/quote-agent", tags=["quote-agent"])
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 api_router.include_router(proposals.router, prefix="/projects", tags=["proposals"])
 api_router.include_router(proposal_portal.router)
