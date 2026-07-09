@@ -93,36 +93,28 @@ async def calculate_blended_cost_rate(
             if org and org.settings and org.settings.get("social_charges_config"):
                 social_config = org.settings.get("social_charges_config", {})
                 if social_config.get("enable_social_charges", False):
-                    # Calculate multiplier: 1 + (sum of all percentages / 100)
-                    total_percentage = Decimal("0")
-
-                    # Sum all individual components if they exist (Colombia Legal Breakdown)
-                    total_percentage += Decimal(str(social_config.get("health_percentage", 0) or 0))
-                    total_percentage += Decimal(
-                        str(social_config.get("pension_percentage", 0) or 0)
-                    )
-                    total_percentage += Decimal(str(social_config.get("arl_percentage", 0) or 0))
-                    total_percentage += Decimal(
-                        str(social_config.get("parafiscales_percentage", 0) or 0)
-                    )
-                    total_percentage += Decimal(
-                        str(social_config.get("prima_services_percentage", 0) or 0)
-                    )
-                    total_percentage += Decimal(
-                        str(social_config.get("cesantias_percentage", 0) or 0)
-                    )
-                    total_percentage += Decimal(
-                        str(social_config.get("int_cesantias_percentage", 0) or 0)
-                    )
-                    total_percentage += Decimal(
-                        str(social_config.get("vacations_percentage", 0) or 0)
+                    # País-agnóstico: total_percentage es la fuente de verdad del
+                    # recargo patronal (1 + total/100). El desglose (campos
+                    # individuales, estilo Colombia) es opcional/informativo y solo
+                    # se usa como fallback para configs legacy sin total_percentage.
+                    total_percentage = Decimal(
+                        str(social_config.get("total_percentage", 0) or 0)
                     )
 
-                    # Fallback to total_percentage if no individual components are set
                     if total_percentage == 0:
-                        total_percentage = Decimal(
-                            str(social_config.get("total_percentage", 0) or 0)
+                        # Fallback legacy: sumar el desglose si no hay total guardado.
+                        breakdown_keys = (
+                            "health_percentage",
+                            "pension_percentage",
+                            "arl_percentage",
+                            "parafiscales_percentage",
+                            "prima_services_percentage",
+                            "cesantias_percentage",
+                            "int_cesantias_percentage",
+                            "vacations_percentage",
                         )
+                        for key in breakdown_keys:
+                            total_percentage += Decimal(str(social_config.get(key, 0) or 0))
 
                     if total_percentage > 0:
                         social_charges_multiplier = Decimal("1") + (

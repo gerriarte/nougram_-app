@@ -30,6 +30,7 @@ import {
 import { CANONICAL_NEW_QUOTE_PATH } from '@/lib/mobile-routes';
 import { FixedCostTemplate } from '@/types/onboarding';
 import { normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
+import { buildSocialChargesConfigFromCountry, hasSocialChargesPreset } from '@/lib/social-charges-presets';
 import { Step3MyTeamData } from '@/types/onboarding';
 import { formatCurrency, formatDisplayNumber } from '@/lib/utils';
 
@@ -232,7 +233,7 @@ export default function OnboardingPage() {
                 totalHours: Math.max(40, weeklyBillableHours + 10),
                 billableHours: weeklyBillableHours,
                 vacationDays: 20,
-                applySocialCharges: payload.country === 'COL',
+                applySocialCharges: hasSocialChargesPreset(payload.country),
             };
         });
 
@@ -386,20 +387,13 @@ export default function OnboardingPage() {
                 billable_hours_per_month: Math.max(1, Math.round((member.billableHours || 28) * 4.33)),
             }));
 
+        // Cargas sociales por país: se toma el preset del país seleccionado
+        // (defaults curados en social-charges-presets.ts) en vez de hardcodear
+        // los porcentajes colombianos. total_percentage es la fuente de verdad
+        // para el BCR; el desglose queda como referencia informativa.
         const includeSocialCharges = Boolean(onboardingData.team?.applySocialCharges);
         const socialChargesConfig = includeSocialCharges
-            ? {
-                enable_social_charges: true,
-                health_percentage: 8.5,
-                pension_percentage: 12.0,
-                arl_percentage: 0.522,
-                parafiscales_percentage: 4.0,
-                prima_services_percentage: 8.33,
-                cesantias_percentage: 8.33,
-                int_cesantias_percentage: 1.0,
-                vacations_percentage: 4.17,
-                total_percentage: 52.852,
-            }
+            ? buildSocialChargesConfigFromCountry(country, true)
             : undefined;
 
         return {
