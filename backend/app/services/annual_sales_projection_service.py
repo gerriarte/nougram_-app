@@ -41,7 +41,7 @@ async def calculate_projection_summary(projection: AnnualSalesProjection, db: As
     Calculate summary of annual sales projection
 
     Calculates:
-    - Estimated revenue per month: quantity * hours_per_unit * (BCR * (1 + ServiceMargin))
+    - Estimated revenue per month: (quantity * hours_per_unit * BCR) / (1 - ServiceMargin)
     - Total annual projected revenue
     - Comparison with break-even (Overhead + Payroll monthly)
 
@@ -176,12 +176,23 @@ async def calculate_projection_summary(projection: AnnualSalesProjection, db: As
         margin_target = service.default_margin_target or Decimal("0.40")
 
         # Calculate revenue for this entry
-        # Revenue = quantity * hours_per_unit * (BCR * (1 + margin_target))
+        # Revenue = cost / (1 - margin_target)  [MARGEN, no markup]
+        # Consistente con Money.apply_margin y el motor de cotización.
+        # El markup previo (cost * (1 + margin)) subestimaba el ingreso
+        # ~16.7% con margen 40% (×1.40 vs ×1.667) y no coincidía con lo
+        # que cotizaría el propio motor.
         # ESTÁNDAR NOUGRAM: Usar Decimal para todos los cálculos
         total_hours = Decimal(str(entry.quantity)) * Decimal(str(entry.hours_per_unit))
         cost_money = bcr_money.multiply(total_hours)
-        margin_multiplier = Decimal("1") + margin_target
-        revenue_money = cost_money.multiply(margin_multiplier)
+        margin_denominator = Decimal("1") - margin_target
+        if margin_denominator <= 0:
+            logger.warning(
+                f"margin_target inválido ({margin_target}) para service {service.id}; "
+                "margen >= 100%, usando costo como ingreso"
+            )
+            revenue_money = cost_money
+        else:
+            revenue_money = cost_money.divide(margin_denominator)
 
         month = entry.month
         if month not in monthly_summaries:
