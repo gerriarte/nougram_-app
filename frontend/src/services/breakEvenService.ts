@@ -22,17 +22,37 @@ export const breakEvenService = {
         const totalCosts = Number((summary.monthlyFixedCosts || 0) + (summary.monthlyPayroll || 0));
         const totalBillableHours = Number(summary.totalBillableHours || 0);
         const blendedCostRate = Number(summary.blendedCostRate || 0);
-        const breakEvenHours = blendedCostRate > 0 ? totalCosts / blendedCostRate : 0;
+
+        // Margen objetivo blended y tasa de FACTURACIÓN (precio/hora).
+        // El bug previo usaba el costo/hora (BCR) como si fuera precio: eso colapsa
+        // el equilibrio a la capacidad total (break_even = costos/BCR = horas totales)
+        // y deja el ingreso de equilibrio ≈ costo (margen cero). El equilibrio real
+        // se mide con lo que se FACTURA, no con lo que cuesta.
+        const targetMargin = Number(summary.targetMargin ?? 0.4);
+        const billingRate = Number(
+            summary.blendedBillRate && summary.blendedBillRate > 0
+                ? summary.blendedBillRate
+                : (targetMargin < 1 ? blendedCostRate / (1 - targetMargin) : blendedCostRate)
+        );
+
+        // Break-even en horas: cuántas horas hay que FACTURAR para cubrir todos los
+        // costos. Cada hora facturada aporta `billingRate`; a break-even ingreso = costos.
+        // Con billingRate = BCR/(1-m), el equilibrio cae en capacidad×(1-m)
+        // (~60% de utilización con margen 40%), no en el 100% degenerado.
+        const breakEvenHours = billingRate > 0 ? totalCosts / billingRate : 0;
+        // TODO: `currentAllocatedHours` usa la capacidad total como proxy de horas
+        // facturadas; el refinamiento real requiere horas comprometidas de proyectos
+        // ganados (pendiente, necesita otro pull de datos).
         const currentAllocatedHours = totalBillableHours;
         const hoursToBreakEven = Math.max(0, breakEvenHours - currentAllocatedHours);
         const safetyMarginHours = Math.max(0, currentAllocatedHours - breakEvenHours);
         const safetyMarginPercentage = breakEvenHours > 0 ? (safetyMarginHours / breakEvenHours) * 100 : 0;
-        const breakEvenRevenue = breakEvenHours * blendedCostRate;
-        const currentProjectedRevenue = currentAllocatedHours * blendedCostRate;
+        const breakEvenRevenue = breakEvenHours * billingRate;
+        const currentProjectedRevenue = currentAllocatedHours * billingRate;
         const revenueToBreakEven = Math.max(0, breakEvenRevenue - currentProjectedRevenue);
         const currentUtilizationRate = totalBillableHours > 0 ? (currentAllocatedHours / totalBillableHours) * 100 : 0;
         const breakEvenUtilizationRate = totalBillableHours > 0 ? (breakEvenHours / totalBillableHours) * 100 : 0;
-        const averageMargin = blendedCostRate > 0 ? ((blendedCostRate * 1.5 - blendedCostRate) / (blendedCostRate * 1.5)) * 100 : 0;
+        const averageMargin = targetMargin * 100;
 
         const status: BreakEvenStatus =
             currentAllocatedHours > breakEvenHours
