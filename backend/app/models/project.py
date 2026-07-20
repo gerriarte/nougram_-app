@@ -49,6 +49,8 @@ class Project(Base):
     client_email = Column(String, nullable=True)
     status = Column(String, default="Draft")
     currency = Column(String, default="USD")  # USD, COP, ARS, EUR
+    # Provenance: NULL = created manually, "quote_agent" = created by the AI quote agent.
+    source = Column(String, nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

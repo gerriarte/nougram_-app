@@ -4,6 +4,7 @@ Revision ID: w20260601_accepted
 Revises: v20260517_add_vendors
 Create Date: 2026-06-01 16:00:00.000000
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -18,8 +19,12 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column("projects", sa.Column("accepted_quote_id", sa.Integer(), nullable=True))
     op.create_foreign_key(
-        "fk_projects_accepted_quote", "projects", "quotes",
-        ["accepted_quote_id"], ["id"], use_alter=True,
+        "fk_projects_accepted_quote",
+        "projects",
+        "quotes",
+        ["accepted_quote_id"],
+        ["id"],
+        use_alter=True,
     )
 
 

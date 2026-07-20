@@ -533,8 +533,8 @@ async def calculate_agency_cost_hour(
         for currency in ["USD", "COP", "ARS", "EUR"]:
             currency_counts[currency] = {
                 "count": 0,
-                "total_amount": 0.0,
-                "exchange_rate_to_primary": 0.0,
+                "total_amount": Decimal("0"),
+                "exchange_rate_to_primary": Decimal("0"),
             }
 
         for member in team_members:

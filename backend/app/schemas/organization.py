@@ -77,6 +77,14 @@ class OrganizationUpdate(BaseModel):
         return v
 
 
+class OrganizationModulesUpdate(BaseModel):
+    """Schema for toggling per-tenant modules (super_admin only)."""
+
+    quote_agent: bool | None = Field(
+        None, description="Enable/disable the AI quote agent (chat) module"
+    )
+
+
 class OrganizationResponse(BaseModel):
     """Schema for organization response"""
 

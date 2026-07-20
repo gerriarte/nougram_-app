@@ -139,9 +139,7 @@ async def get_financial_summary(
             Service.deleted_at.is_(None),
         )
     )
-    service_margins = [
-        Decimal(str(m)) for (m,) in margins_result.all() if m is not None
-    ]
+    service_margins = [Decimal(str(m)) for (m,) in margins_result.all() if m is not None]
     if service_margins:
         blended_margin = sum(service_margins) / Decimal(len(service_margins))
     else:

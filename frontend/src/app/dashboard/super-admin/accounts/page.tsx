@@ -325,8 +325,9 @@ export default function SuperAdminAccountsPage() {
     const [listLoading, setListLoading] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
     const [busyAction, setBusyAction] = useState<
-        null | 'subscription' | 'grant' | 'reset' | 'create' | 'quick-status' | 'create-user' | 'update-role' | 'remove-user'
+        null | 'subscription' | 'grant' | 'reset' | 'create' | 'quick-status' | 'create-user' | 'update-role' | 'remove-user' | 'modules'
     >(null);
+    const [quoteAgentModule, setQuoteAgentModule] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
@@ -792,6 +793,40 @@ export default function SuperAdminAccountsPage() {
             setStatus(selectedOrg.subscription_status);
         }
     }, [selectedOrg]);
+
+    useEffect(() => {
+        if (!selectedOrgId || !isSuperAdmin) {
+            return;
+        }
+        void (async () => {
+            const response = await apiRequest<{ settings?: { modules?: { quote_agent?: boolean } } }>(
+                `/organizations/${selectedOrgId}`
+            );
+            setQuoteAgentModule(Boolean(response.data?.settings?.modules?.quote_agent));
+        })();
+    }, [selectedOrgId, isSuperAdmin]);
+
+    const toggleQuoteAgentModule = async () => {
+        if (!selectedOrgId) {
+            return;
+        }
+        const next = !quoteAgentModule;
+        setBusyAction('modules');
+        setError(null);
+        setSuccess(null);
+        const response = await apiRequest<{ settings?: { modules?: { quote_agent?: boolean } } }>(
+            `/organizations/${selectedOrgId}/modules`,
+            { method: 'PUT', body: JSON.stringify({ quote_agent: next }) }
+        );
+        if (response.error) {
+            setError(response.error || 'No se pudo actualizar el modulo.');
+            setBusyAction(null);
+            return;
+        }
+        setQuoteAgentModule(Boolean(response.data?.settings?.modules?.quote_agent ?? next));
+        setSuccess(next ? 'Agente de Cotizacion habilitado.' : 'Agente de Cotizacion deshabilitado.');
+        setBusyAction(null);
+    };
 
     useEffect(() => {
         if (selectedOrgId && isSuperAdmin) {
@@ -1588,6 +1623,28 @@ export default function SuperAdminAccountsPage() {
                                                 <Power size={15} className="mr-2" />
                                                 Suspender
                                             </Button>
+                                        </div>
+
+                                        <div className="mt-5 pt-4 border-t border-gray-100">
+                                            <p className="text-[10px] font-black text-system-gray uppercase tracking-[0.15em] mb-3">Modulos</p>
+                                            <div className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900">Agente de Cotizacion ✨</p>
+                                                    <p className="text-xs text-system-gray">Habilita el chat de cotizacion asistida por IA para este tenant.</p>
+                                                </div>
+                                                <Button
+                                                    variant={quoteAgentModule ? 'primary' : 'outline'}
+                                                    className="h-10 rounded-xl min-w-[120px]"
+                                                    onClick={() => void toggleQuoteAgentModule()}
+                                                    disabled={busyAction === 'modules'}
+                                                >
+                                                    {busyAction === 'modules'
+                                                        ? 'Guardando...'
+                                                        : quoteAgentModule
+                                                            ? 'Habilitado'
+                                                            : 'Deshabilitado'}
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

@@ -74,3 +74,6 @@ class FeatureFlagsResponse(BaseModel):
     resource_planning_mode: Literal["simple", "advanced"] = Field(
         default="simple", description="Planning mode for resource assignment UI"
     )
+    quote_agent_enabled: bool = Field(
+        default=False, description="Enable the AI quote agent (chat) module for this tenant"
+    )

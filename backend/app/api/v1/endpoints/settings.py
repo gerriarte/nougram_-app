@@ -30,19 +30,39 @@ router = APIRouter()
 @router.get("/features", response_model=FeatureFlagsResponse)
 async def get_feature_flags(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Return frontend feature flags for resource planning modules.
 
     Occupancy tracking remains enabled in all modes; team cells can be toggled
-    independently to support simple/advanced experiences per environment.
+    independently to support simple/advanced experiences per environment. Per-tenant
+    modules (e.g. the quote agent) are read from ``organization.settings.modules``.
     """
-    _ = current_user  # Keep authenticated access for tenant-facing settings endpoints.
     team_cells_enabled = bool(settings.FEATURE_TEAM_CELLS)
+
+    # Per-tenant module flags from organization.settings.modules
+    quote_agent_enabled = False
+    organization_id = getattr(current_user, "active_organization_id", None) or getattr(
+        current_user, "organization_id", None
+    )
+    if organization_id is not None:
+        from sqlalchemy import select
+
+        from app.models.organization import Organization
+
+        result = await db.execute(select(Organization).where(Organization.id == organization_id))
+        org = result.scalar_one_or_none()
+        org_settings = getattr(org, "settings", None) or {}
+        if isinstance(org_settings, dict):
+            modules = org_settings.get("modules", {}) or {}
+            quote_agent_enabled = bool(modules.get("quote_agent"))
+
     return FeatureFlagsResponse(
         team_cells_enabled=team_cells_enabled,
         resource_occupancy_enabled=True,
         resource_planning_mode="advanced" if team_cells_enabled else "simple",
+        quote_agent_enabled=quote_agent_enabled,
     )
 
 

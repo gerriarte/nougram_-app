@@ -173,7 +173,9 @@ class QuoteCalculateRequest(BaseModel):
     )
 
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
-    @field_serializer("target_margin_percentage", "revision_cost_per_additional", "contingency_value")
+    @field_serializer(
+        "target_margin_percentage", "revision_cost_per_additional", "contingency_value"
+    )
     def serialize_decimal(self, value: Decimal | None) -> str | None:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None

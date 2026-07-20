@@ -6,6 +6,7 @@ from typing import TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.repositories.agent_conversation_repository import AgentConversationRepository
 from app.repositories.ai_usage_repository import AIUsageRepository
 from app.repositories.audit_log_repository import AuditLogRepository
 from app.repositories.base import BaseRepository
@@ -182,3 +183,10 @@ class RepositoryFactory:
     def create_vendor_repository(db: AsyncSession, tenant_id: int) -> VendorRepository:
         """Create VendorRepository with tenant context"""
         return VendorRepository(db, tenant_id=tenant_id)
+
+    @staticmethod
+    def create_agent_conversation_repository(
+        db: AsyncSession, tenant_id: int
+    ) -> AgentConversationRepository:
+        """Create AgentConversationRepository with tenant context"""
+        return AgentConversationRepository(db, tenant_id=tenant_id)
