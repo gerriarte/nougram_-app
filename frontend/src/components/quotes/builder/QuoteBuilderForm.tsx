@@ -80,9 +80,9 @@ export function QuoteBuilderForm() {
             services.find(s => s.pricingType === targetPricingType && s.isActive) ||
             services.find(s => s.isActive);
         if (!candidateService) return;
-        const sameTypeCount = state.items.filter(i => i.pricingType === targetPricingType).length;
-        const labelMap = { hourly: 'Por horas', fixed: 'Precio fijo', recurring: 'Mensual' };
-        addItem(candidateService.id, `${labelMap[targetPricingType]} ${sameTypeCount + 1}`, targetPricingType);
+        // Título vacío a propósito: antes se autocompletaba con etiquetas genéricas
+        // ("Por horas 1") que quedaban guardadas tal cual en la cotización.
+        addItem(candidateService.id, '', targetPricingType);
     };
 
     const hasProjectName = typeof state.projectName === 'string' && state.projectName.trim().length > 0;

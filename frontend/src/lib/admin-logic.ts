@@ -8,8 +8,7 @@ import {
     BCRSummary,
     GlobalConfig
 } from "@/types/admin";
-
-const WEEKS_PER_MONTH = 4.33;
+import { monthlyBillableHours } from "@/lib/capacity";
 
 export function calculateSocialChargesMult(config: SocialChargesConfig): number {
     if (!config.enable_social_charges) return 1;
@@ -41,11 +40,9 @@ export function calculatePayroll(
         const salary = parseFloat(m.salary_monthly_brute || "0");
         const salaryWithCharges = salary * mult;
 
-        // Calculate Monthly Hours
-        // Formula: Weekly Hours * 4.33 * (1 - NonBillable%)
-        const nonBillablePct = parseFloat(m.non_billable_hours_percentage || "0");
-        const weeklyHours = m.billable_hours_per_week || 0;
-        const monthlyHours = weeklyHours * WEEKS_PER_MONTH * (1 - nonBillablePct);
+        // Horas facturables al mes. Implementación única en lib/capacity.ts:
+        // billable_hours_per_week YA es facturable, no se le descuenta el % no facturable.
+        const monthlyHours = monthlyBillableHours(m.billable_hours_per_week);
 
         // Cost Per Hour
         const costPerHour = monthlyHours > 0 ? salaryWithCharges / monthlyHours : 0;

@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useNougram } from '@/context/NougramCoreContext';
 import {
     QuoteBuilderState, QuoteItem, QuoteExpense, TaxConfig, CalculationSummary,
-    PricingType, Service, Contingency
+    PricingType, Service, Contingency, TeamMemberMock, ResourceAllocation
 } from '@/types/quote-builder';
 import { taxService } from '@/services/taxService';
 
@@ -54,6 +54,140 @@ function normalizeOptionalText(value: unknown): string {
     return trimmed;
 }
 
+/**
+ * Marca interna del builder: el ítem fue creado en ESTA sesión de edición (addItem).
+ *
+ * Es una marca explícita puesta al crear el ítem, no una inferencia sobre la forma
+ * del id: los ítems que vuelven de `loadQuote` nunca la traen, así que quedan
+ * exentos de las validaciones que solo aplican a lo nuevo (ver H14). Vive fuera de
+ * `QuoteItem` a propósito — es estado de UI, no parte del contrato con el backend,
+ * y `mapQuoteItemToApi` copia campo por campo, así que nunca se envía.
+ */
+type BuilderQuoteItem = QuoteItem & { __createdInSession?: true };
+
+export function markItemAsCreatedInSession(item: QuoteItem): QuoteItem {
+    const marked: BuilderQuoteItem = { ...item, __createdInSession: true };
+    return marked;
+}
+
+export function isItemCreatedInSession(item: QuoteItem): boolean {
+    return (item as BuilderQuoteItem).__createdInSession === true;
+}
+
+/**
+ * Utilización de un miembro dentro de esta cotización (función pura).
+ *
+ * Las asignaciones viven en `item.allocations` (una por ítem). El array legacy
+ * `state.resourceAllocations` quedó sin UI que lo alimente, así que se suma
+ * también para no romper flujos viejos, pero la fuente real son los ítems.
+ *
+ * `member.availableHours` es capacidad MENSUAL (billable_hours_per_week × 4.33).
+ * En los ítems recurrentes las horas ya son por mes, pero en los one-off son el
+ * TOTAL del ítem y no hay dato de en cuántos meses se ejecuta (`durationMonths`
+ * solo se setea en recurring). Por eso el porcentaje resultante es orientativo:
+ * se lee como "qué porcentaje de un mes de capacidad consume si todo cayera en
+ * el mismo mes", y por eso mismo no puede bloquear el guardado (ver H13).
+ */
+export function computeMemberUtilization(
+    memberId: number,
+    state: Pick<QuoteBuilderState, 'items' | 'resourceAllocations'>,
+    teamMembers: TeamMemberMock[]
+): { capacity: number; used: number; percentage: number; remaining: number } {
+    const member = teamMembers.find(m => m.id === memberId);
+    if (!member) return { capacity: 0, used: 0, percentage: 0, remaining: 0 };
+
+    const itemAllocations: ResourceAllocation[] = (state.items || []).flatMap(item =>
+        (item.allocations || []).filter(a => a.teamMemberId === memberId)
+    );
+
+    return resourceService.calculateUtilization(member, [
+        ...(state.resourceAllocations || []).filter(a => a.teamMemberId === memberId),
+        ...itemAllocations,
+    ]);
+}
+
+export interface QuoteBuilderValidation {
+    /** Bloquean el guardado (apagan `isValid`). */
+    errors: string[];
+    /** Informativas: se muestran, pero NO bloquean el guardado. */
+    warnings: string[];
+}
+
+/**
+ * Validación del builder, pura y testeable.
+ *
+ * Regla de alcance (H14): la descripción del ítem es obligatoria SOLO para los
+ * ítems creados en esta sesión. Una cotización vieja — cuyos ítems nunca tuvieron
+ * `description` porque la columna es nueva — se tiene que poder re-guardar (p. ej.
+ * para cambiar el estado a 'Won') sin tipear a mano el alcance de cada ítem viejo.
+ * El aviso visual por ítem (QuoteItemRow) se sigue mostrando igual.
+ *
+ * Sobreasignación de recursos (H13): es una ADVERTENCIA, no un error. Compara
+ * horas totales del ítem contra capacidad mensual (ver computeMemberUtilization),
+ * así que un ítem one-off repartido en varios meses da falso positivo; bloquear el
+ * guardado con eso dejaba al usuario sin ninguna vía de escape.
+ */
+export function computeQuoteBuilderValidation(input: {
+    state: QuoteBuilderState;
+    summary: Pick<CalculationSummary, 'totalClientPrice' | 'totalInternalCost'>;
+    teamMembers: TeamMemberMock[];
+}): QuoteBuilderValidation {
+    const { state, summary, teamMembers } = input;
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!normalizeOptionalText(state.projectName)) errors.push('Nombre del proyecto requerido');
+    const hasClientForSave =
+        Boolean(normalizeOptionalText(state.clientName)) ||
+        Boolean(normalizeOptionalText(state.clientCompany));
+    if (!hasClientForSave) errors.push('Cliente requerido');
+    if (state.items.length === 0) errors.push('Al menos un ítem de servicio requerido (gastos de proveedor no bastan)');
+
+    // Título y alcance por ítem: sin esto la cotización no se entiende al revisarla.
+    const itemsMissingTitle = state.items.filter(i => !normalizeOptionalText(i.serviceName)).length;
+    if (itemsMissingTitle > 0) {
+        errors.push(
+            itemsMissingTitle === 1
+                ? 'Un ítem sin título'
+                : `${itemsMissingTitle} ítems sin título`
+        );
+    }
+    const itemsMissingDescription = state.items.filter(
+        i => isItemCreatedInSession(i) && !normalizeOptionalText(i.description)
+    ).length;
+    if (itemsMissingDescription > 0) {
+        errors.push(
+            itemsMissingDescription === 1
+                ? 'Un ítem nuevo sin descripción del alcance'
+                : `${itemsMissingDescription} ítems nuevos sin descripción del alcance`
+        );
+    }
+    if (summary.totalClientPrice < summary.totalInternalCost && !state.allowLowMargin) {
+        errors.push('CRITICAL: Price below Cost');
+    }
+
+    const allocatedMemberIds = Array.from(new Set([
+        ...(state.resourceAllocations || []).map(a => a.teamMemberId),
+        ...state.items.flatMap(item => (item.allocations || []).map(a => a.teamMemberId)),
+    ]));
+    allocatedMemberIds.forEach(memberId => {
+        const member = teamMembers.find(m => m.id === memberId);
+        if (!member) return;
+        const util = computeMemberUtilization(memberId, state, teamMembers);
+        // Sin capacidad conocida no se puede afirmar que haya sobreasignación.
+        if (util.capacity <= 0 || util.percentage <= 100) return;
+        const pct = formatDisplayNumber(util.percentage, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        const used = formatDisplayNumber(util.used, { maximumFractionDigits: 1 });
+        const capacity = formatDisplayNumber(util.capacity, { maximumFractionDigits: 1 });
+        warnings.push(
+            `${member.name} quedaría al ${pct}% de un mes de capacidad: ${used} h sobre ${capacity} h disponibles por mes. ` +
+            `Si el trabajo se reparte en varios meses puede estar bien; si no, reducí sus horas o repartí el trabajo entre otros recursos.`
+        );
+    });
+
+    return { errors, warnings };
+}
+
 interface QuoteBuilderContextType {
     state: QuoteBuilderState;
     services: Service[];
@@ -86,6 +220,8 @@ interface QuoteBuilderContextType {
     summary: CalculationSummary;
     isValid: boolean;
     errors: string[];
+    /** Avisos que NO bloquean el guardado (p. ej. sobreasignación de recursos). */
+    warnings: string[];
 
     /** `null` = paywall de créditos abierto (no navegar). `undefined` = salida temprana sin guardar. */
     saveQuote: (status?: 'Draft' | 'Sent' | 'Won' | 'Lost') => Promise<string | null | undefined>;
@@ -178,6 +314,9 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             id: i.id, s: i.serviceId, p: i.pricingType, f: i.fixedPrice, q: i.quantity,
             r: i.recurringPrice, b: i.billingFrequency, v: i.projectValue,
             d: i.durationMonths, e: i.estimatedHours,
+            // manualPrice es un INPUT: sin él acá, editar "Precio cliente" no
+            // retriggerea el recálculo y el subtotal queda congelado.
+            m: i.manualPrice,
             a: (i.allocations || []).map(x => [x.teamMemberId, x.hours]),
         }))
     );
@@ -228,12 +367,9 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     }, [itemsInputSignature, expensesSignature, taxSignature, state.targetMargin, contingencySignature]);
 
     // --- RESOURCE ALLOCATION HELPERS ---
-    const getMemberUtilization = (memberId: number) => {
-        const member = teamMembers.find(m => m.id === memberId);
-        if (!member) return { capacity: 0, used: 0, percentage: 0, remaining: 0 };
-
-        return resourceService.calculateUtilization(member, state.resourceAllocations);
-    };
+    /** Ver computeMemberUtilization: misma lógica, atada al estado del builder. */
+    const getMemberUtilization = (memberId: number) =>
+        computeMemberUtilization(memberId, state, teamMembers);
 
     // --- ACTIONS ---
     const updateProjectInfo = (info: Partial<QuoteBuilderState>) =>
@@ -246,7 +382,13 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     const addItem = (serviceId: number, serviceNameOverride?: string, pricingTypeOverride?: PricingType) => {
         const service = services.find(s => s.id === serviceId);
         if (!service) return;
-        const normalizedServiceName = normalizeOptionalText(serviceNameOverride) || service.name;
+        // Un override explícito manda, incluso vacío: el builder crea el ítem sin
+        // título para forzar que el usuario escriba uno propio en vez de heredar
+        // una etiqueta genérica. Sin override se usa el nombre del catálogo.
+        const normalizedServiceName =
+            serviceNameOverride !== undefined
+                ? normalizeOptionalText(serviceNameOverride)
+                : service.name;
         const effectivePricingType: PricingType = pricingTypeOverride || service.pricingType;
 
         const newItem: QuoteItem = {
@@ -266,7 +408,8 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             internalCost: 0, clientPrice: 0, marginPercentage: 0
         };
 
-        setState(prev => ({ ...prev, items: [...prev.items, newItem] }));
+        // Marca explícita de "creado en esta sesión": solo estos ítems exigen alcance.
+        setState(prev => ({ ...prev, items: [...prev.items, markItemAsCreatedInSession(newItem)] }));
     };
 
     const updateItem = (itemId: string, updates: Partial<QuoteItem>) => {
@@ -332,31 +475,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
     const setContingency = (contingency: Contingency | undefined) => setState(prev => ({ ...prev, contingency }));
 
     // --- VALIDATION ---
-    const errors: string[] = [];
-    if (!normalizeOptionalText(state.projectName)) errors.push('Nombre del proyecto requerido');
-    const hasClientForSave =
-        Boolean(normalizeOptionalText(state.clientName)) ||
-        Boolean(normalizeOptionalText(state.clientCompany));
-    if (!hasClientForSave) errors.push('Cliente requerido');
-    if (state.items.length === 0) errors.push('Al menos un ítem de servicio requerido (gastos de proveedor no bastan)');
-    if (summary.totalClientPrice < summary.totalInternalCost && !state.allowLowMargin) {
-        errors.push('CRITICAL: Price below Cost');
-    }
-
-    // Resource Allocation Validation (Only if active)
-    if (state.showResourceAllocation) {
-        state.resourceAllocations.forEach(alloc => {
-            const member = teamMembers.find(m => m.id === alloc.teamMemberId);
-            if (member) {
-                const util = getMemberUtilization(member.id);
-                // Note: getMemberUtilization calculates TOTAL used including this one.
-                // We check if utilization > 100
-                if (util.percentage > 100) {
-                    errors.push(`Error: ${member.name} allocated > 100% capacity (${formatDisplayNumber(util.percentage, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)`);
-                }
-            }
-        });
-    }
+    const { errors, warnings } = computeQuoteBuilderValidation({ state, summary, teamMembers });
 
     // --- PERSISTENCE ---
     const saveQuote = async (status?: 'Draft' | 'Sent' | 'Won' | 'Lost') => {
@@ -499,7 +618,7 @@ export function QuoteBuilderProvider({ children }: { children: React.ReactNode }
             addExpense, updateExpense, removeExpense,
             toggleTax, setTargetMargin, setContingency,
             toggleResourceAllocation, addResourceAllocation, updateResourceAllocation, removeResourceAllocation, getMemberUtilization,
-            summary, isValid: errors.length === 0, errors,
+            summary, isValid: errors.length === 0, errors, warnings,
             saveQuote, loadQuote,
             paywall, clearPaywall,
         }}>

@@ -8,6 +8,8 @@ import { FixedCostTemplate } from '@/types/onboarding';
 import { apiRequest } from '@/lib/api-client';
 import { isAuthenticated } from '@/lib/auth';
 import { equipmentService } from '@/services/equipmentService';
+import { financialSummaryService } from '@/services/financialSummaryService';
+import { estimateOnboardingBcrPreview } from '@/lib/onboarding-bcr-preview';
 
 // --- Types ---
 
@@ -21,11 +23,24 @@ export interface AgencyIdentity {
     country?: string;
 }
 
+/**
+ * De dónde salió el BCR que hay en memoria.
+ *  - 'backend': valor autoritativo de /admin/financial-summary. Normaliza monedas
+ *    a la moneda primaria de la org, aplica las cargas sociales configuradas e
+ *    incluye la amortización de equipos. Es el único válido para cotizar.
+ *  - 'onboarding-estimate': previsualización del wizard, antes de que exista nada
+ *    persistido (ver lib/onboarding-bcr-preview.ts). Preliminar por definición.
+ *  - 'unavailable': se intentó consultar al backend y no contestó.
+ *  - 'none': todavía no se resolvió.
+ */
+export type BcrSource = 'backend' | 'onboarding-estimate' | 'unavailable' | 'none';
+
 export interface FinancialState {
-    baseMonthlyCost: number; // From Onboarding (Payroll + Overhead)
+    baseMonthlyCost: number; // Payroll + Overhead (backend, o estimado en onboarding)
     billableHours: number;   // Total capacity
-    equipmentAmortization: number; // Calculated from active equipment
-    bcr: number; // Final Result: (Base + Amortization) / Hours
+    equipmentAmortization: number; // Calculated from active equipment (solo display)
+    bcr: number; // Costo/hora. Ver bcrSource para saber si es autoritativo.
+    bcrSource: BcrSource;
     exchangeRateCOP: number;
 }
 
@@ -72,6 +87,7 @@ const DEFAULT_STATE: NougramState = {
         billableHours: 160,
         equipmentAmortization: 0,
         bcr: 0,
+        bcrSource: 'none',
         exchangeRateCOP: 4200
     },
     equipment: [],
@@ -84,6 +100,75 @@ const DEFAULT_STATE: NougramState = {
     user: { role: 'owner', credits: 100 },
     isHydrated: false
 };
+
+/**
+ * Cuánto se espera al backend antes de dar la hidratación por perdida.
+ * `fetch` no tiene timeout propio: si el backend acepta la conexión y no contesta
+ * nunca, ningún request settlea. Sin este techo, `bcrSource` se queda en 'none' y
+ * `isHydrated` en false para siempre, y la ruta '/' no decide nunca (H18).
+ */
+export const BCR_HYDRATION_TIMEOUT_MS = 10_000;
+
+/** Estado observable por la pantalla raíz para decidir a dónde mandar al usuario. */
+export interface RootRouteInput {
+    /** `loading` de useAuth: depende de GET /auth/me, que puede no settlear nunca. */
+    authLoading: boolean;
+    /** `isAuthenticated` de useAuth: solo es confiable cuando authLoading es false. */
+    isAuthenticated: boolean;
+    /** Token persistido (lectura sincrónica de localStorage, sin fetch de por medio). */
+    hasStoredSession: boolean;
+    /** `state.isHydrated`: depende de GET /settings/equipment, que puede no settlear. */
+    isHydrated: boolean;
+    bcr: number;
+    bcrSource: BcrSource;
+    /** true cuando venció el techo de espera de la pantalla raíz. */
+    bailedOut: boolean;
+}
+
+export type RootRouteDecision = '/login' | '/onboarding' | '/dashboard' | null;
+
+/**
+ * Decide el destino de la ruta '/'. `null` significa "seguir esperando".
+ *
+ * Vive acá y no en la página para poder testearla sin navegador, y porque las dos
+ * banderas que la gobiernan (`isHydrated`, `bcrSource`) las produce este contexto.
+ *
+ * H18: mientras `bailedOut` es false se espera a que la sesión y la hidratación
+ * resuelvan, que es el camino feliz. Pero esas banderas cuelgan de fetches sin
+ * timeout, así que una vez vencido el techo la decisión NO puede volver a mirarlas:
+ * se cae a `hasStoredSession`, que es sincrónico y no depende de ninguna red.
+ */
+export function decideRootRoute(input: RootRouteInput): RootRouteDecision {
+    const {
+        authLoading,
+        isAuthenticated: authenticated,
+        hasStoredSession,
+        isHydrated,
+        bcr,
+        bcrSource,
+        bailedOut,
+    } = input;
+
+    if (!bailedOut) {
+        if (authLoading || !isHydrated) return null;
+        if (!authenticated) return '/login';
+        // Decidir con 'none' mandaría a onboarding a cualquier organización ya
+        // configurada, solo por llegar antes que el resumen financiero.
+        if (bcrSource === 'none') return null;
+        return bcr === 0 ? '/onboarding' : '/dashboard';
+    }
+
+    // Venció el techo: decidir con lo que haya, sin esperar a ningún request.
+    // Si la sesión nunca resolvió, el token persistido es el único dato disponible.
+    const sessionLooksValid = authLoading ? hasStoredSession : authenticated;
+    if (!sessionLooksValid) return '/login';
+
+    // 'none' = el resumen financiero nunca llegó. Mandar a onboarding a una org que
+    // quizá ya está configurada es peor que dejarla en el dashboard, que sabe
+    // mostrar sus propios errores y tiene navegación.
+    if (bcrSource === 'none') return '/dashboard';
+    return bcr === 0 ? '/onboarding' : '/dashboard';
+}
 
 const NougramCoreContext = createContext<NougramCoreContextType | undefined>(undefined);
 
@@ -128,25 +213,83 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
             setState((prev) => ({ ...prev, isHydrated: true }));
             return;
         }
+        // Igual que el resumen financiero: `equipmentService.getAll()` sale por
+        // `fetch`, que no tiene timeout. Si el backend acepta la conexión y no
+        // responde, este await no settlea nunca e `isHydrated` se queda en false —
+        // la segunda bandera que congelaba la ruta '/' en el spinner (H18).
+        const markHydrated = () =>
+            setState(prev => (prev.isHydrated ? prev : { ...prev, isHydrated: true }));
+        const timeoutId = setTimeout(markHydrated, BCR_HYDRATION_TIMEOUT_MS);
         const hydrateFromBackend = async () => {
             const equipment = await equipmentService.getAll();
+            clearTimeout(timeoutId);
+            // Si el equipo llega tarde igual se aplica: solo se perdió la espera.
             setState(prev => ({ ...prev, equipment, isHydrated: true }));
         };
         void hydrateFromBackend().catch(() => {
-            setState(prev => ({ ...prev, isHydrated: true }));
+            clearTimeout(timeoutId);
+            markHydrated();
         });
+        return () => clearTimeout(timeoutId);
     }, [backendHydrationKey]);
+
+    // El front ya no deriva el BCR: el backend es la fuente de verdad porque es el
+    // único que normaliza a la moneda primaria de la organización y aplica su config
+    // de cargas sociales. Si el resumen no llega, se marca 'unavailable' y se conserva
+    // lo que hubiera (p. ej. la estimación preliminar del onboarding) sin blanquearlo.
+    const applyBackendFinancials = (
+        summary: Awaited<ReturnType<typeof financialSummaryService.get>>
+    ) => {
+        setState((prev) => ({
+            ...prev,
+            financials: summary
+                ? {
+                    ...prev.financials,
+                    baseMonthlyCost:
+                        (Number(summary.monthlyFixedCosts) || 0) +
+                        (Number(summary.monthlyPayroll) || 0),
+                    billableHours:
+                        Number(summary.totalBillableHours) > 0
+                            ? Number(summary.totalBillableHours)
+                            : prev.financials.billableHours,
+                    bcr: Number(summary.blendedCostRate) || 0,
+                    bcrSource: 'backend',
+                }
+                : { ...prev.financials, bcrSource: 'unavailable' },
+        }));
+    };
 
     useEffect(() => {
         if (!isAuthenticated()) {
             return;
         }
+        // `fetch` no tiene timeout propio: si el backend acepta la conexión y no
+        // contesta nunca, este Promise.all no settlea jamás y bcrSource se queda en
+        // 'none', que es lo que deja la pantalla raíz girando en el spinner (H18).
+        // Pasado el plazo se degrada a 'unavailable' — el mismo estado que ya se usa
+        // cuando el backend contesta con error — para que la app siga decidiendo.
+        let resolved = false;
+        const degradeToUnavailable = () => {
+            if (resolved) return;
+            resolved = true;
+            applyBackendFinancials(null);
+        };
+        const timeoutId = setTimeout(degradeToUnavailable, BCR_HYDRATION_TIMEOUT_MS);
         const hydrateOrganizationName = async () => {
-            const [organizationResponse, currencyResponse, featuresResponse] = await Promise.all([
+            const [organizationResponse, currencyResponse, featuresResponse, financialSummary] = await Promise.all([
                 apiRequest<OrganizationMeResponse>('/organizations/me'),
                 apiRequest<CurrencySettingsResponse>('/settings/currency'),
                 apiRequest<FeatureFlagsResponse>('/settings/features'),
+                // BCR autoritativo: el backend ya normaliza monedas y cargas sociales.
+                financialSummaryService.get(),
             ]);
+            // El BCR se aplica aunque /organizations/me falle: la pantalla raíz
+            // decide onboarding vs dashboard mirando bcrSource, y dejarla en 'none'
+            // la colgaría en el spinner. Si la respuesta llega tarde (después del
+            // timeout) igual se aplica: pisa el 'unavailable' con el dato real.
+            resolved = true;
+            clearTimeout(timeoutId);
+            applyBackendFinancials(financialSummary);
             if (organizationResponse.error || !organizationResponse.data) return;
             const backendCountry = organizationResponse.data.settings?.country;
             const backendCurrency =
@@ -170,12 +313,23 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
                 },
             }));
         };
-        void hydrateOrganizationName();
+        // A diferencia del otro efecto de hidratación, este no tenía `.catch`: una
+        // excepción inesperada dejaba bcrSource en 'none' para siempre.
+        void hydrateOrganizationName().catch(degradeToUnavailable);
+        return () => clearTimeout(timeoutId);
     }, [backendHydrationKey]);
 
-    // BCR Recalculation Effect
+    // Amortización de equipos + BCR de respaldo.
+    //
+    // La amortización se sigue agregando acá porque varias vistas la muestran
+    // desglosada. El BCR, en cambio, YA NO se deriva cuando el backend contestó:
+    // el backend normaliza a la moneda primaria de la organización y este cálculo
+    // no, así que derivarlo en paralelo producía dos números divergentes (hasta
+    // ~3472x cuando la org tiene todo en COP y el front lo trataba como USD).
+    // Solo se calcula localmente mientras no hay valor autoritativo, es decir
+    // durante la previsualización del wizard de onboarding.
     useEffect(() => {
-        const { baseMonthlyCost, billableHours } = state.financials;
+        const { baseMonthlyCost, billableHours, bcr, bcrSource, equipmentAmortization } = state.financials;
 
         // Sum active equipment depreciation
         let totalAmortization = 0;
@@ -186,14 +340,14 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
             }
         });
 
-        // Calculate Final BCR
-        let newBCR = 0;
-        if (billableHours > 0) {
-            newBCR = (baseMonthlyCost + totalAmortization) / billableHours;
-        }
+        const backendIsAuthoritative = bcrSource === 'backend';
+        // El BCR del backend ya incluye la amortización: recalcularlo acá la duplicaría.
+        const newBCR = backendIsAuthoritative
+            ? bcr
+            : (billableHours > 0 ? (baseMonthlyCost + totalAmortization) / billableHours : 0);
 
         // Avoid infinite loop: only update if changed
-        if (state.financials.bcr !== newBCR || state.financials.equipmentAmortization !== totalAmortization) {
+        if (bcr !== newBCR || equipmentAmortization !== totalAmortization) {
             setState(prev => ({
                 ...prev,
                 financials: {
@@ -204,7 +358,14 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
             }));
         }
 
-    }, [state.financials.baseMonthlyCost, state.financials.billableHours, state.equipment]);
+    }, [
+        state.financials.baseMonthlyCost,
+        state.financials.billableHours,
+        state.financials.bcr,
+        state.financials.bcrSource,
+        state.financials.equipmentAmortization,
+        state.equipment,
+    ]);
 
 
     const updateIdentity = (id: Partial<AgencyIdentity>) =>
@@ -241,8 +402,6 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
         const onboardingHours = Number(data.team?.billableHours);
         const hours = Number.isFinite(onboardingHours) && onboardingHours > 0 ? onboardingHours * 4.33 : 160;
 
-        const salary = Number(data.team?.salary) || 0;
-        const salaryWithCharges = data.team?.applySocialCharges ? salary * 1.52852 : salary;
         const nonAmortizableCosts = selectedTemplates
             .filter((template) => !(template.amortizable || template.category === 'Tools'))
             .reduce((sum, template) => {
@@ -250,7 +409,18 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
                 return sum + (Number(template.amount) || 0);
             }, 0);
 
-        const baseMonthlyCost = salaryWithCharges + nonAmortizableCosts;
+        // ESTIMACIÓN PRELIMINAR: en el wizard todavía no hay nada persistido, así que
+        // no existe BCR del backend al cual acudir. Se calcula con el preset de cargas
+        // del país (no con el config real de la org) y queda marcado como tal; el
+        // primer hidratado desde el backend lo reemplaza.
+        const preview = estimateOnboardingBcrPreview({
+            salary: Number(data.team?.salary) || 0,
+            applySocialCharges: Boolean(data.team?.applySocialCharges),
+            countryCode: country,
+            nonAmortizableCosts,
+            monthlyHours: hours,
+        });
+
         const equipmentFromOnboarding: Equipment[] = selectedTemplates
             .filter((template) => template.amortizable || template.category === 'Tools')
             .map((template) => {
@@ -270,16 +440,15 @@ export function NougramCoreProvider({ children }: { children: React.ReactNode })
                     createdAt: new Date().toISOString(),
                 };
             });
-        const bcrValue = hours > 0 ? baseMonthlyCost / hours : 0;
-
         setState(prev => ({
             ...prev,
             identity: { ...prev.identity, name, primaryCurrency: currency, country },
             financials: {
                 ...prev.financials,
-                baseMonthlyCost,
-                billableHours: hours,
-                bcr: bcrValue
+                baseMonthlyCost: preview.baseMonthlyCost,
+                billableHours: preview.billableHours,
+                bcr: preview.bcr,
+                bcrSource: 'onboarding-estimate'
             },
             equipment: equipmentFromOnboarding,
             isHydrated: true
