@@ -3,7 +3,7 @@ Project Service - Business logic for project and quote management
 """
 
 import logging
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -11,7 +11,12 @@ from sqlalchemy import func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.calculations import calculate_blended_cost_rate, calculate_quote_totals_enhanced
+from app.core.calculations import (
+    build_items_breakdown_map,
+    calculate_blended_cost_rate,
+    calculate_quote_totals_enhanced,
+)
+from app.core.capacity import monthly_billable_hours
 from app.core.config import settings
 from app.core.exceptions import BusinessLogicError
 from app.core.plan_limits import validate_project_limit
@@ -74,6 +79,185 @@ def _apply_contingency_to_totals(
             (total_with_contingency - internal_cost) / total_with_contingency
         )
     return totals
+
+
+def _normalize_contingency(
+    contingency_type: str | None,
+    contingency_value: Decimal | None,
+) -> tuple[str | None, Decimal]:
+    """Devuelve (tipo, valor) sanitizados; valor 0 significa 'sin contingencia'."""
+    if not contingency_type or contingency_value is None:
+        return None, Decimal("0")
+    try:
+        value = Decimal(str(contingency_value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None, Decimal("0")
+    if value <= 0:
+        return None, Decimal("0")
+    return contingency_type, value
+
+
+def add_contingency_to_price(
+    base_price: Decimal,
+    contingency_type: str | None,
+    contingency_value: Decimal | None,
+) -> Decimal:
+    """Precio final = base gravable + contingencia. Versión Decimal de la regla del preview."""
+    ctype, value = _normalize_contingency(contingency_type, contingency_value)
+    if ctype is None:
+        return base_price
+    if ctype == "fixed":
+        return base_price + value
+    return base_price + (base_price * (value / Decimal("100")))
+
+
+def quote_taxable_base(
+    total_client_price: Decimal | float | None,
+    contingency_type: str | None,
+    contingency_value: Decimal | None,
+) -> Decimal:
+    """
+    Base imponible de un presupuesto ya guardado: el precio SIN la contingencia.
+
+    La contingencia se agrega DESPUÉS de los impuestos (así lo hace el preview en
+    /quotes/calculate y así lo aplica _apply_contingency_to_totals al guardar), pero
+    `quotes` no persiste el impuesto: cada lectura lo recalcula sobre
+    quote.total_client_price, que ya viene contingenciado. Como contingency_type y
+    contingency_value SÍ están persistidos, la base se reconstruye sin migración.
+
+    Es la inversa exacta de add_contingency_to_price().
+    """
+    try:
+        price = Decimal(str(total_client_price or 0))
+    except (InvalidOperation, ValueError, TypeError):
+        return Decimal("0")
+
+    ctype, value = _normalize_contingency(contingency_type, contingency_value)
+    if ctype is None:
+        return price
+
+    if ctype == "fixed":
+        base = price - value
+    else:
+        divisor = Decimal("1") + (value / Decimal("100"))
+        if divisor <= 0:
+            return price
+        base = price / divisor
+
+    return base if base > 0 else Decimal("0")
+
+
+def compute_quote_tax_totals(
+    total_client_price: Decimal | float | None,
+    contingency_type: str | None,
+    contingency_value: Decimal | None,
+    tax_percentages: list[Decimal | float | None],
+) -> tuple[Decimal, Decimal]:
+    """
+    (total_taxes, total_with_taxes) para un presupuesto persistido.
+
+    Los impuestos gravan la base sin contingencia; la contingencia se suma después.
+    """
+    try:
+        price = Decimal(str(total_client_price or 0))
+    except (InvalidOperation, ValueError, TypeError):
+        price = Decimal("0")
+
+    taxable_base = quote_taxable_base(price, contingency_type, contingency_value)
+
+    total_taxes = Decimal("0")
+    for percentage in tax_percentages:
+        if percentage is None:
+            continue
+        try:
+            pct = Decimal(str(percentage))
+        except (InvalidOperation, ValueError, TypeError):
+            continue
+        total_taxes += (taxable_base * pct) / Decimal("100")
+
+    return total_taxes, price + total_taxes
+
+
+def _expense_internal_cost(expense: QuoteExpense) -> Decimal:
+    cost = Decimal(str(expense.cost if expense.cost is not None else 0))
+    quantity = Decimal(str(expense.quantity if expense.quantity is not None else 1))
+    return cost * quantity
+
+
+async def recalculate_quote_totals_from_rows(db: AsyncSession, quote: Quote) -> dict[str, Decimal]:
+    """
+    Re-deriva los totales persistidos del presupuesto desde sus filas (ítems + expenses).
+
+    Espeja exactamente lo que hace calculate_quote_totals_enhanced: costo interno =
+    Σ ítems + Σ (cost × quantity) de los expenses; precio = Σ ítems + Σ client_price de
+    los expenses; y recién después se aplica la contingencia. Se usa cuando un expense
+    cambia por su propio endpoint, donde no hay payload de ítems para recalcular.
+    """
+    items = (
+        (await db.execute(select(QuoteItem).where(QuoteItem.quote_id == quote.id))).scalars().all()
+    )
+    expenses = (
+        (await db.execute(select(QuoteExpense).where(QuoteExpense.quote_id == quote.id)))
+        .scalars()
+        .all()
+    )
+
+    internal_cost = Decimal("0")
+    base_price = Decimal("0")
+    for item in items:
+        if item.internal_cost is not None:
+            internal_cost += Decimal(str(item.internal_cost))
+        if item.client_price is not None:
+            base_price += Decimal(str(item.client_price))
+    for expense in expenses:
+        internal_cost += _expense_internal_cost(expense)
+        if expense.client_price is not None:
+            base_price += Decimal(str(expense.client_price))
+
+    total_client_price = add_contingency_to_price(
+        base_price, quote.contingency_type, quote.contingency_value
+    )
+    margin = Decimal("0")
+    if total_client_price > 0:
+        margin = (total_client_price - internal_cost) / total_client_price
+
+    quote.total_internal_cost = internal_cost
+    quote.total_client_price = total_client_price
+    quote.margin_percentage = margin
+
+    return {
+        "total_internal_cost": internal_cost,
+        "total_client_price": total_client_price,
+        "margin_percentage": margin,
+    }
+
+
+def expenses_to_calculation_dicts(expenses) -> list[dict[str, Any]]:
+    """
+    Adapta expenses (filas ORM o payload) al formato que consume calculate_quote_totals_enhanced.
+
+    quantity=0 es un valor válido del schema (ge=0) y a la vez falsy: un `or 1` acá lo
+    convierte en 1 y le cobra al cliente una unidad que el usuario puso en cero, mientras
+    la fila QuoteExpense se persiste con quantity=0 y client_price=0. Resultado: los
+    totales guardados por el PUT y los que deriva recalculate_quote_totals_from_rows
+    (que sí respeta el 0, ver _expense_internal_cost) difieren para los MISMOS datos, y
+    el próximo alta/baja de cualquier expense hace saltar el precio solo. Sólo None
+    significa "sin especificar" y vale 1.
+    """
+    expenses_dict: list[dict[str, Any]] = []
+    for expense in expenses or []:
+        quantity = getattr(expense, "quantity", None)
+        expenses_dict.append(
+            {
+                "name": getattr(expense, "name", None),
+                "description": getattr(expense, "description", None),
+                "cost": Decimal(str(getattr(expense, "cost", 0) or 0)),
+                "markup_percentage": Decimal(str(getattr(expense, "markup_percentage", 0) or 0)),
+                "category": getattr(expense, "category", None),
+                "quantity": Decimal("1") if quantity is None else Decimal(str(quantity)),
+            }
+        )
+    return expenses_dict
 
 
 class ProjectService:
@@ -188,10 +372,7 @@ class ProjectService:
         total_hours = Decimal("0")
         for member in active_members:
             tm = team_members[member.team_member_id]
-            weekly_hours = Decimal(str(tm.billable_hours_per_week or 0))
-            non_billable = Decimal(str(tm.non_billable_hours_percentage or 0))
-            billable_factor = Decimal("1") - non_billable
-            capacity_monthly = weekly_hours * Decimal("4.33") * billable_factor
+            capacity_monthly = monthly_billable_hours(tm)
             member_weight = Decimal(str(member.weight or 0))
             normalized_weight = member_weight / total_weight
             hours = (
@@ -291,7 +472,7 @@ class ProjectService:
         # Calculate quote totals using enhanced function
         items_dict = []
         cell_version_cache: dict[tuple[int, int | None], TeamCellVersion] = {}
-        for item in project_data.quote_items:
+        for item_index, item in enumerate(project_data.quote_items):
             estimated_hours = getattr(item, "estimated_hours", None)
             cell_assignment = getattr(item, "cell_assignment", None)
             if cell_assignment is not None:
@@ -301,6 +482,9 @@ class ProjectService:
                 )
                 estimated_hours = float(expanded_total_hours)
             item_dict = {
+                # Clave estable para mapear el breakdown de vuelta a ESTE ítem
+                # (varios ítems pueden compartir service_id).
+                "item_key": item_index,
                 "service_id": item.service_id,
                 "estimated_hours": estimated_hours,
                 "pricing_type": getattr(item, "pricing_type", None),
@@ -309,6 +493,7 @@ class ProjectService:
                 "recurring_price": getattr(item, "recurring_price", None),
                 "billing_frequency": getattr(item, "billing_frequency", None),
                 "project_value": getattr(item, "project_value", None),
+                "client_price_override": getattr(item, "client_price_override", None),
             }
             items_dict.append(item_dict)
 
@@ -523,12 +708,25 @@ class ProjectService:
         from app.services.settings_service import SettingsService
 
         settings_service = SettingsService(self.db)
-        _, social_config = await settings_service.get_organization_currency_and_social_config(
-            self.organization_id
+        (
+            primary_currency,
+            social_config,
+        ) = await settings_service.get_organization_currency_and_social_config(self.organization_id)
+        # La nueva versión se cotiza SIEMPRE en la moneda primaria de la org (igual que
+        # create_project_with_quote y update_quote). Si el proyecto venía etiquetado en
+        # otra moneda, sus importes ya guardados se CONVIERTEN antes de reetiquetarlo:
+        # reetiquetar sin convertir deja las versiones viejas valuadas 4000x mal.
+        previous_currency = await settings_service.normalize_project_currency(
+            project.id, primary_currency
         )
+        if previous_currency:
+            # El payload viene con los precios que la UI mostraba en la moneda vieja.
+            settings_service.convert_quote_payload_amounts(
+                quote_data, previous_currency, primary_currency
+            )
         blended_rate = await calculate_blended_cost_rate(
             self.db,
-            project.currency,
+            primary_currency,
             tenant_id=self.organization_id,
             social_charges_config=social_config,
         )
@@ -539,7 +737,7 @@ class ProjectService:
         # Calculate totals
         items_dict = []
         cell_version_cache: dict[tuple[int, int | None], TeamCellVersion] = {}
-        for item in quote_data.items:
+        for item_index, item in enumerate(quote_data.items):
             estimated_hours = getattr(item, "estimated_hours", None)
             cell_assignment = getattr(item, "cell_assignment", None)
             if cell_assignment is not None:
@@ -549,6 +747,9 @@ class ProjectService:
                 )
                 estimated_hours = float(expanded_total_hours)
             item_dict = {
+                # Clave estable para mapear el breakdown de vuelta a ESTE ítem
+                # (varios ítems pueden compartir service_id).
+                "item_key": item_index,
                 "service_id": item.service_id,
                 "estimated_hours": estimated_hours,
                 "pricing_type": getattr(item, "pricing_type", None),
@@ -557,6 +758,7 @@ class ProjectService:
                 "recurring_price": getattr(item, "recurring_price", None),
                 "billing_frequency": getattr(item, "billing_frequency", None),
                 "project_value": getattr(item, "project_value", None),
+                "client_price_override": getattr(item, "client_price_override", None),
             }
             items_dict.append(item_dict)
 
@@ -576,17 +778,25 @@ class ProjectService:
         contingency_type = getattr(quote_data, "contingency_type", None)
         contingency_value = getattr(quote_data, "contingency_value", None)
 
+        # Los expenses de la versión origen se copian a la nueva (más abajo), así que
+        # TIENEN que entrar en los totales: si no, la v2 nace ignorando costos y precios
+        # que sí se persisten y se imprimen en el PDF.
+        existing_expenses_result = await self.db.execute(
+            select(QuoteExpense).where(QuoteExpense.quote_id == existing_quote.id)
+        )
+        existing_expenses = existing_expenses_result.scalars().all()
+
         totals = await calculate_quote_totals_enhanced(
             self.db,
             items_dict,
             blended_rate,
             tax_ids,
-            expenses=None,
+            expenses=expenses_to_calculation_dicts(existing_expenses),
             target_margin_percentage=target_margin_percentage,  # Pass target margin
             revisions_included=revisions_included,
             revision_cost_per_additional=revision_cost_per_additional,
             revisions_count=None,
-            currency=project.currency,
+            currency=primary_currency,
             organization_id=self.organization_id,
         )
         totals = _apply_contingency_to_totals(totals, contingency_type, contingency_value)
@@ -630,10 +840,6 @@ class ProjectService:
             self.db.add_all(quote_cell_assignments)
 
         # Copy expenses from the source quote to the new version
-        existing_expenses_result = await self.db.execute(
-            select(QuoteExpense).where(QuoteExpense.quote_id == existing_quote.id)
-        )
-        existing_expenses = existing_expenses_result.scalars().all()
         if existing_expenses:
             new_expenses = [
                 QuoteExpense(
@@ -743,14 +949,18 @@ class ProjectService:
             )
 
         # Calculate totals
+        # OJO: este total tiene que ser EL MISMO que imprimen el PDF y el DOCX que se
+        # adjuntan más abajo, porque salen en el mismo mail y los lee el cliente. Los
+        # generadores (app/core/pdf_generator.py:56 y app/core/docx_generator.py:53)
+        # gravan quote.total_client_price entero, contingencia incluida; hasta que esos
+        # dos archivos usen compute_quote_tax_totals() como el camino de lectura, acá se
+        # replica su regla. Un mail cuyo cuerpo y cuyo adjunto dicen plata distinta es
+        # peor que un mail con un total discutible.
         total_client_price = quote.total_client_price or 0
-        taxes = []
         total_taxes = 0
         if hasattr(project, "taxes") and project.taxes:
             for tax in project.taxes:
-                tax_amount = (total_client_price * tax.percentage / 100) if tax.percentage else 0
-                taxes.append(tax_amount)
-                total_taxes += tax_amount
+                total_taxes += (total_client_price * tax.percentage / 100) if tax.percentage else 0
 
         total_with_taxes = total_client_price + total_taxes
 
@@ -960,12 +1170,12 @@ class ProjectService:
         quote_items = []
         quote_allocations = []
         quote_cell_assignments = []
-        breakdown_map = {item["service_id"]: item for item in items_breakdown}
+        breakdown_map = build_items_breakdown_map(items_breakdown)
         cell_version_cache = cell_version_cache or {}
 
-        for item_data in items_data:
+        for item_index, item_data in enumerate(items_data):
             service = services[item_data.service_id]
-            breakdown = breakdown_map.get(item_data.service_id, {})
+            breakdown = breakdown_map.get(item_index, {})
 
             # Get calculated values from enhanced breakdown
             internal_cost = breakdown.get("internal_cost", 0.0)
@@ -990,6 +1200,8 @@ class ProjectService:
                 custom_service_name=(
                     str(getattr(item_data, "custom_service_name", "")).strip() or None
                 ),
+                description=(str(getattr(item_data, "description", "") or "").strip() or None),
+                client_price_override=getattr(item_data, "client_price_override", None),
                 estimated_hours=getattr(item_data, "estimated_hours", None),
                 internal_cost=internal_cost,
                 client_price=client_price,
@@ -1076,6 +1288,8 @@ class ProjectService:
                     service_name=item.custom_service_name
                     or (item.service.name if item.service else None),
                     custom_service_name=item.custom_service_name,
+                    description=getattr(item, "description", None),
+                    client_price_override=getattr(item, "client_price_override", None),
                     estimated_hours=item.estimated_hours,
                     pricing_type=getattr(item, "pricing_type", None),
                     fixed_price=getattr(item, "fixed_price", None),

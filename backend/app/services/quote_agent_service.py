@@ -125,6 +125,9 @@ class QuoteAgentService:
             quantity = raw.get("quantity")
             items.append(
                 {
+                    # Clave estable: el agente puede proponer dos ítems del mismo
+                    # servicio y el breakdown no debe colapsarlos.
+                    "item_key": len(items),
                     "service_id": service_id,
                     "estimated_hours": float(estimated_hours)
                     if estimated_hours is not None
@@ -172,22 +175,21 @@ class QuoteAgentService:
         )
 
         # Merge proposed hours/quantity back into the breakdown for display.
-        hours_by_service: dict[int, float | None] = {}
-        qty_by_service: dict[int, float | None] = {}
-        for item in items:
-            hours_by_service.setdefault(item["service_id"], item.get("estimated_hours"))
-            qty_by_service.setdefault(item["service_id"], item.get("quantity"))
+        # Se indexa por item_key (no por service_id) para no mezclar dos ítems que
+        # comparten servicio.
+        items_by_key = {item["item_key"]: item for item in items}
 
         breakdown_items = []
         for entry in totals.get("items", []):
             sid = entry.get("service_id")
+            source_item = items_by_key.get(entry.get("item_key"), {})
             breakdown_items.append(
                 {
                     "service_id": sid,
                     "service_name": entry.get("service_name"),
                     "pricing_type": entry.get("pricing_type"),
-                    "estimated_hours": hours_by_service.get(sid),
-                    "quantity": qty_by_service.get(sid),
+                    "estimated_hours": source_item.get("estimated_hours"),
+                    "quantity": source_item.get("quantity"),
                     "internal_cost": float(entry.get("internal_cost", 0) or 0),
                     "client_price": float(entry.get("client_price", 0) or 0),
                     "margin_percentage": float(entry.get("margin_percentage", 0) or 0),

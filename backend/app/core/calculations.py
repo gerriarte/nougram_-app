@@ -8,16 +8,108 @@ from decimal import Decimal
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.currency import normalize_to_primary_currency
+from app.core.capacity import total_monthly_billable_hours
+from app.core.currency import normalize_to_primary_currency, resolve_primary_currency
 from app.core.logging import get_logger
 from app.core.money import Money, sum_money
 from app.core.pricing_strategies import PricingStrategyFactory
+from app.core.social_charges import (
+    resolve_social_charges_multiplier,
+    resolve_social_charges_percentage,
+)
 from app.models.cost import CostFixed
 from app.models.equipment import EquipmentAmortization
 from app.models.service import Service
 from app.models.team import TeamMember
 
 logger = get_logger(__name__)
+
+
+def _to_decimal_amount(value) -> Decimal:
+    """
+    normalize_to_primary_currency devuelve Money, Decimal o float según la entrada.
+    ESTÁNDAR NOUGRAM: acá se normaliza a Decimal para no mezclar tipos en los agregados.
+    """
+    if isinstance(value, Money):
+        return value.amount
+    if isinstance(value, Decimal):
+        return value
+    return Decimal(str(value or 0))
+
+
+async def _load_org_social_charges_config(db: AsyncSession, tenant_id: int | None) -> dict | None:
+    """social_charges_config persistido de la organización (None si no hay/falla la lectura)."""
+    if tenant_id is None:
+        return None
+    try:
+        from app.models.organization import Organization
+
+        org_result = await db.execute(select(Organization).where(Organization.id == tenant_id))
+        org = org_result.scalar_one_or_none()
+        if org and org.settings:
+            return org.settings.get("social_charges_config")
+    except Exception as e:
+        logger.warning(f"Error getting social charges config: {e}")
+    return None
+
+
+def _blended_cost_rate_cache_key(
+    primary_currency: str, tenant_id: int | None, social_config: dict | None
+) -> str:
+    """
+    Clave de caché del BCR.
+
+    El sufijo se deriva del porcentaje EFECTIVO (resolve_social_charges_percentage), no de
+    `total_percentage` crudo: las configs legacy sin total resuelven por el desglose, y si el
+    desglose no entra en la clave, editar un concepto (p.ej. pensión 12 -> 16) devuelve el BCR
+    viejo durante todo el TTL. Además la clave se construye UNA vez y se usa para leer y para
+    escribir: antes la lectura usaba el parámetro y la escritura releía la DB, así que un caller
+    que no pasaba config nunca acertaba su propia entrada (miss permanente).
+    """
+    cache_key = f"blended_cost_rate:{primary_currency}:tenant_{tenant_id}"
+    percentage = resolve_social_charges_percentage(social_config)
+    if percentage > 0:
+        cache_key += f":social_{percentage.normalize():f}"
+    return cache_key
+
+
+async def calculate_monthly_equipment_amortization(
+    db: AsyncSession,
+    primary_currency: str = "USD",
+    tenant_id: int | None = None,
+) -> Decimal:
+    """
+    Depreciación mensual total de los equipos amortizados, normalizada a la moneda primaria.
+
+    Implementación única: el numerador del BCR la incluye, así que cualquier panel que reporte
+    "costos mensuales totales" tiene que sumar exactamente esto o se contradice con el BCR.
+    """
+    query = select(EquipmentAmortization).where(
+        EquipmentAmortization.deleted_at.is_(None), EquipmentAmortization.is_active
+    )
+    if tenant_id is not None:
+        query = query.where(EquipmentAmortization.organization_id == tenant_id)
+    assets = (await db.execute(query)).scalars().all()
+
+    amortization_money: list[Money] = []
+    for asset in assets:
+        useful_life = int(asset.useful_life_months or 0)
+        if useful_life <= 0:
+            continue
+        purchase_price = Decimal(str(asset.purchase_price or 0))
+        salvage_value = Decimal(str(asset.salvage_value or 0))
+        monthly_depreciation = (purchase_price - salvage_value) / Decimal(str(useful_life))
+        if monthly_depreciation <= 0:
+            continue
+        normalized = normalize_to_primary_currency(
+            monthly_depreciation, asset.currency or "USD", primary_currency
+        )
+        amortization_money.append(
+            normalized if isinstance(normalized, Money) else Money(normalized, primary_currency)
+        )
+
+    total = sum_money(amortization_money)
+    return total.amount if total is not None else Decimal("0")
 
 
 async def calculate_blended_cost_rate(
@@ -32,19 +124,22 @@ async def calculate_blended_cost_rate(
     ESTÁNDAR NOUGRAM: Retorna Decimal para precisión, se serializa como string en API
 
     Formula: Total Monthly Costs / Total Billable Hours Available
+
+    `social_charges_config` es un OVERRIDE de simulación: si viene con datos se usa tanto para
+    el cálculo como para la clave de caché; si viene vacío/None se lee el de la organización.
     """
     from app.core.cache import get_cache
+
+    # Config efectiva de cargas sociales: la que se pasa (simulación) o la persistida.
+    # Se resuelve ANTES del caché porque es input del resultado y por lo tanto de la clave.
+    effective_social_config = social_charges_config or await _load_org_social_charges_config(
+        db, tenant_id
+    )
+    cache_key = _blended_cost_rate_cache_key(primary_currency, tenant_id, effective_social_config)
 
     # Check cache first
     if use_cache:
         cache = get_cache()
-        cache_key = f"blended_cost_rate:{primary_currency}:tenant_{tenant_id}"
-
-        # Add social charges config to cache key
-        if social_charges_config and social_charges_config.get("enable_social_charges"):
-            total_percentage = social_charges_config.get("total_percentage", 0)
-            cache_key += f":social_{total_percentage}"
-
         cached_value = cache.get(cache_key)
         if cached_value is not None:
             # Convert cached float to Decimal for consistency
@@ -82,46 +177,9 @@ async def calculate_blended_cost_rate(
     result = await db.execute(query)
     team_members = result.scalars().all()
 
-    # Get organization settings for social charges (Sprint 18)
-    social_charges_multiplier = Decimal("1.0")
-    if tenant_id is not None:
-        try:
-            from app.models.organization import Organization
-
-            org_result = await db.execute(select(Organization).where(Organization.id == tenant_id))
-            org = org_result.scalar_one_or_none()
-            if org and org.settings and org.settings.get("social_charges_config"):
-                social_config = org.settings.get("social_charges_config", {})
-                if social_config.get("enable_social_charges", False):
-                    # País-agnóstico: total_percentage es la fuente de verdad del
-                    # recargo patronal (1 + total/100). El desglose (campos
-                    # individuales, estilo Colombia) es opcional/informativo y solo
-                    # se usa como fallback para configs legacy sin total_percentage.
-                    total_percentage = Decimal(str(social_config.get("total_percentage", 0) or 0))
-
-                    if total_percentage == 0:
-                        # Fallback legacy: sumar el desglose si no hay total guardado.
-                        breakdown_keys = (
-                            "health_percentage",
-                            "pension_percentage",
-                            "arl_percentage",
-                            "parafiscales_percentage",
-                            "prima_services_percentage",
-                            "cesantias_percentage",
-                            "int_cesantias_percentage",
-                            "vacations_percentage",
-                        )
-                        for key in breakdown_keys:
-                            total_percentage += Decimal(str(social_config.get(key, 0) or 0))
-
-                    if total_percentage > 0:
-                        social_charges_multiplier = Decimal("1") + (
-                            total_percentage / Decimal("100")
-                        )
-        except Exception as e:
-            logger.warning(f"Error getting social charges config: {e}")
-            # If there's an error getting org settings, use default multiplier
-            pass
+    # Cargas sociales (Sprint 18). País-agnóstico: total_percentage es la fuente de verdad
+    # del recargo patronal. Ver app/core/social_charges.py (implementación única).
+    social_charges_multiplier = resolve_social_charges_multiplier(effective_social_config)
 
     # Calculate total salaries with social charges using Money
     salary_amounts = []
@@ -139,31 +197,12 @@ async def calculate_blended_cost_rate(
         salary_amounts.append(salary_money.multiply(effective_mult))
 
     # Get amortization assets and include monthly depreciation in fixed costs.
-    equipment_query = select(EquipmentAmortization).where(
-        EquipmentAmortization.deleted_at.is_(None), EquipmentAmortization.is_active
+    equipment_amortization = await calculate_monthly_equipment_amortization(
+        db, primary_currency=primary_currency, tenant_id=tenant_id
     )
-    if tenant_id is not None:
-        equipment_query = equipment_query.where(EquipmentAmortization.organization_id == tenant_id)
-    equipment_result = await db.execute(equipment_query)
-    equipment_assets = equipment_result.scalars().all()
-
-    equipment_amortization_money = []
-    for asset in equipment_assets:
-        useful_life = int(asset.useful_life_months or 0)
-        if useful_life <= 0:
-            continue
-        purchase_price = Decimal(str(asset.purchase_price or 0))
-        salvage_value = Decimal(str(asset.salvage_value or 0))
-        monthly_depreciation = (purchase_price - salvage_value) / Decimal(str(useful_life))
-        if monthly_depreciation <= 0:
-            continue
-        normalized = normalize_to_primary_currency(
-            monthly_depreciation, asset.currency or "USD", primary_currency
-        )
-        if isinstance(normalized, Money):
-            equipment_amortization_money.append(normalized)
-        else:
-            equipment_amortization_money.append(Money(normalized, primary_currency))
+    equipment_amortization_money = (
+        [Money(equipment_amortization, primary_currency)] if equipment_amortization > 0 else []
+    )
 
     all_costs = fixed_costs_money + equipment_amortization_money + salary_amounts
     total_monthly_costs_money = sum_money(all_costs)
@@ -171,40 +210,23 @@ async def calculate_blended_cost_rate(
     if total_monthly_costs_money is None:
         return Decimal("0")
 
-    # Calculate total billable hours per month (4.33 weeks/month average)
-    hours_per_month = Decimal("0")
-    for member in team_members:
-        non_billable = getattr(member, "non_billable_hours_percentage", 0.0) or 0.0
-        billable_factor = Decimal("1") - Decimal(str(non_billable))
-        hours = Decimal(str(member.billable_hours_per_week)) * Decimal("4.33") * billable_factor
-        hours_per_month += hours
+    # Horas facturables del mes (denominador del BCR). Implementación única en
+    # app/core/capacity.py: `billable_hours_per_week` ya es facturable y no se le
+    # vuelve a aplicar `non_billable_hours_percentage`.
+    hours_per_month = total_monthly_billable_hours(list(team_members))
 
     if hours_per_month > 0:
-        cost_per_hour_money = total_monthly_costs_money.divide(float(hours_per_month))
+        # ESTÁNDAR NOUGRAM: Decimal de punta a punta; hours_per_month ya es Decimal y
+        # Money.divide lo acepta, el float() intermedio solo degradaba la división.
+        cost_per_hour_money = total_monthly_costs_money.divide(hours_per_month)
         cost_per_hour = cost_per_hour_money.amount
     else:
         cost_per_hour = Decimal("0")
 
     # Cache the result (5 minutes TTL) - cache as float for compatibility
+    # Misma clave que la lectura (calculada arriba): no se reconstruye ni se relee la DB.
     if use_cache:
         cache = get_cache()
-        # Reconstruct cache key same way as above (including social charges)
-        cache_key = f"blended_cost_rate:{primary_currency}:tenant_{tenant_id}"
-        if tenant_id is not None:
-            try:
-                from app.models.organization import Organization
-
-                org_result = await db.execute(
-                    select(Organization).where(Organization.id == tenant_id)
-                )
-                org = org_result.scalar_one_or_none()
-                if org and org.settings and org.settings.get("social_charges_config"):
-                    social_config = org.settings.get("social_charges_config", {})
-                    if social_config.get("enable_social_charges", False):
-                        total_percentage = social_config.get("total_percentage", 0)
-                        cache_key += f":social_{total_percentage}"
-            except Exception:
-                pass
         # Cache as float for backward compatibility
         cache.set(cache_key, float(cost_per_hour), ttl_seconds=300)
 
@@ -303,6 +325,24 @@ async def calculate_quote_totals(
     }
 
 
+def build_items_breakdown_map(items_breakdown: list[dict]) -> dict:
+    """
+    Indexa el breakdown devuelto por ``calculate_quote_totals_enhanced`` por ``item_key``.
+
+    El breakdown NO se puede indexar por ``service_id``: dos ítems del mismo servicio
+    (permitido por el builder, se distinguen por ``custom_service_name`` / ``description``)
+    colapsarían en uno solo y ambos QuoteItem se guardarían con el precio y el costo del
+    último, descuadrando las líneas de la propuesta contra el total del presupuesto.
+
+    El fallback posicional es solo para breakdowns legacy que no traen ``item_key``.
+    """
+    breakdown_map: dict = {}
+    for position, breakdown_row in enumerate(items_breakdown or []):
+        key = breakdown_row.get("item_key")
+        breakdown_map[position if key is None else key] = breakdown_row
+    return breakdown_map
+
+
 async def calculate_quote_totals_enhanced(
     db: AsyncSession,
     items: list[dict],
@@ -368,7 +408,12 @@ async def calculate_quote_totals_enhanced(
     )
 
     # First pass: Calculate internal costs and client prices for all items
-    for item in items:
+    # `item_index` es la posición del ítem en la lista de entrada y viaja al breakdown
+    # como `item_key`. Es la ÚNICA forma estable de mapear fila-de-breakdown → ítem:
+    # service_id no sirve porque un presupuesto puede repetir el mismo servicio
+    # (custom_service_name / description lo diferencian) y la posición del breakdown
+    # tampoco, porque acá salteamos ítems (servicio inexistente, o costo y precio en 0).
+    for item_index, item in enumerate(items):
         service_id = item.get("service_id")
         pricing_type = item.get("pricing_type")  # Can override service pricing_type
 
@@ -391,10 +436,21 @@ async def calculate_quote_totals_enhanced(
         internal_cost = pricing_result["internal_cost"]
         client_price = pricing_result.get("client_price", Decimal("0"))
 
+        # Precio manual fijado por el usuario. Se resuelve ANTES del descarte: un ítem
+        # con precio manual es un ítem con datos, aunque su costo y su precio derivados
+        # den cero (p. ej. horas sin asignar todavía). Aplicarlo después del `continue`
+        # hacía desaparecer la línea entera de los totales.
+        client_price_override = None
+        override_raw = item.get("client_price_override")
+        if override_raw is not None:
+            candidate = Decimal(str(override_raw))
+            if candidate > 0:
+                client_price_override = candidate
+
         # Skip only when both cost and price are zero (item has no data at all).
         # Items with zero internal_cost but a defined client_price (fixed, recurring,
         # project_value without hours) must still be included in the totals.
-        if not internal_cost and not client_price:
+        if not internal_cost and not client_price and client_price_override is None:
             continue
 
         internal_cost_money = Money(internal_cost, currency)
@@ -415,6 +471,11 @@ async def calculate_quote_totals_enhanced(
                 target_margin_percentage * Decimal("100")
             )
 
+        # Se aplica al final a propósito, para que también pise el margen objetivo.
+        # El costo interno NO se toca: el margen se recalcula contra el precio real.
+        if client_price_override is not None:
+            client_price_money = Money(client_price_override, currency)
+
         total_client_price_money = total_client_price_money.add(client_price_money)
 
         # Calculate margin for this item
@@ -426,6 +487,7 @@ async def calculate_quote_totals_enhanced(
         # Store item data for breakdown
         items_breakdown.append(
             {
+                "item_key": item.get("item_key", item_index),
                 "service_id": service_id,
                 "service_name": service.name,
                 "pricing_type": effective_pricing_type,
@@ -571,9 +633,13 @@ async def get_organization_cost_breakdown(db: AsyncSession, organization_id: int
     result = await db.execute(select(Organization).where(Organization.id == organization_id))
     org = result.scalar_one_or_none()
     if not org:
-        return {"talent_ratio": 0.8, "overhead_ratio": 0.2, "total_monthly_costs": 0.0}
+        return {
+            "talent_ratio": Decimal("0.8"),
+            "overhead_ratio": Decimal("0.2"),
+            "total_monthly_costs": Decimal("0"),
+        }
 
-    primary_currency = (org.settings or {}).get("primary_currency", "USD")
+    primary_currency = resolve_primary_currency(org)
 
     # 2. Get fixed costs
     query = select(CostFixed).where(
@@ -582,14 +648,15 @@ async def get_organization_cost_breakdown(db: AsyncSession, organization_id: int
     result = await db.execute(query)
     fixed_costs = result.scalars().all()
 
-    total_fixed = 0.0
+    # ESTÁNDAR NOUGRAM: todo el agregado en Decimal. Antes se arrancaba en float 0.0
+    # y normalize_to_primary_currency devuelve Decimal cuando recibe Decimal, con lo
+    # que el `+=` reventaba con TypeError para cualquier org con costos fijos.
+    total_fixed = Decimal("0")
     for cost in fixed_costs:
-        # ESTÁNDAR NOUGRAM: normalize_to_primary_currency puede retornar Money o float
         normalized = normalize_to_primary_currency(
             Decimal(str(cost.amount_monthly)), cost.currency or "USD", primary_currency
         )
-        # Convertir a float para compatibilidad con código legacy
-        total_fixed += float(normalized) if isinstance(normalized, Money) else normalized
+        total_fixed += _to_decimal_amount(normalized)
 
     # Include amortization assets into fixed monthly costs.
     equipment_query = select(EquipmentAmortization).where(
@@ -611,7 +678,7 @@ async def get_organization_cost_breakdown(db: AsyncSession, organization_id: int
         normalized = normalize_to_primary_currency(
             monthly_depreciation, asset.currency or "USD", primary_currency
         )
-        total_fixed += float(normalized) if isinstance(normalized, Money) else normalized
+        total_fixed += _to_decimal_amount(normalized)
 
     # 3. Get salaries with social charges
     query = select(TeamMember).where(
@@ -620,38 +687,25 @@ async def get_organization_cost_breakdown(db: AsyncSession, organization_id: int
     result = await db.execute(query)
     team_members = result.scalars().all()
 
-    social_charges_multiplier = 1.0
+    # País-agnóstico: total_percentage manda, el desglose es fallback legacy.
+    # Implementación única en app/core/social_charges.py.
+    social_charges_multiplier = Decimal("1")
     if org.settings and org.settings.get("social_charges_config"):
-        social_config = org.settings.get("social_charges_config", {})
-        if social_config.get("enable_social_charges", False):
-            total_percentage = sum(
-                [
-                    social_config.get("health_percentage", 0) or 0,
-                    social_config.get("pension_percentage", 0) or 0,
-                    social_config.get("arl_percentage", 0) or 0,
-                    social_config.get("parafiscales_percentage", 0) or 0,
-                    social_config.get("prima_services_percentage", 0) or 0,
-                    social_config.get("cesantias_percentage", 0) or 0,
-                    social_config.get("int_cesantias_percentage", 0) or 0,
-                    social_config.get("vacations_percentage", 0) or 0,
-                ]
-            )
-            if total_percentage == 0:
-                total_percentage = social_config.get("total_percentage", 0) or 0
-            social_charges_multiplier = 1.0 + (total_percentage / 100.0)
+        social_charges_multiplier = resolve_social_charges_multiplier(
+            org.settings.get("social_charges_config", {})
+        )
 
-    total_salaries = 0.0
+    total_salaries = Decimal("0")
     for member in team_members:
-        # ESTÁNDAR NOUGRAM: normalize_to_primary_currency puede retornar Money o float
         normalized = normalize_to_primary_currency(
             Decimal(str(member.salary_monthly_brute)), member.currency or "USD", primary_currency
         )
-        # Convertir a float para compatibilidad con código legacy
-        normalized_float = float(normalized) if isinstance(normalized, Money) else normalized
         member_mult = (
-            social_charges_multiplier if getattr(member, "apply_social_charges", True) else 1.0
+            social_charges_multiplier
+            if getattr(member, "apply_social_charges", True)
+            else Decimal("1")
         )
-        total_salaries += normalized_float * member_mult
+        total_salaries += _to_decimal_amount(normalized) * member_mult
 
     total_costs = total_fixed + total_salaries
 
@@ -666,9 +720,9 @@ async def get_organization_cost_breakdown(db: AsyncSession, organization_id: int
         }
 
     return {
-        "talent_ratio": 0.8,
-        "overhead_ratio": 0.2,
-        "total_monthly_costs": 0.0,
+        "talent_ratio": Decimal("0.8"),
+        "overhead_ratio": Decimal("0.2"),
+        "total_monthly_costs": Decimal("0"),
         "primary_currency": primary_currency,
     }
 

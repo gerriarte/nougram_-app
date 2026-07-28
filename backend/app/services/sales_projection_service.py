@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.calculations import calculate_blended_cost_rate
+from app.core.capacity import total_monthly_billable_hours
 from app.core.logging import get_logger
 from app.core.money import Money
 from app.models.service import Service
@@ -74,12 +75,11 @@ async def calculate_sales_projection(
     )
     team_members = result.scalars().all()
 
-    total_billable_hours_per_month = sum(
-        float(member.billable_hours_per_week or 0)
-        * 4.33
-        * (1 - float(getattr(member, "non_billable_hours_percentage", 0.0) or 0.0))
-        for member in team_members
-    )
+    # Implementación única en app/core/capacity.py (sin doble descuento del % no facturable).
+    # Se convierte a float porque este servicio expone su respuesta en float por contrato
+    # (ver `"bcr": float(bcr_decimal)` más abajo) y la aritmética de utilización de capacidad
+    # que sigue es en float. No son importes monetarios, así que no aplica el estándar Decimal.
+    total_billable_hours_per_month = float(total_monthly_billable_hours(list(team_members)))
 
     # ESTÁNDAR NOUGRAM: Calcular proyecciones usando Money
     service_projections = []

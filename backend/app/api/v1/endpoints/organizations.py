@@ -43,12 +43,54 @@ from app.schemas.organization import (
     OrganizationUsageStatsResponse,
     OrganizationUserResponse,
     OrganizationUsersListResponse,
+    SocialChargesConfig,
     UpdateSubscriptionPlanRequest,
     UpdateUserRoleRequest,
 )
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+# Conceptos del desglose de cargas sociales (forma colombiana). Es opcional e informativo:
+# la fuente de verdad país-agnóstica es `total_percentage` (ver commit 9e0458e).
+SOCIAL_CHARGES_BREAKDOWN_KEYS = (
+    "health_percentage",
+    "pension_percentage",
+    "arl_percentage",
+    "parafiscales_percentage",
+    "prima_services_percentage",
+    "cesantias_percentage",
+    "int_cesantias_percentage",
+    "vacations_percentage",
+)
+
+
+def resolve_social_charges_config(config: SocialChargesConfig) -> dict:
+    """
+    Normaliza la config de cargas sociales antes de persistirla.
+
+    `total_percentage` manda: si el usuario lo envió explícitamente, se respeta.
+    Sólo se deriva de la suma del desglose cuando el usuario mandó desglose y NO mandó total.
+
+    El matiz importante: los 8 campos del desglose declaran defaults NO nulos en el schema
+    (valores colombianos que suman 46.852%), así que `model_dump(exclude_none=True)` los
+    conserva siempre, incluso si el cliente nunca los envió. Derivar el total a partir de esa
+    presencia pisaba el valor explícito del usuario con la suma de los defaults colombianos,
+    rompiendo la configuración de cualquier organización no colombiana. `exclude_unset`
+    distingue lo que el cliente realmente mandó de lo que rellenó el schema.
+    """
+    stored = config.model_dump(exclude_none=True)
+    provided = config.model_dump(exclude_unset=True)
+
+    total_provided = provided.get("total_percentage") is not None
+    breakdown_provided = any(provided.get(key) is not None for key in SOCIAL_CHARGES_BREAKDOWN_KEYS)
+
+    if not total_provided and breakdown_provided:
+        stored["total_percentage"] = sum(
+            stored.get(key, 0) or 0 for key in SOCIAL_CHARGES_BREAKDOWN_KEYS
+        )
+
+    return stored
 
 
 def require_super_admin_or_org_admin(
@@ -1499,32 +1541,9 @@ async def save_onboarding_config(
 
     # Calculate total percentage for social charges if provided
     if config_data.social_charges_config:
-        social_config = config_data.social_charges_config.model_dump(exclude_none=True)
-
-        # Calculate total percentage if individual percentages are provided
-        if (
-            "health_percentage" in social_config
-            or "pension_percentage" in social_config
-            or "arl_percentage" in social_config
-            or "parafiscales_percentage" in social_config
-            or "prima_services_percentage" in social_config
-            or "cesantias_percentage" in social_config
-            or "int_cesantias_percentage" in social_config
-            or "vacations_percentage" in social_config
-        ):
-            total = (
-                social_config.get("health_percentage", 0)
-                + social_config.get("pension_percentage", 0)
-                + social_config.get("arl_percentage", 0)
-                + social_config.get("parafiscales_percentage", 0)
-                + social_config.get("prima_services_percentage", 0)
-                + social_config.get("cesantias_percentage", 0)
-                + social_config.get("int_cesantias_percentage", 0)
-                + social_config.get("vacations_percentage", 0)
-            )
-            social_config["total_percentage"] = total
-
-        updated_settings["social_charges_config"] = social_config
+        updated_settings["social_charges_config"] = resolve_social_charges_config(
+            config_data.social_charges_config
+        )
 
     # Store other onboarding data
     if config_data.tax_structure is not None:

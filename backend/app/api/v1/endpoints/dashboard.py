@@ -3,6 +3,7 @@ Dashboard endpoints for KPIs and statistics
 """
 
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func, select
@@ -37,6 +38,65 @@ async def require_operational_dashboard(
             detail="This endpoint requires owner, admin_financiero, or super_admin role.",
         )
     return current_user
+
+
+async def _won_projects_revenue(db: AsyncSession, filters: list) -> float:
+    """
+    Facturación de los proyectos ganados: UNA cotización por proyecto.
+
+    Antes esto era `SUM(Quote.total_client_price) JOIN Project`, que produce una fila por
+    VERSIÓN: un proyecto Won con v1/v2/v3 sumaba las tres (y averageTicket, que divide por
+    cantidad de PROYECTOS, heredaba el inflado). La versión que cuenta es la aceptada
+    (`accepted_quote_id`) y, si no hay, la última versión activa — misma semántica que
+    app/core/business_health.py::_accepted_quote_ids.
+    """
+    projects = (
+        await db.execute(
+            select(Project.id, Project.accepted_quote_id).where(
+                and_(*filters, Project.status == "Won")
+            )
+        )
+    ).all()
+    if not projects:
+        return 0.0
+
+    project_ids = [row[0] for row in projects]
+    accepted_by_project = {row[0]: row[1] for row in projects if row[1]}
+
+    quotes = (
+        await db.execute(
+            select(
+                Quote.id,
+                Quote.project_id,
+                Quote.version,
+                Quote.total_client_price,
+                Quote.is_active,
+            ).where(Quote.project_id.in_(project_ids))
+        )
+    ).all()
+
+    accepted_price: dict[int, Decimal] = {}
+    latest: dict[int, tuple[int, int, Decimal]] = {}
+    for quote_id, project_id, version, total_client_price, is_active in quotes:
+        price = Decimal(str(total_client_price or 0))
+        if accepted_by_project.get(project_id) == quote_id:
+            accepted_price[project_id] = price
+            continue
+        if not is_active:
+            # Versión borrada: solo cuenta si es la explícitamente aceptada.
+            continue
+        candidate = (int(version or 0), int(quote_id), price)
+        current = latest.get(project_id)
+        if current is None or candidate[:2] > current[:2]:
+            latest[project_id] = candidate
+
+    revenue = Decimal("0")
+    for project_id in project_ids:
+        if project_id in accepted_price:
+            revenue += accepted_price[project_id]
+        elif project_id in latest:
+            revenue += latest[project_id][2]
+    return float(revenue)
 
 
 @router.get("/kpis")
@@ -118,22 +178,9 @@ async def get_dashboard_kpis(
         Project.created_at <= datetime.combine(prev_period_end, datetime.max.time()),
     ]
 
-    # 1. Total Revenue (from Won projects)
-    current_revenue_query = (
-        select(func.sum(Quote.total_client_price))
-        .join(Project, Quote.project_id == Project.id)
-        .where(and_(*current_filters, Project.status == "Won"))
-    )
-    current_revenue_result = await db.execute(current_revenue_query)
-    current_revenue = float(current_revenue_result.scalar() or 0)
-
-    prev_revenue_query = (
-        select(func.sum(Quote.total_client_price))
-        .join(Project, Quote.project_id == Project.id)
-        .where(and_(*prev_filters, Project.status == "Won"))
-    )
-    prev_revenue_result = await db.execute(prev_revenue_query)
-    prev_revenue = float(prev_revenue_result.scalar() or 0)
+    # 1. Total Revenue (from Won projects) - una sola cotización por proyecto
+    current_revenue = await _won_projects_revenue(db, current_filters)
+    prev_revenue = await _won_projects_revenue(db, prev_filters)
 
     total_revenue_change = (
         ((current_revenue - prev_revenue) / prev_revenue * 100) if prev_revenue > 0 else 0.0

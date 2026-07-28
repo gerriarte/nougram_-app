@@ -9,8 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.calculations import calculate_blended_cost_rate
+from app.core.currency import resolve_primary_currency
 from app.core.logging import get_logger
 from app.core.money import Money
+from app.core.social_charges import resolve_social_charges_multiplier
 from app.models.annual_sales_projection import AnnualSalesProjection
 from app.models.cost import CostFixed
 from app.models.organization import Organization
@@ -61,7 +63,7 @@ async def calculate_projection_summary(projection: AnnualSalesProjection, db: As
     if not org:
         raise ValueError(f"Organization {projection.organization_id} not found")
 
-    primary_currency = org.settings.get("primary_currency", "USD") if org.settings else "USD"
+    primary_currency = resolve_primary_currency(org)
     social_config = org.settings.get("social_charges_config") if org.settings else None
 
     # Get BCR (returns Decimal)
@@ -129,12 +131,14 @@ async def calculate_projection_summary(projection: AnnualSalesProjection, db: As
                 Money(normalized, primary_currency)
             )
 
-    # Add salaries with social charges
-    if social_config and social_config.get("enable_social_charges", False):
-        total_percentage = social_config.get("total_percentage", 0)
-        social_charges_multiplier = Decimal("1") + (Decimal(str(total_percentage)) / Decimal("100"))
-    else:
-        social_charges_multiplier = Decimal("1")
+    # Add salaries with social charges.
+    # Se usa el resolver canónico (app/core/social_charges.py) — el mismo que
+    # alimenta al BCR de la línea 69 — en vez de una copia inline que leía
+    # `total_percentage` sin fallback al desglose. Con la copia inline, una config
+    # legacy sin `total_percentage` (creable hoy: el campo es opcional en el
+    # schema) daba multiplicador 1 acá y 1.46852 en el BCR, y un
+    # `total_percentage: None` reventaba con decimal.InvalidOperation.
+    social_charges_multiplier = resolve_social_charges_multiplier(social_config)
 
     for member in team_members:
         member_currency = member.currency or "USD"

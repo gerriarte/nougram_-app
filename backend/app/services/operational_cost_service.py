@@ -14,6 +14,7 @@ from app.core.currency import normalize_to_primary_currency
 from app.core.exceptions import BusinessLogicError
 from app.core.logging import get_logger
 from app.core.money import Money
+from app.core.social_charges import resolve_social_charges_multiplier
 from app.models.cost import CostFixed
 from app.models.equipment import EquipmentAmortization
 from app.models.organization import Organization
@@ -143,26 +144,15 @@ def _to_decimal(value) -> Decimal:
 
 
 async def _get_social_charges_multiplier(db: AsyncSession, organization_id: int) -> Decimal:
-    """Return 1 + (total_percentage/100) from org social_charges_config, or 1.0."""
+    """Return 1 + (total_percentage/100) from org social_charges_config, or 1.0.
+
+    Delega en app/core/social_charges.py (implementación única).
+    """
     result = await db.execute(select(Organization).where(Organization.id == organization_id))
     org = result.scalar_one_or_none()
-    if not org or not org.settings or not org.settings.get("social_charges_config"):
+    if not org or not org.settings:
         return Decimal("1.0")
-    cfg = org.settings.get("social_charges_config", {})
-    if not cfg.get("enable_social_charges", False):
-        return Decimal("1.0")
-    total = Decimal("0")
-    total += Decimal(str(cfg.get("health_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("pension_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("arl_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("parafiscales_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("prima_services_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("cesantias_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("int_cesantias_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("vacations_percentage", 0) or 0))
-    if total == 0:
-        total = Decimal(str(cfg.get("total_percentage", 0) or 0))
-    return Decimal("1") + (total / Decimal("100"))
+    return resolve_social_charges_multiplier(org.settings.get("social_charges_config"))
 
 
 async def _compute_resource_costs(

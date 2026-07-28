@@ -8,7 +8,9 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
+from app.core.currency import CURRENCY_INFO, DEFAULT_CURRENCY, is_valid_currency
 from app.models.cost import CostFixed
 from app.models.organization import Organization
 from app.models.service import Service
@@ -16,6 +18,9 @@ from app.models.team import TeamMember
 from app.models.template import IndustryTemplate
 
 logger = logging.getLogger(__name__)
+
+# Códigos aceptados por el endpoint de aplicar template (los mismos de CURRENCY_INFO).
+SUPPORTED_CURRENCY_CODES: frozenset[str] = frozenset(CURRENCY_INFO)
 
 # Region multipliers for salary adjustment (based on USD)
 REGION_MULTIPLIERS: dict[str, float] = {
@@ -69,10 +74,24 @@ async def apply_industry_template(
         Dictionary with created resources counts and details
 
     Raises:
-        ValueError: If template not found or organization not found
+        ValueError: If template not found, organization not found or currency unsupported
     """
     if db is None:
         raise ValueError("Database session is required")
+
+    # Moneda: se valida ACÁ, antes de escribir una sola fila.
+    # ApplyTemplateRequest.currency es un `str` libre (a diferencia de los schemas de
+    # cost/team, que usan Literal), así que esta era la única ruta HTTP por la que un
+    # código no soportado ("CLP") entraba crudo a TeamMember.currency / CostFixed.currency.
+    # El motor de BCR después lo trata como USD (currency.py lo sustituye por el default),
+    # inflando un sueldo de 500.000 CLP a 2.000.000.000 COP. Mejor fallar con 400.
+    normalized_currency = (currency or DEFAULT_CURRENCY).strip().upper()
+    if not is_valid_currency(normalized_currency):
+        raise ValueError(
+            f"Unsupported currency '{currency}'. Supported currencies: "
+            f"{', '.join(sorted(SUPPORTED_CURRENCY_CODES))}"
+        )
+    currency = normalized_currency
 
     # Get template
     result = await db.execute(
@@ -237,8 +256,10 @@ async def apply_industry_template(
                 }
             )
 
-    # Update organization settings with onboarding context
-    settings = organization.settings or {}
+    # Update organization settings with onboarding context.
+    # Copia explícita: mutar el dict in-place no dispara el change tracking del
+    # JSON column y los settings se perdían silenciosamente al commitear.
+    settings = dict(organization.settings or {})
 
     # Set social charges configuration for Colombia
     if region.upper() == "COL":
@@ -272,14 +293,30 @@ async def apply_industry_template(
                         field_name = f"{key}_percentage" if not key.endswith("_percentage") else key
                         settings["social_charges_config"][field_name] = tax_data[key]
 
+    # Moneda: aplicar un template SIEMPRE debe dejar `primary_currency` persistida.
+    # Sin esto la org queda con `template_applied_currency` solamente y el backend
+    # la termina cotizando en USD (dividiendo todo por la tasa) sin que nadie lo eligiera.
+    # Una moneda primaria ya existente NO se pisa: cambiarla exige la normalización
+    # de importes de SettingsService.update_primary_currency().
+    # `currency` ya viene normalizada y validada desde el inicio de la función.
+    template_currency = currency
+    existing_primary = settings.get("primary_currency") or settings.get("currency")
+    effective_primary = (
+        existing_primary.upper()
+        if isinstance(existing_primary, str) and is_valid_currency(existing_primary.upper())
+        else template_currency
+    )
+
     settings.update(
         {
             "onboarding_completed": True,
             "industry_type": industry_type,
-            "primary_currency": currency,
+            "primary_currency": effective_primary,
+            # Clave legacy mantenida en sync para no dejar settings mixtos.
+            "currency": effective_primary,
             "template_applied_at": datetime.now(UTC).isoformat(),
             "template_applied_region": region,
-            "template_applied_currency": currency,
+            "template_applied_currency": template_currency,
             "template_applied_multiplier": multiplier,
         }
     )
@@ -294,6 +331,7 @@ async def apply_industry_template(
             settings["team_size_range"] = customize["team_size_range"]
 
     organization.settings = settings
+    flag_modified(organization, "settings")
 
     # Commit all changes
     await db.commit()
