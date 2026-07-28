@@ -91,3 +91,7 @@ htmlcov/
 .pytest_cache/
 test-results/
 playwright-report/
+
+# Estado local de Claude Code: settings, locks y worktrees de git completos
+# (.claude/worktrees/* trae su propio .git y un árbol entero del repo).
+.claude/
