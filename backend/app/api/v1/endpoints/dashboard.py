@@ -2,7 +2,7 @@
 Dashboard endpoints for KPIs and statistics
 """
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -140,7 +140,11 @@ async def get_dashboard_kpis(
         return cached_data
 
     # Calculate date range for current period
-    today = date.today()
+    # La fecha se toma en UTC, no en la hora local del servidor: `Project.created_at` se
+    # persiste en UTC, así que comparar contra un `date.today()` local desalinea los bordes
+    # del período. Con el servidor en UTC-5, todo proyecto creado después de las 19:00 hora
+    # local ya es "mañana" en UTC y quedaba FUERA de los KPIs del mes en curso.
+    today = datetime.now(UTC).date()
     if period == "month":
         period_start = today.replace(day=1)
         period_end = today
