@@ -95,3 +95,6 @@ playwright-report/
 # Estado local de Claude Code: settings, locks y worktrees de git completos
 # (.claude/worktrees/* trae su propio .git y un árbol entero del repo).
 .claude/
+
+# Railway freeze backup — contiene secretos en texto plano y el dump de la DB. NUNCA commitear.
+_railway-freeze-backup/
