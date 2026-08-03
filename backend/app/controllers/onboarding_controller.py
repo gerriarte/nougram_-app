@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.controllers.base import BaseController
+from app.core.currency import resolve_primary_currency
 from app.schemas.onboarding import (
     BenchmarksResponse,
     CompleteOnboardingRequest,
@@ -78,11 +79,7 @@ class OnboardingController(BaseController):
                     else "US"
                 )
             if not currency:
-                currency = (
-                    self.tenant.organization.settings.get("primary_currency", "USD")
-                    if self.tenant.organization.settings
-                    else "USD"
-                )
+                currency = resolve_primary_currency(self.tenant.organization)
 
             # Get benchmarks from service
             benchmarks_data = await self.onboarding_service.get_benchmarks(

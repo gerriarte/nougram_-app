@@ -153,11 +153,16 @@ export function QuoteFinancialSummary() {
 
     const hasTaxes = summary.totalTaxes > 0;
 
+    // El aside NO debe ser flex: combinado con `max-height`, los flex items se encogen
+    // (flex-shrink: 1) en vez de desbordar, y las cards quedaban aplastadas a unos pocos
+    // píxeles en lugar de scrollear. Con layout de bloque conservan su alto natural.
     return (
-        <aside className="sticky top-4 flex flex-col gap-3 self-start max-h-[calc(100vh-6rem)] overflow-y-auto pb-4">
+        <aside className="space-y-3 pb-4 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overscroll-contain">
 
-            {/* ── Card 1: Monto propuesta + Rentabilidad ── */}
-            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            {/* ── Card 1: Monto propuesta + Rentabilidad ──
+                Sticky dentro del aside: cuando el panel desborda (p. ej. al activar
+                impuestos) el monto a cobrar sigue visible mientras se scrollea el resto. */}
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden lg:sticky lg:top-0 lg:z-10">
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 pt-4 pb-0">
@@ -167,19 +172,21 @@ export function QuoteFinancialSummary() {
                     <ArrowUpRight size={13} className="text-gray-300" />
                 </div>
 
-                {/* Hero 1 — Monto de la propuesta */}
+                {/* Hero 1 — Monto de la propuesta.
+                    Con impuestos activos el monto principal es el total a facturar
+                    (lo que el cliente realmente paga); el precio base pasa a secundario. */}
                 <div className="px-4 pt-3 pb-4 border-b border-gray-100">
                     <div className="text-[44px] font-bold tabular-nums leading-none tracking-tight text-gray-900">
-                        {fmt(summary.totalClientPrice)}
+                        {fmt(hasTaxes ? summary.totalWithTaxes : summary.totalClientPrice)}
                     </div>
                     <div className="mt-1.5 text-[11px] text-gray-400">
-                        Precio base · sin impuestos
+                        {hasTaxes ? 'Total a facturar · impuestos incluidos' : 'Precio base · sin impuestos'}
                     </div>
                     {hasTaxes && (
                         <div className="mt-2.5 flex items-center gap-2">
-                            <span className="text-[10.5px] text-gray-400">Total a facturar</span>
+                            <span className="text-[10.5px] text-gray-400">Precio base</span>
                             <span className="text-[15px] font-bold tabular-nums text-gray-700">
-                                {fmt(summary.totalWithTaxes)}
+                                {fmt(summary.totalClientPrice)}
                             </span>
                         </div>
                     )}
@@ -310,8 +317,8 @@ export function QuoteFinancialSummary() {
                 </div>
                 <div className="space-y-2.5">
                     <StatRow
-                        label="Total a cobrar"
-                        hint="Precio base al cliente"
+                        label="Precio al cliente"
+                        hint="Base · sin impuestos"
                         value={fmt(summary.totalClientPrice)}
                     />
                     {summary.expensesInternalCost > 0 ? (
@@ -364,7 +371,7 @@ export function QuoteFinancialSummary() {
                         </div>
                         {hasTaxes && (
                             <div className="text-[10px] text-gray-400 mt-0.5">
-                                Total factura {fmt(summary.totalWithTaxes)}
+                                Total a facturar {fmt(summary.totalWithTaxes)}
                             </div>
                         )}
                     </div>

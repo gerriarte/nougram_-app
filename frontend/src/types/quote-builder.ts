@@ -13,7 +13,8 @@ export interface Service {
 export interface QuoteItem {
     id: string; // Temporary UI ID
     serviceId: number;
-    serviceName: string; // Denormalized for display
+    serviceName: string; // Título del ítem — obligatorio en el builder
+    description?: string; // Alcance del ítem — obligatorio en el builder, persistido con la cotización
 
     // Inputs (Union based on PricingType)
     pricingType: PricingType;

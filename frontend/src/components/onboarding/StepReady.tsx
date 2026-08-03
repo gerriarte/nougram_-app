@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { OnboardingStepHero } from '@/components/onboarding/OnboardingStepHero';
 import { formatCurrency, formatMoneyAmount } from '@/lib/utils';
+import { getSocialChargesMultiplierByCountry } from '@/lib/social-charges-presets';
 import type { OnboardingData, Step3MyTeamData } from '@/types/onboarding';
 
 interface StepReadyProps {
@@ -32,13 +33,16 @@ export function StepReady({
     const currency = data.identity.primaryCurrency || 'COP';
     const monthlyFixedCosts = data.fixedCosts.totalMonthly;
     const modeledMembers: TeamMember[] = Array.isArray(data.team?.teamMembers) ? data.team.teamMembers : [];
+    // Estimación preliminar del wizard: cargas por preset de país (no por el config
+    // real de la org, que todavía no existe). El BCR autoritativo llega en `backendBcr`.
+    const socialChargesMultiplier = getSocialChargesMultiplierByCountry(data.identity.country);
     const monthlyPayroll = modeledMembers.length > 0
         ? modeledMembers.reduce((sum: number, member) => {
             const salary = Number(member.salary) || 0;
-            const withCharges = member.applySocialCharges ? salary * 1.52852 : salary;
+            const withCharges = member.applySocialCharges ? salary * socialChargesMultiplier : salary;
             return sum + withCharges;
         }, 0)
-        : (data.team.applySocialCharges ? (data.team.salary || 0) * 1.52852 : (data.team.salary || 0));
+        : (data.team.applySocialCharges ? (data.team.salary || 0) * socialChargesMultiplier : (data.team.salary || 0));
 
     // Interactive State for "What-if" scenario
     const [billableHoursPerWeek, setBillableHoursPerWeek] = useState<number>(

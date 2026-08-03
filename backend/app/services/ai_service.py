@@ -11,6 +11,7 @@ from openai import AsyncOpenAI
 
 from app.core.cache import get_cache
 from app.core.config import settings
+from app.core.currency import resolve_primary_currency
 from app.schemas.ai import ExecutiveSummaryRequest
 
 logger = logging.getLogger(__name__)
@@ -114,12 +115,16 @@ Prioriza recomendaciones por impacto esperado.""",
 
         # Extract data from context
         total_costs = context.get("total_monthly_costs", 0)
+        payroll = context.get("total_monthly_payroll", 0) or 0
+        total_agency_costs = context.get("total_monthly_agency_costs", 0) or 0
         blended_rate = context.get("blended_cost_rate", 0)
         team_size = context.get("team_size", 0)
         total_hours = context.get("total_monthly_hours", 0)
         projects = context.get("projects", [])
         services = context.get("services", [])
-        primary_currency = context.get("primary_currency", "USD")
+        # El endpoint ya resolvió la moneda con el resolver canónico; acá solo se
+        # re-aplica por si el contexto llega sin ella (prompts armados a mano/tests).
+        primary_currency = resolve_primary_currency(context)
 
         # Calculate project metrics
         total_revenue = sum(p.get("total_price", 0) for p in projects)
@@ -133,9 +138,11 @@ Prioriza recomendaciones por impacto esperado.""",
         context_str = f"""
 CONTEXTO FINANCIERO DE LA AGENCIA:
 
-📊 COSTOS OPERATIVOS:
+📊 COSTOS OPERATIVOS (todos los importes en {primary_currency}):
 - Costos fijos mensuales: ${total_costs:,.2f} {primary_currency}
-- Blended Cost Rate (costo por hora): ${blended_rate:.2f}/hora
+- Nómina mensual (con cargas sociales): ${payroll:,.2f} {primary_currency}
+- Costo mensual total de la agencia: ${total_agency_costs:,.2f} {primary_currency}
+- Blended Cost Rate (costo por hora): ${blended_rate:,.2f} {primary_currency}/hora
 - Equipo: {team_size} personas
 - Horas disponibles/mes: {total_hours} horas
 

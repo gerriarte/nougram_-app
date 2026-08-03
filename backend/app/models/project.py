@@ -12,6 +12,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Table,
+    Text,
     func,
 )
 from sqlalchemy.orm import relationship
@@ -161,6 +162,12 @@ class QuoteItem(Base):
     custom_service_name = Column(
         String, nullable=True
     )  # User-defined service label persisted with the quote item
+    description = Column(
+        Text, nullable=True
+    )  # Alcance del ítem: qué incluye, para que un tercero entienda la cotización
+    client_price_override = Column(
+        Numeric(precision=19, scale=4), nullable=True
+    )  # Precio manual fijado por el usuario; pisa el precio derivado de costo × margen
     fixed_price = Column(
         Numeric(precision=19, scale=4), nullable=True
     )  # If pricing_type = "fixed" - ESTÁNDAR NOUGRAM: Numeric

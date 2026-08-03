@@ -1,6 +1,7 @@
 
 import { TeamMemberMock, ResourceAllocation } from '@/types/quote-builder';
 import { apiRequest } from '@/lib/api-client';
+import { monthlyBillableHours } from '@/lib/capacity';
 
 type TeamApiMember = {
     id: number;
@@ -16,16 +17,9 @@ type TeamListResponse = {
     total: number;
 };
 
-const WEEKS_PER_MONTH = 4.33;
-
-function toNumber(value: string | number | undefined, fallback = 0): number {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-}
-
 function mapTeamApiMemberToResourceMember(member: TeamApiMember): TeamMemberMock {
-    const nonBillable = toNumber(member.non_billable_hours_percentage, 0);
-    const availableHours = member.billable_hours_per_week * WEEKS_PER_MONTH * (1 - nonBillable);
+    // Implementación única en lib/capacity.ts (sin doble descuento del % no facturable).
+    const availableHours = monthlyBillableHours(member.billable_hours_per_week);
     return {
         id: member.id,
         name: member.name,

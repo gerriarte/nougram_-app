@@ -1,32 +1,64 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useNougram } from '@/context/NougramCoreContext';
+import {
+  useNougram,
+  decideRootRoute,
+  BCR_HYDRATION_TIMEOUT_MS,
+} from '@/context/NougramCoreContext';
 import { useAuth } from '@/hooks/useAuth';
+import { isAuthenticated as hasStoredSession } from '@/lib/auth';
+
+/**
+ * Techo total del spinner. Vencido este plazo la pantalla decide con lo que haya,
+ * sin volver a mirar ninguna bandera que dependa de un request.
+ */
+const ROOT_DECISION_CEILING_MS = BCR_HYDRATION_TIMEOUT_MS + 2_000;
 
 export default function RootPage() {
   const { state } = useNougram();
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
+  const [bailedOut, setBailedOut] = useState(false);
+
+  // H18 — red de seguridad real: este timer no cuelga de ningún fetch, y su
+  // resultado tampoco. `loading` (useAuth → GET /auth/me) e `isHydrated`
+  // (NougramCoreContext → GET /settings/equipment) salen por `fetch`, que no tiene
+  // timeout: con el backend colgado a nivel TCP ninguno de los dos settlea nunca.
+  // Por eso la guarda de espera vive DENTRO de decideRootRoute y queda desactivada
+  // cuando `bailedOut` es true, en vez de estar detrás de esas banderas.
+  useEffect(() => {
+    const timeoutId = setTimeout(() => setBailedOut(true), ROOT_DECISION_CEILING_MS);
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   useEffect(() => {
-    if (loading || !state.isHydrated) return;
+    const destination = decideRootRoute({
+      authLoading: loading,
+      isAuthenticated,
+      // Lectura sincrónica de localStorage: es lo único que sigue siendo confiable
+      // cuando la sesión nunca terminó de resolverse contra el backend.
+      hasStoredSession: hasStoredSession(),
+      isHydrated: state.isHydrated,
+      bcr: state.financials.bcr,
+      bcrSource: state.financials.bcrSource,
+      bailedOut,
+    });
 
-    if (!isAuthenticated) {
-      router.replace('/login');
-      return;
+    if (destination) {
+      router.replace(destination);
     }
-
-    // Critical Check: Is BCR configured?
-    if (state.financials.bcr === 0) {
-      router.replace('/onboarding');
-    } else {
-      router.replace('/dashboard');
-    }
-
-  }, [loading, isAuthenticated, state.isHydrated, state.financials.bcr, router]);
+  }, [
+    loading,
+    isAuthenticated,
+    state.isHydrated,
+    state.financials.bcr,
+    state.financials.bcrSource,
+    bailedOut,
+    router,
+  ]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

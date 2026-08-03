@@ -49,6 +49,14 @@ function marginToneClass(marginPct: number, hasValue: boolean) {
     return { text: 'text-success', pct: 'text-green-300' };
 }
 
+// ── Ocupación ──────────────────────────────────────────────────────
+// El % se lee sobre la capacidad mensual del miembro (ver getMemberUtilization).
+function occupancyToneClass(pct: number) {
+    if (pct > 100) return 'text-critical';
+    if (pct > 90) return 'text-warning';
+    return 'text-gray-400';
+}
+
 // Read-only field that signals "cost is unknown — assign hours or resources"
 function UnknownCostField() {
     return (
@@ -66,7 +74,7 @@ interface QuoteItemRowProps {
 }
 
 export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
-    const { updateItem, removeItem, teamMembers } = useQuoteBuilder();
+    const { updateItem, removeItem, teamMembers, getMemberUtilization } = useQuoteBuilder();
     const { state: coreState } = useNougram();
     const currency = coreState.identity.primaryCurrency || 'COP';
 
@@ -80,15 +88,20 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
     const [newResourceHours, setNewResourceHours] = useState<number>(10);
 
     // ── Calculations ───────────────────────────────────────────────
-    const blendedRate = Number(coreState.financials.bcr || 0);
     const durationMultiplier = item.pricingType === 'recurring' ? Math.max(1, Number(item.durationMonths || 1)) : 1;
     const totalAllocatedHours = (item.allocations || []).reduce((sum, a) => sum + a.hours, 0);
     const effectiveHours = totalAllocatedHours > 0 ? totalAllocatedHours : Number(item.estimatedHours || 0);
     const estimatedProjectHours = effectiveHours * durationMultiplier;
-    const totalResourceCost = effectiveHours * blendedRate * durationMultiplier;
 
     const subtotal = item.clientPrice || 0;
     const cost = item.internalCost || 0;
+
+    // El costo SIEMPRE viene del backend (item.internalCost), nunca se recalcula acá.
+    // Antes se hacía horas × coreState.financials.bcr, un BCR que el front deriva del
+    // borrador de onboarding SIN normalizar moneda, mientras el backend normaliza a la
+    // moneda primaria de la org. En cuentas con sueldos en una moneda distinta a la
+    // primaria los dos números diferían por órdenes de magnitud (COP mostrado como USD).
+    const totalResourceCost = cost;
     const marginPct = subtotal > 0 ? ((subtotal - cost) / subtotal) * 100 : 0;
     // costUnknown: item has a client price but zero internal cost (no hours/allocations assigned).
     // The 100% margin it would display is fictitious, so we suppress the percentage.
@@ -121,6 +134,11 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
             allocations: (item.allocations || []).map(a => a.id === allocId ? { ...a, hours: safeHours } : a),
         });
     };
+
+    // Título y alcance son obligatorios: sin ellos, quien revise la cotización
+    // después no puede saber qué se cotizó. Se refleja también en `errors` del contexto.
+    const titleMissing = !(item.serviceName || '').trim();
+    const descriptionMissing = !(item.description || '').trim();
 
     const allocCount = (item.allocations || []).length;
     const resourceAssigned = allocCount > 0;
@@ -155,8 +173,15 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                 <input
                     value={item.serviceName || ''}
                     onChange={e => updateItem(item.id, { serviceName: e.target.value })}
-                    placeholder="Descripción del servicio…"
-                    className="min-w-0 flex-1 bg-transparent text-[13.5px] font-semibold text-gray-800 placeholder:text-gray-300 outline-none"
+                    placeholder="Título del ítem…"
+                    aria-invalid={titleMissing}
+                    aria-label="Título del ítem"
+                    className={cn(
+                        'min-w-0 flex-1 bg-transparent text-[13.5px] font-semibold text-gray-800 outline-none',
+                        titleMissing
+                            ? 'border-b border-dashed border-amber-400 placeholder:text-amber-600/70'
+                            : 'placeholder:text-gray-300'
+                    )}
                 />
                 <button
                     type="button"
@@ -341,6 +366,34 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                     </div>
                 )}
 
+                {/* ── Alcance del ítem ── */}
+                <div className="mt-3">
+                    <div className="mb-1 flex items-center gap-1.5">
+                        <span className="text-[9.5px] font-semibold uppercase tracking-[0.5px] text-gray-400">
+                            Descripción del alcance
+                        </span>
+                        <span className="text-[9.5px] font-semibold text-primary">*</span>
+                    </div>
+                    <textarea
+                        value={item.description || ''}
+                        onChange={e => updateItem(item.id, { description: e.target.value })}
+                        placeholder="Qué incluye este ítem: entregables, alcance y supuestos."
+                        rows={2}
+                        aria-invalid={descriptionMissing}
+                        className={cn(
+                            'w-full resize-y rounded-lg border bg-white px-3 py-2 text-[12px] text-gray-800 outline-none transition-colors placeholder:text-gray-300 focus:ring-2 focus:ring-primary/20',
+                            descriptionMissing
+                                ? 'border-amber-300 bg-amber-50/40 focus:border-amber-400'
+                                : 'border-gray-200 focus:border-primary'
+                        )}
+                    />
+                    {descriptionMissing && (
+                        <p className="mt-1 text-[10.5px] text-amber-700">
+                            Requerido: sin alcance, quien revise la cotización no sabe qué se cotizó.
+                        </p>
+                    )}
+                </div>
+
                 {/* ── Resource allocation (collapsible) ── */}
                 <div className="mt-3">
                     {resourceMissing && (
@@ -415,16 +468,37 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                             )}
                             {(item.allocations || []).map(alloc => {
                                 const member = teamMembers.find(m => m.id === alloc.teamMemberId);
-                                const allocCost = Number(alloc.hours || 0) * blendedRate * durationMultiplier;
+                                // El backend no desglosa costo por recurso, así que se
+                                // prorratea el costo del ítem según las horas de cada uno.
+                                const allocHours = Number(alloc.hours || 0);
+                                const allocCost = totalAllocatedHours > 0
+                                    ? cost * (allocHours / totalAllocatedHours)
+                                    : 0;
+                                // El rol se congela en la asignación al agregarla; si falta, se cae al del miembro.
+                                const allocRole = alloc.role || member?.role;
+                                const util = member ? getMemberUtilization(member.id) : null;
                                 return (
-                                    <div key={alloc.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2 shadow-sm text-[12px]">
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-soft text-[10px] font-bold text-primary">
+                                    <div key={alloc.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2 shadow-sm text-[12px]">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-soft text-[10px] font-bold text-primary">
                                                 {member?.name?.[0] ?? '?'}
                                             </div>
-                                            <span className="font-medium text-gray-700">{member?.name || 'Desconocido'}</span>
+                                            <div className="min-w-0">
+                                                <div className="truncate font-medium text-gray-700">{member?.name || 'Desconocido'}</div>
+                                                <div className="truncate text-[10.5px] leading-tight text-gray-400">
+                                                    {allocRole || 'Sin rol'}
+                                                    {util && util.capacity > 0 && (
+                                                        <>
+                                                            {' · '}
+                                                            <span className={cn('font-semibold', occupancyToneClass(util.percentage))}>
+                                                                {util.percentage.toFixed(0)}% ocupado
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex shrink-0 items-center gap-3">
                                             <div className="flex items-center gap-1 text-gray-500">
                                                 <Input
                                                     type="number"
@@ -466,7 +540,7 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                                     </Button>
                                 ) : (
                                     <div className="flex items-end gap-2 animate-in fade-in slide-in-from-top-1">
-                                        <div className="flex-1 space-y-1">
+                                        <div className="flex-1 min-w-0 space-y-1">
                                             <label className="text-[9.5px] font-semibold uppercase tracking-wide text-gray-400">Miembro</label>
                                             <select
                                                 className="w-full h-8 text-xs rounded-md border border-gray-200 bg-white px-2"
@@ -474,9 +548,16 @@ export function QuoteItemRow({ item, index }: QuoteItemRowProps) {
                                                 onChange={e => setSelectedMemberId(Number(e.target.value))}
                                             >
                                                 <option value="">Seleccionar…</option>
-                                                {teamMembers.map(m => (
-                                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                                ))}
+                                                {teamMembers.map(m => {
+                                                    // Rol y ocupación en la etiqueta: elegir solo por nombre no alcanza.
+                                                    const util = getMemberUtilization(m.id);
+                                                    const parts = [m.name];
+                                                    if (m.role) parts.push(m.role);
+                                                    if (util.capacity > 0) parts.push(`${util.percentage.toFixed(0)}% ocupado`);
+                                                    return (
+                                                        <option key={m.id} value={m.id}>{parts.join(' · ')}</option>
+                                                    );
+                                                })}
                                             </select>
                                         </div>
                                         <div className="w-20 space-y-1">

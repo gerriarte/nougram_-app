@@ -8,11 +8,47 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.currency import DEFAULT_CURRENCY, is_valid_currency, resolve_primary_currency
 from app.core.logging import get_logger
 from app.models.cost import CostFixed
+from app.models.organization import Organization
 from app.models.team import TeamMember
 
 logger = get_logger(__name__)
+
+
+async def resolve_import_currency(db: AsyncSession, organization_id: int | None) -> str:
+    """
+    Moneda por defecto de una importación: la moneda primaria de la organización.
+
+    Defaultear a USD en una org que opera en COP guarda el sueldo de 6.000.000 COP
+    como 6.000.000 USD, y el BCR lo normaliza multiplicando por la tasa (4000x).
+    """
+    if db is None or organization_id is None:
+        return DEFAULT_CURRENCY
+    try:
+        result = await db.execute(select(Organization).where(Organization.id == organization_id))
+        org = result.scalar_one_or_none()
+    except Exception as e:  # pragma: no cover - defensivo, la sync no debe caerse por esto
+        logger.error(f"Error resolving import currency for org {organization_id}: {e}")
+        return DEFAULT_CURRENCY
+    return resolve_primary_currency(org)
+
+
+def row_currency(row: dict) -> str | None:
+    """
+    Moneda declarada en la fila de la hoja, o None si no dice nada usable.
+
+    Un código no soportado se descarta con log: guardarlo crudo lo vuelve
+    indistinguible de USD para normalize_to_primary_currency.
+    """
+    raw = str(row.get("currency") or "").strip().upper()
+    if not raw:
+        return None
+    if not is_valid_currency(raw):
+        logger.warning(f"Google Sheets import: unsupported currency '{raw}' ignored")
+        return None
+    return raw
 
 
 def get_sheets_client() -> gspread.Client | None:
@@ -83,6 +119,9 @@ async def sync_google_sheets_data(
         records_synced = 0
         errors = []
 
+        # Moneda por defecto de la importación = la primaria del tenant, no "USD".
+        default_currency = await resolve_import_currency(db, organization_id)
+
         # Sync Fixed Costs (from "Costs" sheet)
         try:
             costs_sheet = spreadsheet.worksheet("Costs")
@@ -97,10 +136,15 @@ async def sync_google_sheets_data(
                     result = await db.execute(query)
                     existing = result.scalar_one_or_none()
 
+                    sheet_currency = row_currency(row)
+
                     if existing:
                         # Update existing cost
                         existing.amount_monthly = float(row.get("amount_monthly", 0))
                         existing.category = row.get("category", "")
+                        # Sólo pisa la moneda si la hoja declara una válida.
+                        if sheet_currency:
+                            existing.currency = sheet_currency
                     else:
                         # Create new cost (with tenant scoping)
                         new_cost = CostFixed(
@@ -108,6 +152,7 @@ async def sync_google_sheets_data(
                             amount_monthly=float(row.get("amount_monthly", 0)),
                             category=row.get("category", "general"),
                             organization_id=organization_id,  # Multi-tenant: assign to organization
+                            currency=sheet_currency or default_currency,
                         )
                         db.add(new_cost)
 
@@ -134,6 +179,8 @@ async def sync_google_sheets_data(
                     result = await db.execute(query)
                     existing = result.scalar_one_or_none()
 
+                    sheet_currency = row_currency(row)
+
                     if existing:
                         # Update existing member
                         existing.salary_monthly_brute = float(row.get("salary_monthly_brute", 0))
@@ -142,6 +189,10 @@ async def sync_google_sheets_data(
                         )
                         existing.role = row.get("role", "")
                         existing.is_active = row.get("is_active", True)
+                        # Antes la moneda del miembro existente nunca se actualizaba:
+                        # el sueldo viajaba de la hoja pero la unidad quedaba vieja.
+                        if sheet_currency:
+                            existing.currency = sheet_currency
                     else:
                         # Create new member (with tenant scoping)
                         # Note: user_id would need to be mapped from email if available
@@ -153,7 +204,7 @@ async def sync_google_sheets_data(
                             apply_social_charges=True,
                             is_active=row.get("is_active", True),
                             organization_id=organization_id,  # Multi-tenant: assign to organization
-                            currency=row.get("currency", "USD"),
+                            currency=sheet_currency or default_currency,
                         )
                         db.add(new_member)
 

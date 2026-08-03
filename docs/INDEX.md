@@ -7,6 +7,8 @@
 | [Security Roadmap](active/SECURITY_ROADMAP.md) | Hallazgos de seguridad con estado y plan de remediación | 2026-05-17 |
 | [Mejoras Incrementales](active/MEJORAS_INCREMENTALES.md) | Backlog de mejoras técnicas y de producto por eje | 2026-05-17 |
 | [Roadmap UX 2.0](active/roadmap-ux-2.0.md) | Propuestas de rediseño de experiencia de usuario | 2026-05-17 |
+| [Continuación: moneda y cálculo](active/continuacion-moneda-y-calculo.md) | Estado y próximos pasos de `fix/moneda-primaria-y-rigor-de-calculo` | 2026-08-03 |
+| [Backlog de hallazgos](active/backlog-hallazgos-2026-07-27.md) | 14 hallazgos sin verificar detectados durante ese trabajo | 2026-08-03 |
 
 ## Decisiones de arquitectura (ADR)
 

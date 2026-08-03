@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.capacity import monthly_billable_hours
 from app.core.database import get_db
 from app.core.logging import get_logger
 from app.core.permission_middleware import require_modify_costs, require_view_sensitive_data
@@ -111,12 +112,7 @@ async def get_capacity_overview(
         committed = states_dict.get("committed", Decimal("0"))
         actual = states_dict.get("actual", Decimal("0"))
         total = tentative + committed + actual
-        non_billable = Decimal(str(member.non_billable_hours_percentage or 0))
-        capacity_monthly = (
-            Decimal(str(member.billable_hours_per_week or 0))
-            * Decimal("4.33")
-            * (Decimal("1") - non_billable)
-        )
+        capacity_monthly = monthly_billable_hours(member)
         capacity_hours = capacity_monthly * Decimal(str(months_count))
         utilization_ratio = (total / capacity_hours) if capacity_hours > 0 else Decimal("0")
         members_response.append(

@@ -20,6 +20,8 @@ type QuoteCalculateApiResponse = {
     margin_percentage?: string | number;
     contingency_amount?: string | number;
     items?: Array<{
+        /** Índice del ítem en el request. Clave estable para mapear la fila a SU ítem. */
+        item_key?: number;
         service_id: number;
         internal_cost?: string | number;
         client_price?: string | number;
@@ -75,6 +77,8 @@ type ProjectQuoteResponse = {
         service_id: number;
         service_name?: string;
         custom_service_name?: string;
+        description?: string | null;
+        client_price_override?: string | number | null;
         estimated_hours?: number;
         pricing_type?: string;
         fixed_price?: string | number;
@@ -300,12 +304,29 @@ function resolveRecurringPrice(item: QuoteItem): number | undefined {
     return Number((total / duration).toFixed(2));
 }
 
+/**
+ * Precio manual del usuario, para los tipos que no tienen campo propio.
+ *
+ * `fixed` usa fixedPrice, `project_value` usa projectValue y `recurring` viaja
+ * como recurring_price (ver resolveRecurringPrice). Sólo `hourly` carecía de
+ * canal: su manualPrice se descartaba y el precio se recalculaba como
+ * costo × margen objetivo.
+ */
+function resolveClientPriceOverride(item: QuoteItem): number | undefined {
+    if (item.pricingType !== 'hourly') return undefined;
+    return typeof item.manualPrice === 'number' && item.manualPrice > 0
+        ? item.manualPrice
+        : undefined;
+}
+
 function mapQuoteItemToApi(item: QuoteItem) {
     const customServiceName = typeof item.serviceName === 'string' ? item.serviceName.trim() : '';
+    const description = typeof item.description === 'string' ? item.description.trim() : '';
     const assignment = item.teamAssignment;
     return {
         service_id: item.serviceId,
         custom_service_name: customServiceName || undefined,
+        description: description || undefined,
         estimated_hours: resolveEstimatedHours(item),
         pricing_type: item.pricingType,
         fixed_price: item.fixedPrice,
@@ -313,6 +334,7 @@ function mapQuoteItemToApi(item: QuoteItem) {
         recurring_price: resolveRecurringPrice(item),
         billing_frequency: item.billingFrequency,
         project_value: item.projectValue,
+        client_price_override: resolveClientPriceOverride(item),
         allocations: (item.allocations || []).map((alloc) => ({
             team_member_id: alloc.teamMemberId,
             hours: alloc.hours,
@@ -691,6 +713,7 @@ export const quoteService = {
             recurring_price: resolveRecurringPrice(item),
             billing_frequency: item.billingFrequency,
             project_value: item.projectValue,
+            client_price_override: resolveClientPriceOverride(item),
         }));
 
         const requestExpenses = (input.expenses || [])
@@ -748,11 +771,20 @@ export const quoteService = {
             expensesClientPrice: Math.round(Number(data.total_expenses_client_price || 0)),
         };
 
-        // Map per-item backend breakdown to UI items by position (backend preserves order).
+        // Map per-item backend breakdown to UI items by `item_key`, el índice del ítem
+        // en el request que el motor devuelve en cada fila. NO se puede mapear por
+        // posición: el motor saltea ítems (servicio inexistente, o costo y precio en 0)
+        // y todas las filas siguientes quedarían corridas, mostrando el costo del vecino.
+        // El fallback posicional cubre respuestas viejas sin `item_key`.
         const itemsById: Record<string, ItemCalcResult> = {};
         const breakdown = data.items || [];
+        const breakdownByKey = new Map<number, (typeof breakdown)[number]>();
+        breakdown.forEach((row, idx) => {
+            const key = typeof row?.item_key === 'number' ? row.item_key : idx;
+            breakdownByKey.set(key, row);
+        });
         (input.items || []).forEach((item, idx) => {
-            const b = breakdown[idx];
+            const b = breakdownByKey.get(idx);
             if (b) {
                 itemsById[item.id] = {
                     internalCost: Math.round(Number(b.internal_cost || 0)),
@@ -929,6 +961,7 @@ export const quoteService = {
                 id: String(item.id),
                 serviceId: item.service_id,
                 serviceName: item.custom_service_name || item.service_name || service?.name || `Servicio ${item.service_id}`,
+                description: item.description || undefined,
                 pricingType: resolvedPricingType,
                 // For recurring items, estimated_hours in DB is total (per-period × duration).
                 // Restore per-period hours so the UI "H/mes" field shows the correct value.
@@ -941,6 +974,11 @@ export const quoteService = {
                 billingFrequency: item.billing_frequency as QuoteItem['billingFrequency'],
                 durationMonths: resolvedPricingType === 'recurring' ? quantity : undefined,
                 projectValue: resolvedPricingType === 'project_value' ? projectValue : undefined,
+                // Restaurar el override manual para que el campo "Precio cliente"
+                // muestre el valor fijado y no vuelva a modo "Auto" al reabrir.
+                manualPrice: item.client_price_override != null && Number(item.client_price_override) > 0
+                    ? Number(item.client_price_override)
+                    : undefined,
                 allocations: (item.allocations || []).map((alloc) => ({
                     id: String(alloc.id || crypto.randomUUID()),
                     teamMemberId: Number(alloc.team_member_id),

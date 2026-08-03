@@ -39,6 +39,9 @@ class QuoteItemBase(BaseModel):
     custom_service_name: str | None = Field(
         None, description="User-defined service label for this quote item"
     )
+    description: str | None = Field(
+        None, description="Scope detail for this item, shown in the client proposal"
+    )
     estimated_hours: float | None = Field(
         None, description="Estimated hours (required for hourly pricing)", ge=0
     )
@@ -61,9 +64,16 @@ class QuoteItemBase(BaseModel):
     project_value: Decimal | None = Field(
         None, description="Project value (for project_value pricing)", ge=0
     )
+    client_price_override: Decimal | None = Field(
+        None,
+        description="Manual client price set by the user; overrides the derived price",
+        ge=0,
+    )
 
     # ESTÁNDAR NOUGRAM: Serializar Decimal como string
-    @field_serializer("fixed_price", "quantity", "recurring_price", "project_value")
+    @field_serializer(
+        "fixed_price", "quantity", "recurring_price", "project_value", "client_price_override"
+    )
     def serialize_decimal(self, value: Decimal | None) -> str | None:
         """Serializa Decimal como string para mantener precisión"""
         return str(value) if value is not None else None

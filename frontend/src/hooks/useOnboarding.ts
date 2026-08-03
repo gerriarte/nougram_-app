@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { onboardingService } from '@/services/onboardingService';
 import { OnboardingData, FixedCostTemplate } from '@/types/onboarding';
 import { normalizeCountryCode, normalizeCurrencyCode } from '@/lib/onboarding-geo';
+import { getSocialChargesMultiplierByCountry } from '@/lib/social-charges-presets';
 import { isAuthenticated } from '@/lib/auth';
 
 // Initial onboarding state
@@ -137,8 +138,11 @@ export function useOnboarding() {
         // Auto-calculate True Hourly Cost whenever team data changes
         const fullTeam = { ...data.team, ...team };
 
+        // Estimación preliminar del wizard: cargas por preset de país. El costo real
+        // por hora lo calcula el backend una vez persistida la organización.
+        const socialChargesMultiplier = getSocialChargesMultiplierByCountry(data.identity.country);
         const analysis = onboardingService.calculateTrueHourlyCost(
-            fullTeam.applySocialCharges ? fullTeam.salary * 1.52852 : fullTeam.salary, // Approx social charges
+            fullTeam.applySocialCharges ? fullTeam.salary * socialChargesMultiplier : fullTeam.salary,
             fullTeam.billableHours,
             fullTeam.vacationDays
         );

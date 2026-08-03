@@ -13,9 +13,11 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.capacity import monthly_billable_hours
 from app.core.currency import normalize_to_primary_currency
 from app.core.logging import get_logger
 from app.core.money import Money, sum_money
+from app.core.social_charges import resolve_social_charges_multiplier
 from app.models.cost import CostFixed
 from app.models.equipment import EquipmentAmortization
 from app.models.team import TeamMember
@@ -28,7 +30,11 @@ async def _social_charges_multiplier(
     tenant_id: int | None,
     social_charges_config: dict | None = None,
 ) -> Decimal:
-    """1 + (sum of social-charge percentages / 100). Reads org settings, else the passed config."""
+    """1 + (total_percentage / 100). Reads org settings, else the passed config.
+
+    Delega en app/core/social_charges.py para que el break-even use exactamente el
+    mismo recargo patronal que el BCR.
+    """
     social_config = None
     if tenant_id is not None:
         try:
@@ -45,28 +51,7 @@ async def _social_charges_multiplier(
     if social_config is None:
         social_config = social_charges_config or {}
 
-    if not social_config.get("enable_social_charges", False):
-        return Decimal("1.0")
-
-    components = [
-        "health_percentage",
-        "pension_percentage",
-        "arl_percentage",
-        "parafiscales_percentage",
-        "prima_services_percentage",
-        "cesantias_percentage",
-        "int_cesantias_percentage",
-        "vacations_percentage",
-    ]
-    total_percentage = Decimal("0")
-    for key in components:
-        total_percentage += Decimal(str(social_config.get(key, 0) or 0))
-    if total_percentage == 0:
-        total_percentage = Decimal(str(social_config.get("total_percentage", 0) or 0))
-
-    if total_percentage > 0:
-        return Decimal("1") + (total_percentage / Decimal("100"))
-    return Decimal("1.0")
+    return resolve_social_charges_multiplier(social_config)
 
 
 async def calculate_monthly_operating_cost(
@@ -136,12 +121,7 @@ async def calculate_monthly_operating_cost(
             multiplier if getattr(member, "apply_social_charges", True) else Decimal("1")
         )
         salary_money.append(money.multiply(effective_mult))
-        non_billable = getattr(member, "non_billable_hours_percentage", 0.0) or 0.0
-        billable_hours += (
-            Decimal(str(member.billable_hours_per_week))
-            * Decimal("4.33")
-            * (Decimal("1") - Decimal(str(non_billable)))
-        )
+        billable_hours += monthly_billable_hours(member)
     total_payroll = (sum_money(salary_money) or Money(0, primary_currency)).amount
 
     total_monthly_cost = total_fixed + total_equipment + total_payroll
@@ -348,12 +328,7 @@ async def calculate_resource_utilization(
     total_capacity = Decimal("0")
     total_allocated = Decimal("0")
     for member in members:
-        non_billable = getattr(member, "non_billable_hours_percentage", 0.0) or 0.0
-        capacity = (
-            Decimal(str(member.billable_hours_per_week))
-            * Decimal("4.33")
-            * (Decimal("1") - Decimal(str(non_billable)))
-        )
+        capacity = monthly_billable_hours(member)
         used = allocated.get(member.id, Decimal("0"))
         total_capacity += capacity
         total_allocated += used

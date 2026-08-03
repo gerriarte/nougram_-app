@@ -2,6 +2,8 @@
 Quote Expenses endpoints (Sprint 15)
 """
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,8 +15,25 @@ from app.core.tenant import TenantContext, get_tenant_context
 from app.models.project import Project, Quote, QuoteExpense
 from app.models.user import User
 from app.schemas.quote import QuoteExpenseCreate, QuoteExpenseResponse
+from app.services.project_service import recalculate_quote_totals_from_rows
 
 router = APIRouter()
+
+
+def _expense_amounts(expense_data: QuoteExpenseCreate) -> tuple[Decimal, Decimal]:
+    """
+    (quantity, client_price) en Decimal puro.
+
+    quantity=0 es un valor válido del schema (ge=0) y a la vez falsy: el `or 1.0` que
+    había acá lo convertía en el float 1.0 y reventaba con TypeError al multiplicarlo
+    por un Decimal (mismo patrón que el fix 653467d), además de cobrarle al cliente una
+    unidad que el usuario había puesto en cero.
+    """
+    quantity = expense_data.quantity
+    quantity = Decimal("1") if quantity is None else Decimal(str(quantity))
+    cost = Decimal(str(expense_data.cost or 0))
+    markup = Decimal(str(expense_data.markup_percentage or 0))
+    return quantity, cost * quantity * (Decimal("1") + markup)
 
 
 @router.post(
@@ -71,8 +90,7 @@ async def create_quote_expense(
         )
 
     # Calculate client_price: cost * quantity * (1 + markup_percentage)
-    quantity = expense_data.quantity or 1.0
-    client_price = expense_data.cost * quantity * (1 + expense_data.markup_percentage)
+    quantity, client_price = _expense_amounts(expense_data)
 
     # Create expense
     expense = QuoteExpense(
@@ -87,6 +105,10 @@ async def create_quote_expense(
     )
 
     db.add(expense)
+    await db.flush()
+    # El expense entra en el costo interno y en el precio del presupuesto: si no se
+    # recalculan los totales, el PDF imprime la línea del gasto pero el Total la ignora.
+    await recalculate_quote_totals_from_rows(db, quote)
     await db.commit()
     await db.refresh(expense)
 
@@ -161,8 +183,7 @@ async def update_quote_expense(
         )
 
     # Update expense
-    quantity = expense_data.quantity or 1.0
-    client_price = expense_data.cost * quantity * (1 + expense_data.markup_percentage)
+    quantity, client_price = _expense_amounts(expense_data)
 
     expense.name = expense_data.name
     expense.description = expense_data.description
@@ -172,6 +193,12 @@ async def update_quote_expense(
     expense.category = expense_data.category
     expense.quantity = quantity
 
+    await db.flush()
+    quote = (
+        await db.execute(select(Quote).where(Quote.id == quote_id, Quote.project_id == project_id))
+    ).scalar_one_or_none()
+    if quote is not None:
+        await recalculate_quote_totals_from_rows(db, quote)
     await db.commit()
     await db.refresh(expense)
 
@@ -245,6 +272,12 @@ async def delete_quote_expense(
         )
 
     await db.delete(expense)
+    await db.flush()
+    quote = (
+        await db.execute(select(Quote).where(Quote.id == quote_id, Quote.project_id == project_id))
+    ).scalar_one_or_none()
+    if quote is not None:
+        await recalculate_quote_totals_from_rows(db, quote)
     await db.commit()
 
     return None
