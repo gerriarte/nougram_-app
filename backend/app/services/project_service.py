@@ -3,7 +3,7 @@ Project Service - Business logic for project and quote management
 """
 
 import logging
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -20,6 +20,14 @@ from app.core.capacity import monthly_billable_hours
 from app.core.config import settings
 from app.core.exceptions import BusinessLogicError
 from app.core.plan_limits import validate_project_limit
+
+# Re-exportados a propósito: el dueño del concepto es app/core/quote_taxes.py, pero
+# varios call sites (y sus tests) los importan históricamente desde acá.
+from app.core.quote_taxes import (  # noqa: F401
+    add_contingency_to_price,
+    compute_quote_tax_totals,
+    quote_taxable_base,
+)
 from app.models.organization import Organization
 from app.models.project import (
     Project,
@@ -79,103 +87,6 @@ def _apply_contingency_to_totals(
             (total_with_contingency - internal_cost) / total_with_contingency
         )
     return totals
-
-
-def _normalize_contingency(
-    contingency_type: str | None,
-    contingency_value: Decimal | None,
-) -> tuple[str | None, Decimal]:
-    """Devuelve (tipo, valor) sanitizados; valor 0 significa 'sin contingencia'."""
-    if not contingency_type or contingency_value is None:
-        return None, Decimal("0")
-    try:
-        value = Decimal(str(contingency_value))
-    except (InvalidOperation, ValueError, TypeError):
-        return None, Decimal("0")
-    if value <= 0:
-        return None, Decimal("0")
-    return contingency_type, value
-
-
-def add_contingency_to_price(
-    base_price: Decimal,
-    contingency_type: str | None,
-    contingency_value: Decimal | None,
-) -> Decimal:
-    """Precio final = base gravable + contingencia. Versión Decimal de la regla del preview."""
-    ctype, value = _normalize_contingency(contingency_type, contingency_value)
-    if ctype is None:
-        return base_price
-    if ctype == "fixed":
-        return base_price + value
-    return base_price + (base_price * (value / Decimal("100")))
-
-
-def quote_taxable_base(
-    total_client_price: Decimal | float | None,
-    contingency_type: str | None,
-    contingency_value: Decimal | None,
-) -> Decimal:
-    """
-    Base imponible de un presupuesto ya guardado: el precio SIN la contingencia.
-
-    La contingencia se agrega DESPUÉS de los impuestos (así lo hace el preview en
-    /quotes/calculate y así lo aplica _apply_contingency_to_totals al guardar), pero
-    `quotes` no persiste el impuesto: cada lectura lo recalcula sobre
-    quote.total_client_price, que ya viene contingenciado. Como contingency_type y
-    contingency_value SÍ están persistidos, la base se reconstruye sin migración.
-
-    Es la inversa exacta de add_contingency_to_price().
-    """
-    try:
-        price = Decimal(str(total_client_price or 0))
-    except (InvalidOperation, ValueError, TypeError):
-        return Decimal("0")
-
-    ctype, value = _normalize_contingency(contingency_type, contingency_value)
-    if ctype is None:
-        return price
-
-    if ctype == "fixed":
-        base = price - value
-    else:
-        divisor = Decimal("1") + (value / Decimal("100"))
-        if divisor <= 0:
-            return price
-        base = price / divisor
-
-    return base if base > 0 else Decimal("0")
-
-
-def compute_quote_tax_totals(
-    total_client_price: Decimal | float | None,
-    contingency_type: str | None,
-    contingency_value: Decimal | None,
-    tax_percentages: list[Decimal | float | None],
-) -> tuple[Decimal, Decimal]:
-    """
-    (total_taxes, total_with_taxes) para un presupuesto persistido.
-
-    Los impuestos gravan la base sin contingencia; la contingencia se suma después.
-    """
-    try:
-        price = Decimal(str(total_client_price or 0))
-    except (InvalidOperation, ValueError, TypeError):
-        price = Decimal("0")
-
-    taxable_base = quote_taxable_base(price, contingency_type, contingency_value)
-
-    total_taxes = Decimal("0")
-    for percentage in tax_percentages:
-        if percentage is None:
-            continue
-        try:
-            pct = Decimal(str(percentage))
-        except (InvalidOperation, ValueError, TypeError):
-            continue
-        total_taxes += (taxable_base * pct) / Decimal("100")
-
-    return total_taxes, price + total_taxes
 
 
 def _expense_internal_cost(expense: QuoteExpense) -> Decimal:
@@ -949,20 +860,16 @@ class ProjectService:
             )
 
         # Calculate totals
-        # OJO: este total tiene que ser EL MISMO que imprimen el PDF y el DOCX que se
-        # adjuntan más abajo, porque salen en el mismo mail y los lee el cliente. Los
-        # generadores (app/core/pdf_generator.py:56 y app/core/docx_generator.py:53)
-        # gravan quote.total_client_price entero, contingencia incluida; hasta que esos
-        # dos archivos usen compute_quote_tax_totals() como el camino de lectura, acá se
-        # replica su regla. Un mail cuyo cuerpo y cuyo adjunto dicen plata distinta es
-        # peor que un mail con un total discutible.
-        total_client_price = quote.total_client_price or 0
-        total_taxes = 0
-        if hasattr(project, "taxes") and project.taxes:
-            for tax in project.taxes:
-                total_taxes += (total_client_price * tax.percentage / 100) if tax.percentage else 0
-
-        total_with_taxes = total_client_price + total_taxes
+        # Este total tiene que ser EL MISMO que imprimen el PDF y el DOCX que se adjuntan
+        # más abajo, porque salen en el mismo mail y los lee el cliente. Los tres usan
+        # ahora la implementación única (app/core/quote_taxes.py), que grava la base sin
+        # contingencia igual que el preview y que la pantalla.
+        _, total_with_taxes = compute_quote_tax_totals(
+            quote.total_client_price,
+            getattr(quote, "contingency_type", None),
+            getattr(quote, "contingency_value", None),
+            [tax.percentage for tax in (getattr(project, "taxes", None) or [])],
+        )
 
         org_result = await self.db.execute(
             select(Organization.name).where(Organization.id == self.organization_id)

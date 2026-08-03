@@ -9,6 +9,8 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt, RGBColor
 
+from app.core.quote_taxes import compute_quote_tax_lines
+
 
 def format_currency(amount: float, currency: str = "USD") -> str:
     """Format currency amount"""
@@ -47,22 +49,14 @@ def generate_quote_docx(project, quote, agency_name: str = "Nougram") -> BytesIO
     margin_percentage = quote.margin_percentage or 0
 
     # Calculate taxes
-    taxes = []
-    total_taxes = 0
-    if hasattr(project, "taxes") and project.taxes:
-        for tax in project.taxes:
-            tax_amount = (total_client_price * tax.percentage / 100) if tax.percentage else 0
-            taxes.append(
-                {
-                    "name": tax.name,
-                    "code": tax.code,
-                    "percentage": tax.percentage,
-                    "amount": tax_amount,
-                }
-            )
-            total_taxes += tax_amount
-
-    total_with_taxes = total_client_price + total_taxes
+    # El impuesto grava la base SIN contingencia; la contingencia se suma después.
+    # Implementación única en app/core/quote_taxes.py (ver nota en pdf_generator.py).
+    taxes, total_taxes, total_with_taxes = compute_quote_tax_lines(
+        total_client_price,
+        getattr(quote, "contingency_type", None),
+        getattr(quote, "contingency_value", None),
+        getattr(project, "taxes", None) or [],
+    )
 
     # Extract quote items
     quote_items = []

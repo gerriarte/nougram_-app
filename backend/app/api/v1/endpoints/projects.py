@@ -1861,16 +1861,9 @@ async def send_quote_email(
 
     try:
         # Calculate totals
-        total_client_price = quote.total_client_price or 0
-        taxes = []
-        total_taxes = 0
-        if hasattr(project, "taxes") and project.taxes:
-            for tax in project.taxes:
-                tax_amount = (total_client_price * tax.percentage / 100) if tax.percentage else 0
-                taxes.append(tax_amount)
-                total_taxes += tax_amount
-
-        total_with_taxes = total_client_price + total_taxes
+        # Misma regla que la pantalla y que los adjuntos: el impuesto grava la base sin
+        # contingencia (app/core/quote_taxes.py).
+        _, total_with_taxes = _compute_quote_tax_totals(quote, project)
 
         sender_company_name = (tenant.organization.name or "").strip() or "tu empresa"
         # Generate email subject

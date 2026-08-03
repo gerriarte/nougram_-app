@@ -269,6 +269,11 @@ class TestQuoteEmailBodyMatchesItsAttachment:
         # Antes: cuerpo 1.290.000 vs adjunto 1.309.000 en el MISMO mail.
         assert body_total == docx_total
 
+        # Y ahora los dos dicen el número CORRECTO, el mismo que muestra la pantalla:
+        # IVA 19% sobre el 1.000.000 sin contingencia = 190.000; total = 1.100.000 + 190.000.
+        # Gravar la contingencia daba 1.309.000 (19% sobre 1.100.000).
+        assert body_total == Decimal("1290000")
+
 
 def _extract_after(text: str, marker: str) -> str:
     line = next(line for line in text.splitlines() if line.strip().startswith(marker))

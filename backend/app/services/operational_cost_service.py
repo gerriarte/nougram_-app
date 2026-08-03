@@ -14,6 +14,7 @@ from app.core.currency import normalize_to_primary_currency
 from app.core.exceptions import BusinessLogicError
 from app.core.logging import get_logger
 from app.core.money import Money
+from app.core.quote_taxes import quote_taxable_base
 from app.core.social_charges import resolve_social_charges_multiplier
 from app.models.cost import CostFixed
 from app.models.equipment import EquipmentAmortization
@@ -329,6 +330,8 @@ async def _compute_tax_costs(
     rows_result = await db.execute(
         select(
             Quote.total_client_price,
+            Quote.contingency_type,
+            Quote.contingency_value,
             Project.currency,
             Tax.percentage,
         )
@@ -347,14 +350,23 @@ async def _compute_tax_costs(
     )
     rows = rows_result.all()
     total = Decimal("0")
-    for total_client_price, project_currency, tax_percentage in rows:
-        price = _to_decimal(total_client_price)
+    for (
+        total_client_price,
+        contingency_type,
+        contingency_value,
+        project_currency,
+        tax_percentage,
+    ) in rows:
         percentage = _to_decimal(tax_percentage)
         if percentage < 0:
             raise BusinessLogicError(
                 f"Invalid negative tax percentage in organization {organization_id}"
             )
-        tax_amount = price * (percentage / Decimal("100"))
+        # El impuesto grava la base SIN contingencia, igual que en el presupuesto y en el
+        # PDF que ve el cliente (app/core/quote_taxes.py). Gravar total_client_price
+        # entero sobreestimaba la carga tributaria del período en tasa × contingencia.
+        base = quote_taxable_base(total_client_price, contingency_type, contingency_value)
+        tax_amount = base * (percentage / Decimal("100"))
         normalized = normalize_to_primary_currency(
             tax_amount,
             project_currency or "USD",

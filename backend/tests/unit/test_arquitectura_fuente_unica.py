@@ -104,6 +104,34 @@ def test_la_moneda_primaria_se_resuelve_en_un_solo_lugar():
     assert not hallazgos, "Fallback silencioso a USD reintroducido:\n" + "\n".join(hallazgos)
 
 
+def test_el_impuesto_de_un_presupuesto_se_calcula_en_un_solo_lugar():
+    """
+    Nadie puede gravar `total_client_price` a mano: hay que usar app/core/quote_taxes.py.
+
+    Origen: H43. `quotes` no persiste el impuesto, así que cada lectura lo recalculaba
+    sobre un precio que YA incluye la contingencia. Había cinco copias de la fórmula y
+    el PDF que recibía el cliente decía 1.309.000 donde la pantalla decía 1.290.000
+    (delta = tasa × contingencia).
+    """
+    duenios = {
+        "core/quote_taxes.py",
+        # Calcula sobre el precio ANTES de aplicar la contingencia (camino de escritura,
+        # no de lectura): ahí gravar el total es lo correcto.
+        "core/calculations.py",
+    }
+    hallazgos = _buscar(
+        r"total_client_price.*(tax|impuesto).*percentage|"
+        r"(tax|impuesto)\w*\.percentage\s*(/|\*).*total_client_price|"
+        r"total_client_price\s*\*\s*\w*percentage",
+        duenios,
+    )
+
+    assert not hallazgos, (
+        "Impuesto calculado a mano sobre el precio contingenciado "
+        "(usá compute_quote_tax_totals / compute_quote_tax_lines):\n" + "\n".join(hallazgos)
+    )
+
+
 # Deuda conocida: módulos que todavía leen el dict de floats EXCHANGE_RATES_TO_USD en
 # vez de convert_currency / EXCHANGE_RATES_TO_USD_DECIMAL. Cada uno hace round-trip por
 # float sobre una tasa que ya existe en Decimal, violando el estándar de dinero.

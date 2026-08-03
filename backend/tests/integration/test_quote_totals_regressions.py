@@ -145,6 +145,35 @@ class TestContingencyIsNotTaxedOnRead:
         assert total_taxes == Decimal("190000")
         assert total_with_taxes == Decimal("1290000")
 
+    def test_tax_lines_sum_the_total(self):
+        """
+        El desglose por impuesto (PDF, DOCX, análisis de rentabilidad) usa la MISMA base
+        que el agregado: si cada línea se calculara aparte, el documento se contradiría.
+        """
+        from app.core.quote_taxes import compute_quote_tax_lines
+
+        class _Tax:
+            def __init__(self, name, code, percentage):
+                self.name, self.code, self.percentage = name, code, percentage
+
+        lines, total_taxes, total_with_taxes = compute_quote_tax_lines(
+            Decimal("1100000"),
+            "percentage",
+            Decimal("10"),
+            [_Tax("IVA", "IVA", Decimal("19")), _Tax("ICA", "ICA", Decimal("1"))],
+        )
+
+        assert [line["amount"] for line in lines] == [Decimal("190000"), Decimal("10000")]
+        assert sum(line["amount"] for line in lines) == total_taxes
+        assert total_with_taxes == Decimal("1300000")
+
+        # Un impuesto sin porcentaje no genera línea ni rompe el cálculo.
+        lines, total_taxes, _ = compute_quote_tax_lines(
+            Decimal("1000"), None, None, [_Tax("Sin tasa", None, None)]
+        )
+        assert lines == []
+        assert total_taxes == Decimal("0")
+
     async def test_read_path_matches_preview(
         self,
         async_client: AsyncClient,

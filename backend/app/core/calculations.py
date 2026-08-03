@@ -13,6 +13,7 @@ from app.core.currency import normalize_to_primary_currency, resolve_primary_cur
 from app.core.logging import get_logger
 from app.core.money import Money, sum_money
 from app.core.pricing_strategies import PricingStrategyFactory
+from app.core.quote_taxes import compute_quote_tax_lines
 from app.core.social_charges import (
     resolve_social_charges_multiplier,
     resolve_social_charges_percentage,
@@ -812,9 +813,18 @@ async def calculate_rentability_analysis(
     taxes_list = []
 
     if quote.project and quote.project.taxes:
-        for tax in quote.project.taxes:
-            # ESTÁNDAR NOUGRAM: Aplicar porcentaje usando Money
-            tax_amount_money = total_client_price_money.apply_percentage(tax.percentage)
+        # El impuesto grava la base SIN contingencia (app/core/quote_taxes.py): este
+        # análisis lee un presupuesto YA persistido, cuyo total_client_price la incluye.
+        # El % que se muestra sigue siendo sobre el precio final, que es lo que el
+        # usuario ve en la línea.
+        tax_lines, _, _ = compute_quote_tax_lines(
+            quote.total_client_price,
+            getattr(quote, "contingency_type", None),
+            getattr(quote, "contingency_value", None),
+            quote.project.taxes,
+        )
+        for tax_line in tax_lines:
+            tax_amount_money = Money(tax_line["amount"], currency)
             total_taxes_money = total_taxes_money.add(tax_amount_money)
 
             # Calcular porcentaje para display
@@ -826,7 +836,7 @@ async def calculate_rentability_analysis(
 
             taxes_list.append(
                 {
-                    "concept": tax.name,
+                    "concept": tax_line["name"],
                     "amount": float(tax_amount_money.amount),
                     "percentage": tax_percentage,
                 }
