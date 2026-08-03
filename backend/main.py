@@ -13,9 +13,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
 
-# Docs only in non-production
-_docs_url = "/docs" if settings.ENVIRONMENT.lower() != "production" else None
-_redoc_url = "/redoc" if settings.ENVIRONMENT.lower() != "production" else None
+# Docs only in non-production.
+# `openapi_url` va en el mismo candado: apagar /docs y /redoc sin apagarlo deja el
+# esquema completo de la API servido en /openapi.json (el default de FastAPI), que es
+# de donde /docs saca todo. Producción quedaba publicando cada endpoint, cada campo y
+# cada schema de request/response con sólo pedir esa URL.
+_is_production = settings.ENVIRONMENT.lower() == "production"
+_docs_url = None if _is_production else "/docs"
+_redoc_url = None if _is_production else "/redoc"
+_openapi_url = None if _is_production else "/openapi.json"
 from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.router import api_router
@@ -26,7 +32,7 @@ from app.core.rate_limiting import limiter, rate_limit_exceeded_handler
 from app.services.super_admin_bootstrap_service import ensure_super_admin_bootstrap
 
 # Configure logging — INFO in dev, WARNING in production to reduce Railway log volume
-_log_level = logging.INFO if settings.ENVIRONMENT.lower() != "production" else logging.WARNING
+_log_level = logging.WARNING if _is_production else logging.INFO
 logging.basicConfig(level=_log_level)
 logger = get_logger(__name__)
 
@@ -38,7 +44,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup schema creation is opt-in for local/dev only.
     # Default path across environments should be Alembic migrations.
-    if settings.ENVIRONMENT.lower() != "production" and settings.CREATE_SCHEMA_ON_STARTUP:
+    if not _is_production and settings.CREATE_SCHEMA_ON_STARTUP:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
@@ -124,6 +130,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url=_docs_url,
     redoc_url=_redoc_url,
+    openapi_url=_openapi_url,
 )
 
 
@@ -241,7 +248,7 @@ async def health_ready():
         return {"status": "ready", "database": "ok"}
     except Exception as e:
         logging.error("Readiness check failed", exc_info=True)
-        detail = str(e) if settings.ENVIRONMENT.lower() != "production" else "database unavailable"
+        detail = "database unavailable" if _is_production else str(e)
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"status": "not_ready", "database": "error", "detail": detail},
