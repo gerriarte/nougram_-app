@@ -1,8 +1,8 @@
 # Continuación: moneda primaria y rigor de cálculo
 
-**Rama:** `fix/moneda-primaria-y-rigor-de-calculo` (4 commits, sin PR abierto)
-**Última sesión:** 2026-07-27
-**Estado de la suite:** 803 passed, 4 skipped, 0 failed · ruff limpio · `tsc` exit 0 · ESLint 0 errors · build OK
+**Rama:** `fix/moneda-primaria-y-rigor-de-calculo` (8 commits, PR abierto a `develop`)
+**Última sesión:** 2026-08-03
+**Estado de la suite:** 805 passed, 4 skipped, 0 failed · ruff limpio · `tsc` exit 0 · ESLint 0 errors · build OK
 
 ---
 
@@ -14,6 +14,8 @@
 | `8a85442` | Panel financiero, recursos con rol y ocupación, validación por ítem |
 | `44ccd0e` | Invariantes de dinero, tests de arquitectura y regresiones |
 | `e010d90` | KPIs del dashboard: fecha local sobre timestamps UTC |
+| (2026-08-03) | El impuesto deja de gravar la contingencia en los 5 caminos que faltaban |
+| (2026-08-03) | Timeout en `api-client`; vía de escape para precio bajo costo |
 
 El problema de fondo no era una función mal escrita: era **el mismo concepto calculado en
 varios lugares que divergieron**. Se llegaron a encontrar siete copias del multiplicador de
@@ -52,30 +54,63 @@ servicio. Sigue siendo una decisión abierta.
 
 ## 3. Próximos pasos, en orden
 
-### Paso 1 — Revisión humana del diff (bloqueante para el PR)
-Son **6.834 líneas contra `develop`**. Se verificaron las puertas de calidad y se
-comprobaron a mano dos fixes, pero **no se revisó línea por línea**. Priorizar:
-`app/core/currency.py`, `app/core/calculations.py`, `app/core/capacity.py`,
-`app/core/social_charges.py`. Es el corazón del producto.
+### Paso 1 — Revisión del diff (hecha 2026-08-03)
+Se revisó el núcleo (`currency.py`, `calculations.py`, `capacity.py`,
+`social_charges.py`, `project_service.py`, `settings_service.py`, `projects.py`) y los
+contextos del frontend. No aparecieron defectos en lo que la rama ya había tocado; el
+riesgo que se buscaba explícitamente era el que rompió `agency-cost-hour` en producción
+(`float += Decimal` tras cambiar un retorno a Decimal) y los consumidores de
+`get_organization_cost_breakdown` están todos en Decimal.
 
-### Paso 2 — Validar en navegador lo que no se tocó
+Lo que sí se cerró en esa pasada fueron tres cosas que la rama había dejado
+deliberadamente afuera por alcance congelado (ver abajo).
+
+### Paso 2 — Validar en navegador
 Verificado end-to-end: la org 5 en COP reconcilia exacto (`97.931 ÷ 0,65 = 150.663`,
 `150.663 − 97.931 = 52.732`) y la regla de ítems nuevos funciona en ambos sentidos.
 
-**Falta validar:** impuestos con contingencia, y expenses en el PDF. Ahí quedaron los
-bloqueantes de la fase 2 y son caminos que ningún agente pudo probar (tenían prohibido
-tocar servidores).
+**Falta validar en navegador:** expenses en el PDF.
+
+Los impuestos con contingencia ya no dependen de una validación manual: la regla vive en
+`app/core/quote_taxes.py` y hay un test de arquitectura que impide volver a calcularla a
+mano, más un test que exige que el cuerpo del mail y su adjunto digan `1.290.000` (el
+número correcto, no sólo el mismo número).
 
 ### Paso 3 — Triage del backlog nuevo
-19 hallazgos **sin verificar** en [`backlog-hallazgos-2026-07-27.md`](backlog-hallazgos-2026-07-27.md).
+15 hallazgos **sin verificar** en [`backlog-hallazgos-2026-07-27.md`](backlog-hallazgos-2026-07-27.md).
 No arreglar ninguno sin repro confirmado primero: en el loop original se arreglaron
 hallazgos sin verificar y eso introdujo 7 regresiones.
 
-El más importante: **`api-client.ts:77` hace `fetch` sin `AbortSignal` ni timeout**. Es la
-causa raíz real del spinner colgado — ningún request de la app settlea si el backend se
-cuelga a nivel TCP. Afecta a toda la app, no solo a la ruta `/`.
+**Cerrados el 2026-08-03** (los cuatro tenían causa entendida y fix acotado):
 
-### Paso 4 — Deuda conocida y acotada
+- **Impuesto sobre la contingencia.** Quedaban cinco copias de la fórmula gravando
+  `total_client_price` entero. Ahora hay una sola implementación
+  (`app/core/quote_taxes.py`) y la usan el PDF, el DOCX, el mail, el análisis de
+  rentabilidad y el costo tributario operativo (este último era un sexto sitio que no
+  estaba en el backlog: `operational_cost_service.py` sobreestimaba la carga del período
+  en `tasa × contingencia`).
+- **`api-client.ts` sin timeout.** `apiRequest` tiene ahora un deadline de 30 s
+  (`NEXT_PUBLIC_API_TIMEOUT_MS`) que cubre reintentos y la lectura del body, respeta el
+  `AbortSignal` del caller y le da al refresh de token su propio deadline para que el
+  timeout de una llamada no le cancele el refresh a las demás.
+- **`allowLowMargin` sin setter.** El panel de errores ofrece el checkbox: vender bajo
+  costo sigue bloqueando por defecto, pero ya no es un callejón sin salida.
+- **Copy del panel de errores.** Decía "Faltan N campos" para errores que no son campos.
+
+**Sigue sin timeout el `fetch` crudo** de `onboardingService` (import de Excel),
+`proposalService` (assets) y el portal público de propuestas: no pasan por `apiRequest`.
+No se tocaron por alcance; son subidas de archivo y merecen su propio criterio de tiempo.
+
+### Paso 4 — Lo que queda para después del merge
+
+- **Backfill de las orgs sin `template_applied_currency`** (ver deuda, abajo). Es lo único
+  con impacto directo en datos reales de producción.
+- **Expenses que se pierden al CREAR el proyecto** (`quoteService.ts:534` +
+  `ProjectCreateWithQuote`): el POST no manda `expenses`. Es un hallazgo verificable en
+  navegador y toca schema + front, así que va en su propio cambio.
+- Los 15 hallazgos restantes del backlog, con repro antes de tocar nada.
+
+### Paso 5 — Deuda conocida y acotada
 - **4 módulos leen `EXCHANGE_RATES_TO_USD`** (dict de floats) haciendo round-trip sobre
   tasas que ya existen en `Decimal`. Están en la lista `DEUDA_TASAS_EN_FLOAT` de
   `test_arquitectura_fuente_unica.py`, que funciona como trinquete: la deuda no puede
