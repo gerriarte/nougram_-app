@@ -4,6 +4,7 @@ import {
     computeMemberUtilization,
     markItemAsCreatedInSession,
     isItemCreatedInSession,
+    PRICE_BELOW_COST_ERROR,
 } from '@/context/QuoteBuilderContext';
 import type {
     QuoteBuilderState,
@@ -261,6 +262,18 @@ test.describe('H13 — la sobreasignación advierte pero no bloquea', () => {
             teamMembers: [],
         });
 
-        expect(errors).toContain('CRITICAL: Price below Cost');
+        expect(errors).toContain(PRICE_BELOW_COST_ERROR);
+    });
+
+    test('allowLowMargin es la vía de escape del precio bajo costo', () => {
+        // Sin esto el usuario queda en un callejón sin salida: el error apaga isValid y
+        // no hay forma de crear la propuesta aunque vender bajo costo sea intencional.
+        const { errors } = computeQuoteBuilderValidation({
+            state: makeState({ items: [makeItem()], allowLowMargin: true }),
+            summary: { totalClientPrice: 100, totalInternalCost: 500 },
+            teamMembers: [],
+        });
+
+        expect(errors).not.toContain(PRICE_BELOW_COST_ERROR);
     });
 });

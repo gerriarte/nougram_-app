@@ -114,6 +114,13 @@ export interface QuoteBuilderValidation {
 }
 
 /**
+ * Error de precio bajo costo. Exportado como constante porque el panel de errores lo
+ * detecta por identidad para ofrecer la vía de escape (`allowLowMargin`): compararlo
+ * por string literal en dos archivos es exactamente cómo estos avisos se desincronizan.
+ */
+export const PRICE_BELOW_COST_ERROR = 'El precio total está por debajo del costo interno';
+
+/**
  * Validación del builder, pura y testeable.
  *
  * Regla de alcance (H14): la descripción del ítem es obligatoria SOLO para los
@@ -162,8 +169,11 @@ export function computeQuoteBuilderValidation(input: {
                 : `${itemsMissingDescription} ítems nuevos sin descripción del alcance`
         );
     }
+    // Vender bajo costo es una decisión legítima del usuario (un piloto, un cliente
+    // estratégico), no un dato faltante: por eso bloquea, pero con una vía de escape
+    // explícita (`allowLowMargin`, que el panel de errores ofrece como checkbox).
     if (summary.totalClientPrice < summary.totalInternalCost && !state.allowLowMargin) {
-        errors.push('CRITICAL: Price below Cost');
+        errors.push(PRICE_BELOW_COST_ERROR);
     }
 
     const allocatedMemberIds = Array.from(new Set([
