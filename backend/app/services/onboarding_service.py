@@ -12,8 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.calculations import calculate_blended_cost_rate
-from app.core.currency import EXCHANGE_RATES_TO_USD
+from app.core.currency import EXCHANGE_RATES_TO_USD, resolve_primary_currency
 from app.core.sheets import get_sheets_client
+from app.core.social_charges import resolve_social_charges_multiplier
 from app.models.cost import CostFixed
 from app.models.equipment import EquipmentAmortization
 from app.models.team import TeamMember
@@ -690,17 +691,19 @@ class OnboardingService:
             if request.organization_name:
                 org.name = request.organization_name
 
-            # Update primary currency
-            if request_currency:
-                if org.settings is None:
-                    org.settings = {}
-                org.settings["primary_currency"] = request_currency
-                # Keep legacy key aligned to avoid mixed legacy/current settings.
-                org.settings["currency"] = request_currency
-
             # Update settings with onboarding data
             if org.settings is None:
                 org.settings = {}
+
+            # Update primary currency. Completar onboarding SIEMPRE debe dejar la
+            # moneda primaria persistida: si el request no trae una, se resuelve con
+            # el resolver canónico (que puede derivarla del país declarado).
+            effective_currency = request_currency or resolve_primary_currency(
+                {**org.settings, "country": request_country}
+            )
+            org.settings["primary_currency"] = effective_currency
+            # Keep legacy key aligned to avoid mixed legacy/current settings.
+            org.settings["currency"] = effective_currency
 
             if request.organization_description:
                 org.settings["description"] = request.organization_description
@@ -952,22 +955,9 @@ class OnboardingService:
                 )
 
         # Calculate total salaries
-        social_multiplier = Decimal("1")
-        social_config = request.social_charges_config or {}
-        if social_config.get("enable_social_charges"):
-            total_percentage = Decimal("0")
-            total_percentage += Decimal(str(social_config.get("health_percentage", 0) or 0))
-            total_percentage += Decimal(str(social_config.get("pension_percentage", 0) or 0))
-            total_percentage += Decimal(str(social_config.get("arl_percentage", 0) or 0))
-            total_percentage += Decimal(str(social_config.get("parafiscales_percentage", 0) or 0))
-            total_percentage += Decimal(str(social_config.get("prima_services_percentage", 0) or 0))
-            total_percentage += Decimal(str(social_config.get("cesantias_percentage", 0) or 0))
-            total_percentage += Decimal(str(social_config.get("int_cesantias_percentage", 0) or 0))
-            total_percentage += Decimal(str(social_config.get("vacations_percentage", 0) or 0))
-            if total_percentage == 0:
-                total_percentage = Decimal(str(social_config.get("total_percentage", 0) or 0))
-            if total_percentage > 0:
-                social_multiplier = Decimal("1") + (total_percentage / Decimal("100"))
+        # Misma precedencia que el BCR definitivo: total_percentage manda,
+        # el desglose es fallback legacy (app/core/social_charges.py).
+        social_multiplier = resolve_social_charges_multiplier(request.social_charges_config or {})
 
         total_salaries = sum(
             Decimal(str(member.salary_monthly_brute)) * social_multiplier

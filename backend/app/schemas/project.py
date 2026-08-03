@@ -130,6 +130,9 @@ class QuoteItemCreate(BaseModel):
     custom_service_name: str | None = Field(
         None, description="User-defined service label for this quote item"
     )
+    description: str | None = Field(
+        None, description="Scope detail for this item, shown in the client proposal"
+    )
     estimated_hours: float | None = Field(
         None, description="Estimated hours (required for hourly pricing)", ge=0
     )
@@ -151,6 +154,11 @@ class QuoteItemCreate(BaseModel):
     )
     project_value: Decimal | None = Field(
         None, description="Project value (for project_value pricing)", ge=0
+    )
+    client_price_override: Decimal | None = Field(
+        None,
+        description="Manual client price set by the user; overrides the derived price",
+        ge=0,
     )
     allocations: list["QuoteItemAllocationCreate"] = Field(
         default_factory=list, description="Resource allocations for this quote item"
@@ -178,6 +186,7 @@ class QuoteItemResponse(BaseModel):
     service_id: int
     service_name: str | None = None
     custom_service_name: str | None = None
+    description: str | None = None
     estimated_hours: float | None = None
     internal_cost: Decimal | None = None
     client_price: Decimal | None = None
@@ -188,6 +197,7 @@ class QuoteItemResponse(BaseModel):
     recurring_price: Decimal | None = None
     billing_frequency: str | None = None
     project_value: Decimal | None = None
+    client_price_override: Decimal | None = None
     allocations: list["QuoteItemAllocationResponse"] = Field(default_factory=list)
     cell_assignment: Optional["QuoteItemCellAssignmentResponse"] = None
 

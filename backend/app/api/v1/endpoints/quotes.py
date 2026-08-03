@@ -13,6 +13,7 @@ from app.core.calculations import (
     calculate_quote_totals_enhanced,
     calculate_rentability_analysis,
 )
+from app.core.currency import DEFAULT_CURRENCY, resolve_primary_currency
 from app.core.database import get_db
 from app.core.permission_middleware import require_create_quotes
 from app.core.security import get_current_user
@@ -115,16 +116,16 @@ async def calculate_quote(
     # Get organization primary currency (Sprint 18/19)
     from app.models.organization import Organization
 
-    primary_currency = "USD"
+    primary_currency = DEFAULT_CURRENCY
     social_config = None
     if current_user.organization_id:
         result = await db.execute(
             select(Organization).where(Organization.id == current_user.organization_id)
         )
         org = result.scalar_one_or_none()
-        if org and org.settings:
-            primary_currency = org.settings.get("primary_currency", "USD")
-            social_config = org.settings.get("social_charges_config")
+        if org:
+            primary_currency = resolve_primary_currency(org)
+            social_config = (org.settings or {}).get("social_charges_config")
 
     # Calculate blended cost rate (needed for hourly calculations and internal cost estimates)
     blended_rate = await calculate_blended_cost_rate(
@@ -136,8 +137,11 @@ async def calculate_quote(
 
     # Convert request items to dict format for enhanced calculation
     items_dict = []
-    for item in request.items:
+    for item_index, item in enumerate(request.items):
         item_dict = {
+            # Clave estable: el preview devuelve el breakdown sin colapsar ítems que
+            # comparten service_id, igual que el flujo de guardado.
+            "item_key": item_index,
             "service_id": item.service_id,
             "estimated_hours": item.estimated_hours,
             "pricing_type": item.pricing_type,
@@ -146,6 +150,7 @@ async def calculate_quote(
             "recurring_price": item.recurring_price,
             "billing_frequency": item.billing_frequency,
             "project_value": item.project_value,
+            "client_price_override": item.client_price_override,
         }
         items_dict.append(item_dict)
 

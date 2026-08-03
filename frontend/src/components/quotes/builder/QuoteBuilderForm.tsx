@@ -4,7 +4,7 @@
 import React from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { useQuoteBuilder } from '@/context/QuoteBuilderContext';
+import { useQuoteBuilder, PRICE_BELOW_COST_ERROR } from '@/context/QuoteBuilderContext';
 import { QuoteItemRow } from './QuoteItemRow';
 import { ContingencySection } from './ContingencySection';
 import { ClientSelector } from './ClientSelector';
@@ -80,9 +80,9 @@ export function QuoteBuilderForm() {
             services.find(s => s.pricingType === targetPricingType && s.isActive) ||
             services.find(s => s.isActive);
         if (!candidateService) return;
-        const sameTypeCount = state.items.filter(i => i.pricingType === targetPricingType).length;
-        const labelMap = { hourly: 'Por horas', fixed: 'Precio fijo', recurring: 'Mensual' };
-        addItem(candidateService.id, `${labelMap[targetPricingType]} ${sameTypeCount + 1}`, targetPricingType);
+        // Título vacío a propósito: antes se autocompletaba con etiquetas genéricas
+        // ("Por horas 1") que quedaban guardadas tal cual en la cotización.
+        addItem(candidateService.id, '', targetPricingType);
     };
 
     const hasProjectName = typeof state.projectName === 'string' && state.projectName.trim().length > 0;
@@ -212,10 +212,29 @@ export function QuoteBuilderForm() {
                 <div className="flex items-start gap-3 rounded-xl border border-yellow-200 bg-warning-soft px-4 py-3.5">
                     <AlertTriangle size={15} className="mt-0.5 shrink-0 text-warning" />
                     <div>
+                        {/* No todos los errores son campos vacíos (el precio bajo costo no lo es),
+                            así que el título no puede prometer que se resuelven completando datos. */}
                         <p className="text-[12.5px] font-semibold text-amber-700">
-                            Faltan {errors.length} campos antes de crear la propuesta
+                            {errors.length === 1
+                                ? 'Queda algo por resolver antes de crear la propuesta'
+                                : `Quedan ${errors.length} cosas por resolver antes de crear la propuesta`}
                         </p>
                         <p className="mt-1 text-[12px] text-gray-600">{errors.join(' · ')}</p>
+                        {errors.includes(PRICE_BELOW_COST_ERROR) && (
+                            <label className="mt-2.5 flex items-start gap-2 text-[12px] text-gray-700">
+                                <input
+                                    type="checkbox"
+                                    className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-amber-600"
+                                    checked={state.allowLowMargin}
+                                    onChange={e => updateProjectInfo({ allowLowMargin: e.target.checked })}
+                                />
+                                <span>
+                                    Vender por debajo del costo a propósito.
+                                    <span className="text-gray-500"> Marcá esto si la decisión es intencional
+                                    (piloto, cliente estratégico) y querés crear la propuesta igual.</span>
+                                </span>
+                            </label>
+                        )}
                     </div>
                 </div>
             )}

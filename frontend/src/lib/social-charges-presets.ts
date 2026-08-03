@@ -169,6 +169,21 @@ export function getSocialChargesPresetMetaByCountry(countryCode?: string): Prese
   return PRESETS_BY_COUNTRY[resolved] || PRESETS_BY_COUNTRY.US;
 }
 
+/**
+ * Total patronal (%) del país. Fuente única para cualquier estimación local:
+ * evita que se replique el 52.852 colombiano hardcodeado en cada pantalla.
+ * El cálculo real de nómina lo hace el backend con el config de la organización.
+ */
+export function getSocialChargesTotalPercentageByCountry(countryCode?: string): number {
+  const preset = getSocialChargesPresetMetaByCountry(countryCode);
+  return preset.totalPercentage ?? computeTotal(preset.percentages);
+}
+
+/** Multiplicador (1 + cargas) del país, para estimaciones locales. */
+export function getSocialChargesMultiplierByCountry(countryCode?: string): number {
+  return 1 + getSocialChargesTotalPercentageByCountry(countryCode) / 100;
+}
+
 /** True si el país (ISO-2/3) tiene un preset de cargas sociales curado. */
 export function hasSocialChargesPreset(countryCode?: string): boolean {
   if (!countryCode) return false;

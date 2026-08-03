@@ -8,8 +8,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.calculations import calculate_blended_cost_rate
-from app.core.currency import EXCHANGE_RATES_TO_USD, normalize_to_primary_currency
+from app.core.calculations import (
+    calculate_blended_cost_rate,
+    calculate_monthly_equipment_amortization,
+)
+from app.core.capacity import total_monthly_billable_hours
+from app.core.currency import (
+    EXCHANGE_RATES_TO_USD,
+    get_exchange_rates_metadata,
+    normalize_to_primary_currency,
+)
 from app.core.database import get_db
 from app.core.exceptions import ResourceNotFoundError
 from app.core.logging import get_logger
@@ -23,6 +31,7 @@ from app.core.permissions import (
     PermissionError,
 )
 from app.core.security import get_current_user
+from app.core.social_charges import resolve_social_charges_multiplier
 from app.core.tenant import TenantContext, get_tenant_context
 from app.models.cost import CostFixed
 from app.models.role import DeleteRequest
@@ -436,9 +445,13 @@ async def calculate_agency_cost_hour(
     All costs are normalized to the primary currency before calculation
     """
 
+    # La moneda primaria se resuelve FUERA del try grande: si algo más abajo falla,
+    # la respuesta degradada no debe reportar USD para una organización que cotiza
+    # en otra moneda.
+    settings_service = SettingsService(db)
+    primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
+
     try:
-        settings_service = SettingsService(db)
-        primary_currency = await settings_service.get_primary_currency(tenant.organization_id)
         org_settings = tenant.organization.settings if tenant.organization.settings else {}
 
         # Calculate blended cost rate (normalized to primary currency)
@@ -503,6 +516,16 @@ async def calculate_agency_cost_hour(
             elif is_overhead or not is_tool:  # Por defecto es overhead si no coincide con ninguna
                 total_fixed_overhead += normalized_decimal
 
+        # Amortización de equipos: el BCR que devuelve este mismo endpoint la incluye en el
+        # numerador (calculations.calculate_blended_cost_rate), así que si el desglose la
+        # omite, blended_cost_rate != total_monthly_costs / total_monthly_hours y el panel
+        # financiero se contradice con la tarifa que efectivamente se factura.
+        # Viaja dentro de total_fixed_overhead (es un costo fijo mensual más).
+        equipment_amortization = await calculate_monthly_equipment_amortization(
+            db, primary_currency=primary_currency, tenant_id=tenant.organization_id
+        )
+        total_fixed_overhead += equipment_amortization
+
         total_fixed_costs = total_fixed_overhead + total_tools_costs
 
         # Get active team members salaries
@@ -510,23 +533,12 @@ async def calculate_agency_cost_hour(
         team_members = await team_repo.get_all_active()
 
         # Get organization settings for social charges (Sprint 18)
-        social_charges_multiplier = Decimal("1.0")
-        if org_settings and org_settings.get("social_charges_config"):
-            social_config = org_settings.get("social_charges_config", {})
-            if social_config.get("enable_social_charges", False):
-                total_percentage = 0
-                total_percentage += social_config.get("health_percentage", 0) or 0
-                total_percentage += social_config.get("pension_percentage", 0) or 0
-                total_percentage += social_config.get("arl_percentage", 0) or 0
-                total_percentage += social_config.get("parafiscales_percentage", 0) or 0
-                total_percentage += social_config.get("prima_services_percentage", 0) or 0
-                total_percentage += social_config.get("cesantias_percentage", 0) or 0
-                total_percentage += social_config.get("int_cesantias_percentage", 0) or 0
-                total_percentage += social_config.get("vacations_percentage", 0) or 0
-
-                social_charges_multiplier = Decimal("1") + (
-                    Decimal(str(total_percentage)) / Decimal("100")
-                )
+        # País-agnóstico: total_percentage es la fuente de verdad; el desglose es
+        # fallback legacy. Misma implementación que calculate_blended_cost_rate,
+        # si no el endpoint se contradice a sí mismo (total_salaries vs BCR).
+        social_charges_multiplier = resolve_social_charges_multiplier(
+            (org_settings or {}).get("social_charges_config")
+        )
 
         total_salaries = Decimal("0")
         currency_counts = {}
@@ -559,12 +571,10 @@ async def calculate_agency_cost_hour(
 
         # Calculate total billable hours per month across all members
         # Consider non_billable_hours_percentage (consistent with calculate_blended_cost_rate)
-        total_hours = sum(
-            member.billable_hours_per_week
-            * 4.33
-            * (1 - (member.non_billable_hours_percentage or 0.0))
-            for member in team_members
-        )
+        # ESTÁNDAR NOUGRAM: todo en Decimal. non_billable_hours_percentage es Numeric(10,4)
+        # y SQLAlchemy lo devuelve como Decimal: mezclarlo con float revienta con TypeError.
+        # Implementación única en app/core/capacity.py (ver H49: el campo ya es facturable).
+        total_hours = total_monthly_billable_hours(list(team_members))
 
         # Collect currency distribution info
         # ESTÁNDAR NOUGRAM: Usar Decimal para total_amount
@@ -630,21 +640,47 @@ async def calculate_agency_cost_hour(
             total_fixed_overhead=total_fixed_overhead,
             total_tools_costs=total_tools_costs,
             total_salaries=total_salaries,
-            total_monthly_hours=round(total_hours, 2),
+            total_monthly_hours=float(round(total_hours, 2)),
             active_team_members=len(team_members),
             primary_currency=primary_currency,
             currencies_used=currencies_used,
-            exchange_rates_date=datetime.now().isoformat(),
+            # Vintage REAL de las tasas usadas (EXCHANGE_RATES_AS_OF), no la hora de la
+            # request: datetime.now() afirmaba que las tasas eran de hoy cuando en verdad
+            # son estáticas y de 2024-01-01.
+            exchange_rates_date=get_exchange_rates_metadata()["as_of"],
         )
+    except HTTPException:
+        # Errores de negocio/permisos ya modelados: no se degradan a ceros.
+        raise
+    except (TypeError, ValueError, ArithmeticError, AttributeError, LookupError) as e:
+        # Errores de programación (mezclar float con Decimal, campos ausentes, etc.).
+        # NO se pueden devolver como una respuesta de ceros: un bug aritmético queda
+        # indistinguible de una organización sin datos cargados y el panel muestra 0
+        # sin que nadie se entere. Que explote con 500 y quede en los logs.
+        logger.error(
+            "Error calculating blended cost rate",
+            error=str(e),
+            error_type=type(e).__name__,
+            user_id=current_user.id,
+            organization_id=tenant.organization_id,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error calculating agency cost per hour",
+        ) from e
     except Exception as e:
-        # Log error and return default values
+        # Fallos de infraestructura/datos: se degrada la respuesta, pero conservando
+        # la moneda primaria real de la organización.
         # ESTÁNDAR NOUGRAM: Usar Decimal para valores por defecto
         from decimal import Decimal
 
         logger.error(
             "Error calculating blended cost rate",
             error=str(e),
+            error_type=type(e).__name__,
             user_id=current_user.id,
+            organization_id=tenant.organization_id,
             exc_info=True,
         )
         return BlendedCostRateResponse(
@@ -652,7 +688,7 @@ async def calculate_agency_cost_hour(
             total_monthly_costs=Decimal("0"),
             total_monthly_hours=0.0,
             active_team_members=0,
-            primary_currency="USD",
+            primary_currency=primary_currency,
             currencies_used=[],
-            exchange_rates_date=datetime.now().isoformat(),
+            exchange_rates_date=get_exchange_rates_metadata()["as_of"],
         )

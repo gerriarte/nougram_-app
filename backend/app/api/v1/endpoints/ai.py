@@ -6,13 +6,16 @@ import time
 from asyncio import Lock
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.capacity import total_monthly_billable_hours
 from app.core.config import settings
+from app.core.currency import normalize_to_primary_currency, resolve_primary_currency
 from app.core.database import get_db
 from app.core.error_codes import ErrorCode
 from app.core.logging import get_logger
@@ -66,6 +69,34 @@ async def _enforce_ai_rate_limit_by_plan(tenant: TenantContext) -> None:
             )
 
         bucket.append(now)
+
+
+async def _resolve_org_primary_currency(
+    db: AsyncSession, organization_id: int, organization: Organization | None = None
+) -> str:
+    """
+    Resolve the primary currency of THIS tenant.
+
+    Nunca se consulta `agency_settings`: esa tabla no tiene organization_id
+    (ver app/models/settings.py y repositories/settings_repository.py), así que
+    leerla como fallback devuelve la moneda que dejó otro tenant. El invariante
+    del proyecto (settings_service.py: "the resolver never inherits another
+    tenant's global override") vale también acá.
+    """
+    org = organization
+    if org is None or getattr(org, "id", None) != organization_id:
+        try:
+            result = await db.execute(
+                select(Organization).where(Organization.id == organization_id)
+            )
+            org = result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(
+                f"Error loading organization {organization_id} to resolve currency: {e}",
+                exc_info=True,
+            )
+            org = None
+    return resolve_primary_currency(org)
 
 
 class AIAnalysisRequest(BaseModel):
@@ -362,6 +393,11 @@ async def parse_document(
         # AI returns floats, but schemas expect Decimal for monetary values
         from decimal import Decimal
 
+        # Moneda por defecto = la de la organización, NO "USD" a ciegas.
+        # Un payroll en COP previsualizado como USD invita a confirmar la importación
+        # con la moneda equivocada (factor 4000x contra el BCR).
+        default_currency = await _resolve_org_primary_currency(db, tenant.organization_id)
+
         # Convert team members
         team_members_data = []
         for member in data.get("team_members", []):
@@ -374,8 +410,8 @@ async def parse_document(
             elif member_dict.get("name"):
                 member_dict["salary_monthly_brute"] = Decimal("1000")
             # Ensure required fields have defaults
-            if "currency" not in member_dict:
-                member_dict["currency"] = "USD"
+            if not member_dict.get("currency"):
+                member_dict["currency"] = default_currency
             if "billable_hours_per_week" not in member_dict:
                 member_dict["billable_hours_per_week"] = 32
             if "is_active" not in member_dict:
@@ -390,8 +426,8 @@ async def parse_document(
             if "amount_monthly" in cost_dict:
                 cost_dict["amount_monthly"] = Decimal(str(cost_dict["amount_monthly"]))
             # Ensure required fields have defaults
-            if "currency" not in cost_dict:
-                cost_dict["currency"] = "USD"
+            if not cost_dict.get("currency"):
+                cost_dict["currency"] = default_currency
             fixed_costs_data.append(cost_dict)
 
         # Validate and convert to Pydantic schema
@@ -752,13 +788,19 @@ async def _build_financial_context_safe(
     Build financial context safely, with fallbacks for missing data
     Filter by organization_id for multi-tenancy.
     """
+    from app.core.calculations import calculate_blended_cost_rate, get_organization_cost_breakdown
     from app.models.cost import CostFixed
     from app.models.project import Project, Quote
     from app.models.service import Service
-    from app.models.settings import AgencySettings
     from app.models.team import TeamMember
 
     context = {}
+
+    # 0. Moneda primaria del tenant.
+    # Se resuelve PRIMERO porque es la unidad en la que se normaliza todo lo de abajo
+    # y con la que ai_service rotula el prompt.
+    primary_currency = await _resolve_org_primary_currency(db, organization_id, organization)
+    context["primary_currency"] = primary_currency
 
     try:
         # 1. Get costs (safe)
@@ -770,15 +812,26 @@ async def _build_financial_context_safe(
         costs = costs_result.scalars().all()
 
         if costs:
-            total_costs = sum(getattr(cost, "amount_monthly", 0) for cost in costs)
+            # ESTÁNDAR NOUGRAM: amount_monthly es Numeric(19,4) -> Decimal.
+            # Arrancar el sum() en Decimal("0") para no mezclar int/float con Decimal.
+            # `currency` es por fila (models/cost.py): sumar sin normalizar mezcla
+            # unidades y después el prompt rotula el total con la moneda primaria.
+            # Mismo criterio que costs.py y calculate_blended_cost_rate.
+            total_costs = Decimal("0")
+            for cost in costs:
+                raw_amount = Decimal(str(getattr(cost, "amount_monthly", 0) or 0))
+                normalized = normalize_to_primary_currency(
+                    raw_amount, getattr(cost, "currency", None) or "USD", primary_currency
+                )
+                total_costs += Decimal(str(getattr(normalized, "amount", normalized)))
             context["total_monthly_costs"] = total_costs
             context["costs_count"] = len(costs)
         else:
-            context["total_monthly_costs"] = 0
+            context["total_monthly_costs"] = Decimal("0")
             context["costs_count"] = 0
     except Exception as e:
-        print(f"Error loading costs: {e}")
-        context["total_monthly_costs"] = 0
+        logger.error(f"Error loading costs for financial context: {e}", exc_info=True)
+        context["total_monthly_costs"] = Decimal("0")
         context["costs_count"] = 0
 
     try:
@@ -791,29 +844,48 @@ async def _build_financial_context_safe(
         team_members = team_result.scalars().all()
 
         if team_members:
-            # Calculate hours (billable_hours_per_week * 4.33)
-            total_hours = sum(
-                getattr(member, "billable_hours_per_week", 0) * 4.33 for member in team_members
-            )
+            # Horas facturables del mes. Implementación única en app/core/capacity.py:
+            # `billable_hours_per_week` ya es facturable y no se le vuelve a descontar
+            # `non_billable_hours_percentage` (ver H49). Devuelve Decimal, que es lo que
+            # necesita la división de abajo — con float reventaba con TypeError y el
+            # except dejaba equipo/horas/BCR en cero para toda org con costos.
+            total_hours = total_monthly_billable_hours(list(team_members))
+
             context["team_size"] = len(team_members)
             context["total_monthly_hours"] = round(total_hours, 2)
-
-            # Blended rate
-            if total_hours > 0 and context["total_monthly_costs"] > 0:
-                context["blended_cost_rate"] = round(
-                    context["total_monthly_costs"] / total_hours, 2
-                )
-            else:
-                context["blended_cost_rate"] = 0
         else:
             context["team_size"] = 0
-            context["total_monthly_hours"] = 0
-            context["blended_cost_rate"] = 0
+            context["total_monthly_hours"] = Decimal("0")
     except Exception as e:
-        print(f"Error loading team: {e}")
+        # Un error de programación acá no debe verse igual que "la org no cargó equipo".
+        logger.error(f"Error loading team for financial context: {e}", exc_info=True)
         context["team_size"] = 0
-        context["total_monthly_hours"] = 0
-        context["blended_cost_rate"] = 0
+        context["total_monthly_hours"] = Decimal("0")
+
+    try:
+        # 2b. Nómina y Blended Cost Rate: implementación ÚNICA (app/core/calculations.py).
+        # Antes acá se dividía SOLO los costos fijos por las horas y se rotulaba
+        # "Blended Cost Rate": eso ignora sueldos, cargas sociales y amortización, y
+        # le informaba a la IA una hora ~4x más barata que la real.
+        breakdown = await get_organization_cost_breakdown(db, organization_id)
+        context["total_monthly_payroll"] = Decimal(str(breakdown.get("total_salaries", 0) or 0))
+        context["total_monthly_agency_costs"] = Decimal(
+            str(breakdown.get("total_monthly_costs", 0) or 0)
+        )
+        context["blended_cost_rate"] = round(
+            await calculate_blended_cost_rate(
+                db,
+                primary_currency=primary_currency,
+                use_cache=False,
+                tenant_id=organization_id,
+            ),
+            2,
+        )
+    except Exception as e:
+        logger.error(f"Error computing blended cost rate for context: {e}", exc_info=True)
+        context.setdefault("total_monthly_payroll", Decimal("0"))
+        context.setdefault("total_monthly_agency_costs", Decimal("0"))
+        context["blended_cost_rate"] = Decimal("0")
 
     try:
         # 3. Get services (safe)
@@ -835,7 +907,7 @@ async def _build_financial_context_safe(
             for service in services
         ]
     except Exception as e:
-        print(f"Error loading services: {e}")
+        logger.error(f"Error loading services for financial context: {e}", exc_info=True)
         context["services"] = []
 
     try:
@@ -884,24 +956,11 @@ async def _build_financial_context_safe(
                         }
                     )
             except Exception as e:
-                print(f"Error processing project {project.id}: {e}")
+                logger.error(f"Error processing project {project.id}: {e}", exc_info=True)
                 continue
     except Exception as e:
-        print(f"Error loading projects: {e}")
+        logger.error(f"Error loading projects for financial context: {e}", exc_info=True)
         context["projects"] = []
 
-        # 5. Get settings
-        primary_currency = "USD"
-        if organization and organization.settings:
-            primary_currency = organization.settings.get("primary_currency", "USD")
-        else:
-            # Fallback to general settings
-            settings_result = await db.execute(select(AgencySettings))
-            settings_obj = settings_result.scalar_one_or_none()
-            primary_currency = (
-                getattr(settings_obj, "primary_currency", "USD") if settings_obj else "USD"
-            )
-
-        context["primary_currency"] = primary_currency
-
+    # La moneda primaria ya quedó resuelta en el paso 0 (antes de normalizar nada).
     return context

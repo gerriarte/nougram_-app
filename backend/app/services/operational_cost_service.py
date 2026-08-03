@@ -14,6 +14,8 @@ from app.core.currency import normalize_to_primary_currency
 from app.core.exceptions import BusinessLogicError
 from app.core.logging import get_logger
 from app.core.money import Money
+from app.core.quote_taxes import quote_taxable_base
+from app.core.social_charges import resolve_social_charges_multiplier
 from app.models.cost import CostFixed
 from app.models.equipment import EquipmentAmortization
 from app.models.organization import Organization
@@ -143,26 +145,15 @@ def _to_decimal(value) -> Decimal:
 
 
 async def _get_social_charges_multiplier(db: AsyncSession, organization_id: int) -> Decimal:
-    """Return 1 + (total_percentage/100) from org social_charges_config, or 1.0."""
+    """Return 1 + (total_percentage/100) from org social_charges_config, or 1.0.
+
+    Delega en app/core/social_charges.py (implementación única).
+    """
     result = await db.execute(select(Organization).where(Organization.id == organization_id))
     org = result.scalar_one_or_none()
-    if not org or not org.settings or not org.settings.get("social_charges_config"):
+    if not org or not org.settings:
         return Decimal("1.0")
-    cfg = org.settings.get("social_charges_config", {})
-    if not cfg.get("enable_social_charges", False):
-        return Decimal("1.0")
-    total = Decimal("0")
-    total += Decimal(str(cfg.get("health_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("pension_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("arl_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("parafiscales_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("prima_services_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("cesantias_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("int_cesantias_percentage", 0) or 0))
-    total += Decimal(str(cfg.get("vacations_percentage", 0) or 0))
-    if total == 0:
-        total = Decimal(str(cfg.get("total_percentage", 0) or 0))
-    return Decimal("1") + (total / Decimal("100"))
+    return resolve_social_charges_multiplier(org.settings.get("social_charges_config"))
 
 
 async def _compute_resource_costs(
@@ -339,6 +330,8 @@ async def _compute_tax_costs(
     rows_result = await db.execute(
         select(
             Quote.total_client_price,
+            Quote.contingency_type,
+            Quote.contingency_value,
             Project.currency,
             Tax.percentage,
         )
@@ -357,14 +350,23 @@ async def _compute_tax_costs(
     )
     rows = rows_result.all()
     total = Decimal("0")
-    for total_client_price, project_currency, tax_percentage in rows:
-        price = _to_decimal(total_client_price)
+    for (
+        total_client_price,
+        contingency_type,
+        contingency_value,
+        project_currency,
+        tax_percentage,
+    ) in rows:
         percentage = _to_decimal(tax_percentage)
         if percentage < 0:
             raise BusinessLogicError(
                 f"Invalid negative tax percentage in organization {organization_id}"
             )
-        tax_amount = price * (percentage / Decimal("100"))
+        # El impuesto grava la base SIN contingencia, igual que en el presupuesto y en el
+        # PDF que ve el cliente (app/core/quote_taxes.py). Gravar total_client_price
+        # entero sobreestimaba la carga tributaria del período en tasa × contingencia.
+        base = quote_taxable_base(total_client_price, contingency_type, contingency_value)
+        tax_amount = base * (percentage / Decimal("100"))
         normalized = normalize_to_primary_currency(
             tax_amount,
             project_currency or "USD",

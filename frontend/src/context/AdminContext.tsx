@@ -10,6 +10,7 @@ import { socialChargesService } from '@/services/socialChargesService';
 import { fixedCostService } from '@/services/fixedCostService';
 import { buildSocialChargesConfigFromCurrency } from '@/lib/social-charges-presets';
 
+import { monthlyBillableHours } from '@/lib/capacity';
 // Initial Mock Data (to avoid starting empty)
 const DEFAULT_SOCIAL_CHARGES: SocialChargesConfig = {
     ...buildSocialChargesConfigFromCurrency('COP', false)
@@ -132,7 +133,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                 : 1;
 
             const monthlyCost = member.salaryMonthlyBrute * chargesMult;
-            const hoursMonth = member.billableHoursPerWeek * 4.33 * (1 - member.nonBillablePercentage);
+            const hoursMonth = monthlyBillableHours(member.billableHoursPerWeek);
 
             totalPayroll += monthlyCost;
             totalHours += hoursMonth;

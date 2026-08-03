@@ -8,16 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.business_health import calculate_monthly_operating_cost
 from app.core.calculations import calculate_blended_cost_rate
-from app.core.currency import normalize_to_primary_currency
 from app.core.database import get_db
-from app.core.money import Money
 from app.core.permission_middleware import require_view_financial_projections
 from app.core.tenant import TenantContext, get_tenant_context
-from app.models.cost import CostFixed
 from app.models.organization import Organization
 from app.models.service import Service
-from app.models.team import TeamMember
 from app.models.user import User
 from app.services.settings_service import SettingsService
 
@@ -34,8 +31,11 @@ async def get_financial_summary(
     Get financial summary for admin dashboard
 
     Returns:
-    - monthlyFixedCosts: Total monthly fixed costs (rent, utilities, etc.)
-    - monthlyPayroll: Total monthly payroll
+    - monthlyFixedCosts: Total monthly fixed costs (rent, utilities, etc.) INCLUDING
+      the monthly depreciation of amortized equipment
+    - monthlyAmortization: Monthly equipment depreciation (already inside monthlyFixedCosts)
+    - monthlyPayroll: Total monthly payroll WITH employer social charges
+    - totalMonthlyCosts: monthlyFixedCosts + monthlyPayroll (BCR cost basis)
     - totalBillableHours: Total billable hours capacity
     - blendedCostRate: Calculated BCR
     - activeTeamMembers: Number of active team members
@@ -69,57 +69,27 @@ async def get_financial_summary(
     if org.settings:
         social_config = org.settings.get("social_charges_config")
 
-    # Calculate monthly fixed costs
-    fixed_costs_query = select(CostFixed).where(
-        CostFixed.organization_id == tenant.organization_id, CostFixed.deleted_at.is_(None)
+    # Base de costos: EXACTAMENTE la misma que el numerador del BCR
+    # (costos fijos + amortización de equipos + nómina CON cargas sociales).
+    # Antes este endpoint sumaba los sueldos en crudo y no miraba la amortización, así que
+    # monthlyFixedCosts + monthlyPayroll quedaba por debajo del costo que el propio
+    # blendedCostRate de la misma respuesta ya incluía: el break-even del front
+    # (totalCosts / blendedBillRate) daba un punto de equilibrio inalcanzablemente optimista.
+    operating = await calculate_monthly_operating_cost(
+        db,
+        primary_currency=primary_currency,
+        tenant_id=tenant.organization_id,
+        social_charges_config=social_config,
     )
-    fixed_costs_result = await db.execute(fixed_costs_query)
-    fixed_costs = fixed_costs_result.scalars().all()
 
-    monthly_fixed_costs = Decimal("0")
-    for cost in fixed_costs:
-        normalized = normalize_to_primary_currency(
-            cost.amount_monthly, cost.currency or "USD", primary_currency
-        )
-        if isinstance(normalized, Money):
-            normalized_decimal = normalized.amount
-        else:
-            normalized_decimal = Decimal(str(normalized))
-        monthly_fixed_costs += normalized_decimal
-
-    # Calculate monthly payroll
-    team_members_query = select(TeamMember).where(
-        TeamMember.organization_id == tenant.organization_id, TeamMember.is_active
-    )
-    team_members_result = await db.execute(team_members_query)
-    team_members = team_members_result.scalars().all()
-
-    monthly_payroll = Decimal("0")
-    active_team_members = 0
-    total_billable_hours = Decimal("0")
-
-    for member in team_members:
-        active_team_members += 1
-
-        # Calculate monthly salary (normalize to primary currency)
-        if member.salary_monthly_brute:
-            normalized_salary = normalize_to_primary_currency(
-                member.salary_monthly_brute, member.currency or "USD", primary_currency
-            )
-            if isinstance(normalized_salary, Money):
-                monthly_payroll += normalized_salary.amount
-            else:
-                monthly_payroll += Decimal(str(normalized_salary))
-
-        # Calculate billable hours (monthly capacity)
-        if member.billable_hours_per_week:
-            non_billable = Decimal(str(member.non_billable_hours_percentage or 0))
-            monthly_hours = (
-                Decimal(str(member.billable_hours_per_week))
-                * Decimal("4.33")
-                * (Decimal("1") - non_billable)
-            )  # Average weeks per month adjusted by non billable ratio
-            total_billable_hours += monthly_hours
+    monthly_amortization = operating["total_equipment"]
+    # La amortización viaja dentro de monthlyFixedCosts para que
+    # monthlyFixedCosts + monthlyPayroll == base de costos del BCR; se expone además
+    # desagregada en monthlyAmortization.
+    monthly_fixed_costs = operating["total_fixed"] + monthly_amortization
+    monthly_payroll = operating["total_payroll"]
+    total_billable_hours = operating["billable_hours"]
+    active_team_members = operating["active_team_members"]
 
     # Calculate blended cost rate
     blended_rate = await calculate_blended_cost_rate(
@@ -156,7 +126,9 @@ async def get_financial_summary(
 
     response = {
         "monthlyFixedCosts": float(monthly_fixed_costs),
+        "monthlyAmortization": float(monthly_amortization),
         "monthlyPayroll": float(monthly_payroll),
+        "totalMonthlyCosts": float(operating["total_monthly_cost"]),
         "totalBillableHours": float(total_billable_hours),
         "blendedCostRate": float(blended_rate),
         "blendedBillRate": float(blended_bill_rate),

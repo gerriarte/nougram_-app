@@ -14,6 +14,60 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 let lastExpiredTokenNotified: string | null = null;
 let refreshPromise: Promise<boolean> | null = null;
 
+/**
+ * Tope de tiempo para que una llamada a la API termine (incluye reintentos y la
+ * lectura del cuerpo de la respuesta).
+ *
+ * Sin esto, `fetch` no settlea NUNCA si el backend se cuelga a nivel TCP: no hay
+ * error, no hay respuesta, la promesa queda pendiente para siempre y con ella el
+ * `finally` que apaga el spinner. Cualquier pantalla que espere una respuesta
+ * (useAuth, la hidratación de NougramCoreContext) gira indefinidamente.
+ *
+ * Configurable por entorno; 30s es holgado incluso para exportar un PDF grande.
+ */
+const DEFAULT_TIMEOUT_MS = 30_000;
+const API_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_TIMEOUT_MS;
+})();
+
+const TIMEOUT_REASON = "nougram:timeout";
+
+/**
+ * Señal que aborta por timeout, y también si el caller aborta la suya.
+ *
+ * Vive durante TODA la llamada (no sólo el `fetch`): abortarla corta también la
+ * lectura del body, que es el otro lugar donde una conexión muerta se cuelga.
+ */
+function createDeadlineSignal(external?: AbortSignal | null): {
+  signal: AbortSignal;
+  timedOut: () => boolean;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  let didTimeOut = false;
+
+  const timer = setTimeout(() => {
+    didTimeOut = true;
+    controller.abort(TIMEOUT_REASON);
+  }, API_TIMEOUT_MS);
+
+  const onExternalAbort = () => controller.abort(external?.reason);
+  if (external) {
+    if (external.aborted) onExternalAbort();
+    else external.addEventListener("abort", onExternalAbort, { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    timedOut: () => didTimeOut,
+    cleanup: () => {
+      clearTimeout(timer);
+      external?.removeEventListener("abort", onExternalAbort);
+    },
+  };
+}
+
 type RefreshResponse = {
   access_token: string;
   refresh_token?: string;
@@ -62,6 +116,8 @@ export async function apiRequest<T>(
   const withTrailingSlash = (value: string): string =>
     value.endsWith("/") ? value : `${value}/`;
 
+  const deadline = createDeadlineSignal(options.signal);
+
   const requestOnce = async (normalizedEndpoint: string): Promise<Response> => {
     const url = `${normalizedBase}${normalizedEndpoint}`;
     const token = getAuthToken();
@@ -77,6 +133,7 @@ export async function apiRequest<T>(
     return fetch(url, {
       ...options,
       headers,
+      signal: deadline.signal,
     });
   };
 
@@ -99,6 +156,10 @@ export async function apiRequest<T>(
     if (!refreshToken) return false;
 
     refreshPromise = (async () => {
+      // Deadline propio: `refreshPromise` se comparte entre todas las llamadas en
+      // vuelo, así que colgarle la señal de una de ellas dejaría que el timeout de
+      // esa llamada le cancele el refresh a todas las demás.
+      const refreshDeadline = createDeadlineSignal();
       try {
         const refreshResponse = await fetch(`${normalizedBase}/auth/refresh`, {
           method: "POST",
@@ -106,6 +167,7 @@ export async function apiRequest<T>(
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ refresh_token: refreshToken }),
+          signal: refreshDeadline.signal,
         });
 
         if (!refreshResponse.ok) return false;
@@ -121,6 +183,7 @@ export async function apiRequest<T>(
       } catch {
         return false;
       } finally {
+        refreshDeadline.cleanup();
         refreshPromise = null;
       }
     })();
@@ -228,11 +291,24 @@ export async function apiRequest<T>(
     }
     return { data };
   } catch (error) {
+    if (deadline.timedOut()) {
+      return {
+        error: `El servidor no respondió en ${Math.round(
+          API_TIMEOUT_MS / 1000
+        )} segundos. Reintenta en unos momentos.`,
+      };
+    }
+    // Aborto del caller (p. ej. el componente se desmontó): no es un error a mostrar.
+    if (options.signal?.aborted) {
+      return { error: "Solicitud cancelada." };
+    }
     if (error instanceof TypeError && error.message === "Failed to fetch") {
       return {
         error: `Error de conexión. Verifica que el backend esté disponible en ${normalizedBase}`,
       };
     }
     return { error: error instanceof Error ? error.message : "Error de red" };
+  } finally {
+    deadline.cleanup();
   }
 }
